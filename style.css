@@ -161,3 +161,20 @@
 .img-uploading{color:var(--muted)}
 .dialog.img-view{max-width:min(92vw,1000px)}
 .dialog.img-view img{display:block;max-width:100%;max-height:75vh;margin:0 auto 14px;border-radius:10px}
+
+/* Tables */
+#editor table{border-collapse:collapse;width:100%;margin:12px 0;background:var(--paper);table-layout:fixed}
+#editor td,#editor th{border:1.5px solid color-mix(in srgb,var(--ink) 25%,transparent);padding:4px 8px;vertical-align:top;line-height:1.5;min-width:40px;word-break:break-word}
+#editor th{background:var(--accent-soft);font-weight:700}
+.tbl-size{font-weight:700;margin-bottom:8px}
+.tbl-pick{display:grid;gap:3px;margin-bottom:14px;direction:rtl}
+.tbl-pick button{aspect-ratio:1;border:1px solid var(--line);border-radius:4px;background:var(--bg);padding:0}
+.tbl-pick button.on{background:var(--accent);border-color:var(--accent)}
+.tbl-nums{display:flex;gap:12px;margin-bottom:10px}
+.tbl-nums label{flex:1;font-size:14px;color:var(--muted)}
+.tbl-nums input{margin:4px 0 0 !important}
+.tbl-hdr{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:15px}
+.tbl-hdr input{width:auto !important;margin:0 !important}
+.tbl-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.tbl-actions .btn{justify-content:center;border:1px solid var(--line)}
+.tbl-actions .btn-danger{grid-column:1/-1;border:none}

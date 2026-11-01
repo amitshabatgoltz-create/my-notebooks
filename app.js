@@ -128,7 +128,7 @@ $('sampleBtn').onclick = async () => {
 };
 
 /* ================= עזרים ================= */
-const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG']);
+const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH']);
 function clean(html) {
   const d = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
   const walk = node => [...node.childNodes].forEach(ch => {
@@ -313,6 +313,9 @@ function newBlock(tag, frag) {
 // • אם לא סימנת כלום — מה שתכתוב מעכשיו ייכתב בסגנון שבחרת
 function setBlock(tag) {
   restoreSelection();
+  { const s0 = window.getSelection(); const n0 = s0.rangeCount && s0.getRangeAt(0).startContainer;
+    const el0 = n0 && (n0.nodeType === 1 ? n0 : n0.parentElement);
+    if (el0 && el0.closest('#editor td, #editor th')) { toast('בתוך טבלה אפשר להשתמש במודגש ובמרקר'); return; } }
   const ed = $('editor'); const s = window.getSelection();
   const r0 = s.rangeCount ? s.getRangeAt(0) : null;
   const pos = r0 && [r0.startContainer, r0.startOffset, r0.endContainer, r0.endOffset];
@@ -610,4 +613,116 @@ $('editor').addEventListener('click', e => {
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
     row.append(del, close); d.append(big, row);
   });
+});
+
+
+/* ================= טבלאות ================= */
+function caretCell() {
+  const s = window.getSelection(); if (!s.rangeCount) return null;
+  const n = s.getRangeAt(0).startContainer; const el = n.nodeType === 1 ? n : n.parentElement;
+  return el && $('editor').contains(el) ? el.closest('td,th') : null;
+}
+function makeTable(rows, cols, header) {
+  const t = document.createElement('table'); const tb = document.createElement('tbody'); t.appendChild(tb);
+  for (let r = 0; r < rows; r++) {
+    const tr = document.createElement('tr');
+    for (let c = 0; c < cols; c++) { const td = document.createElement(header && r === 0 ? 'th' : 'td'); td.appendChild(document.createElement('br')); tr.appendChild(td); }
+    tb.appendChild(tr);
+  }
+  return t;
+}
+function insertTable(rows, cols, header) {
+  restoreSelection();
+  const t = makeTable(rows, cols, header);
+  insertBlockAtCaret(t);
+  const after = document.createElement('p'); after.appendChild(document.createElement('br')); t.after(after);
+  placeCaret(t.querySelector('td,th'));
+  markDirty();
+}
+const rowOf = cell => cell.parentElement;
+const tableOf = cell => cell.closest('table');
+const colIndex = cell => [...rowOf(cell).children].indexOf(cell);
+function tableAction(act, cell) {
+  const tr = rowOf(cell), t = tableOf(cell), ci = colIndex(cell);
+  const rows = [...t.querySelectorAll('tr')];
+  const newCell = tag => { const c = document.createElement(tag); c.appendChild(document.createElement('br')); return c; };
+  if (act === 'rowAfter' || act === 'rowBefore') {
+    const nr = document.createElement('tr'); [...tr.children].forEach(() => nr.appendChild(newCell('td')));
+    act === 'rowAfter' ? tr.after(nr) : tr.before(nr); placeCaret(nr.children[ci] || nr.firstChild);
+  } else if (act === 'colAfter' || act === 'colBefore') {
+    rows.forEach(r => { const ref = r.children[ci]; const c = newCell(r.firstElementChild && r.firstElementChild.tagName === 'TH' ? 'th' : 'td');
+      if (!ref) r.appendChild(c); else act === 'colAfter' ? ref.after(c) : ref.before(c); });
+    placeCaret(tr.children[act === 'colAfter' ? ci + 1 : ci]);
+  } else if (act === 'delRow') {
+    if (rows.length <= 1) return tableAction('delTable', cell);
+    const next = tr.nextElementSibling || tr.previousElementSibling; tr.remove(); placeCaret(next.children[Math.min(ci, next.children.length - 1)]);
+  } else if (act === 'delCol') {
+    if (tr.children.length <= 1) return tableAction('delTable', cell);
+    rows.forEach(r => r.children[ci] && r.children[ci].remove()); placeCaret(tr.children[Math.max(0, ci - 1)]);
+  } else if (act === 'delTable') {
+    const p = document.createElement('p'); p.appendChild(document.createElement('br')); t.replaceWith(p); placeCaret(p);
+  }
+  markDirty();
+}
+
+function tableDialog() {
+  const cell = (restoreSelection(), caretCell());
+  if (cell) {                      // הסמן בתוך טבלה — עריכת הטבלה
+    dialog(d => {
+      d.innerHTML = '<h3>עריכת טבלה</h3>';
+      const grid = document.createElement('div'); grid.className = 'tbl-actions';
+      [['rowBefore','➕ שורה מעל'],['rowAfter','➕ שורה מתחת'],['colBefore','➕ עמודה מימין'],['colAfter','➕ עמודה משמאל'],
+       ['delRow','➖ מחיקת שורה'],['delCol','➖ מחיקת עמודה'],['delTable','🗑 מחיקת הטבלה']].forEach(([a, label]) => {
+        const b = document.createElement('button'); b.className = 'btn ' + (a === 'delTable' ? 'btn-danger' : 'btn-ghost'); b.textContent = label;
+        b.onclick = () => { closeDialog(); tableAction(a, cell); }; grid.appendChild(b);
+      });
+      const tip = document.createElement('p'); tip.textContent = 'טיפ: מקש Tab עובר לתא הבא, ובתא האחרון מוסיף שורה.';
+      const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+      d.append(grid, tip, close);
+    });
+    return;
+  }
+  dialog(d => {                    // בחירת גודל לטבלה חדשה
+    d.innerHTML = '<h3>טבלה חדשה</h3><p>בחר כמה שורות וכמה עמודות</p>';
+    const N = 8; let R = 3, C = 3;
+    const label = document.createElement('div'); label.className = 'tbl-size';
+    const pick = document.createElement('div'); pick.className = 'tbl-pick'; pick.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+    const nums = document.createElement('div'); nums.className = 'tbl-nums';
+    nums.innerHTML = '<label>שורות <input id="tR" type="number" min="1" max="30" value="3"></label><label>עמודות <input id="tC" type="number" min="1" max="12" value="3"></label>';
+    const hdr = document.createElement('label'); hdr.className = 'tbl-hdr'; hdr.innerHTML = '<input id="tH" type="checkbox" checked> שורה ראשונה כותרת';
+    const paint = () => { [...pick.children].forEach((c, i) => c.classList.toggle('on', Math.floor(i / N) < R && (i % N) < C));
+      label.textContent = `${R} שורות × ${C} עמודות`; d.querySelector('#tR').value = R; d.querySelector('#tC').value = C; };
+    for (let i = 0; i < N * N; i++) {
+      const c = document.createElement('button'); c.type = 'button';
+      const r = Math.floor(i / N) + 1, col = (i % N) + 1;
+      c.onmouseenter = () => { R = r; C = col; paint(); };
+      c.onclick = () => { R = r; C = col; paint(); go(); };
+      pick.appendChild(c);
+    }
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הוספת טבלה';
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog;
+    const go = () => { const h = d.querySelector('#tH').checked; closeDialog(); insertTable(R, C, h); };
+    ok.onclick = go; row.append(ok, cancel);
+    d.append(label, pick, nums, hdr, row);
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, parseInt(v) || a));
+    d.querySelector('#tR').oninput = e => { R = clamp(e.target.value, 1, 30); paint(); };
+    d.querySelector('#tC').oninput = e => { C = clamp(e.target.value, 1, 12); paint(); };
+    paint();
+  });
+}
+$('tableBtn').addEventListener('click', tableDialog);
+
+// Tab עובר בין התאים
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const cell = caretCell(); if (!cell) return;
+  e.preventDefault();
+  const cells = [...tableOf(cell).querySelectorAll('td,th')]; const i = cells.indexOf(cell);
+  const next = cells[i + (e.shiftKey ? -1 : 1)];
+  if (next) { const r = document.createRange(); r.selectNodeContents(next); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  else if (!e.shiftKey) {
+    tableAction('rowAfter', cells[cells.length - 1]);
+    const rows = tableOf(cell).querySelectorAll('tr'); placeCaret(rows[rows.length - 1].firstElementChild);
+  }
 });
