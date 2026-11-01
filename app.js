@@ -263,47 +263,111 @@ function restoreSelection() {
   else { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); s.removeAllRanges(); s.addRange(r); }
 }
 // עוטפים טקסט "חופשי" (שלא בתוך פסקה) בפסקאות, כדי שיהיה אפשר לשנות אותו
+const BLOCK_RE = /^(P|H1|H2|H3|LI|DIV)$/;
+const INLINE = ['B','STRONG','I','EM','U','MARK','SPAN','BR'];
 function wrapLoose() {
-  const ed = $('editor'); let group = [];
+  const ed = $('editor');
+  // DIV שמכיל בתוכו שורות — מוציאים את השורות החוצה
+  ed.querySelectorAll(':scope > div').forEach(d => {
+    if ([...d.children].some(c => BLOCK_RE.test(c.tagName) || c.tagName === 'UL' || c.tagName === 'OL')) d.replaceWith(...d.childNodes);
+  });
+  let group = [];
   const flush = () => {
     if (!group.length) return;
     if (group.every(n => n.nodeType === 3 && !n.textContent.trim())) { group = []; return; }
     const p = document.createElement('p'); group[0].before(p); group.forEach(n => p.appendChild(n)); group = [];
   };
   [...ed.childNodes].forEach(n => {
-    const inline = n.nodeType === 3 || (n.nodeType === 1 && ['B','STRONG','I','EM','U','MARK','SPAN','BR'].includes(n.tagName));
+    const inline = n.nodeType === 3 || (n.nodeType === 1 && INLINE.includes(n.tagName));
     if (inline) group.push(n); else flush();
   });
   flush();
-  [...ed.children].forEach(el => { if (el.tagName === 'DIV') { const p = document.createElement('p'); p.append(...el.childNodes); el.replaceWith(p); } });
 }
-// משנים את סוג השורות שהסמן נמצא בהן: כותרת / כותרת משנה / כותרת קטנה / טקסט רגיל
+function blockOf(node) {
+  const ed = $('editor');
+  let n = node && (node.nodeType === 1 ? node : node.parentElement);
+  while (n && n !== ed) { if (BLOCK_RE.test(n.tagName)) return n; n = n.parentElement; }
+  return null;
+}
+const isEmpty = el => !el.textContent.replace(/​/g, '').trim();
+function placeCaret(el) {
+  const s = window.getSelection(); const r = document.createRange();
+  r.setStart(el, 0); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+}
+function newBlock(tag, frag) {
+  const el = document.createElement(tag);
+  if (frag) el.appendChild(frag);
+  if (!el.firstChild || isEmpty(el) && !el.querySelector('br')) { el.innerHTML = ''; el.appendChild(document.createElement('br')); }
+  return el;
+}
+
+// כותרת / כותרת משנה / כותרת קטנה / טקסט
+// • אם סימנת טקסט — רק מה שסימנת משתנה
+// • אם לא סימנת כלום — מה שתכתוב מעכשיו ייכתב בסגנון שבחרת
 function setBlock(tag) {
   restoreSelection();
   const ed = $('editor'); const s = window.getSelection();
-  let r0 = s.rangeCount ? s.getRangeAt(0) : null;
+  const r0 = s.rangeCount ? s.getRangeAt(0) : null;
   const pos = r0 && [r0.startContainer, r0.startOffset, r0.endContainer, r0.endOffset];
   wrapLoose();
   let r = null;
   if (pos) { try { r = document.createRange(); r.setStart(pos[0], pos[1]); r.setEnd(pos[2], pos[3]); } catch { r = null; } }
-  let blocks = r ? [...ed.children].filter(el => r.intersectsNode(el)) : [];
-  if (!blocks.length) {
-    const el = document.createElement(tag); el.appendChild(document.createElement('br')); ed.appendChild(el);
-    const nr = document.createRange(); nr.setStart(el, 0); nr.collapse(true); s.removeAllRanges(); s.addRange(nr);
-    return;
-  }
-  const startOff = r.startOffset, endOff = r.endOffset, startC = r.startContainer, endC = r.endContainer;
-  const allSame = blocks.every(b => b.tagName === tag.toUpperCase());
-  const target = (allSame && tag !== 'p') ? 'p' : tag;   // לחיצה שנייה על אותה כותרת מחזירה לטקסט רגיל
-  blocks.forEach(b => {
-    if (b.tagName === 'UL' || b.tagName === 'OL') {
-      const frag = [...b.children].map(li => { const el = document.createElement(target); el.append(...li.childNodes); return el; });
-      b.replaceWith(...frag);
-    } else if (b.tagName !== target.toUpperCase()) {
-      const el = document.createElement(target); el.append(...b.childNodes); b.replaceWith(el);
+
+  /* ---- בלי סימון: מכינים שורה חדשה בסגנון שנבחר ---- */
+  if (!r || r.collapsed) {
+    const B = r && blockOf(r.startContainer);
+    if (!B) { const el = newBlock(tag); ed.appendChild(el); placeCaret(el); return; }
+    if (isEmpty(B) && B.tagName !== 'LI') {           // שורה ריקה — פשוט משנים אותה
+      const el = newBlock(tag); B.replaceWith(el); placeCaret(el); return;
     }
+    if (B.tagName === 'LI') {                         // בתוך רשימה — שורה חדשה אחרי הרשימה
+      const list = B.closest('ul,ol') || B; const el = newBlock(tag); list.after(el); placeCaret(el); return;
+    }
+    // מפצלים את השורה במקום של הסמן
+    const tail = document.createRange(); tail.setStart(r.startContainer, r.startOffset); tail.setEnd(B, B.childNodes.length);
+    const afterFrag = tail.extractContents();
+    const el = newBlock(tag);
+    B.after(el);
+    const restDiv = document.createElement('div'); restDiv.appendChild(afterFrag.cloneNode(true));
+    if (!isEmpty(restDiv)) { const rest = document.createElement(B.tagName.toLowerCase()); rest.appendChild(afterFrag); el.after(rest); }
+    if (isEmpty(B)) B.remove();
+    placeCaret(el); return;
+  }
+
+  /* ---- עם סימון: משנים רק את מה שסומן ---- */
+  const leaves = [...ed.querySelectorAll('p,h1,h2,h3,li,div')]
+    .filter(el => ![...el.querySelectorAll('p,h1,h2,h3,li,div')].length && r.intersectsNode(el));
+  if (!leaves.length) return;
+  const target = (tag !== 'p' && leaves.every(el => el.tagName === tag.toUpperCase())) ? 'p' : tag; // לחיצה שנייה מחזירה לטקסט
+  const parts = leaves.map(b => ({
+    b,
+    s: b.contains(r.startContainer) ? [r.startContainer, r.startOffset] : [b, 0],
+    e: b.contains(r.endContainer) ? [r.endContainer, r.endOffset] : [b, b.childNodes.length],
+  }));
+  const made = [];
+  parts.reverse().forEach(({ b, s: st, e: en }) => {
+    const afterR = document.createRange(); afterR.setStart(en[0], en[1]); afterR.setEnd(b, b.childNodes.length);
+    const afterFrag = afterR.extractContents();
+    const midR = document.createRange(); midR.setStart(st[0], st[1]); midR.setEnd(b, b.childNodes.length);
+    const midFrag = midR.extractContents();
+    const tmp = document.createElement('div'); tmp.appendChild(midFrag.cloneNode(true));
+    if (isEmpty(tmp)) { b.appendChild(midFrag); b.appendChild(afterFrag); return; }
+    if (b.tagName === 'LI') {                          // בתוך רשימה: הכותרת נשארת בתוך אותה שורה
+      const el = target === 'p' ? null : document.createElement(target);
+      if (el) { el.appendChild(midFrag); b.appendChild(el); made.unshift(el); } else { b.appendChild(midFrag); }
+      b.appendChild(afterFrag); return;
+    }
+    const mid = document.createElement(target); mid.appendChild(midFrag);
+    mid.querySelectorAll('h1,h2,h3').forEach(h => h.replaceWith(...h.childNodes));
+    b.after(mid); made.unshift(mid);
+    const t2 = document.createElement('div'); t2.appendChild(afterFrag.cloneNode(true));
+    if (!isEmpty(t2)) { const rest = document.createElement(b.tagName.toLowerCase()); rest.appendChild(afterFrag); mid.after(rest); }
+    if (isEmpty(b)) b.remove();
   });
-  try { const nr = document.createRange(); nr.setStart(startC, startOff); nr.setEnd(endC, endOff); s.removeAllRanges(); s.addRange(nr); } catch {}
+  if (made.length) {
+    const nr = document.createRange(); nr.setStart(made[0], 0); nr.setEnd(made[made.length - 1], made[made.length - 1].childNodes.length);
+    s.removeAllRanges(); s.addRange(nr);
+  }
 }
 
 const tb = $('toolbar');
