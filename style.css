@@ -3,9 +3,10 @@
     --accent:#2f5bd3; --accent-soft:#e7eefc; --danger:#c43d3d;
     --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(31,36,48,.07);
   }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#16181d; --paper:#1f2228; --ink:#eceef2; --muted:#9aa1ad; --line:#30343c;
-      --accent:#7ea2ff; --accent-soft:#25304a; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); }
+  html[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#16181d; --paper:#1f2228; --ink:#eceef2; --muted:#9aa1ad; --line:#30343c;
+      --accent:#7ea2ff; --accent-soft:#25304a; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,sans-serif;font-size:17px;line-height:1.6}
@@ -178,3 +179,8 @@
 .tbl-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
 .tbl-actions .btn{justify-content:center;border:1px solid var(--line)}
 .tbl-actions .btn-danger{grid-column:1/-1;border:none}
+
+/* Theme toggle */
+.theme-btn{font-size:18px;padding:6px 10px;border-radius:10px}
+.theme-btn:hover{background:var(--accent-soft)}
+.login-theme{position:fixed;top:14px;left:14px}

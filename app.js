@@ -726,3 +726,17 @@ $('editor').addEventListener('keydown', e => {
     const rows = tableOf(cell).querySelectorAll('tr'); placeCaret(rows[rows.length - 1].firstElementChild);
   }
 });
+
+
+/* ================= לבן / כהה ================= */
+function applyThemeIcon() {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  document.querySelectorAll('[data-theme-toggle]').forEach(b => { b.textContent = dark ? '☀️' : '🌙'; b.title = dark ? 'מעבר ללבן' : 'מעבר לכהה'; });
+}
+document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch {}
+  applyThemeIcon();
+}));
+applyThemeIcon();
