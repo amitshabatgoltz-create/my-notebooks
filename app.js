@@ -1,11 +1,12 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
@@ -740,3 +741,103 @@ document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener
   applyThemeIcon();
 }));
 applyThemeIcon();
+
+
+/* ================= ✨ סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */
+const AI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+let aiService = null;
+function aiModel(name) {
+  if (!aiService) aiService = getAI(fb, { backend: new GoogleAIBackend() });
+  return getGenerativeModel(aiService, { model: name });
+}
+const SUMMARY_PROMPT = `אתה עוזר לתלמיד בחטיבת ביניים להתכונן למבחן.
+לפניך החומר מהמחברת שלו: טקסט, ולפעמים גם תמונות של דפי מחברת בכתב יד או של הלוח.
+הכן סיכום למבחן בעברית, ברור וקצר, שכולל:
+1. הנושאים העיקריים, כל נושא עם הנקודות החשובות שלו.
+2. מושגים והגדרות חשובים.
+3. מספרים, תאריכים, שמות או רשימות שחשוב לזכור (אם יש).
+4. טיפ או שניים לזכירה.
+5. 5 שאלות לחזרה, ואחרי כל שאלה תשובה קצרה.
+השתמש רק במידע שבמחברת. אם משהו בתמונה לא ברור, אל תמציא אותו.
+החזר HTML בלבד, בלי markdown ובלי \`\`\`. מותר להשתמש רק בתגיות: h2, h3, p, ul, ol, li, b, mark, table, tr, th, td.
+התחל בכותרת <h2>📝 סיכום למבחן</h2>.`;
+
+async function notebookParts() {
+  const ed = $('editor');
+  const text = ed.innerText.trim();
+  const images = [];
+  for (const img of ed.querySelectorAll('img')) {
+    const src = img.src || imgCache.get(img.getAttribute('data-img')) || '';
+    const m = src.match(/^data:(image\/[\w+.-]+);base64,(.+)$/);
+    if (m && images.length < 10) images.push({ inlineData: { mimeType: m[1], data: m[2] } });
+  }
+  return { text, images };
+}
+
+async function makeSummary() {
+  await flush();
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  const { text, images } = await notebookParts();
+  if (!text && !images.length) { toast('המחברת ריקה, אין מה לסכם'); return; }
+  let cancelled = false;
+  dialog(d => {
+    d.innerHTML = '<h3>✨ מכין סיכום למבחן...</h3><p>זה לוקח בדרך כלל 10–30 שניות.</p><div class="ai-spinner"></div>';
+    const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול';
+    c.onclick = () => { cancelled = true; closeDialog(); }; d.appendChild(c);
+  });
+  const parts = [SUMMARY_PROMPT, `שם המחברת: ${n.title || ''}\n\nהטקסט במחברת:\n${text || '(אין טקסט, רק תמונות)'}`, ...images];
+  let html = '', lastErr = null;
+  for (const name of AI_MODELS) {
+    try {
+      const res = await aiModel(name).generateContent(parts);
+      html = res.response.text(); if (html) break;
+    } catch (e) { lastErr = e; console.error(name, e); }
+  }
+  if (cancelled) return;
+  if (!html) { showAiError(lastErr); return; }
+  html = clean(html.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
+  showSummary(n, html);
+}
+
+function showAiError(e) {
+  const msg = String(e && (e.message || e.code) || '');
+  let why = 'לא הצלחתי ליצור סיכום. נסה שוב בעוד דקה.';
+  if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
+  else if (/app-check|appcheck|attestation/i.test(msg)) why = 'Firebase חוסם את הבקשה בגלל App Check. צריך לכבות אכיפה (Unenforce) ב-App Check עבור AI Logic (ראה README, שלב 7).';
+  else if (/quota|429|RESOURCE_EXHAUSTED/i.test(msg)) why = 'הגעת למגבלת השימוש החינמית לרגע. נסה שוב בעוד כמה דקות.';
+  dialog(d => {
+    d.innerHTML = '<h3>לא הצלחתי ליצור סיכום</h3>';
+    const p = document.createElement('p'); p.textContent = why;
+    const small = document.createElement('p'); small.style.fontSize = '12px'; small.textContent = msg.slice(0, 200);
+    const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog;
+    d.append(p, small, c);
+  });
+}
+
+function showSummary(n, html) {
+  dialog(d => {
+    d.classList.add('ai-result');
+    const box = document.createElement('div'); box.className = 'ai-box'; box.innerHTML = html;
+    const row = document.createElement('div'); row.className = 'row';
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'הוספה לסוף המחברת';
+    add.onclick = () => {
+      if (openId !== n.id) openNotebook(n.id);
+      const wrap = document.createElement('div'); wrap.innerHTML = html;
+      $('editor').append(...wrap.childNodes); markDirty(); closeDialog();
+      $('editor').lastElementChild && $('editor').lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      toast('הסיכום נוסף לסוף המחברת');
+    };
+    const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
+    sep.onclick = async () => {
+      try {
+        const ref = doc(nbCol()); const now = Date.now();
+        await setDoc(ref, { title: `סיכום – ${n.title || 'מחברת'}`, color: '#e08a1e', html, createdAt: now, updatedAt: now });
+        closeDialog(); toast('נוצרה מחברת סיכום חדשה');
+        const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
+      } catch { toast('לא הצלחתי לשמור'); }
+    };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(add, sep, close); d.append(box, row);
+  });
+}
+$('sumBtn').addEventListener('click', makeSummary);

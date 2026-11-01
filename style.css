@@ -184,3 +184,15 @@
 .theme-btn{font-size:18px;padding:6px 10px;border-radius:10px}
 .theme-btn:hover{background:var(--accent-soft)}
 .login-theme{position:fixed;top:14px;left:14px}
+
+/* AI summary */
+.btn-sum{background:linear-gradient(135deg,#7a4fd1,#2f5bd3);color:#fff}
+.btn-sum:hover{filter:brightness(1.1)}
+.ai-spinner{width:36px;height:36px;border:4px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:6px auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dialog.ai-result{max-width:min(94vw,760px)}
+.ai-box{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px 18px;margin-bottom:14px;background:var(--bg);line-height:1.7}
+.ai-box h2{font-size:22px;margin:12px 0 6px;color:var(--accent)} .ai-box h3{font-size:18px;margin:12px 0 4px}
+.ai-box table{border-collapse:collapse;width:100%} .ai-box td,.ai-box th{border:1px solid var(--line);padding:4px 8px}
+.ai-box mark{background:#fff3a3;color:#1f2430}
+.dialog .row{flex-wrap:wrap}
