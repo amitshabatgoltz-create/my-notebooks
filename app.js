@@ -822,18 +822,65 @@ async function notebookParts() {
   return { text, images };
 }
 
+// שלב 1: על מה המבחן?
 async function makeSummary() {
   await flush();
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   const { text, images } = await notebookParts();
   if (!text && !images.length) { toast('המחברת ריקה, אין מה לסכם'); return; }
+  // נושאים מהמחברת: הכותרות
+  const heads = [...new Set([...$('editor').querySelectorAll('h1,h2,h3')].map(h => h.textContent.trim()).filter(t => t && t.length < 70 && !/סיכום למבחן/.test(t)))].slice(0, 16);
+  dialog(d => {
+    d.classList.add('topics-dlg');
+    d.innerHTML = '<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p>';
+    const ta = document.createElement('textarea'); ta.rows = 3; ta.className = 'topics-input';
+    ta.placeholder = 'למשל: דוד ובת-שבע; העונשים של דוד; פרק י"ב';
+    ta.value = n.testTopics || '';
+    d.appendChild(ta);
+    if (heads.length) {
+      const lab = document.createElement('div'); lab.className = 'chips-label'; lab.textContent = 'או לחץ על נושאים מהמחברת:';
+      const box = document.createElement('div'); box.className = 'chips';
+      const has = t => ta.value.split(/[;\n]/).map(x => x.trim()).includes(t);
+      const sync = () => [...box.children].forEach(c => c.classList.toggle('on', has(c.textContent)));
+      heads.forEach(t => {
+        const c = document.createElement('button'); c.type = 'button'; c.className = 'chip-btn'; c.textContent = t;
+        c.onclick = () => {
+          const parts = ta.value.split(/[;\n]/).map(x => x.trim()).filter(Boolean);
+          const i = parts.indexOf(t); if (i >= 0) parts.splice(i, 1); else parts.push(t);
+          ta.value = parts.join('; '); sync();
+        };
+        box.appendChild(c);
+      });
+      ta.addEventListener('input', sync); sync();
+      d.append(lab, box);
+    }
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-sum'; go.innerHTML = '<svg><use href="#i-spark"/></svg>יצירת סיכום';
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog;
+    go.onclick = () => {
+      const topics = ta.value.trim();
+      if (topics !== (n.testTopics || '')) updateDoc(nbDoc(n.id), { testTopics: topics }).catch(() => {});
+      runSummary(n, text, images, topics);
+    };
+    row.append(go, cancel); d.append(row);
+    setTimeout(() => ta.focus(), 50);
+  });
+}
+
+// שלב 2: יצירת הסיכום
+async function runSummary(n, text, images, topics) {
   let cancelled = false;
   dialog(d => {
-    d.innerHTML = '<h3>✨ מכין סיכום למבחן...</h3><p>זה לוקח בדרך כלל 10–30 שניות.</p><div class="ai-spinner"></div>';
+    d.innerHTML = '<h3>✨ מכין סיכום למבחן...</h3>';
+    const p = document.createElement('p'); p.textContent = topics ? `מתמקד ב: ${topics}` : 'מסכם את כל המחברת. זה לוקח בדרך כלל 10–30 שניות.';
+    const sp = document.createElement('div'); sp.className = 'ai-spinner';
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול';
-    c.onclick = () => { cancelled = true; closeDialog(); }; d.appendChild(c);
+    c.onclick = () => { cancelled = true; closeDialog(); }; d.append(p, sp, c);
   });
-  const parts = [SUMMARY_PROMPT, `שם המחברת: ${n.title || ''}\n\nהטקסט במחברת:\n${text || '(אין טקסט, רק תמונות)'}`, ...images];
+  const focus = topics
+    ? `\n\nחשוב מאוד: המבחן הוא רק על הנושאים האלה: "${topics}".\nסכם רק את החומר שקשור לנושאים האלה, ודלג לגמרי על כל חומר אחר במחברת (גם בשאלות לחזרה).\nאם אחד הנושאים לא מופיע בכלל במחברת, כתוב את זה בשורה קצרה בסוף.\nהתחל בכותרת <h2>📝 סיכום למבחן: ${topics.replace(/[<>]/g, '')}</h2>.`
+    : '';
+  const parts = [SUMMARY_PROMPT + focus, `שם המחברת: ${n.title || ''}\n\nהטקסט במחברת:\n${text || '(אין טקסט, רק תמונות)'}`, ...images];
   let html = '', lastErr = null;
   for (const name of AI_MODELS) {
     try {
@@ -844,7 +891,7 @@ async function makeSummary() {
   if (cancelled) return;
   if (!html) { showAiError(lastErr); return; }
   html = clean(html.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
-  showSummary(n, html);
+  showSummary(n, html, topics);
 }
 
 function showAiError(e) {
@@ -862,7 +909,7 @@ function showAiError(e) {
   });
 }
 
-function showSummary(n, html) {
+function showSummary(n, html, topics) {
   dialog(d => {
     d.classList.add('ai-result');
     const box = document.createElement('div'); box.className = 'ai-box'; box.innerHTML = html;
@@ -879,7 +926,7 @@ function showSummary(n, html) {
     sep.onclick = async () => {
       try {
         const ref = doc(nbCol()); const now = Date.now();
-        await setDoc(ref, { title: `סיכום – ${n.title || 'מחברת'}`, color: '#e08a1e', html, createdAt: now, updatedAt: now });
+        await setDoc(ref, { title: topics ? `סיכום – ${topics.slice(0, 40)}` : `סיכום – ${n.title || 'מחברת'}`, color: '#e08a1e', html, createdAt: now, updatedAt: now });
         closeDialog(); toast('נוצרה מחברת סיכום חדשה');
         const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
       } catch { toast('לא הצלחתי לשמור'); }

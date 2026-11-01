@@ -373,3 +373,15 @@ html[data-theme="dark"] .chip{filter:brightness(1.6) saturate(.9)}
 .ai-box h3{font-size:17px;margin:14px 0 4px;color:var(--accent)}
 .ai-box table{border-collapse:collapse;width:100%} .ai-box td,.ai-box th{border:1px solid var(--line);padding:4px 8px}
 .ai-box mark{background:color-mix(in srgb,var(--yellow) 70%,transparent);color:inherit}
+
+/* על מה המבחן? */
+.dialog.topics-dlg{max-width:520px}
+.topics-input{width:100%;resize:vertical;min-height:84px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);font-size:16px;line-height:1.5;margin-bottom:14px}
+.topics-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.chips-label{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;max-height:180px;overflow:auto}
+.chip-btn{padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);font-size:14px;color:var(--ink);background:var(--surface);transition:background .15s,border-color .15s,color .15s,transform .15s var(--ease)}
+.chip-btn:hover{border-color:var(--accent)}
+.chip-btn:active{transform:scale(.95)}
+.chip-btn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip-btn.on::before{content:"✓ "}
