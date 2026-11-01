@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#E9F0F7">
 <title>המחברות שלי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Rubik:wght@400;500;600;700&family=Secular+One&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
@@ -14,12 +16,13 @@
 <!-- ===== מסך כניסה ===== -->
 <section id="login">
   <button class="theme-btn login-theme" data-theme-toggle title="לבן / כהה">🌙</button>
-  <div class="login-card">
-    <div class="logo">
-      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></svg>
+  <div class="login-wrap">
+    <div class="login-cover" aria-hidden="true">
+      <span class="sticker">המחברות שלי</span>
     </div>
+  <div class="login-card">
     <h1>המחברות שלי</h1>
-    <p>כל המחברות שלך, בכל מחשב ובכל טלפון</p>
+    <p>המחברות והיומן שלך, בכל מחשב ובכל טלפון</p>
 
     <div class="tabs">
       <button id="tabLogin" class="on" type="button">כניסה</button>
@@ -41,23 +44,26 @@
     </button>
     <div class="status" id="loginStatus"></div>
   </div>
+  </div>
 </section>
 
 <!-- ===== האפליקציה ===== -->
 <div id="app" class="hidden">
   <header>
     <div class="bar">
-      <div class="brand">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        המחברות שלי
-      </div>
-      <nav class="nav">
-        <button id="navNotes" class="on">📓 מחברות</button>
-        <button id="navCal">📅 יומן</button>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>המחברות שלי</div>
+      <nav class="nav" aria-label="ניווט">
+        <button id="navNotes" class="on"><span aria-hidden="true">📓</span> מחברות</button>
+        <button id="navCal"><span aria-hidden="true">📅</span> יומן</button>
       </nav>
-      <span class="who" id="who"></span>
-      <button class="theme-btn" data-theme-toggle title="לבן / כהה">🌙</button>
-      <button class="btn btn-ghost" id="logoutBtn">יציאה</button>
+      <div class="user">
+        <button class="avatar" id="userBtn" aria-haspopup="menu" aria-expanded="false" title="החשבון שלי"></button>
+        <div class="menu hidden" id="userMenu" role="menu">
+          <div class="who" id="who"></div>
+          <button class="menu-item theme-btn" data-theme-toggle role="menuitem">🌙 מצב כהה</button>
+          <button class="menu-item" id="logoutBtn" role="menuitem">↩ יציאה</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -65,7 +71,7 @@
     <section id="library">
       <div class="lib-head">
         <div>
-          <h2>כל המחברות</h2>
+          <h2>המחברות שלי</h2>
           <div class="sub" id="count"></div>
         </div>
         <button class="btn btn-primary" id="newBtn">+ מחברת חדשה</button>
@@ -80,33 +86,33 @@
 
     <section id="notebook" class="hidden">
       <div class="ed-top">
-        <button class="btn btn-ghost" id="backBtn">→ חזרה למחברות</button>
+        <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות">→ <span>כל המחברות</span></button>
         <input class="ed-title" id="title" aria-label="שם המחברת">
         <span class="save" id="save"></span>
-        <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן">✨ סיכום למבחן</button>
-        <button class="btn btn-ghost" id="delBtn" title="מחיקת מחברת">🗑 מחיקה</button>
+        <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן">✨ <span>סיכום למבחן</span></button>
+        <button class="btn btn-ghost icon-btn" id="delBtn" title="מחיקת המחברת" aria-label="מחיקת המחברת">🗑</button>
       </div>
       <div class="toolbar" id="toolbar">
-        <button data-cmd="h1" title="כותרת ראשית"><b>כותרת</b></button>
-        <button data-cmd="h2" title="כותרת משנה">כותרת משנה</button>
-        <button data-cmd="h3" title="כותרת קטנה">כותרת קטנה</button>
+        <button data-cmd="h1" title="כותרת ראשית" class="t-h1">כותרת</button>
+        <button data-cmd="h2" title="כותרת משנה" class="t-h2">משנה</button>
+        <button data-cmd="h3" title="כותרת קטנה" class="t-h3">קטנה</button>
         <button data-cmd="p" title="טקסט רגיל">טקסט</button>
         <span class="sep"></span>
         <button data-cmd="bold" title="מודגש"><b>B</b></button>
         <button data-cmd="underline" title="קו תחתון"><u>U</u></button>
-        <button data-cmd="mark" title="מרקר">🖍</button>
+        <button data-cmd="mark" title="מרקר" class="t-mark"><span>מרקר</span></button>
         <span class="sep"></span>
-        <button data-cmd="ul" title="רשימה">• רשימה</button>
-        <button data-cmd="ol" title="רשימה ממוספרת">1. רשימה</button>
+        <button data-cmd="ul" title="רשימה עם נקודות">•&nbsp;רשימה</button>
+        <button data-cmd="ol" title="רשימה ממוספרת">1.&nbsp;רשימה</button>
         <span class="sep"></span>
-        <button data-cmd="undo" title="בטל">↶</button>
-        <button data-cmd="redo" title="בצע שוב">↷</button>
+        <button data-cmd="undo" title="ביטול" aria-label="ביטול">↶</button>
+        <button data-cmd="redo" title="ביצוע שוב" aria-label="ביצוע שוב">↷</button>
         <span class="sep"></span>
         <button id="imgBtn" type="button" title="הוספת תמונה">🖼 תמונה</button>
         <button id="tableBtn" type="button" title="טבלה">▦ טבלה</button>
         <input id="imgInput" type="file" accept="image/*" multiple hidden>
       </div>
-      <div class="page"><div id="editor" contenteditable="true" spellcheck="true"></div></div>
+      <div class="page"><span class="holes" aria-hidden="true"></span><div id="editor" contenteditable="true" spellcheck="true"></div></div>
     </section>
     <section id="calendar" class="hidden">
       <div class="cal-head">

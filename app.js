@@ -86,8 +86,16 @@ $('forgotBtn').onclick = async () => {
 $('logoutBtn').onclick = async () => { await flush(); await signOut(auth); };
 
 function showUser(u) {
-  $('who').textContent = u.displayName || u.email || '';
+  const name = u.displayName || u.email || '';
+  $('who').textContent = name;
+  $('userBtn').textContent = (name.trim()[0] || '?').toUpperCase();
 }
+$('userBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const open = $('userMenu').classList.toggle('hidden') === false;
+  $('userBtn').setAttribute('aria-expanded', open);
+});
+document.addEventListener('click', e => { if (!e.target.closest('.user')) { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); } });
 
 onAuthStateChanged(auth, user => {
   if (unsub) { unsub(); unsub = null; }
@@ -732,7 +740,11 @@ $('editor').addEventListener('keydown', e => {
 /* ================= לבן / כהה ================= */
 function applyThemeIcon() {
   const dark = document.documentElement.dataset.theme === 'dark';
-  document.querySelectorAll('[data-theme-toggle]').forEach(b => { b.textContent = dark ? '☀️' : '🌙'; b.title = dark ? 'מעבר ללבן' : 'מעבר לכהה'; });
+  document.querySelectorAll('[data-theme-toggle]').forEach(b => {
+    b.textContent = b.classList.contains('menu-item') ? (dark ? '☀️ מצב בהיר' : '🌙 מצב כהה') : (dark ? '☀️' : '🌙');
+    b.title = dark ? 'מעבר למצב בהיר' : 'מעבר למצב כהה';
+  });
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#18221F' : '#E9F0F7';
 }
 document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => {
   const dark = document.documentElement.dataset.theme !== 'dark';
