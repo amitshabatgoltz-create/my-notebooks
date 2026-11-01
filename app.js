@@ -249,15 +249,76 @@ $('title').addEventListener('input', markDirty);
 window.addEventListener('beforeunload', e => { if (dirty) { flush(); e.preventDefault(); e.returnValue = ''; } });
 
 /* ================= סרגל עיצוב ================= */
-$('toolbar').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
-$('toolbar').addEventListener('click', e => {
+// שומרים את המיקום של הסמן כדי שלחיצה על כפתור (גם בטלפון) לא תאבד אותו
+let savedRange = null;
+document.addEventListener('selectionchange', () => {
+  const s = window.getSelection();
+  if (s.rangeCount && $('editor').contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange();
+});
+function restoreSelection() {
+  const ed = $('editor');
+  ed.focus({ preventScroll: true });
+  const s = window.getSelection();
+  if (savedRange && ed.contains(savedRange.startContainer)) { s.removeAllRanges(); s.addRange(savedRange); }
+  else { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); s.removeAllRanges(); s.addRange(r); }
+}
+// עוטפים טקסט "חופשי" (שלא בתוך פסקה) בפסקאות, כדי שיהיה אפשר לשנות אותו
+function wrapLoose() {
+  const ed = $('editor'); let group = [];
+  const flush = () => {
+    if (!group.length) return;
+    if (group.every(n => n.nodeType === 3 && !n.textContent.trim())) { group = []; return; }
+    const p = document.createElement('p'); group[0].before(p); group.forEach(n => p.appendChild(n)); group = [];
+  };
+  [...ed.childNodes].forEach(n => {
+    const inline = n.nodeType === 3 || (n.nodeType === 1 && ['B','STRONG','I','EM','U','MARK','SPAN','BR'].includes(n.tagName));
+    if (inline) group.push(n); else flush();
+  });
+  flush();
+  [...ed.children].forEach(el => { if (el.tagName === 'DIV') { const p = document.createElement('p'); p.append(...el.childNodes); el.replaceWith(p); } });
+}
+// משנים את סוג השורות שהסמן נמצא בהן: כותרת / כותרת משנה / כותרת קטנה / טקסט רגיל
+function setBlock(tag) {
+  restoreSelection();
+  const ed = $('editor'); const s = window.getSelection();
+  let r0 = s.rangeCount ? s.getRangeAt(0) : null;
+  const pos = r0 && [r0.startContainer, r0.startOffset, r0.endContainer, r0.endOffset];
+  wrapLoose();
+  let r = null;
+  if (pos) { try { r = document.createRange(); r.setStart(pos[0], pos[1]); r.setEnd(pos[2], pos[3]); } catch { r = null; } }
+  let blocks = r ? [...ed.children].filter(el => r.intersectsNode(el)) : [];
+  if (!blocks.length) {
+    const el = document.createElement(tag); el.appendChild(document.createElement('br')); ed.appendChild(el);
+    const nr = document.createRange(); nr.setStart(el, 0); nr.collapse(true); s.removeAllRanges(); s.addRange(nr);
+    return;
+  }
+  const startOff = r.startOffset, endOff = r.endOffset, startC = r.startContainer, endC = r.endContainer;
+  const allSame = blocks.every(b => b.tagName === tag.toUpperCase());
+  const target = (allSame && tag !== 'p') ? 'p' : tag;   // לחיצה שנייה על אותה כותרת מחזירה לטקסט רגיל
+  blocks.forEach(b => {
+    if (b.tagName === 'UL' || b.tagName === 'OL') {
+      const frag = [...b.children].map(li => { const el = document.createElement(target); el.append(...li.childNodes); return el; });
+      b.replaceWith(...frag);
+    } else if (b.tagName !== target.toUpperCase()) {
+      const el = document.createElement(target); el.append(...b.childNodes); b.replaceWith(el);
+    }
+  });
+  try { const nr = document.createRange(); nr.setStart(startC, startOff); nr.setEnd(endC, endOff); s.removeAllRanges(); s.addRange(nr); } catch {}
+}
+
+const tb = $('toolbar');
+try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch {}
+['mousedown', 'pointerdown'].forEach(ev =>
+  tb.addEventListener(ev, e => { if (e.target.closest('button')) e.preventDefault(); }, { passive: false }));
+tb.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  const c = b.dataset.cmd; $('editor').focus();
-  if (['h1','h2','h3','p'].includes(c)) document.execCommand('formatBlock', false, c.toUpperCase());
-  else if (c === 'ul') document.execCommand('insertUnorderedList');
+  const c = b.dataset.cmd;
+  if (['h1','h2','h3','p'].includes(c)) { setBlock(c); markDirty(); return; }
+  restoreSelection();
+  if (c === 'ul') document.execCommand('insertUnorderedList');
   else if (c === 'ol') document.execCommand('insertOrderedList');
   else if (c === 'mark') {
-    const sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) return;
+    const sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { toast('קודם מסמנים את המילים שרוצים להדגיש'); return; }
     const anc = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
     const m = anc && anc.closest('mark');
     if (m) m.replaceWith(...m.childNodes);
