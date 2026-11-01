@@ -1,12 +1,12 @@
-// ⚠️ כאן מדביקים את ההגדרות של פרויקט ה-Firebase שלך.
-// איפה מוצאים אותן: Firebase Console ← הגדרות הפרויקט (גלגל השיניים) ← "Your apps" ← אפליקציית Web ← SDK setup and configuration ← Config
-// ההגדרות האלה לא סודיות — מותר שיהיו ב-GitHub. מה שמגן על המחברות זה כללי האבטחה (firestore.rules).
+// ההגדרות של פרויקט ה-Firebase "my-notebooks".
+// הן לא סודיות — מותר שיהיו ב-GitHub. מה שמגן על המחברות זה כללי האבטחה (firestore.rules).
 
 export const firebaseConfig = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE.firebaseapp.com",
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE.appspot.com",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE"
+  apiKey: "AIzaSyDvPcrPFvOHccmtCcnOkEI1sIREvELdrp4",
+  authDomain: "my-notebooks-32ffd.firebaseapp.com",
+  projectId: "my-notebooks-32ffd",
+  storageBucket: "my-notebooks-32ffd.firebasestorage.app",
+  messagingSenderId: "715695187837",
+  appId: "1:715695187837:web:6466a55d80879c1e854e14",
+  measurementId: "G-EHHVE65PMS"
 };
