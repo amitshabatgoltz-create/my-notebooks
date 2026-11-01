@@ -105,7 +105,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('notes'); showLibrary(); subscribe(); subscribeEvents();
+    showTab('home'); subscribe(); subscribeEvents();
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -123,6 +123,7 @@ function subscribe() {
     $('loading').classList.add('hidden');
     notebooks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGrid();
+    if (!$('home').classList.contains('hidden')) renderHome();
     $('sample').classList.toggle('hidden', notebooks.length > 0);
     if (openId && !notebooks.find(n => n.id === openId)) showLibrary();
   }, err => {
@@ -169,33 +170,70 @@ function dialog(build) {
 }
 
 /* ================= מסכים ================= */
+function timeAgo(ms) {
+  if (!ms) return '';
+  const m = Math.round((Date.now() - ms) / 60000);
+  if (m < 1) return 'עכשיו';
+  if (m < 60) return m === 1 ? 'לפני דקה' : `לפני ${m} דקות`;
+  const h = Math.round(m / 60); if (h < 24) return h === 1 ? 'לפני שעה' : `לפני ${h} שעות`;
+  const d = Math.round(h / 24); if (d < 7) return d === 1 ? 'אתמול' : `לפני ${d} ימים`;
+  return fmtDate(ms);
+}
+function preview(html) { const t = document.createElement('div'); t.innerHTML = (html || '').replace(/<\/(p|h1|h2|h3|li|div|td|th)>/gi, ' $&').replace(/<br\s*\/?>/gi, ' '); return t.textContent.replace(/\s+/g, ' ').trim().slice(0, 90); }
+function nbCard(n, i) {
+  const b = document.createElement('button'); b.className = 'nb'; b.style.setProperty('--c', n.color || COLORS[0]); b.style.setProperty('--i', i);
+  const cover = document.createElement('div'); cover.className = 'nb-cover';
+  const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (n.title || '?').trim()[0] || '?';
+  cover.appendChild(letter);
+  const body = document.createElement('div'); body.className = 'nb-body';
+  const l = document.createElement('div'); l.className = 'label'; l.textContent = n.title || 'מחברת ללא שם';
+  const pv = document.createElement('div'); pv.className = 'nb-pv'; pv.textContent = preview(n.html) || 'מחברת ריקה';
+  const m = document.createElement('div'); m.className = 'meta'; m.textContent = n.updatedAt ? 'עודכן ' + timeAgo(n.updatedAt) : '';
+  body.append(l, pv, m); b.append(cover, body);
+  b.onclick = () => openNotebook(n.id);
+  return b;
+}
 function renderGrid() {
   const g = $('grid'); g.innerHTML = '';
-  const add = document.createElement('button'); add.className = 'nb new';
-  add.innerHTML = '<span style="font-size:40px;line-height:1">+</span><span>מחברת חדשה</span>';
+  notebooks.forEach((n, i) => g.appendChild(nbCard(n, i)));
+  const add = document.createElement('button'); add.className = 'nb new'; add.style.setProperty('--i', notebooks.length);
+  add.innerHTML = '<svg><use href="#i-plus"/></svg><span>מחברת חדשה</span>';
   add.onclick = newNotebook; g.appendChild(add);
-  notebooks.forEach(n => {
-    const b = document.createElement('button'); b.className = 'nb'; b.style.background = n.color || COLORS[0];
-    const l = document.createElement('div'); l.className = 'label'; l.textContent = n.title || 'מחברת ללא שם';
-    const m = document.createElement('div'); m.className = 'meta'; m.textContent = n.updatedAt ? 'עודכן ' + fmtDate(n.updatedAt) : '';
-    b.append(l, m); b.onclick = () => openNotebook(n.id); g.appendChild(b);
-  });
   $('count').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : '';
+  renderSide();
+}
+function renderSide() {
+  const box = $('sideList'); if (!box) return; box.innerHTML = '';
+  notebooks.forEach(n => {
+    const b = document.createElement('button'); b.className = 'side-nb' + (n.id === openId ? ' on' : '');
+    const dot = document.createElement('i'); dot.style.background = n.color || COLORS[0];
+    const t = document.createElement('span'); t.textContent = n.title || 'מחברת ללא שם';
+    b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
+  });
+}
+const VIEWS = ['home', 'library', 'notebook', 'calendar'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' };
+function setView(v, crumb) {
+  VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן' }[v] || '';
+  document.body.dataset.view = v;
+  window.scrollTo(0, 0);
 }
 function showLibrary() {
-  openId = null;
-  $('notebook').classList.add('hidden'); $('library').classList.remove('hidden');
-  renderGrid(); window.scrollTo(0, 0);
+  openId = null; setView('library'); renderGrid();
 }
 function openNotebook(id) {
   const n = notebooks.find(x => x.id === id); if (!n) return;
+  if (openId && openId !== id) flush();
   openId = id; dirty = false;
   $('title').value = n.title || '';
+  $('docColor').style.setProperty('--c', n.color || COLORS[0]);
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
   $('save').textContent = 'נשמר';
-  $('library').classList.add('hidden'); $('notebook').classList.remove('hidden');
-  window.scrollTo(0, 0);
+  setView('notebook', 'מחברות › ' + (n.title || ''));
+  renderSide();
 }
 $('backBtn').onclick = async () => { await flush(); showLibrary(); };
 $('newBtn').onclick = () => newNotebook();
@@ -261,7 +299,7 @@ async function flush() {
   finally { saving = false; }
 }
 $('editor').addEventListener('input', markDirty);
-$('title').addEventListener('input', markDirty);
+$('title').addEventListener('input', () => { markDirty(); const n = notebooks.find(x => x.id === openId); const el = document.querySelector('.side-nb.on span'); if (el) el.textContent = $('title').value; $('crumb').textContent = 'מחברות › ' + $('title').value; });
 window.addEventListener('beforeunload', e => { if (dirty) { flush(); e.preventDefault(); e.returnValue = ''; } });
 
 /* ================= סרגל עיצוב ================= */
@@ -422,18 +460,15 @@ $('editor').addEventListener('paste', e => {
 
 /* ================= ניווט ================= */
 function showTab(t) {
-  $('navNotes').classList.toggle('on', t === 'notes');
-  $('navCal').classList.toggle('on', t === 'cal');
-  if (t === 'cal') {
-    flush();
-    $('library').classList.add('hidden'); $('notebook').classList.add('hidden'); $('calendar').classList.remove('hidden');
-    renderCalendar();
-  } else {
-    $('calendar').classList.add('hidden'); showLibrary();
-  }
+  flush();
+  if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
+  else if (t === 'notes') showLibrary();
+  else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
-$('navNotes').onclick = () => showTab('notes');
-$('navCal').onclick = () => showTab('cal');
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+$('sideNew').onclick = () => newNotebook();
+$('homeNew').onclick = () => newNotebook();
+$('homeCal').onclick = () => showTab('cal');
 
 /* ================= יומן ================= */
 const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -454,6 +489,7 @@ function subscribeEvents() {
     events = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
+    if (!$('home').classList.contains('hidden')) renderHome();
   }, err => console.error(err));
 }
 
@@ -853,3 +889,85 @@ function showSummary(n, html) {
   });
 }
 $('sumBtn').addEventListener('click', makeSummary);
+
+
+/* ================= מסך בית ================= */
+function firstName() {
+  const n = (me && (me.displayName || (me.email || '').split('@')[0])) || '';
+  return n.trim().split(/\s+/)[0] || '';
+}
+function greeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'בוקר טוב';
+  if (h >= 12 && h < 17) return 'צהריים טובים';
+  if (h >= 17 && h < 21) return 'ערב טוב';
+  return 'לילה טוב';
+}
+function daysUntil(k) { const a = fromKey(k), t = fromKey(todayKey()); return Math.round((a - t) / 86400000); }
+function countUp(el, to) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || to <= 0) { el.textContent = to; return; }
+  const start = performance.now(), dur = 700;
+  const tick = now => { const p = Math.min(1, (now - start) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+let homeAnimated = false;
+function renderHome() {
+  const now = new Date();
+  $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
+  const name = firstName();
+  $('greet').textContent = name ? `${greeting()}, ${name}` : greeting();
+  const tk = todayKey();
+  const today = events.filter(e => e.date === tk);
+  const open = today.filter(e => !e.done).length;
+  $('greetSub').textContent = !today.length ? 'אין לך כלום ביומן היום.' : open ? (open === 1 ? 'יש לך דבר אחד ביומן היום.' : `יש לך ${open} דברים ביומן היום.`) : 'סיימת את כל מה שהיה ביומן היום 🎉';
+
+  // ספירה לאחור למבחן הבא
+  const tests = events.filter(e => e.type === 'test' && !e.done && e.date >= tk);
+  const nt = $('nextTest'); nt.innerHTML = '';
+  const h = document.createElement('h3'); h.textContent = 'המבחן הבא';
+  if (tests.length) {
+    const t = tests[0], d = daysUntil(t.date);
+    const big = document.createElement('div'); big.className = 'big';
+    const num = document.createElement('span'); num.className = 'num'; num.textContent = d;
+    const unit = document.createElement('span'); unit.className = 'unit';
+    if (d === 0) { num.textContent = 'היום'; num.classList.add('word'); }
+    else if (d === 1) { num.textContent = 'מחר'; num.classList.add('word'); }
+    else unit.textContent = 'ימים';
+    big.append(num, unit);
+    const what = document.createElement('div'); what.className = 'what'; what.textContent = t.title;
+    const when = document.createElement('div'); when.className = 'when'; const dd = fromKey(t.date);
+    when.textContent = `יום ${HE_DAYS[dd.getDay()]}, ${dd.getDate()} ב${HE_MONTHS[dd.getMonth()]}` + (t.time ? ` · ${t.time}` : '');
+    nt.append(h, big, what, when);
+    if (d > 1 && !homeAnimated) countUp(num, d);
+    nt.classList.toggle('soon', d <= 3);
+  } else {
+    const big = document.createElement('div'); big.className = 'big'; big.innerHTML = '<span class="num word">אין</span>';
+    const what = document.createElement('div'); what.className = 'what'; what.textContent = 'אין מבחנים ביומן כרגע';
+    const add = document.createElement('button'); add.className = 'link'; add.textContent = 'הוספת מבחן ליומן'; add.onclick = () => showTab('cal');
+    nt.append(h, big, what, add); nt.classList.remove('soon');
+  }
+
+  // היום
+  const tc = $('todayCard'); tc.innerHTML = '';
+  const h2 = document.createElement('h3'); h2.textContent = 'היום';
+  tc.appendChild(h2);
+  if (today.length) today.forEach(e => tc.appendChild(evRow(e, false)));
+  else { const p = document.createElement('p'); p.className = 'noev'; p.textContent = 'יום פנוי. זמן טוב לחזור על החומר.'; tc.appendChild(p); }
+  const up = events.filter(e => e.date > tk && !e.done).slice(0, 3);
+  if (up.length) { const h3 = document.createElement('h4'); h3.textContent = 'בקרוב'; tc.appendChild(h3); up.forEach(e => tc.appendChild(evRow(e, true))); }
+
+  // המשך מאיפה שעצרת
+  const rc = $('recentCard'); rc.innerHTML = '';
+  const h4 = document.createElement('h3'); h4.textContent = 'להמשיך מאיפה שעצרת';
+  rc.appendChild(h4);
+  if (notebooks.length) {
+    const row = document.createElement('div'); row.className = 'recent';
+    notebooks.slice(0, 4).forEach((n, i) => row.appendChild(nbCard(n, i)));
+    rc.appendChild(row);
+  } else {
+    const p = document.createElement('p'); p.className = 'noev'; p.textContent = 'עוד אין לך מחברות.';
+    const b = document.createElement('button'); b.className = 'btn btn-primary'; b.textContent = 'ליצור מחברת ראשונה'; b.onclick = newNotebook;
+    rc.append(p, b);
+  }
+  homeAnimated = true;
+}

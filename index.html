@@ -2,27 +2,47 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#E9F0F7">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FBFBFD">
 <title>המחברות שלי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Rubik:wght@400;500;600;700&family=Secular+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
 
+<!-- סמלים (אייקונים) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
+  <symbol id="i-bold" viewBox="0 0 24 24"><path d="M7 4h6.5a4 4 0 0 1 0 8H7zM7 12h7.5a4 4 0 0 1 0 8H7z"/></symbol>
+  <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4M5 21h14"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 24 24"><path d="m15 5 4 4-9 9H6v-4zM4 21h16"/></symbol>
+  <symbol id="i-ul" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="1.3"/><circle cx="5" cy="12" r="1.3"/><circle cx="5" cy="18" r="1.3"/></symbol>
+  <symbol id="i-ol" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 5l1.5-1v5M3.5 14.5a1.5 1.5 0 1 1 2.6 1L3.5 19H6.5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 10h18M3 15h18M9.5 4v16M15 4v16"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></symbol>
+</svg>
+
 <!-- ===== מסך כניסה ===== -->
 <section id="login">
-  <button class="theme-btn login-theme" data-theme-toggle title="לבן / כהה">🌙</button>
-  <div class="login-wrap">
-    <div class="login-cover" aria-hidden="true">
-      <span class="sticker">המחברות שלי</span>
-    </div>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <button class="theme-btn login-theme" data-theme-toggle title="מצב כהה">🌙</button>
   <div class="login-card">
+    <div class="app-icon" aria-hidden="true"><svg><use href="#i-book"/></svg></div>
     <h1>המחברות שלי</h1>
-    <p>המחברות והיומן שלך, בכל מחשב ובכל טלפון</p>
+    <p>המחברות, היומן והסיכומים שלך. בכל מחשב ובכל טלפון.</p>
 
     <div class="tabs">
       <button id="tabLogin" class="on" type="button">כניסה</button>
@@ -44,111 +64,156 @@
     </button>
     <div class="status" id="loginStatus"></div>
   </div>
-  </div>
 </section>
 
 <!-- ===== האפליקציה ===== -->
 <div id="app" class="hidden">
-  <header>
-    <div class="bar">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>המחברות שלי</div>
-      <nav class="nav" aria-label="ניווט">
-        <button id="navNotes" class="on"><span aria-hidden="true">📓</span> מחברות</button>
-        <button id="navCal"><span aria-hidden="true">📅</span> יומן</button>
-      </nav>
+  <aside class="side">
+    <div class="side-brand"><span class="app-icon sm" aria-hidden="true"><svg><use href="#i-book"/></svg></span>המחברות שלי</div>
+    <nav class="side-nav" aria-label="ניווט">
+      <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
+      <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
+      <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
+    </nav>
+    <div class="side-label">המחברות שלי</div>
+    <div class="side-list" id="sideList"></div>
+    <button class="side-new" id="sideNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="crumb" id="crumb"></div>
       <div class="user">
         <button class="avatar" id="userBtn" aria-haspopup="menu" aria-expanded="false" title="החשבון שלי"></button>
         <div class="menu hidden" id="userMenu" role="menu">
           <div class="who" id="who"></div>
           <button class="menu-item theme-btn" data-theme-toggle role="menuitem">🌙 מצב כהה</button>
-          <button class="menu-item" id="logoutBtn" role="menuitem">↩ יציאה</button>
+          <button class="menu-item" id="logoutBtn" role="menuitem">יציאה</button>
         </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main>
-    <section id="library">
-      <div class="lib-head">
-        <div>
-          <h2>המחברות שלי</h2>
-          <div class="sub" id="count"></div>
-        </div>
-        <button class="btn btn-primary" id="newBtn">+ מחברת חדשה</button>
-      </div>
-      <div class="grid" id="grid"></div>
-      <div class="empty hidden" id="loading">טוען את המחברות...</div>
-      <div class="empty hidden" id="sample">
-        אין לך עדיין מחברות.
-        <button class="link" id="sampleBtn">להוסיף את "מחברת תנ"ך" כדוגמה?</button>
-      </div>
-    </section>
-
-    <section id="notebook" class="hidden">
-      <div class="ed-top">
-        <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות">→ <span>כל המחברות</span></button>
-        <input class="ed-title" id="title" aria-label="שם המחברת">
-        <span class="save" id="save"></span>
-        <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן">✨ <span>סיכום למבחן</span></button>
-        <button class="btn btn-ghost icon-btn" id="delBtn" title="מחיקת המחברת" aria-label="מחיקת המחברת">🗑</button>
-      </div>
-      <div class="toolbar" id="toolbar">
-        <button data-cmd="h1" title="כותרת ראשית" class="t-h1">כותרת</button>
-        <button data-cmd="h2" title="כותרת משנה" class="t-h2">משנה</button>
-        <button data-cmd="h3" title="כותרת קטנה" class="t-h3">קטנה</button>
-        <button data-cmd="p" title="טקסט רגיל">טקסט</button>
-        <span class="sep"></span>
-        <button data-cmd="bold" title="מודגש"><b>B</b></button>
-        <button data-cmd="underline" title="קו תחתון"><u>U</u></button>
-        <button data-cmd="mark" title="מרקר" class="t-mark"><span>מרקר</span></button>
-        <span class="sep"></span>
-        <button data-cmd="ul" title="רשימה עם נקודות">•&nbsp;רשימה</button>
-        <button data-cmd="ol" title="רשימה ממוספרת">1.&nbsp;רשימה</button>
-        <span class="sep"></span>
-        <button data-cmd="undo" title="ביטול" aria-label="ביטול">↶</button>
-        <button data-cmd="redo" title="ביצוע שוב" aria-label="ביצוע שוב">↷</button>
-        <span class="sep"></span>
-        <button id="imgBtn" type="button" title="הוספת תמונה">🖼 תמונה</button>
-        <button id="tableBtn" type="button" title="טבלה">▦ טבלה</button>
-        <input id="imgInput" type="file" accept="image/*" multiple hidden>
-      </div>
-      <div class="page"><span class="holes" aria-hidden="true"></span><div id="editor" contenteditable="true" spellcheck="true"></div></div>
-    </section>
-    <section id="calendar" class="hidden">
-      <div class="cal-head">
-        <button class="btn btn-ghost" id="prevMonth" title="חודש קודם">→</button>
-        <h2 id="monthTitle"></h2>
-        <button class="btn btn-ghost" id="nextMonth" title="חודש הבא">←</button>
-        <button class="btn btn-ghost" id="todayBtn">היום</button>
-      </div>
-      <div class="cal-layout">
-        <div class="cal-box">
-          <div class="cal-grid cal-days"><div>א'</div><div>ב'</div><div>ג'</div><div>ד'</div><div>ה'</div><div>ו'</div><div>ש'</div></div>
-          <div class="cal-grid" id="calGrid"></div>
-          <div class="legend"><span><i class="dot t-test"></i>מבחן</span><span><i class="dot t-hw"></i>שיעורי בית</span><span><i class="dot t-event"></i>אירוע</span><span><i class="dot t-other"></i>אחר</span></div>
-        </div>
-        <aside class="day-panel">
-          <h3 id="dayTitle"></h3>
-          <div id="dayList"></div>
-          <form id="evForm" class="ev-form">
-            <input id="evTitle" placeholder="מה יש ביום הזה? למשל: מבחן בתנ״ך" required>
-            <div class="ev-row">
-              <select id="evType">
-                <option value="test">מבחן</option>
-                <option value="hw">שיעורי בית</option>
-                <option value="event">אירוע</option>
-                <option value="other">אחר</option>
-              </select>
-              <input id="evTime" type="time" title="שעה (לא חובה)">
-              <button class="btn btn-primary" type="submit">הוספה</button>
+    <main>
+      <!-- מסך בית -->
+      <section id="home" class="view hidden">
+        <div class="hero">
+          <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="hero-in">
+            <p class="hero-date" id="homeDate"></p>
+            <h1 id="greet"></h1>
+            <p class="hero-sub" id="greetSub"></p>
+            <div class="hero-actions">
+              <button class="btn btn-light" id="homeNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
+              <button class="btn btn-glass" id="homeCal"><svg><use href="#i-cal"/></svg>ליומן</button>
             </div>
-          </form>
-          <h3 class="up-title">מה מחכה לי</h3>
-          <div id="upcoming"></div>
-        </aside>
-      </div>
-    </section>
-  </main>
+          </div>
+        </div>
+        <div class="home-grid">
+          <div class="card countdown" id="nextTest" style="--i:0"></div>
+          <div class="card" id="todayCard" style="--i:1"></div>
+          <div class="card wide" id="recentCard" style="--i:2"></div>
+        </div>
+      </section>
+
+      <!-- כל המחברות -->
+      <section id="library" class="view hidden">
+        <div class="lib-head">
+          <div>
+            <h2>המחברות שלי</h2>
+            <div class="sub" id="count"></div>
+          </div>
+          <button class="btn btn-primary" id="newBtn"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="empty hidden" id="loading">טוען את המחברות...</div>
+        <div class="empty hidden" id="sample">
+          אין לך עדיין מחברות.
+          <button class="link" id="sampleBtn">להוסיף את "מחברת תנ"ך" כדוגמה</button>
+        </div>
+      </section>
+
+      <!-- מחברת פתוחה -->
+      <section id="notebook" class="view hidden">
+        <div class="ed-top">
+          <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות"><svg><use href="#i-back"/></svg><span>מחברות</span></button>
+          <span class="save" id="save"></span>
+          <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
+          <button class="btn btn-ghost icon-btn" id="delBtn" title="מחיקת המחברת" aria-label="מחיקת המחברת"><svg><use href="#i-trash"/></svg></button>
+        </div>
+        <div class="doc">
+          <div class="doc-color" id="docColor"></div>
+          <input class="ed-title" id="title" aria-label="שם המחברת" placeholder="שם המחברת">
+          <div class="toolbar" id="toolbar">
+            <div class="seg">
+              <button data-cmd="h1" title="כותרת ראשית" class="t-h1">כותרת</button>
+              <button data-cmd="h2" title="כותרת משנה" class="t-h2">משנה</button>
+              <button data-cmd="h3" title="כותרת קטנה" class="t-h3">קטנה</button>
+              <button data-cmd="p" title="טקסט רגיל">טקסט</button>
+            </div>
+            <span class="sep"></span>
+            <button data-cmd="bold" title="מודגש" aria-label="מודגש"><svg><use href="#i-bold"/></svg></button>
+            <button data-cmd="underline" title="קו תחתון" aria-label="קו תחתון"><svg><use href="#i-underline"/></svg></button>
+            <button data-cmd="mark" title="מרקר" aria-label="מרקר" class="t-mark"><svg><use href="#i-mark"/></svg></button>
+            <span class="sep"></span>
+            <button data-cmd="ul" title="רשימה עם נקודות" aria-label="רשימה עם נקודות"><svg><use href="#i-ul"/></svg></button>
+            <button data-cmd="ol" title="רשימה ממוספרת" aria-label="רשימה ממוספרת"><svg><use href="#i-ol"/></svg></button>
+            <span class="sep"></span>
+            <button id="imgBtn" type="button" title="הוספת תמונה" aria-label="הוספת תמונה"><svg><use href="#i-image"/></svg></button>
+            <button id="tableBtn" type="button" title="טבלה" aria-label="טבלה"><svg><use href="#i-table"/></svg></button>
+            <input id="imgInput" type="file" accept="image/*" multiple hidden>
+            <span class="sep"></span>
+            <button data-cmd="undo" title="ביטול" aria-label="ביטול"><svg><use href="#i-undo"/></svg></button>
+            <button data-cmd="redo" title="ביצוע שוב" aria-label="ביצוע שוב"><svg><use href="#i-redo"/></svg></button>
+          </div>
+          <div class="page"><div id="editor" contenteditable="true" spellcheck="true"></div></div>
+        </div>
+      </section>
+
+      <!-- יומן -->
+      <section id="calendar" class="view hidden">
+        <div class="cal-head">
+          <h2 id="monthTitle"></h2>
+          <div class="cal-nav">
+            <button class="btn btn-ghost icon-btn" id="prevMonth" title="חודש קודם" aria-label="חודש קודם"><svg><use href="#i-back"/></svg></button>
+            <button class="btn btn-ghost" id="todayBtn">היום</button>
+            <button class="btn btn-ghost icon-btn flip" id="nextMonth" title="חודש הבא" aria-label="חודש הבא"><svg><use href="#i-back"/></svg></button>
+          </div>
+        </div>
+        <div class="cal-layout">
+          <div class="cal-box">
+            <div class="cal-grid cal-days"><div>א'</div><div>ב'</div><div>ג'</div><div>ד'</div><div>ה'</div><div>ו'</div><div>ש'</div></div>
+            <div class="cal-grid" id="calGrid"></div>
+            <div class="legend"><span><i class="dot t-test"></i>מבחן</span><span><i class="dot t-hw"></i>שיעורי בית</span><span><i class="dot t-event"></i>אירוע</span><span><i class="dot t-other"></i>אחר</span></div>
+          </div>
+          <aside class="day-panel">
+            <h3 id="dayTitle"></h3>
+            <div id="dayList"></div>
+            <form id="evForm" class="ev-form">
+              <input id="evTitle" placeholder="מה יש ביום הזה? למשל: מבחן בתנ״ך" required>
+              <div class="ev-row">
+                <select id="evType">
+                  <option value="test">מבחן</option>
+                  <option value="hw">שיעורי בית</option>
+                  <option value="event">אירוע</option>
+                  <option value="other">אחר</option>
+                </select>
+                <input id="evTime" type="time" title="שעה (לא חובה)">
+                <button class="btn btn-primary" type="submit">הוספה</button>
+              </div>
+            </form>
+            <h3 class="up-title">מה מחכה לי</h3>
+            <div id="upcoming"></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="tabbar" aria-label="ניווט">
+    <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
+    <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
+    <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
+  </nav>
 </div>
 
 <div id="dialogRoot"></div>
