@@ -510,11 +510,18 @@ function renderCalendar() {
     if (k === selDay) c.classList.add('sel');
     const n = document.createElement('span'); n.className = 'num'; n.textContent = d.getDate(); c.appendChild(n);
     const list = byDay[k] || [];
-    list.slice(0, 3).forEach(e => {
-      const ch = document.createElement('span'); ch.className = `chip t-${e.type || 'other'}` + (e.done ? ' done' : '');
-      ch.textContent = e.title; c.appendChild(ch);
-    });
-    if (list.length > 3) { const m = document.createElement('span'); m.className = 'more'; m.textContent = `+${list.length - 3} נוספים`; c.appendChild(m); }
+    if (list.length) {
+      c.classList.add('has-ev');
+      if (list.some(e => e.type === 'test' && !e.done)) c.classList.add('has-test');
+      const row = document.createElement('span'); row.className = 'chips-row';
+      list.slice(0, 3).forEach(e => {
+        const ch = document.createElement('span'); ch.className = `chip t-${e.type || 'other'}` + (e.done ? ' done' : '');
+        ch.textContent = e.title; row.appendChild(ch);
+      });
+      if (list.length > 3) { const m = document.createElement('span'); m.className = 'more'; m.textContent = `+${list.length - 3}`; row.appendChild(m); }
+      c.appendChild(row);
+      c.setAttribute('aria-label', `${d.getDate()} – ${list.length === 1 ? 'אירוע אחד' : list.length + ' אירועים'}`);
+    }
     c.onclick = () => { selDay = k; renderCalendar(); };
     g.appendChild(c);
   }
