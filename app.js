@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc
+  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
@@ -128,7 +128,7 @@ $('sampleBtn').onclick = async () => {
 };
 
 /* ================= עזרים ================= */
-const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN']);
+const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG']);
 function clean(html) {
   const d = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
   const walk = node => [...node.childNodes].forEach(ch => {
@@ -136,6 +136,12 @@ function clean(html) {
       if (!ALLOWED.has(ch.tagName)) {
         if (['SCRIPT','STYLE','IFRAME','OBJECT'].includes(ch.tagName)) { ch.remove(); return; }
         walk(ch); ch.replaceWith(...ch.childNodes); return;
+      }
+      if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה
+        const id = ch.getAttribute('data-img');
+        if (!id || !/^[\w-]+$/.test(id)) { ch.remove(); return; }
+        [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
+        ch.setAttribute('data-img', id); return;
       }
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
       walk(ch);
@@ -177,6 +183,7 @@ function openNotebook(id) {
   openId = id; dirty = false;
   $('title').value = n.title || '';
   $('editor').innerHTML = clean(n.html || '');
+  loadImages($('editor'));
   $('save').textContent = 'נשמר';
   $('library').classList.add('hidden'); $('notebook').classList.remove('hidden');
   window.scrollTo(0, 0);
@@ -375,7 +382,7 @@ try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch {}
 ['mousedown', 'pointerdown'].forEach(ev =>
   tb.addEventListener(ev, e => { if (e.target.closest('button')) e.preventDefault(); }, { passive: false }));
 tb.addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
+  const b = e.target.closest('button'); if (!b || !b.dataset.cmd) return;
   const c = b.dataset.cmd;
   if (['h1','h2','h3','p'].includes(c)) { setBlock(c); markDirty(); return; }
   restoreSelection();
@@ -393,6 +400,8 @@ tb.addEventListener('click', e => {
 });
 $('editor').addEventListener('paste', e => {
   e.preventDefault();
+  const files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
+  if (files.length) { addImages(files); return; }
   const html = e.clipboardData.getData('text/html');
   if (html) document.execCommand('insertHTML', false, clean(html));
   else document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
@@ -509,3 +518,96 @@ $('evForm').addEventListener('submit', async e => {
 $('prevMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); };
 $('nextMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
 $('todayBtn').onclick = () => { const n = new Date(); viewMonth = new Date(n.getFullYear(), n.getMonth(), 1); selDay = todayKey(); renderCalendar(); };
+
+
+/* ================= תמונות ================= */
+// כל תמונה נשמרת כמסמך נפרד (users/<uid>/images/<id>), ובמחברת נשמר רק המזהה שלה
+const imgCache = new Map();
+const imgDoc = id => doc(db, 'users', me.uid, 'images', id);
+
+async function loadImages(root) {
+  root.querySelectorAll('img[data-img]').forEach(async img => {
+    const id = img.getAttribute('data-img');
+    if (imgCache.has(id)) { img.src = imgCache.get(id); return; }
+    img.classList.add('loading-img');
+    try {
+      const snap = await getDoc(imgDoc(id));
+      if (snap.exists()) { imgCache.set(id, snap.data().data); img.src = snap.data().data; }
+      else img.alt = 'התמונה לא נמצאה';
+    } catch { img.alt = 'לא הצלחתי לטעון את התמונה'; }
+    img.classList.remove('loading-img');
+  });
+}
+
+// מקטינים את התמונה כדי שתישמר מהר ותיכנס במגבלת הגודל
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const im = new Image();
+    im.onload = () => {
+      let max = 1400, q = 0.8, out;
+      for (let i = 0; i < 6; i++) {
+        const k = Math.min(1, max / Math.max(im.width, im.height));
+        const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if (out.length < 900000) break;
+        max = Math.round(max * 0.8); q = Math.max(0.5, q - 0.08);
+      }
+      URL.revokeObjectURL(url); res(out);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('bad image')); };
+    im.src = url;
+  });
+}
+
+async function addImages(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/'));
+  if (!list.length || !openId) return;
+  restoreSelection();
+  for (const f of list) {
+    const holder = document.createElement('p'); holder.className = 'img-uploading'; holder.textContent = '⏳ מעלה תמונה...';
+    insertBlockAtCaret(holder);
+    try {
+      const data = await shrink(f);
+      const ref = doc(collection(db, 'users', me.uid, 'images'));
+      await setDoc(ref, { data, createdAt: Date.now() });
+      imgCache.set(ref.id, data);
+      const p = document.createElement('p'); const img = document.createElement('img');
+      img.setAttribute('data-img', ref.id); img.src = data; p.appendChild(img);
+      const after = document.createElement('p'); after.appendChild(document.createElement('br'));
+      holder.replaceWith(p); p.after(after); placeCaret(after);
+      markDirty();
+    } catch (e) {
+      holder.remove(); toast('לא הצלחתי להעלות את התמונה');
+    }
+  }
+}
+
+function insertBlockAtCaret(el) {
+  const ed = $('editor'); const s = window.getSelection();
+  const r = s.rangeCount ? s.getRangeAt(0) : null;
+  const B = r && ed.contains(r.startContainer) && blockOf(r.startContainer);
+  if (!B) { ed.appendChild(el); return; }
+  const top = B.closest('ul,ol') && B.tagName === 'LI' ? B.closest('ul,ol') : B;
+  if (isEmpty(B) && top === B) B.replaceWith(el); else top.after(el);
+}
+
+$('imgBtn').addEventListener('click', () => { restoreSelection(); $('imgInput').click(); });
+$('imgInput').addEventListener('change', e => { addImages(e.target.files); e.target.value = ''; });
+$('editor').addEventListener('drop', e => {
+  if (e.dataTransfer && [...e.dataTransfer.files].some(f => f.type.startsWith('image/'))) { e.preventDefault(); addImages(e.dataTransfer.files); }
+});
+$('editor').addEventListener('click', e => {
+  const img = e.target.closest('img'); if (!img || !img.src) return;
+  dialog(d => {
+    d.classList.add('img-view');
+    const big = document.createElement('img'); big.src = img.src;
+    const row = document.createElement('div'); row.className = 'row';
+    const del = document.createElement('button'); del.className = 'btn btn-danger'; del.textContent = 'מחיקת התמונה';
+    del.onclick = () => { const id = img.getAttribute('data-img'); const p = img.closest('p');
+      img.remove(); if (p && isEmpty(p) && !p.querySelector('img')) p.remove();
+      if (id) deleteDoc(imgDoc(id)).catch(() => {}); markDirty(); closeDialog(); };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(del, close); d.append(big, row);
+  });
+});

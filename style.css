@@ -154,3 +154,10 @@
 .ev-row #evTime{width:104px;flex:none}
 .ev-row .btn{flex:none;padding:8px 14px}
 .day-panel{min-width:0}
+
+/* Images */
+#editor img{display:block;max-width:100%;max-height:520px;margin:8px auto;border-radius:10px;box-shadow:var(--shadow);cursor:zoom-in;background:var(--bg)}
+#editor img.loading-img{min-height:120px;min-width:200px}
+.img-uploading{color:var(--muted)}
+.dialog.img-view{max-width:min(92vw,1000px)}
+.dialog.img-view img{display:block;max-width:100%;max-height:75vh;margin:0 auto 14px;border-radius:10px}
