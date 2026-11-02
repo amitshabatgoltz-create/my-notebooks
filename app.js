@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
-import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js";
+import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615860";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
 const $ = id => document.getElementById(id);

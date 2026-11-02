@@ -12,4 +12,4 @@ export const firebaseConfig = {
 };
 
 // מפתח reCAPTCHA (בשביל App Check — נדרש ל"סיכום למבחן")
-export const recaptchaSiteKey = "PASTE_RECAPTCHA_KEY";
+export const recaptchaSiteKey = "6LcrogwuAAAAAPhL96h4TzRNJZnS0gok_A_sTxNb";
