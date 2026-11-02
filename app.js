@@ -1153,6 +1153,7 @@ const LINE_COLORS = ['#1D1D1F', '#5E5CE6', '#E5484D', '#10B981', '#3B82F6', '#F5
 const TEXT_COLORS = ['#1D1D1F', '#5E5CE6', '#E5484D', '#10B981', '#3B82F6', '#F59E0B', '#FFFFFF'];
 const TEXT_BGS = ['none', '#FFF3A3', '#DCEBFF', '#D9F5E8', '#FFE0EA', '#EEE7FF', '#1D1D1F'];
 const CV_W = 800;
+const FONTS = { rubik: ["'Rubik',sans-serif", 'Rubik'], suez: ["'Suez One',serif", 'Suez One'], secular: ["'Secular One',sans-serif", 'Secular One'], assistant: ["'Assistant',sans-serif", 'Assistant'], varela: ["'Varela Round',sans-serif", 'Varela Round'], amatic: ["'Amatic SC',cursive", 'Amatic (כתב יד)'] };
 function oldLineToLn(v) {
   const [L, A, W, C, D, R] = v.split('|'); const rad = +A * Math.PI / 180, l = Math.min(+L, 760);
   const dx = Math.cos(rad) * l / 2, dy = Math.sin(rad) * l / 2, cy = Math.abs(dy) + 30;
@@ -1165,9 +1166,9 @@ function cvSan(o) {
   const h = num(o.h, 80, 3000, 300); const items = [];
   (Array.isArray(o.items) ? o.items : []).slice(0, 80).forEach(it => {
     if (!it) return;
-    if (it.t === 'l') items.push({ t: 'l', x1: num(it.x1, 0, CV_W, 200), y1: num(it.y1, 0, h, 40), x2: num(it.x2, 0, CV_W, 600), y2: num(it.y2, 0, h, 40), w: num(it.w, 1, 16, 3), c: hex(it.c, '#1D1D1F'), d: !!it.d, r: !!it.r });
+    if (it.t === 'l') items.push({ t: 'l', x1: num(it.x1, 0, CV_W, 200), y1: num(it.y1, 0, h, 40), x2: num(it.x2, 0, CV_W, 600), y2: num(it.y2, 0, h, 40), w: num(it.w, 1, 16, 3), c: hex(it.c, '#1D1D1F'), d: !!it.d, r: !!it.r, lk: !!it.lk });
     else if (it.t === 'x') items.push({ t: 'x', x: num(it.x, -200, CV_W, 300), y: num(it.y, -50, h, 40), w: num(it.w, 30, CV_W, 240), rot: num(it.rot, -180, 180, 0), s: num(it.s, 8, 120, 22),
-      c: hex(it.c, '#1D1D1F'), bg: it.bg === 'none' ? 'none' : hex(it.bg, 'none'), b: !!it.b, a: ['right', 'center', 'left'].includes(it.a) ? it.a : 'center', text: String(it.text || '').slice(0, 3000) });
+      c: hex(it.c, '#1D1D1F'), bg: it.bg === 'none' ? 'none' : hex(it.bg, 'none'), b: !!it.b, a: ['right', 'center', 'left'].includes(it.a) ? it.a : 'center', text: String(it.text || '').slice(0, 3000), f: FONTS[it.f] ? it.f : 'rubik', lk: !!it.lk });
   });
   return { h, items };
 }
@@ -1191,6 +1192,8 @@ function drawCv(el) {
   const st = document.createElement('div'); st.className = 'cv-stage'; st.dataset.h = o.h;
   st.style.width = CV_W + 'px'; st.style.height = o.h + 'px';
   o.items.forEach((it, i) => st.appendChild(it.t === 'l' ? lineEl(it, i, isSel && i === selIdx) : textEl(it, i, isSel && i === selIdx)));
+  const si = isSel ? o.items[selIdx] : null;
+  if (si && si.t === 'l' && !si.lk) st.appendChild(lineHandles(si, selIdx));
   st.insertAdjacentHTML('beforeend', '<i class="cv-guide v"></i><i class="cv-guide h"></i>');
   el.innerHTML = ''; el.appendChild(st);
   if (isSel) {
@@ -1199,6 +1202,28 @@ function drawCv(el) {
   }
   if (!o.items.length) { const em = document.createElement('div'); em.className = 'cv-empty'; em.textContent = 'לוח ריק. הוסף טקסט או קו מהסרגל שמעל.'; el.appendChild(em); }
   fitCv(el); ro.observe(el);
+  if (si) placeMini(el, si);
+}
+function lineHandles(it, i) {
+  const g = document.createElement('div'); g.className = 'cv-lh'; g.dataset.i = i; posLineHandles(g, it);
+  g.innerHTML = '<span class="hd lrot" data-h="lrot" title="סיבוב"></span><span class="hd lmv" data-h="move" title="הזזה"></span>';
+  return g;
+}
+function posLineHandles(g, it) {
+  const mx = (it.x1 + it.x2) / 2, my = (it.y1 + it.y2) / 2, len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1) || 1;
+  const nx = -(it.y2 - it.y1) / len, ny = (it.x2 - it.x1) / len;           // ניצב לקו
+  const off = 34, sx = ny > 0 || (ny === 0 && nx > 0) ? 1 : -1;
+  g.style.left = (mx + nx * off * sx) + 'px'; g.style.top = (my + ny * off * sx) + 'px';
+}
+// סרגל קטן ליד הפריט, כמו בקנבה: מחיקה, שכפול, נעילה
+function placeMini(el, it) {
+  const m = document.createElement('div'); m.className = 'cv-mini';
+  m.innerHTML = `<button data-a="del" title="מחיקה">🗑</button><button data-a="dup" title="שכפול">⧉</button><button data-a="lock" class="${it.lk ? 'on' : ''}" title="${it.lk ? 'ביטול נעילה' : 'נעילה'}">${it.lk ? '🔒' : '🔓'}</button>`;
+  el.appendChild(m);
+  const k = cvScale(el); let cx, top;
+  if (it.t === 'l') { cx = (it.x1 + it.x2) / 2 * k; top = Math.min(it.y1, it.y2) * k; }
+  else { const t = el.querySelector(`.cv-text[data-i="${selIdx}"]`); const r = t.getBoundingClientRect(), cr = el.getBoundingClientRect(); cx = r.left - cr.left + r.width / 2; top = r.top - cr.top; }
+  m.style.left = cx + 'px'; m.style.top = Math.max(-40, top - 44) + 'px';
 }
 function lineEl(it, i, sel) {
   const id = 'm' + Math.random().toString(36).slice(2, 7);
@@ -1207,17 +1232,18 @@ function lineEl(it, i, sel) {
   if (it.r) h += `<defs><marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="${Math.max(3.5, 10 / it.w + 2)}" markerHeight="${Math.max(3.5, 10 / it.w + 2)}" orient="auto"><path d="M0 0L10 5L0 10z" fill="${it.c}" class="ink"/></marker></defs>`;
   h += `<line class="hit" x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}"/>`;
   h += `<line class="ink main" x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}" stroke="${it.c}" stroke-width="${it.w}"${it.d ? ` stroke-dasharray="${it.w * 3} ${it.w * 2.5}"` : ''}${it.r ? ` marker-end="url(#${id})"` : ''}/>`;
-  if (sel) h += `<circle class="hd" data-h="p1" cx="${it.x1}" cy="${it.y1}"/><circle class="hd" data-h="p2" cx="${it.x2}" cy="${it.y2}"/>`;
+  if (sel && !it.lk) h += `<circle class="hd" data-h="p1" cx="${it.x1}" cy="${it.y1}"/><circle class="hd" data-h="p2" cx="${it.x2}" cy="${it.y2}"/>`;
   g.innerHTML = h; return g;
 }
 function textEl(it, i, sel) {
   const d = document.createElement('div'); d.className = 'cv-text' + (sel ? ' on' : ''); d.dataset.i = i;
   d.style.cssText = `left:${it.x}px;top:${it.y}px;width:${it.w}px;transform:rotate(${it.rot}deg)`;
   const tx = document.createElement('div'); tx.className = 'tx'; tx.dir = 'auto';
-  tx.style.cssText = `font-size:${it.s}px;color:${it.c};font-weight:${it.b ? 700 : 400};text-align:${it.a};` + (it.bg !== 'none' ? `background:${it.bg};padding:.25em .45em;border-radius:.35em;` : '');
+  tx.style.cssText = `font-family:${FONTS[it.f][0]};font-size:${it.s}px;color:${it.c};font-weight:${it.b ? 700 : 400};text-align:${it.a};` + (it.bg !== 'none' ? `background:${it.bg};padding:.25em .45em;border-radius:.35em;` : '');
   tx.textContent = it.text; if (!it.text) tx.dataset.ph = 'כתוב כאן';
   d.appendChild(tx);
-  if (sel) ['w', 'e', 'nw', 'ne', 'sw', 'se', 'rot'].forEach(hh => { const b = document.createElement('span'); b.className = 'hd ' + hh; b.dataset.h = hh; d.appendChild(b); });
+  if (sel && it.lk) d.classList.add('locked');
+  if (sel && !it.lk) ['w', 'e', 'nw', 'ne', 'sw', 'se', 'rot', 'mv'].forEach(hh => { const b = document.createElement('span'); b.className = 'hd ' + hh; b.dataset.h = hh; d.appendChild(b); });
   return d;
 }
 function cvBar(o) {
@@ -1225,9 +1251,13 @@ function cvBar(o) {
   const btn = (a, label, on, title) => `<button data-a="${a}" class="${on ? 'on' : ''}" title="${title || ''}">${label}</button>`;
   const dots = (a, list, cur) => list.map(c => `<button data-a="${a}" data-v="${c}" class="dot${c === cur ? ' on' : ''}" style="${c === 'none' ? '' : 'background:' + c}" title="${c === 'none' ? 'בלי רקע' : ''}">${c === 'none' ? '⌀' : ''}</button>`).join('');
   let h = '';
-  if (!it) h = btn('addText', '＋ טקסט') + btn('addLine', '＋ קו') + '<i></i>' + btn('delCv', '🗑 מחיקת הלוח');
-  else if (it.t === 'x') h = btn('sDown', 'A−', 0, 'הקטנת גופן') + `<span class="v">${Math.round(it.s)}</span>` + btn('sUp', 'A+', 0, 'הגדלת גופן') + '<i></i>' + btn('bold', '<b>B</b>', it.b, 'מודגש') + btn('align', { right: '⇥', center: '≡', left: '⇤' }[it.a], 0, 'יישור') + '<i></i>' + dots('color', TEXT_COLORS, it.c) + '<i></i><span class="lbl">רקע</span>' + dots('bg', TEXT_BGS, it.bg) + '<i></i>' + btn('rot0', '⟲', 0, 'ביטול סיבוב') + btn('dup', '⧉', 0, 'שכפול') + btn('del', '🗑', 0, 'מחיקה');
-  else h = btn('wDown', '−', 0, 'דק יותר') + `<span class="v">${it.w}</span>` + btn('wUp', '+', 0, 'עבה יותר') + '<i></i>' + dots('lcolor', LINE_COLORS, it.c) + '<i></i>' + btn('dash', 'מקווקו', it.d) + btn('arrow', 'חץ', it.r) + '<i></i>' + btn('dup', '⧉', 0, 'שכפול') + btn('del', '🗑', 0, 'מחיקה');
+  if (!it) h = btn('addH1', '<b>הוסף כותרת</b>') + btn('addH2', 'הוסף כותרת משנה') + btn('addBody', '<small>הוסף גוף טקסט</small>') + '<i></i>' + btn('addLine', '＋ קו') + '<i></i>' + btn('delCv', '🗑 מחיקת הלוח');
+  else if (it.lk) h = '<span class="lbl">🔒 הפריט נעול. לחץ על המנעול כדי לערוך אותו.</span>';
+  else if (it.t === 'x') h = `<select data-a="font" title="גופן">${Object.entries(FONTS).map(([k, v]) => `<option value="${k}"${k === it.f ? ' selected' : ''} style="font-family:${v[0]}">${v[1]}</option>`).join('')}</select>` + '<i></i>'
+    + btn('sDown', '−', 0, 'הקטנת גופן') + `<input data-a="size" type="number" min="8" max="120" value="${Math.round(it.s)}" title="גודל גופן">` + btn('sUp', '+', 0, 'הגדלת גופן') + '<i></i>'
+    + btn('bold', '<b>B</b>', it.b, 'מודגש') + btn('align', `<svg><use href="#i-al-${{ right: 'r', center: 'c', left: 'l' }[it.a]}"/></svg>`, 0, 'יישור (ימין / שמאל / מרכז)') + '<i></i>'
+    + dots('color', TEXT_COLORS, it.c) + '<i></i><span class="lbl">רקע</span>' + dots('bg', TEXT_BGS, it.bg) + (it.rot ? '<i></i>' + btn('rot0', '⟲', 0, 'ביטול סיבוב') : '');
+  else h = btn('wDown', '−', 0, 'דק יותר') + `<span class="v">${it.w}</span>` + btn('wUp', '+', 0, 'עבה יותר') + '<i></i>' + dots('lcolor', LINE_COLORS, it.c) + '<i></i>' + btn('dash', 'מקווקו', it.d) + btn('arrow', 'חץ', it.r);
   bar.innerHTML = h; return bar;
 }
 function selectCv(el, idx = -1) {
@@ -1242,14 +1272,21 @@ function newCvAtCaret(h = 300) {
   if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
   return el;
 }
-function addItem(kind) {
+const PRESETS = { h1: { s: 52, b: true, w: 520, text: 'הוסף כותרת' }, h2: { s: 32, b: true, w: 440, text: 'הוסף כותרת משנה' }, body: { s: 19, b: false, w: 380, text: 'הוסף גוף טקסט' }, x: { s: 26, b: false, w: 300, text: '' } };
+function addItem(kind, preset = 'x') {
   let el = selCv && selCv.isConnected ? selCv : newCvAtCaret();
   const o = cvData(el); const cy = o.items.length ? Math.min(o.h - 40, 40 + (o.items.length % 5) * 40) : o.h / 2 - 20;
-  if (kind === 'x') o.items.push({ t: 'x', x: 260, y: cy - 10, w: 280, rot: 0, s: 26, c: '#1D1D1F', bg: 'none', b: false, a: 'center', text: '' });
+  if (kind === 'x') { const P = PRESETS[preset] || PRESETS.x;
+    // מתחת לטקסט האחרון, כדי שלא ייפול עליו; הלוח גדל אם צריך
+    const lastX = [...el.querySelectorAll('.cv-text')].pop(), k = cvScale(el);
+    let ny = cy - P.s / 2;
+    if (lastX) { const r = lastX.getBoundingClientRect(), sr = el.querySelector('.cv-stage').getBoundingClientRect(); ny = (r.bottom - sr.top) / k + 14; }
+    const need = ny + P.s * 1.6 + 20; if (need > o.h) o.h = Math.min(2000, Math.ceil(need));
+    o.items.push({ t: 'x', x: (CV_W - P.w) / 2, y: ny, w: P.w, rot: 0, s: P.s, c: '#1D1D1F', bg: 'none', b: P.b, a: 'center', text: P.text, f: 'rubik' }); }
   else o.items.push({ t: 'l', x1: 250, y1: cy, x2: 550, y2: cy, w: 3, c: '#1D1D1F', d: false, r: false });
   el.setAttribute('data-cv', JSON.stringify(cvSan(o))); markDirty();
   selectCv(el, o.items.length - 1);
-  if (kind === 'x') startEdit(el, o.items.length - 1);
+  if (kind === 'x') { startEdit(el, o.items.length - 1); if (preset !== 'x') { const t = el.querySelector(`.cv-text[data-i="${o.items.length - 1}"] .tx`); if (t) { const r = document.createRange(); r.selectNodeContents(t); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); } } }
 }
 $('lineBtn').addEventListener('click', () => addItem('l'));
 
@@ -1277,10 +1314,10 @@ const stagePt = (el, e) => { const r = el.querySelector('.cv-stage').getBounding
 $('editor').addEventListener('pointerdown', e => {
   const el = e.target.closest('.cv');
   if (!el) { if (selCv && !editing) selectCv(null); return; }
-  if (e.target.closest('.cv-bar')) return;
+  if (e.target.closest('.cv-bar, .cv-mini')) return;
   if (editing && e.target.closest('.tx[contenteditable="true"], .tx[contenteditable="plaintext-only"]')) return;
   const rz = e.target.closest('.cv-rz');
-  const itemEl = e.target.closest('.cv-text, .cv-line');
+  const itemEl = e.target.closest('.cv-text, .cv-line, .cv-lh');
   const onLineHit = e.target.closest('.hit, .hd');
   if (!rz && (!itemEl || (itemEl.classList.contains('cv-line') && !onLineHit))) {   // לחיצה על שטח ריק: סימון הלוח
     if (editing) document.activeElement.blur();
@@ -1293,6 +1330,7 @@ $('editor').addEventListener('pointerdown', e => {
   const wasSel = selCv === el && selIdx === i;
   const h = e.target.closest('.hd') ? e.target.closest('.hd').dataset.h : 'move';
   if (!wasSel) selectCv(el, i);
+  if (o.items[i] && o.items[i].lk) return;                       // פריט נעול: רק מסמנים
   drag = { el, kind: h, i, wasSel, o0: JSON.parse(JSON.stringify(o)), p0: stagePt(el, e), id: e.pointerId, moved: false };
   el.setPointerCapture(e.pointerId); el.classList.add('dragging');
 });
@@ -1310,7 +1348,12 @@ $('editor').addEventListener('pointermove', e => {
     const it = o.items[i];
     if (it.t === 'l') {
       if (kind === 'move') { it.x1 += dx; it.x2 += dx; it.y1 += dy; it.y2 += dy; }
-      else {
+      else if (kind === 'lrot') {
+        const c0 = o0.items[i], mx = (c0.x1 + c0.x2) / 2, my = (c0.y1 + c0.y2) / 2, len = Math.hypot(c0.x2 - c0.x1, c0.y2 - c0.y1);
+        let ang = Math.atan2(my - p.y, p.x - mx) * 180 / Math.PI + 90; const sn = Math.round(ang / 15) * 15; if (Math.abs(ang - sn) < 4) ang = sn;
+        const r = ang * Math.PI / 180, hx = Math.cos(r) * len / 2, hy = Math.sin(r) * len / 2;
+        it.x1 = mx - hx; it.y1 = my + hy; it.x2 = mx + hx; it.y2 = my - hy;
+      } else {
         const [fx, fy] = kind === 'p1' ? [it.x2, it.y2] : [it.x1, it.y1];
         let x = p.x, y = p.y; const ang = Math.atan2(fy - y, x - fx) * 180 / Math.PI, len = Math.hypot(x - fx, y - fy), sn = Math.round(ang / 15) * 15;
         if (Math.abs(ang - sn) < 3.5 && !e.shiftKey) { const r = sn * Math.PI / 180; x = fx + Math.cos(r) * len; y = fy - Math.sin(r) * len; }
@@ -1318,15 +1361,19 @@ $('editor').addEventListener('pointermove', e => {
       }
       const by = Math.max(it.y1, it.y2); if (by > o.h - 12) o.h = by + 12;
       let a = Math.round(Math.atan2(it.y1 - it.y2, it.x2 - it.x1) * 180 / Math.PI); if (a < 0) a += 360;
-      tipShow(el, `${a}°`);
+      tipShow(el, `אורך: ${Math.round(Math.hypot(it.x2 - it.x1, it.y2 - it.y1))} · ${a}°`);
+      // קו עזר כשהקו ישר לגמרי (אנכי / אופקי)
+      if (kind !== 'move' && (a % 180 === 90)) { gv.style.left = it.x1 + 'px'; gv.classList.add('show'); }
+      if (kind !== 'move' && (a % 180 === 0)) { gh.style.top = it.y1 + 'px'; gh.classList.add('show'); }
     } else {
       const tEl = st.querySelector(`.cv-text[data-i="${i}"]`); const hgt = tEl ? tEl.offsetHeight : 40;
       const rad = it.rot * Math.PI / 180, dl = dx * Math.cos(rad) + dy * Math.sin(rad);
       if (kind === 'move') {
         it.x += dx; it.y += dy;
-        const cx = it.x + it.w / 2; if (Math.abs(cx - CV_W / 2) < 8) { it.x = CV_W / 2 - it.w / 2; gv.classList.add('show'); }   // הצמדה לאמצע
-        const cyy = it.y + hgt / 2; if (Math.abs(cyy - o.h / 2) < 8) { it.y = o.h / 2 - hgt / 2; gh.classList.add('show'); }
-      } else if (kind === 'e') { it.w = Math.max(30, o0.items[i].w + dl); }
+        const cx = it.x + it.w / 2; if (Math.abs(cx - CV_W / 2) < 8) { it.x = CV_W / 2 - it.w / 2; gv.style.left = (CV_W / 2) + 'px'; gv.classList.add('show'); }   // הצמדה לאמצע
+        const cyy = it.y + hgt / 2; if (Math.abs(cyy - o.h / 2) < 8) { it.y = o.h / 2 - hgt / 2; gh.style.top = (o.h / 2) + 'px'; gh.classList.add('show'); }
+      } else if (kind === 'mv') { it.x += dx; it.y += dy; }
+      else if (kind === 'e') { it.w = Math.max(30, o0.items[i].w + dl); }
       else if (kind === 'w') { const nw = Math.max(30, o0.items[i].w - dl); it.x = o0.items[i].x + (o0.items[i].w - nw); it.w = nw; }
       else if (kind === 'rot') {
         const c0 = o0.items[i]; const cx = c0.x + c0.w / 2, cyy = c0.y + hgt / 2;
@@ -1350,6 +1397,8 @@ $('editor').addEventListener('pointermove', e => {
   if (kind !== 'rz') {
     const it = cvSan(o).items[i]; const old = st.querySelector(`[data-i="${i}"]`);
     const nu = it.t === 'l' ? lineEl(it, i, true) : textEl(it, i, true); old.replaceWith(nu);
+    const lh = st.querySelector('.cv-lh'); if (lh && it.t === 'l') posLineHandles(lh, it);
+    const mini = el.querySelector('.cv-mini'); if (mini) mini.remove();
   }
 });
 function tipShow(el, txt) { let t = el.querySelector('.cv-tip'); if (!t) { t = document.createElement('span'); t.className = 'cv-tip'; el.appendChild(t); } t.textContent = txt; t.classList.add('show'); }
@@ -1367,17 +1416,22 @@ $('editor').addEventListener('pointercancel', endDrag);
 
 // ---- סרגל הכלים הצף מעל הבחירה
 $('editor').addEventListener('click', e => {
-  const b = e.target.closest('.cv-bar button'); if (!b) return;
+  const b = e.target.closest('.cv-bar button, .cv-mini button'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const el = b.closest('.cv'); const o = cvData(el); const it = o.items[selIdx]; const a = b.dataset.a, v = b.dataset.v;
   if (a === 'addText') return addItem('x');
+  if (a === 'addH1') return addItem('x', 'h1');
+  if (a === 'addH2') return addItem('x', 'h2');
+  if (a === 'addBody') return addItem('x', 'body');
   if (a === 'addLine') return addItem('l');
   if (a === 'delCv') { selCv = null; el.remove(); markDirty(); return; }
   if (!it) return;
+  if (a === 'lock') { it.lk = !it.lk; cvSave(el, o); drawCv(el); return; }
+  if (it.lk) return;
   if (a === 'sDown') it.s = Math.max(8, Math.round(it.s / 1.15));
   else if (a === 'sUp') it.s = Math.min(120, Math.round(it.s * 1.15));
   else if (a === 'bold') it.b = !it.b;
-  else if (a === 'align') it.a = { center: 'right', right: 'left', left: 'center' }[it.a];
+  else if (a === 'align') it.a = { right: 'left', left: 'center', center: 'right' }[it.a];
   else if (a === 'color') it.c = v;
   else if (a === 'bg') it.bg = v;
   else if (a === 'rot0') it.rot = 0;
@@ -1395,6 +1449,7 @@ document.addEventListener('keydown', e => {
   const o = cvData(selCv); const it = o.items[selIdx];
   if (e.key === 'Escape') { selectCv(null); return; }
   if (!it) return;
+  if (it.lk) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); o.items.splice(selIdx, 1); cvSave(selCv, o); selectCv(selCv, -1); return; }
   const step = e.shiftKey ? 10 : 1, mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
   if (mv) { e.preventDefault(); if (it.t === 'x') { it.x += mv[0]; it.y += mv[1]; } else { it.x1 += mv[0]; it.x2 += mv[0]; it.y1 += mv[1]; it.y2 += mv[1]; } cvSave(selCv, o); drawCv(selCv); }
@@ -1568,6 +1623,19 @@ boxMove.addEventListener('pointermove', e => {
   const ed = $('editor'), page = dropLine.parentElement.getBoundingClientRect();
   const sibs = [...ed.children].filter(c => c !== box);
   let target = null, before = true;
+  // ליד תיבה אחרת באותה שורה (כשהאצבע נמצאת על תיבה אחרת)
+  const over = sibs.find(c => c.matches('div[data-box]') && (() => { const r = c.getBoundingClientRect(); return e.clientY >= r.top && e.clientY <= r.bottom; })());
+  if (over) {
+    const r = over.getBoundingClientRect(), right = e.clientX > r.left + r.width / 2;   // ימין = לפני (עברית)
+    moveDrag.side = over; moveDrag.sideBefore = right; moveDrag.target = null;
+    const pg = dropLine.parentElement.getBoundingClientRect();
+    dropLine.classList.add('vert'); dropLine.style.left = ((right ? r.right + 4 : r.left - 6) - pg.left) + 'px';
+    dropLine.style.top = (r.top - pg.top) + 'px'; dropLine.style.width = ''; dropLine.style.height = r.height + 'px';
+    dropLine.classList.remove('hidden');
+    box.style.transform = `translateY(${e.clientY - moveDrag.y0}px)`; placeHandle(box);
+    return;
+  }
+  moveDrag.side = null; dropLine.classList.remove('vert'); dropLine.style.height = '';
   for (const c of sibs) { const r = c.getBoundingClientRect(); if (e.clientY < r.top + r.height / 2) { target = c; before = true; break; } }
   if (!target && sibs.length) { target = sibs[sibs.length - 1]; before = false; }
   const same = target && ((before && target === box.nextElementSibling) || (!before && target === box.previousElementSibling));
@@ -1584,8 +1652,16 @@ boxMove.addEventListener('pointermove', e => {
 function endMove(e) {
   if (!moveDrag || e.pointerId !== moveDrag.id) return;
   const { box, target, before } = moveDrag;
-  box.style.transform = ''; dropLine.classList.add('hidden');
-  if (target && target.isConnected) { before ? target.before(box) : target.after(box); }
+  box.style.transform = ''; dropLine.classList.add('hidden'); dropLine.classList.remove('vert'); dropLine.style.height = '';
+  const side = moveDrag.side;
+  if (side && side.isConnected) {
+    // שתי תיבות באותה שורה: מצמצמים כך ששתיהן ייכנסו
+    const wOf = b => +(b.getAttribute('data-w') || 100);
+    if (wOf(side) + wOf(box) > 97) { const half = '48'; side.setAttribute('data-w', half); box.setAttribute('data-w', half); }
+    side.removeAttribute('data-x'); box.removeAttribute('data-x');
+    moveDrag.sideBefore ? side.before(box) : side.after(box);
+    applyBoxSizes($('editor'));
+  } else if (target && target.isConnected) { before ? target.before(box) : target.after(box); }
   box.classList.remove('resizing'); boxMove.classList.remove('active'); moveDrag = null; markDirty();
   placeHandle(box);
 }
@@ -1611,3 +1687,13 @@ function updateAlignButtons() {
 }
 document.querySelectorAll('[data-align]').forEach(b => b.addEventListener('click', () => alignBlocks(b.dataset.align)));
 document.addEventListener('selectionchange', updateAlignButtons);
+
+// גופן וגודל בסרגל העליון
+$('editor').addEventListener('change', e => {
+  const c = e.target.closest('.cv-bar select, .cv-bar input'); if (!c) return;
+  const el = c.closest('.cv'); const o = cvData(el); const it = o.items[selIdx]; if (!it || it.lk) return;
+  if (c.dataset.a === 'font') it.f = c.value;
+  if (c.dataset.a === 'size') it.s = Math.max(8, Math.min(120, +c.value || it.s));
+  cvSave(el, o); drawCv(el);
+});
+$('editor').addEventListener('keydown', e => { if (e.target.closest('.cv-bar input')) { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); } }, true);

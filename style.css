@@ -496,3 +496,28 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 
 .drop-line{position:absolute;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent);pointer-events:none;z-index:7}
 #editor div[data-box].resizing{position:relative;z-index:3;opacity:.92}
+
+/* Canva: ידיות הזזה וסיבוב, סרגל קטן, נעילה */
+.cv-text .hd.mv{left:50%;bottom:calc(-38px / var(--k,1));margin-left:calc(17px / var(--k,1));width:calc(22px / var(--k,1));height:calc(22px / var(--k,1));cursor:move;
+  background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3'/%3E%3C/svg%3E") center/70% no-repeat}
+.cv-text .hd.rot{margin-left:calc(-39px / var(--k,1))}
+.cv-text.locked{outline-style:dashed !important;cursor:default}
+.cv-lh{position:absolute;width:0;height:0;z-index:3}
+.cv-lh .hd{position:absolute;width:calc(24px / var(--k,1));height:calc(24px / var(--k,1));margin:calc(-12px / var(--k,1));border-radius:50%;border:calc(2px / var(--k,1)) solid #8B5CF6;box-shadow:0 1px 3px rgba(0,0,0,.25);touch-action:none}
+.cv-lh .lrot{left:calc(-15px / var(--k,1));cursor:grab;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5'/%3E%3C/svg%3E") center/70% no-repeat}
+.cv-lh .lmv{left:calc(15px / var(--k,1));cursor:move;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B5CF6' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3'/%3E%3C/svg%3E") center/70% no-repeat}
+.cv-mini{position:absolute;transform:translateX(-50%);display:flex;gap:2px;padding:3px;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-lg);z-index:7;animation:pop .15s var(--ease)}
+.cv-mini button{width:30px;height:30px;border-radius:9px;font-size:14px;display:grid;place-items:center}
+.cv-mini button:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.cv-mini button.on{background:var(--accent-soft)}
+.cv.dragging .cv-mini{display:none}
+.cv-bar select{height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;padding:0 6px;max-width:150px}
+.cv-bar input[type=number]{width:52px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:center;font-weight:700;font-size:13.5px;margin:0 !important;padding:0 2px !important}
+.cv-bar button svg{width:17px;height:17px}
+.cv-guide.v{width:calc(1.5px / var(--k,1))}
+
+/* תיבות צרות יושבות זו ליד זו באותה שורה */
+#editor div[data-box][data-w]:not([data-w="100"]){display:inline-block;vertical-align:top;margin-left:2%}
+.drop-line.vert{width:3px !important}
+.cv-text.on{z-index:4}
+@media (max-width:700px){.cv-mini button{width:26px;height:26px;font-size:12px}}
