@@ -7,7 +7,8 @@ import {
   getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
-import { firebaseConfig } from "./firebase-config.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
+import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
 const $ = id => document.getElementById(id);
@@ -19,6 +20,11 @@ if (firebaseConfig.apiKey === "PASTE_HERE") {
 }
 
 const fb = initializeApp(firebaseConfig);
+// App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
+if (recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE')) {
+  try { initializeAppCheck(fb, { provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey), isTokenAutoRefreshEnabled: true }); }
+  catch (e) { console.error('App Check', e); }
+}
 const auth = getAuth(fb);
 const db = getFirestore(fb);
 auth.languageCode = 'he';
@@ -153,7 +159,9 @@ function clean(html) {
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
         ch.setAttribute('data-img', id); return;
       }
+      const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
+      if (isTl) ch.className = 'tl';
       walk(ch);
     } else if (ch.nodeType !== 3) ch.remove();
   });
@@ -905,7 +913,7 @@ function showAiError(e) {
   const msg = String(e && (e.message || e.code) || '');
   let why = 'לא הצלחתי ליצור סיכום. נסה שוב בעוד דקה.';
   if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
-  else if (/app-check|appcheck|attestation/i.test(msg)) why = 'Firebase חוסם את הבקשה בגלל App Check. צריך לכבות אכיפה (Unenforce) ב-App Check עבור AI Logic (ראה README, שלב 7).';
+  else if (/app.?check|appcheck|attestation/i.test(msg)) why = recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE') ? 'Firebase עדיין לא מזהה את האתר (App Check). בדוק שמפתח ה-reCAPTCHA נשמר ב-App Check ← Apps, וחכה כמה דקות.' : 'צריך להגדיר App Check עם reCAPTCHA כדי שהסיכום יעבוד (ראה README, שלב 7).';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(msg)) why = 'הגעת למגבלת השימוש החינמית לרגע. נסה שוב בעוד כמה דקות.';
   dialog(d => {
     d.innerHTML = '<h3>לא הצלחתי ליצור סיכום</h3>';
@@ -1025,3 +1033,88 @@ function renderHome() {
   }
   homeAnimated = true;
 }
+
+
+/* ================= ציר זמן ================= */
+function tlItem(date = '', text = '') {
+  const li = document.createElement('li');
+  const b = document.createElement('b'); b.textContent = date;
+  const sp = document.createElement('span'); sp.textContent = text;
+  li.append(b, sp); return li;
+}
+function caretTlItem() {
+  const s = window.getSelection(); if (!s.rangeCount) return null;
+  const n = s.getRangeAt(0).startContainer; const el = n.nodeType === 1 ? n : n.parentElement;
+  return el && $('editor').contains(el) ? el.closest('ol.tl > li') : null;
+}
+function insertTimeline(count) {
+  restoreSelection();
+  const ol = document.createElement('ol'); ol.className = 'tl';
+  for (let i = 0; i < count; i++) ol.appendChild(tlItem());
+  insertBlockAtCaret(ol);
+  const after = document.createElement('p'); after.appendChild(document.createElement('br')); ol.after(after);
+  placeCaret(ol.querySelector('b')); markDirty();
+}
+function tlAction(act, li) {
+  const ol = li.closest('ol.tl');
+  if (act === 'after' || act === 'before') { const n = tlItem(); act === 'after' ? li.after(n) : li.before(n); placeCaret(n.querySelector('b')); }
+  else if (act === 'up' && li.previousElementSibling) { li.previousElementSibling.before(li); placeCaret(li.querySelector('b')); }
+  else if (act === 'down' && li.nextElementSibling) { li.nextElementSibling.after(li); placeCaret(li.querySelector('b')); }
+  else if (act === 'del') {
+    if (ol.children.length <= 1) return tlAction('delAll', li);
+    const next = li.nextElementSibling || li.previousElementSibling; li.remove(); placeCaret(next.querySelector('b') || next);
+  } else if (act === 'delAll') { const p = document.createElement('p'); p.appendChild(document.createElement('br')); ol.replaceWith(p); placeCaret(p); }
+  markDirty();
+}
+function timelineDialog() {
+  restoreSelection();
+  const li = caretTlItem();
+  if (li) {
+    dialog(d => {
+      d.innerHTML = '<h3>עריכת ציר זמן</h3>';
+      const grid = document.createElement('div'); grid.className = 'tbl-actions';
+      [['before','➕ אירוע לפני'],['after','➕ אירוע אחרי'],['up','⬆ הזזה למעלה'],['down','⬇ הזזה למטה'],['del','➖ מחיקת האירוע'],['delAll','🗑 מחיקת ציר הזמן']].forEach(([a, label]) => {
+        const b = document.createElement('button'); b.className = 'btn ' + (a === 'delAll' ? 'btn-danger' : 'btn-ghost'); b.textContent = label;
+        b.onclick = () => { closeDialog(); tlAction(a, li); }; grid.appendChild(b);
+      });
+      const tip = document.createElement('p'); tip.textContent = 'טיפ: Enter בסוף אירוע מוסיף אירוע חדש אחריו.';
+      const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+      d.append(grid, tip, close);
+    });
+    return;
+  }
+  dialog(d => {
+    d.innerHTML = '<h3>ציר זמן חדש</h3><p>כמה אירועים יהיו בציר? תמיד אפשר להוסיף עוד אחר כך.</p>';
+    const lab = document.createElement('label'); lab.className = 'tl-count';
+    const minus = document.createElement('button'); minus.type = 'button'; minus.className = 'btn btn-ghost icon-btn'; minus.textContent = '−';
+    const num = document.createElement('span'); num.className = 'tl-num'; let n = 4; num.textContent = n;
+    const plus = document.createElement('button'); plus.type = 'button'; plus.className = 'btn btn-ghost icon-btn'; plus.textContent = '+';
+    const prev = document.createElement('div'); prev.className = 'tl-preview';
+    const paint = () => { num.textContent = n; prev.innerHTML = ''; for (let i = 0; i < Math.min(n, 8); i++) prev.appendChild(document.createElement('i')); };
+    minus.onclick = () => { n = Math.max(1, n - 1); paint(); };
+    plus.onclick = () => { n = Math.min(20, n + 1); paint(); };
+    lab.append(minus, num, plus); paint();
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הוספת ציר זמן';
+    ok.onclick = () => { closeDialog(); insertTimeline(n); };
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog;
+    row.append(ok, cancel); d.append(prev, lab, row);
+  });
+}
+$('tlBtn').addEventListener('click', timelineDialog);
+
+// Enter בציר זמן: מהתאריך לתיאור, ומהתיאור לאירוע חדש
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  const li = caretTlItem(); if (!li) return;
+  e.preventDefault();
+  const s = window.getSelection(); const n = s.getRangeAt(0).startContainer; const el = n.nodeType === 1 ? n : n.parentElement;
+  if (el.closest('b')) { let sp = li.querySelector('span'); if (!sp) { sp = document.createElement('span'); li.appendChild(sp); } placeCaret(sp); return; }
+  if (isEmpty(li)) { // Enter על אירוע ריק = יציאה מציר הזמן
+    const ol = li.closest('ol.tl'); const p = document.createElement('p'); p.appendChild(document.createElement('br'));
+    if (ol.children.length > 1) li.remove(); ol.after(p); placeCaret(p); markDirty(); return;
+  }
+  const next = li.nextElementSibling;
+  if (next && isEmpty(next)) { placeCaret(next.querySelector('b') || next); return; }
+  tlAction('after', li);
+});

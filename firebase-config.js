@@ -10,3 +10,6 @@ export const firebaseConfig = {
   appId: "1:715695187837:web:6466a55d80879c1e854e14",
   measurementId: "G-EHHVE65PMS"
 };
+
+// מפתח reCAPTCHA (בשביל App Check — נדרש ל"סיכום למבחן")
+export const recaptchaSiteKey = "PASTE_RECAPTCHA_KEY";

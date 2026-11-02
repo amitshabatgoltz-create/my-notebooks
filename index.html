@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793567212">
+<link rel="stylesheet" href="style.css?v=1793603544">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -31,6 +31,7 @@
   <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 10h18M3 15h18M9.5 4v16M15 4v16"/></symbol>
+  <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M6 3v18"/><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="12" r="2.2"/><circle cx="6" cy="18" r="2.2"/><path d="M11 6h9M11 12h7M11 18h9"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></symbol>
 </svg>
@@ -160,6 +161,7 @@
             <span class="sep"></span>
             <button id="imgBtn" type="button" title="הוספת תמונה" aria-label="הוספת תמונה"><svg><use href="#i-image"/></svg></button>
             <button id="tableBtn" type="button" title="טבלה" aria-label="טבלה"><svg><use href="#i-table"/></svg></button>
+            <button id="tlBtn" type="button" title="ציר זמן" aria-label="ציר זמן"><svg><use href="#i-timeline"/></svg></button>
             <input id="imgInput" type="file" accept="image/*" multiple hidden>
             <span class="sep"></span>
             <button data-cmd="undo" title="ביטול" aria-label="ביטול"><svg><use href="#i-undo"/></svg></button>
@@ -218,6 +220,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793567212"></script>
+<script type="module" src="app.js?v=1793603544"></script>
 </body>
 </html>
