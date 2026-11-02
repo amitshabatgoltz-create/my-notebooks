@@ -2437,7 +2437,12 @@ let timetable = { days: {} }, unsubTT = null;
 const ttDoc = () => doc(db, 'users', me.uid, 'meta', 'timetable');
 function subscribeTimetable() {
   if (unsubTT) unsubTT();
-  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {}; paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
+  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {};
+    // תיקון למערכת שנקראה עם שעה 0 ריקה בתור "שעה 1": אם השורה הראשונה ריקה בכל הימים, מזיזים הכל שורה למעלה
+    if (timetable.start !== 0 && ttSubjects().length) {
+      const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
+      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, updatedAt: Date.now() }).catch(() => {}); }
+    } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
@@ -2471,15 +2476,25 @@ function paintTTBtn() { const b = $('ttBtn'); if (b) b.classList.toggle('on', tt
 function timetableDialog() {
   dialog(d => {
     d.classList.add('tt-dlg');
-    const has = ttSubjects().length > 0;
+    const has = ttSubjects().length > 0; let start = timetable.start === 0 ? 0 : 1;
     d.innerHTML = `<h3>🗓 מערכת שעות</h3>
       <p class="muted-s">כשתכתוב "ש״ב במתמטיקה" בלי תאריך, האתר ישים את זה ליום של השיעור הבא במתמטיקה.</p>
       <button type="button" class="tt-up${has ? ' small' : ''}" id="ttPhoto"><span class="ic">📷</span><b>${has ? 'להעלות תמונה חדשה של המערכת' : 'העלאת תמונה של המערכת'}</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
       <p class="tt-status" id="ttStatus"></p>
       <input type="file" id="ttFile" accept="image/*,application/pdf" hidden>
       ${has ? '' : '<button type="button" class="link tt-manual" id="ttManual">או להקליד את המערכת ידנית</button>'}
-      <div class="tt-scroll${has ? '' : ' hidden'}"><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      <div class="tt-scroll${has ? '' : ' hidden'}"><label class="tt-zero"><input type="checkbox" id="ttZero"${start === 0 ? ' checked' : ''}> יש לי שיעורים בשעה אפס</label><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th class="pn">${r + start}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     const fill = days => d.querySelectorAll('.tt input').forEach(i => { i.value = ((days[i.dataset.d] || [])[i.dataset.r]) || ''; });
+    const relabel = () => d.querySelectorAll('.tt th.pn').forEach((th, r) => th.textContent = r + start);
+    d.querySelector('#ttZero').onchange = ev => {
+      const want = ev.target.checked ? 0 : 1; if (want === start) return;
+      // מזיזים את השיעורים כך שכל שיעור יישאר באותו מספר שעה
+      const cur = {}; for (let i = 0; i < 6; i++) cur[i] = [];
+      d.querySelectorAll('.tt input').forEach(i => cur[i.dataset.d][i.dataset.r] = i.value);
+      const shift = start - want; const nd = {};
+      for (let i = 0; i < 6; i++) { nd[i] = []; cur[i].forEach((v, r) => { const nr = r + shift; if (nr >= 0 && nr < TT_ROWS) nd[i][nr] = v; }); }
+      start = want; fill(nd); relabel();
+    };
     fill(timetable.days || {});
     d.querySelector('#ttPhoto').onclick = () => d.querySelector('#ttFile').click();
     const showTable = () => { d.querySelector('.tt-scroll').classList.remove('hidden'); const m = d.querySelector('#ttManual'); if (m) m.remove(); };
@@ -2492,13 +2507,23 @@ function timetableDialog() {
         if (/^image\//.test(mime)) { data = (await shrink(f)); mime = (data.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg'; data = data.split(',')[1]; }
         else data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
         const prompt = `זו מערכת שעות של תלמיד בישראל. קרא אותה והחזר JSON בלבד, בלי שום טקסט נוסף, בפורמט:
-{"days":{"0":["מקצוע שיעור 1","מקצוע שיעור 2"],"1":[...],"2":[...],"3":[...],"4":[...],"5":[...]}}
-0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי. לפי סדר השיעורים מהראשון. שיעור ריק או הפסקה = "". רק שם המקצוע (בלי שם המורה, החדר או השעה). אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.`;
+{"lessons":[{"day":0,"p":1,"s":"אנגלית"},{"day":0,"p":2,"s":"אנגלית"}]}
+- day: 0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי.
+- p: מספר השעה בדיוק כמו שכתוב בעמודת השעות במערכת (למשל 0, 1, 2...). אל תספור שורות בעצמך. אם יש שורה של שעה 0 בלי שיעורים, פשוט אל תכלול אותה.
+- s: רק שם המקצוע, קצר וברור. בלי שם המורה, בלי חדר, בלי שעה, בלי מספרים בסוגריים מרובעים ובלי פרטי קבוצה כמו "הקבצה א" או "ח1-6". למשל "מתמטיקה א1 ח1-6 [6843]" → "מתמטיקה", "עברית הבעה ולשון ח4 [7034]" → "עברית הבעה ולשון".
+- אם יש שני שיעורים באותה שעה באותו יום, שים אותם באותו פריט עם " / " ביניהם.
+- כלול רק משבצות שיש בהן שיעור. אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.`;
         let txt = '', lastErr = null;
         for (const name of AI_MODELS) { try { const r = await aiModel(name).generateContent([prompt, { inlineData: { mimeType: mime, data } }]); txt = r.response.text(); if (txt) break; } catch (e) { lastErr = e; console.error(name, e); } }
         if (!txt) throw lastErr || new Error('empty');
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
-        const days = {}; for (let i = 0; i < 6; i++) days[i] = (j.days && Array.isArray(j.days[i]) ? j.days[i] : (j.days && j.days[String(i)]) || []).slice(0, TT_ROWS).map(v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 40));
+        const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
+        const L = (Array.isArray(j.lessons) ? j.lessons : []).filter(x => x && x.s && +x.day >= 0 && +x.day <= 5 && Number.isFinite(+x.p));
+        if (L.length) {
+          start = Math.min(...L.map(x => +x.p)) <= 0 ? 0 : 1;
+          L.forEach(x => { const r = +x.p - start; if (r >= 0 && r < TT_ROWS) { const v = String(x.s).replace(/\s+/g, ' ').trim().slice(0, 40); const cur = days[+x.day][r]; days[+x.day][r] = cur && cur !== v ? (cur + ' / ' + v).slice(0, 40) : v; } });
+        } else if (j.days) { for (let i = 0; i < 6; i++) days[i] = (j.days[i] || j.days[String(i)] || []).slice(0, TT_ROWS).map(v => String(v || '').trim().slice(0, 40)); }
+        d.querySelector('#ttZero').checked = start === 0; relabel();
         fill(days); showTable(); d.querySelector('#ttPhoto').classList.add('small'); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
       } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. נסה תמונה ברורה יותר, או הקלד בטבלה.'; showTable(); }
       d.querySelector('#ttPhoto').disabled = false;
@@ -2509,7 +2534,7 @@ function timetableDialog() {
       const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
       d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
       for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
-      try { await setDoc(ttDoc(), { days, updatedAt: Date.now() }); timetable = { days }; paintTTBtn(); closeDialog(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
+      try { await setDoc(ttDoc(), { days, start, updatedAt: Date.now() }); timetable = { days, start }; paintTTBtn(); closeDialog(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
       catch (e) { console.error(e); toast('לא נשמר'); }
     };
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
@@ -2536,7 +2561,7 @@ function renderTT() {
   const colors = {}; const pal = ['#5E5CE6', '#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6', '#E08A1E', '#2E9E6A'];
   ttSubjects().forEach((s, i) => colors[s] = pal[i % pal.length]);
   const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+  box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => `<tr><th>${r + (timetable.start === 0 ? 0 : 1)}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
   // מה מחר
   const tm = new Date(); tm.setDate(tm.getDate() + 1); const list = (timetable.days[tm.getDay()] || []).filter(Boolean);
   const open = events.filter(e => !e.done && e.date === key(tm));
