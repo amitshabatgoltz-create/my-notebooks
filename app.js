@@ -117,7 +117,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity();
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable();
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -2207,9 +2207,11 @@ function parseQuick(text) {
   else if (/ש״ב|ש"ב|שיעורי[- ]?בית|תרגיל|להגיש|הגשה|עבודה|לקרוא|לפתור|לסיים|דף עבודה|עמ['׳]?\s*\d|עמוד/.test(t)) { type = 'hw'; typeFound = true; }
   else if (/טיול|יום הולדת|יומולדת|מסיבה|הצגה|אסיפה|חוג|אימון|משחק|טקס|כנס|פגישה/.test(t)) { type = 'event'; typeFound = true; }
   const title = t.replace(/\s+/g, ' ').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '').trim() || text.trim();
-  const dateFound = !!date; if (!date) date = add(1);
+  let dateFound = !!date, subj = null;
+  if (!date) { const nl = nextLesson(t); if (nl) { date = nl.date; subj = nl.subj; dateFound = true; } }
+  if (!date) date = add(1);
   const k = key(date);
-  return { title, type, typeFound, date: k, dateFound, dateLabel: dayLabel(k), time };
+  return { title, type, typeFound, date: k, dateFound, dateLabel: dayLabel(k) + (subj ? ` (השיעור הבא ב${subj})` : ''), time, subj };
 }
 function quickPreview() {
   const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean);
@@ -2427,3 +2429,87 @@ $('qaFileInput').onchange = async () => {
   $('qaFileInput').value = '';
   if (!$('qaInput').value.trim()) { $('qaInput').placeholder = 'מה זה? למשל: ש״ב במתמטיקה שאלות 1–5 למחר'; $('qaInput').focus(); }
 };
+
+/* ===== מערכת שעות: יודעים מתי השיעור הבא בכל מקצוע ===== */
+const TT_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'], TT_ROWS = 10;
+let timetable = { days: {} }, unsubTT = null;
+const ttDoc = () => doc(db, 'users', me.uid, 'meta', 'timetable');
+function subscribeTimetable() {
+  if (unsubTT) unsubTT();
+  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {}; paintTTBtn(); if ($('qaInput')) quickPreview(); }, () => {});
+}
+const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
+const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
+const squash = x => normS(x).replace(/\s/g, '');
+function ttSubjects() { const set = new Set(); Object.values(timetable.days || {}).forEach(a => (a || []).forEach(v => { if (normS(v)) set.add(normS(v)); })); return [...set]; }
+function subjMatches(text, subj) {
+  const T = ' ' + normS(text) + ' ', S = squash(subj);
+  const aliases = new Set([S, normS(subj).split(' ')[0]]);
+  SUBJ_GROUPS.forEach(g => { if (g.some(a => squash(a) === S || S.startsWith(squash(a)) && squash(a).length >= 3)) g.forEach(a => aliases.add(squash(a))); });
+  const toks = T.split(' ').filter(Boolean).flatMap(w => { const v = [w]; let x = w; for (let i = 0; i < 2 && /^[בלהומש]/.test(x) && x.length > 3; i++) { x = x.slice(1); v.push(x); } return v; });
+  const flat = squash(T);
+  for (const a of aliases) {
+    if (!a || a.length < 2) continue;
+    if (a.length >= 5 && flat.includes(a)) return true;
+    if (toks.some(t => t === a || (a.length >= 3 && t.startsWith(a)))) return true;
+  }
+  return false;
+}
+function nextLesson(text) {
+  const subs = ttSubjects(); if (!subs.length) return null;
+  const subj = subs.find(s => subjMatches(text, s)); if (!subj) return null;
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  for (let i = 1; i <= 14; i++) {
+    d.setDate(d.getDate() + 1);
+    const hit = (timetable.days[d.getDay()] || []).find(v => normS(v) === subj); if (hit) return { date: new Date(d), subj: String(hit).trim() };
+  }
+  return null;
+}
+function paintTTBtn() { const b = $('ttBtn'); if (b) b.classList.toggle('on', ttSubjects().length > 0); }
+
+function timetableDialog() {
+  dialog(d => {
+    d.classList.add('tt-dlg');
+    const has = ttSubjects().length > 0;
+    d.innerHTML = `<h3>🗓 מערכת שעות</h3>
+      <p class="muted-s">כשתכתוב "ש״ב במתמטיקה" בלי תאריך, האתר ישים את זה ליום של השיעור הבא במתמטיקה.</p>
+      <div class="tt-actions"><button type="button" class="btn btn-ghost" id="ttPhoto">📷 העלאת תמונה של המערכת</button><span class="muted-s" id="ttStatus">${has ? '' : 'או להקליד את המקצועות בטבלה'}</span></div>
+      <input type="file" id="ttFile" accept="image/*,application/pdf" hidden>
+      <div class="tt-scroll"><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    const fill = days => d.querySelectorAll('.tt input').forEach(i => { i.value = ((days[i.dataset.d] || [])[i.dataset.r]) || ''; });
+    fill(timetable.days || {});
+    d.querySelector('#ttPhoto').onclick = () => d.querySelector('#ttFile').click();
+    d.querySelector('#ttFile').onchange = async ev => {
+      const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
+      const st = d.querySelector('#ttStatus'); st.textContent = '✨ קורא את המערכת מהתמונה... (10–20 שניות)'; d.querySelector('#ttPhoto').disabled = true;
+      try {
+        let data, mime = f.type || 'image/jpeg';
+        if (/^image\//.test(mime)) { data = (await shrink(f)); mime = (data.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg'; data = data.split(',')[1]; }
+        else data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+        const prompt = `זו מערכת שעות של תלמיד בישראל. קרא אותה והחזר JSON בלבד, בלי שום טקסט נוסף, בפורמט:
+{"days":{"0":["מקצוע שיעור 1","מקצוע שיעור 2"],"1":[...],"2":[...],"3":[...],"4":[...],"5":[...]}}
+0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי. לפי סדר השיעורים מהראשון. שיעור ריק או הפסקה = "". רק שם המקצוע (בלי שם המורה, החדר או השעה). אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.`;
+        let txt = '', lastErr = null;
+        for (const name of AI_MODELS) { try { const r = await aiModel(name).generateContent([prompt, { inlineData: { mimeType: mime, data } }]); txt = r.response.text(); if (txt) break; } catch (e) { lastErr = e; console.error(name, e); } }
+        if (!txt) throw lastErr || new Error('empty');
+        const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
+        const days = {}; for (let i = 0; i < 6; i++) days[i] = (j.days && Array.isArray(j.days[i]) ? j.days[i] : (j.days && j.days[String(i)]) || []).slice(0, TT_ROWS).map(v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 40));
+        fill(days); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
+      } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. אפשר להקליד בטבלה.'; }
+      d.querySelector('#ttPhoto').disabled = false;
+    };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+    ok.onclick = async () => {
+      const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
+      d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
+      for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
+      try { await setDoc(ttDoc(), { days, updatedAt: Date.now() }); timetable = { days }; paintTTBtn(); closeDialog(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
+      catch (e) { console.error(e); toast('לא נשמר'); }
+    };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok, no); d.appendChild(row);
+  });
+}
+$('ttBtn').onclick = timetableDialog;
+if ($('ttBtn2')) $('ttBtn2').onclick = timetableDialog;
