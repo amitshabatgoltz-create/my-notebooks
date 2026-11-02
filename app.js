@@ -2080,7 +2080,7 @@ function renderStats() {
     <div class="stats">
       <div class="stat"><span class="n">${st}${st ? ' 🔥' : ''}</span><span class="l">${st === 1 ? 'יום ברצף' : 'ימים ברצף'}</span></div>
       <div class="stat"><span class="n">${week.toLocaleString('he-IL')}</span><span class="l">מילים כתבת השבוע</span></div>
-      <div class="stat"><span class="n">${doneWeek}</span><span class="l">משימות סיימת השבוע</span></div>
+      <button type="button" class="stat stat-link" data-go="cal" title="המשימות הן מה שיש לך ביומן: מבחנים, שיעורי בית ואירועים. מסמנים ✓ כשמסיימים"><span class="n">${doneWeek}</span><span class="l">משימות ביומן שסימנת ✓</span></button>
     </div>
     <div class="bars" role="img" aria-label="מילים בכל יום בשבוע האחרון">${days.map((d, i) => `<div class="bar${key(d) === tk ? ' today' : ''}" title="${vals[i]} מילים"><i style="height:${Math.max(vals[i] ? 6 : 2, Math.round(vals[i] / max * 100))}%"></i><span>${'אבגדהוש'[d.getDay()]}'</span></div>`).join('')}</div>
     <p class="muted-s">${st >= 2 ? `כל הכבוד! ${st} ימים ברצף שאתה כותב. אל תשבור את הרצף 💪` : st === 1 ? 'התחלת רצף. תכתוב משהו גם מחר כדי להמשיך אותו.' : 'תכתוב משהו במחברת היום כדי להתחיל רצף.'}</p>`;
@@ -2155,3 +2155,5 @@ function sketchDialog() {
   });
 }
 $('sketchBtn').addEventListener('click', sketchDialog);
+
+$('statsCard').addEventListener('click', e => { if (e.target.closest('[data-go=cal]')) showTab('cal'); });

@@ -639,3 +639,4 @@ body.viewing-share{overflow:hidden}
 .sk-tool{height:30px;padding:0 10px;border-radius:9px;font-size:14px}
 .sk-wrap{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;margin-bottom:14px}
 #skCv{display:block;width:100%;height:auto;aspect-ratio:5/3;touch-action:none;cursor:crosshair}
+.stat-link{text-align:right;align-items:flex-start;border-radius:12px;padding:0;cursor:pointer}.stat-link:hover .l{color:var(--accent);text-decoration:underline}
