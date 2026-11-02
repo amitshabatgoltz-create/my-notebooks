@@ -185,6 +185,13 @@ function clean(html) {
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
         ch.setAttribute('data-cv', JSON.stringify(cv)); ch.innerHTML = ''; return;
       }
+      if (ch.tagName === 'DIV' && ch.hasAttribute('data-file')) {   // קובץ מצורף: רק מזהה, שם וגודל
+        const id = ch.getAttribute('data-file'), nm = (ch.getAttribute('data-name') || 'קובץ').slice(0, 120), sz = ch.getAttribute('data-size');
+        if (!/^[\w-]{1,64}$/.test(id || '')) { ch.remove(); return; }
+        [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
+        ch.setAttribute('data-file', id); ch.setAttribute('data-name', nm); if (/^\d{1,9}$/.test(sz || '')) ch.setAttribute('data-size', sz);
+        ch.innerHTML = ''; return;
+      }
       if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה
         const id = ch.getAttribute('data-img');
         if (!id || !/^[\w-]+$/.test(id)) { ch.remove(); return; }
@@ -273,6 +280,7 @@ function openNotebook(id) {
   $('docColor').style.setProperty('--c', n.color || COLORS[0]);
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
+  renderFiles($('editor'));
   renderCanvases($('editor'));
   applyBoxSizes($('editor'));
   setSave('נשמר בענן', 'ok');
@@ -1948,7 +1956,7 @@ function openShare(id) {
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
     const b = $('shBody'); b.innerHTML = clean(s.html || '');
-    loadImages(b, s.owner); renderCanvases(b); applyBoxSizes(b);
+    loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     cp.textContent = mine ? 'פתיחה לעריכה' : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
     cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : (me ? copyShare(id, s) : closeShare());
@@ -2231,3 +2239,81 @@ $('qaInput').addEventListener('input', () => { const i = $('qaInput'); i.style.h
 $('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !$('qaInput').value.includes('\n')) { e.preventDefault(); quickAdd(); } });
 $('qaGo').onclick = quickAdd;
 quickPreview();
+
+/* ===== קבצים מצורפים (PDF, Word, Excel...) — נשמרים ב-Firestore בחתיכות ===== */
+const FILE_MAX = 15 * 1024 * 1024, CHUNK = 700000;
+const fileBlobs = new Map();
+const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+const fileIcon = n => { const e = (n.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? '📕' : /^(docx?|odt|rtf)$/.test(e) ? '📘' : /^(xlsx?|csv|ods)$/.test(e) ? '📗' : /^(pptx?|odp|key)$/.test(e) ? '📙' : /^(png|jpe?g|gif|webp|heic)$/.test(e) ? '🖼️' : /^(mp3|m4a|wav|ogg)$/.test(e) ? '🎧' : /^(mp4|mov|webm)$/.test(e) ? '🎬' : /^(zip|rar|7z)$/.test(e) ? '🗜️' : '📄'; };
+const fileDoc = (id, uid) => doc(db, 'users', uid || me.uid, 'files', id);
+const chunkDoc = (id, i, uid) => doc(db, 'users', uid || me.uid, 'files', id, 'chunks', String(i));
+
+function renderFiles(root, uid, readOnly) {
+  root.querySelectorAll('div[data-file]').forEach(el => {
+    const name = el.getAttribute('data-name') || 'קובץ', size = +el.getAttribute('data-size') || 0;
+    el.contentEditable = 'false'; el.className = 'file-chip';
+    el.innerHTML = `<span class="fi">${fileIcon(name)}</span><span class="fn"><b></b><small>${size ? fmtSize(size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה">⬇</button>${readOnly ? '' : '<button type="button" class="fx" data-fa="rm" title="הסרה מהמחברת">✕</button>'}`;
+    el.querySelector('b').textContent = name;
+    el.dataset.uid = uid || '';
+  });
+}
+async function getFileBlob(id, uid) {
+  const k = (uid || me.uid) + '/' + id; if (fileBlobs.has(k)) return fileBlobs.get(k);
+  const meta = await getDoc(fileDoc(id, uid)); if (!meta.exists()) throw new Error('missing');
+  const m = meta.data(); const parts = [];
+  for (let i = 0; i < m.chunks; i++) { const c = await getDoc(chunkDoc(id, i, uid)); if (!c.exists()) throw new Error('chunk'); parts.push(c.data().d); }
+  const bin = atob(parts.join('')); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], { type: m.type || 'application/octet-stream' }); fileBlobs.set(k, { blob, name: m.name }); return { blob, name: m.name };
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('.file-chip [data-fa]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const chip = b.closest('.file-chip'), id = chip.getAttribute('data-file'), uid = chip.dataset.uid || undefined, act = b.dataset.fa;
+  if (act === 'rm') { chip.remove(); markDirty(); return; }
+  // חלון חדש נפתח מיד (אחרת הדפדפן חוסם), והקובץ נטען לתוכו
+  const canView = /\.(pdf|png|jpe?g|gif|webp|txt|mp3|mp4)$/i.test(chip.getAttribute('data-name') || '');
+  const win = act === 'open' && canView ? window.open('', '_blank') : null;
+  const old = b.textContent; b.textContent = '...'; b.disabled = true;
+  try {
+    const { blob, name } = await getFileBlob(id, uid);
+    const url = URL.createObjectURL(blob);
+    if (win) win.location.href = url;
+    else { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) { console.error(err); if (win) win.close(); toast('לא הצלחתי לפתוח את הקובץ'); }
+  b.textContent = old; b.disabled = false;
+});
+async function addFiles(list) {
+  if (!openId) return;
+  restoreSelection();
+  for (const f of list) {
+    if (/^image\//.test(f.type) && !/svg/.test(f.type)) { await addImages([f]); continue; }     // תמונה רגילה נכנסת כתמונה
+    if (f.size > FILE_MAX) { toast(`"${f.name}" גדול מדי (עד ${FILE_MAX / 1048576}MB)`); continue; }
+    const holder = document.createElement('div'); holder.className = 'file-chip uploading'; holder.contentEditable = 'false';
+    holder.innerHTML = `<span class="fi">${fileIcon(f.name)}</span><span class="fn"><b></b><small>מעלה... 0%</small></span>`;
+    holder.querySelector('b').textContent = f.name;
+    insertBlockAtCaret(holder);
+    try {
+      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+      const ref = doc(collection(db, 'users', me.uid, 'files')); const n = Math.max(1, Math.ceil(b64.length / CHUNK));
+      for (let i = 0; i < n; i++) {
+        await setDoc(chunkDoc(ref.id, i), { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) });
+        holder.querySelector('small').textContent = `מעלה... ${Math.round((i + 1) / n * 100)}%`;
+      }
+      await setDoc(ref, { name: f.name.slice(0, 120), type: f.type || '', size: f.size, chunks: n, createdAt: Date.now() });
+      const el = document.createElement('div'); el.setAttribute('data-file', ref.id); el.setAttribute('data-name', f.name.slice(0, 120)); el.setAttribute('data-size', String(f.size));
+      holder.replaceWith(el); renderFiles(el.parentElement || $('editor'));
+      if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
+      markDirty(); toast('הקובץ נוסף ✓');
+    } catch (err) { console.error(err); holder.remove(); toast(err && err.code === 'permission-denied' ? 'צריך לעדכן את כללי האבטחה ב-Firebase' : 'ההעלאה נכשלה'); }
+  }
+}
+$('fileBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+// גרירת קובץ לתוך המחברת
+$('editor').addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault(); });
+$('editor').addEventListener('drop', e => {
+  const fs = [...(e.dataTransfer.files || [])]; if (!fs.length) return; e.preventDefault();
+  if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) { const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); savedRange = r.cloneRange(); } }
+  addFiles(fs);
+});

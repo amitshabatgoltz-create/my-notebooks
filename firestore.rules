@@ -9,6 +9,13 @@ service cloud.firestore {
     match /users/{userId}/images/{imageId} {
       allow get: if true;
     }
+    // קבצים מצורפים: כמו תמונות, אפשר לפתוח קובץ אחד לפי הקוד שלו (בשביל מחברות משותפות)
+    match /users/{userId}/files/{fileId} {
+      allow get: if true;
+      match /chunks/{chunkId} {
+        allow get: if true;
+      }
+    }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל
     match /shares/{shareId} {
       allow get: if true;
