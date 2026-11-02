@@ -741,3 +741,4 @@ table.tt-view{border-collapse:separate;border-spacing:6px;width:100%;min-width:6
 .tt-tomorrow p{margin:4px 0;font-size:16px}
 .tabbar button{font-size:11px}
 .tt-zero{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:14px;color:var(--muted);cursor:pointer}.tt-zero input{width:18px;height:18px;accent-color:var(--accent)}
+.next-lesson{margin-top:10px;width:100%;justify-content:center;background:var(--accent-soft);color:var(--accent);font-weight:600}

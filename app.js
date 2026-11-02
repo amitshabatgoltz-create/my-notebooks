@@ -2208,11 +2208,11 @@ function parseQuick(text) {
   else if (/ש״ב|ש"ב|שיעורי[- ]?בית|תרגיל|להגיש|הגשה|עבודה|לקרוא|לפתור|לסיים|דף עבודה|עמ['׳]?\s*\d|עמוד/.test(t)) { type = 'hw'; typeFound = true; }
   else if (/טיול|יום הולדת|יומולדת|מסיבה|הצגה|אסיפה|חוג|אימון|משחק|טקס|כנס|פגישה/.test(t)) { type = 'event'; typeFound = true; }
   const title = t.replace(/\s+/g, ' ').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '').trim() || text.trim();
-  let dateFound = !!date, subj = null;
+  const written = !!date; let dateFound = !!date, subj = null;
   if (!date) { const nl = nextLesson(t); if (nl) { date = nl.date; subj = nl.subj; dateFound = true; } }
   if (!date) date = add(1);
   const k = key(date);
-  return { title, type, typeFound, date: k, dateFound, dateLabel: dayLabel(k) + (subj ? ` (השיעור הבא ב${subj})` : ''), time, subj };
+  return { title, type, typeFound, date: k, dateFound, dateLabel: dayLabel(k) + (subj ? ` (השיעור הבא ב${subj})` : ''), time, subj, written };
 }
 function quickPreview() {
   const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean);
@@ -2236,7 +2236,7 @@ async function quickAdd() {
   $('qaGo').disabled = true;
   try {
     const fl = qaFiles.map(f => f.up);
-    for (const [i, l] of lines.slice(0, 30).entries()) { const q = parseQuick(l); await addDoc(evCol(), { title: q.title, type: q.type, time: q.time || '', date: q.date, done: false, createdAt: Date.now(), ...(i === 0 && fl.length ? { files: fl } : {}) }); }
+    for (const [i, l] of lines.slice(0, 30).entries()) { const q = parseQuick(l); await addDoc(evCol(), { title: q.title, type: q.type, time: q.time || '', date: q.date, done: false, createdAt: Date.now(), ...(q.written ? {} : { autoDate: true }), ...(i === 0 && fl.length ? { files: fl } : {}) }); }
     qaFiles = []; paintQaFiles(); $('qaInput').placeholder = 'מה יש לך? למשל: ש״ב במתמטיקה עמ׳ 45 למחר';
     const one = parseQuick(lines[0]);
     toast(lines.length > 1 ? `נוספו ${lines.length} דברים ליומן ✓` : `נוסף ליומן: ${one.dateLabel} ✓`);
@@ -2375,6 +2375,7 @@ function eventDialog(id) {
         <div><label class="fl">תאריך</label><input id="edDate" type="date" value="${e.date}"></div>
         <div><label class="fl">שעה</label><input id="edTime" type="time" value="${e.time || ''}"></div>
       </div>
+      <div id="edNext"></div>
       <label class="fl">הערות</label><textarea id="edNote" rows="3" placeholder="למשל: שאלות 1–5 ו־8, עמוד 45. לא לשכוח להראות דרך."></textarea>
       <label class="fl">קבצים</label>
       <div class="ev-files" id="edFiles">${(e.files || []).map(f => fileChipHtml(f, true)).join('')}</div>
@@ -2382,6 +2383,13 @@ function eventDialog(id) {
       <input type="file" id="edInput" multiple hidden>`;
     d.querySelector('#edTitle').value = e.title || '';
     d.querySelector('#edNote').value = e.note || '';
+    const nl = nextLesson(e.title);
+    if (nl && key(nl.date) !== e.date) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost next-lesson';
+      b.textContent = `📅 להעביר לשיעור הבא ב${nl.subj}: ${dayLabel(key(nl.date))}`;
+      b.onclick = () => { d.querySelector('#edDate').value = key(nl.date); b.remove(); toast('התאריך עודכן. לחץ "שמירה"'); };
+      d.querySelector('#edNext').appendChild(b);
+    }
     d.querySelectorAll('.ev-files .file-chip').forEach(c => c.dataset.uid = '');
     const files = d.querySelector('#edFiles'), inp = d.querySelector('#edInput');
     d.querySelector('#edAdd').onclick = () => inp.click();
@@ -2550,7 +2558,7 @@ function timetableDialog() {
       d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
       for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
       if (start === 1 && [0, 1, 2, 3, 4, 5].every(i => !days[i][0]) && [0, 1, 2, 3, 4, 5].some(i => days[i].length)) for (let i = 0; i < 6; i++) days[i] = days[i].slice(1);
-      try { await setDoc(ttDoc(), { days, start, updatedAt: Date.now() }); timetable = { days, start }; paintTTBtn(); closeDialog(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
+      try { await setDoc(ttDoc(), { days, start, updatedAt: Date.now() }); timetable = { days, start }; paintTTBtn(); closeDialog(); redateAuto(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
       catch (e) { console.error(e); toast('לא נשמר'); }
     };
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
@@ -2585,3 +2593,12 @@ function renderTT() {
 }
 $('ttEdit').onclick = timetableDialog;
 $('ttUpload').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
+
+// כשהמערכת משתנה: שיעורי בית שלא כתבת להם תאריך עוברים ליום של השיעור הבא
+function redateAuto() {
+  const tk = todayKey(); let n = 0;
+  events.filter(e => e.autoDate && !e.done && e.date >= tk).forEach(e => {
+    const nl = nextLesson(e.title); if (nl && key(nl.date) !== e.date) { n++; updateDoc(evDoc(e.id), { date: key(nl.date) }).catch(() => {}); }
+  });
+  if (n) toast(n === 1 ? 'משימה אחת עברה ליום של השיעור הבא' : `${n} משימות עברו ליום של השיעור הבא`);
+}
