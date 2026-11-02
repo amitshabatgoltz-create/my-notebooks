@@ -487,3 +487,9 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .box-move svg{width:18px;height:18px}
 .box-move:hover,.box-move.active{background:var(--accent);color:var(--accent-ink);transform:scale(1.08)}
 #editor .cv:not(.sel){overflow:hidden}
+
+/* יישור */
+#editor [data-a="center"]{text-align:center}
+#editor [data-a="left"]{text-align:left}
+#editor h2[data-a="center"]{margin-inline:auto} 
+.toolbar button[data-align].on{background:var(--accent-soft);color:var(--accent)}

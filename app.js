@@ -184,8 +184,10 @@ function clean(html) {
         ch.setAttribute('data-img', id); return;
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
+      const al = ch.getAttribute('data-a');
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
       if (isTl) ch.className = 'tl';
+      if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
       walk(ch);
     } else if (ch.nodeType !== 3) ch.remove();
   });
@@ -1566,3 +1568,23 @@ function endMove(e) {
 }
 boxMove.addEventListener('pointerup', endMove);
 boxMove.addEventListener('pointercancel', endMove);
+
+
+/* ================= יישור טקסט: ימין / מרכז / שמאל ================= */
+function alignBlocks(dir) {
+  restoreSelection(); wrapLoose && wrapLoose();
+  const s = window.getSelection(); if (!s.rangeCount) return;
+  const r = s.getRangeAt(0); const ed = $('editor');
+  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li'));
+  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI)$/.test(B.tagName)) blocks = [B]; }
+  if (!blocks.length) return;
+  blocks.forEach(b => { if (dir === 'right') b.removeAttribute('data-a'); else b.setAttribute('data-a', dir); });
+  updateAlignButtons(); markDirty();
+}
+function updateAlignButtons() {
+  const s = window.getSelection(); let cur = 'right';
+  if (s.rangeCount && $('editor').contains(s.anchorNode)) { const B = blockOf(s.anchorNode); if (B && B.getAttribute('data-a')) cur = B.getAttribute('data-a'); }
+  document.querySelectorAll('[data-align]').forEach(b => b.classList.toggle('on', b.dataset.align === cur));
+}
+document.querySelectorAll('[data-align]').forEach(b => b.addEventListener('click', () => alignBlocks(b.dataset.align)));
+document.addEventListener('selectionchange', updateAlignButtons);
