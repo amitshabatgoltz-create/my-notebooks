@@ -109,12 +109,14 @@ document.addEventListener('click', e => { if (!e.target.closest('.user')) { $('u
 onAuthStateChanged(auth, user => {
   if (unsub) { unsub(); unsub = null; }
   if (unsubEv) { unsubEv(); unsubEv = null; }
+  if (unsubSh) { unsubSh(); unsubSh = null; }
   me = user;
+  if (shareParam) { openShare(shareParam); }
   if (user) {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents();
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared();
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -333,7 +335,10 @@ async function flush() {
   saving = true; dirty = false;
   const id = openId;
   // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
-  const pr = updateDoc(nbDoc(id), { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() });
+  const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() };
+  const pr = updateDoc(nbDoc(id), fields);
+  const nbx = notebooks.find(x => x.id === id);
+  if (nbx && nbx.shareId) updateDoc(shareDoc(nbx.shareId), { ...fields, color: nbx.color || COLORS[0] }).catch(e => console.warn('share sync', e));
   const done = () => { if (openId === id && !dirty) setSave(navigator.onLine ? 'נשמר בענן' : 'נשמר במכשיר · יסונכרן', navigator.onLine ? 'ok' : 'off'); };
   pr.then(() => { if (openId === id && !dirty) setSave('נשמר בענן', 'ok'); }).catch(e => { console.error(e); dirty = true; setSave('לא נשמר · מנסה שוב', 'err'); saveTimer = setTimeout(flush, 3000); });
   try { await Promise.race([pr, new Promise(r => setTimeout(r, navigator.onLine ? 4000 : 300))]); done(); } catch {}
@@ -638,15 +643,15 @@ $('todayBtn').onclick = () => { const n = new Date(); viewMonth = new Date(n.get
 /* ================= תמונות ================= */
 // כל תמונה נשמרת כמסמך נפרד (users/<uid>/images/<id>), ובמחברת נשמר רק המזהה שלה
 const imgCache = new Map();
-const imgDoc = id => doc(db, 'users', me.uid, 'images', id);
+const imgDoc = (id, uid) => doc(db, 'users', uid || me.uid, 'images', id);
 
-async function loadImages(root) {
+async function loadImages(root, uid) {
   root.querySelectorAll('img[data-img]').forEach(async img => {
     const id = img.getAttribute('data-img');
     if (imgCache.has(id)) { img.src = imgCache.get(id); return; }
     img.classList.add('loading-img');
     try {
-      const snap = await getDoc(imgDoc(id));
+      const snap = await getDoc(imgDoc(id, uid));
       if (snap.exists()) { imgCache.set(id, snap.data().data); img.src = snap.data().data; }
       else img.alt = 'התמונה לא נמצאה';
     } catch { img.alt = 'לא הצלחתי לטעון את התמונה'; }
@@ -1839,3 +1844,130 @@ function restoreBackup() {
 }
 $('backupBtn').onclick = downloadBackup;
 $('restoreBtn').onclick = restoreBackup;
+
+/* ================= שיתוף עם חברים ================= */
+// כל מחברת משותפת מקבלת עותק חי ב-shares/<קוד>; מי שיש לו את הקישור יכול לקרוא אותו
+let unsubSh = null, unsubView = null, sharedList = [];
+let shareParam = new URLSearchParams(location.search).get('s');
+if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
+const shareDoc = id => doc(db, 'shares', id);
+const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
+
+function shareDialog() {
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  dialog(d => {
+    const paint = () => {
+      const cur = notebooks.find(x => x.id === openId) || n;
+      if (!cur.shareId) {
+        d.innerHTML = '<h3>שיתוף עם חברים</h3><p>יוצרים קישור למחברת ושולחים אותו לחברים. מי שמקבל את הקישור יכול לקרוא את המחברת ולשמור לעצמו עותק, אבל לא לשנות את שלך.</p><p class="muted-s">כל שינוי שתעשה במחברת יופיע אצלם אוטומטית.</p>';
+        const row = document.createElement('div'); row.className = 'row';
+        const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'יצירת קישור';
+        go.onclick = async () => {
+          go.disabled = true; go.textContent = 'יוצר...';
+          try {
+            if (dirty) await flush();
+            const ref = doc(collection(db, 'shares'));
+            const nn = notebooks.find(x => x.id === openId) || n;
+            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], createdAt: Date.now(), updatedAt: Date.now() });
+            await updateDoc(nbDoc(nn.id), { shareId: ref.id });
+            nn.shareId = ref.id; paint();
+          } catch (e) { console.error(e); go.disabled = false; go.textContent = 'יצירת קישור'; toast(e && e.code === 'permission-denied' ? 'צריך לעדכן את כללי האבטחה ב-Firebase (ראה README)' : 'לא הצלחתי ליצור קישור'); }
+        };
+        const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+        row.append(go, no); d.appendChild(row);
+      } else {
+        const url = shareUrl(cur.shareId);
+        d.innerHTML = '<h3>המחברת משותפת ✓</h3><p>שלח את הקישור לחברים. הם יראו תמיד את הגרסה העדכנית.</p>';
+        const box = document.createElement('div'); box.className = 'share-link';
+        const inp = document.createElement('input'); inp.readOnly = true; inp.value = url; inp.dir = 'ltr'; inp.onclick = () => inp.select();
+        const cp = document.createElement('button'); cp.className = 'btn btn-primary'; cp.textContent = 'העתקה';
+        cp.onclick = async () => { try { await navigator.clipboard.writeText(url); cp.textContent = 'הועתק ✓'; } catch { inp.select(); document.execCommand('copy'); cp.textContent = 'הועתק ✓'; } };
+        box.append(inp, cp); d.appendChild(box);
+        const row = document.createElement('div'); row.className = 'row';
+        if (navigator.share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = '📤 שליחה...'; sh.onclick = () => navigator.share({ title: cur.title || 'מחברת', text: `המחברת "${$('title').value || cur.title}" שלי`, url }).catch(() => {}); row.appendChild(sh); }
+        const wa = document.createElement('a'); wa.className = 'btn btn-ghost'; wa.target = '_blank'; wa.rel = 'noopener'; wa.textContent = 'וואטסאפ'; wa.href = 'https://wa.me/?text=' + encodeURIComponent(`המחברת "${$('title').value || cur.title}" שלי: ${url}`); row.appendChild(wa);
+        const stop = document.createElement('button'); stop.className = 'btn btn-ghost danger-t'; stop.textContent = 'הפסקת שיתוף';
+        stop.onclick = async () => {
+          try { await deleteDoc(shareDoc(cur.shareId)); await updateDoc(nbDoc(cur.id), { shareId: null }); cur.shareId = null; toast('הקישור בוטל. מי שקיבל אותו כבר לא יכול לפתוח את המחברת'); closeDialog(); }
+          catch (e) { console.error(e); toast('לא הצלחתי לבטל'); }
+        };
+        const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+        row.append(stop, close); d.appendChild(row);
+      }
+    };
+    paint();
+  });
+}
+$('shareBtn').onclick = shareDialog;
+
+// ---- צפייה במחברת שמישהו שיתף
+function openShare(id) {
+  shareParam = id;
+  if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
+  const v = $('shareView'); v.classList.remove('hidden'); document.body.classList.add('viewing-share');
+  $('shBody').innerHTML = '<div class="skel-grid"><div class="skel"><i></i><b></b><b></b></div></div>';
+  $('shTitle').textContent = ''; $('shOwner').textContent = '';
+  if (unsubView) unsubView();
+  unsubView = onSnapshot(shareDoc(id), snap => {
+    if (!snap.exists()) { $('shTitle').textContent = 'המחברת לא זמינה'; $('shOwner').textContent = ''; $('shBody').innerHTML = '<p class="sh-empty">הקישור הזה בוטל, או שהמחברת נמחקה.</p>'; $('shCopy').classList.add('hidden'); if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {}); return; }
+    const s = snap.data(); const mine = me && s.owner === me.uid;
+    document.title = (s.title || 'מחברת') + ' · המחברות שלי';
+    $('shTitle').textContent = s.title || 'מחברת';
+    $('shOwner').textContent = mine ? 'זו המחברת שלך. ככה החברים רואים אותה' : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}`;
+    $('shColor').style.setProperty('--c', s.color || COLORS[0]);
+    const b = $('shBody'); b.innerHTML = clean(s.html || '');
+    loadImages(b, s.owner); renderCanvases(b); applyBoxSizes(b);
+    const cp = $('shCopy'); cp.classList.remove('hidden');
+    cp.textContent = mine ? 'פתיחה לעריכה' : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
+    cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : (me ? copyShare(id, s) : closeShare());
+    if (me && !mine) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now() }).catch(() => {});
+  }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; $('shCopy').classList.add('hidden'); });
+}
+function closeShare() {
+  if (unsubView) { unsubView(); unsubView = null; }
+  shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share');
+  document.title = 'המחברות שלי';
+  if (location.search) history.replaceState(null, '', location.pathname);
+}
+$('shClose').onclick = closeShare;
+window.addEventListener('popstate', () => { const s = new URLSearchParams(location.search).get('s'); if (s) openShare(s); else if (!$('shareView').classList.contains('hidden')) closeShare(); });
+
+async function copyShare(id, s) {
+  const cp = $('shCopy'); cp.disabled = true; cp.textContent = 'שומר...';
+  try {
+    const html = clean(s.html || '');
+    // מעתיקים גם את התמונות, כדי שהעותק יהיה שלך לגמרי
+    const ids = [...html.matchAll(/data-img="([A-Za-z0-9_-]+)"/g)].map(m => m[1]);
+    for (const iid of ids) {
+      const src = await getDoc(imgDoc(iid, s.owner));
+      if (src.exists()) await setDoc(imgDoc(iid), { data: src.data().data, createdAt: Date.now() });
+    }
+    const ref = doc(nbCol()); const now = Date.now();
+    await setDoc(ref, { title: s.title || 'מחברת', color: s.color || COLORS[0], html, createdAt: now, updatedAt: now });
+    toast('נשמר עותק במחברות שלך ✓');
+    closeShare(); setTimeout(() => openNotebook(ref.id), 300);
+  } catch (e) { console.error(e); toast('לא הצלחתי לשמור עותק'); }
+  cp.disabled = false;
+}
+
+// ---- רשימת "שותפו איתי"
+function subscribeShared() {
+  unsubSh = onSnapshot(collection(db, 'users', me.uid, 'shared'), snap => {
+    sharedList = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
+    renderShared();
+  }, err => console.warn('shared', err));
+}
+function renderShared() {
+  const box = $('sharedWithMe'); if (!box) return;
+  box.classList.toggle('hidden', !sharedList.length);
+  const list = $('sharedList'); list.innerHTML = '';
+  sharedList.forEach(x => {
+    const b = document.createElement('button'); b.className = 'sh-item'; b.style.setProperty('--c', x.color || COLORS[0]);
+    const t = document.createElement('b'); t.textContent = x.title || 'מחברת';
+    const o = document.createElement('small'); o.textContent = x.ownerName ? 'מאת ' + x.ownerName : '';
+    const rm = document.createElement('span'); rm.className = 'rm'; rm.textContent = '✕'; rm.title = 'הסרה מהרשימה';
+    rm.onclick = ev => { ev.stopPropagation(); deleteDoc(doc(db, 'users', me.uid, 'shared', x.id)).catch(() => {}); };
+    b.append(t, o, rm); b.onclick = () => openShare(x.id); list.appendChild(b);
+  });
+}
+if (shareParam) openShare(shareParam);

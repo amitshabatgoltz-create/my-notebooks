@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793644748">
+<link rel="stylesheet" href="style.css?v=1793645043">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -25,6 +25,7 @@
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
   <symbol id="i-bold" viewBox="0 0 24 24"><path d="M7 4h6.5a4 4 0 0 1 0 8H7zM7 12h7.5a4 4 0 0 1 0 8H7z"/></symbol>
   <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4M5 21h14"/></symbol>
@@ -77,6 +78,22 @@
 </section>
 
 <!-- ===== האפליקציה ===== -->
+<div id="shareView" class="share-view hidden">
+  <header class="sh-top">
+    <button class="btn btn-ghost" id="shClose"><svg><use href="#i-back"/></svg><span>למחברות שלי</span></button>
+    <span class="sh-brand"><span class="app-icon sm" aria-hidden="true"><svg><use href="#i-book"/></svg></span>המחברות שלי</span>
+    <button class="btn btn-primary hidden" id="shCopy"></button>
+  </header>
+  <main class="sh-main">
+    <div class="doc">
+      <div class="doc-color" id="shColor"></div>
+      <h1 class="sh-title" id="shTitle"></h1>
+      <div class="sh-owner" id="shOwner"></div>
+      <div class="page"><div id="shareBody"><div id="shBody"></div></div></div>
+    </div>
+  </main>
+</div>
+
 <div id="app" class="hidden">
   <aside class="side">
     <div class="side-brand"><span class="app-icon sm" aria-hidden="true"><svg><use href="#i-book"/></svg></span>המחברות שלי</div>
@@ -139,6 +156,7 @@
         </div>
         <div class="grid" id="grid"></div>
         <div class="empty hidden" id="loading">טוען את המחברות...</div>
+        <div class="shared-me hidden" id="sharedWithMe"><h3>שותפו איתי</h3><div class="sh-list" id="sharedList"></div></div>
         <div class="empty hidden" id="sample">
           אין לך עדיין מחברות.
           <button class="link" id="sampleBtn">להוסיף את "מחברת תנ"ך" כדוגמה</button>
@@ -150,6 +168,7 @@
         <div class="ed-top">
           <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות"><svg><use href="#i-back"/></svg><span>מחברות</span></button>
           <span class="save" id="save"></span>
+          <button class="btn btn-ghost share-btn" id="shareBtn" title="שיתוף עם חברים"><svg><use href="#i-share"/></svg><span>שיתוף</span></button>
           <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
           <button class="btn btn-ghost icon-btn" id="delBtn" title="מחיקת המחברת" aria-label="מחיקת המחברת"><svg><use href="#i-trash"/></svg></button>
         </div>
@@ -239,6 +258,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793644748"></script>
+<script type="module" src="app.js?v=1793645043"></script>
 </body>
 </html>
