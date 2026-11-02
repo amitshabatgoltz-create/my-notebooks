@@ -1,5 +1,5 @@
 // עבודה בלי אינטרנט: קודם מנסים מהרשת (כדי לקבל עדכונים), ואם אין חיבור – מהעותק השמור
-const CACHE = 'notebooks-1793649627';
+const CACHE = 'notebooks-1793649791';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'sample-notebook.js', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -8,7 +8,8 @@ self.addEventListener('fetch', e => {
   const u = new URL(r.url);
   const mine = u.origin === location.origin, lib = u.hostname === 'www.gstatic.com' || u.hostname.endsWith('fonts.googleapis.com') || u.hostname.endsWith('fonts.gstatic.com');
   if (!mine && !lib) return;
-  e.respondWith(fetch(r).then(res => {
+  // את הקבצים של האתר עצמו תמיד בודקים מול השרת, כדי שעדכון יגיע מיד
+  e.respondWith(fetch(mine ? new Request(r, { cache: 'no-cache' }) : r).then(res => {
     if (res.ok || res.type === 'opaque') { const cp = res.clone(); caches.open(CACHE).then(c => c.put(r, cp)); }
     return res;
   }).catch(() => caches.match(r, { ignoreSearch: mine }).then(m => m || (r.mode === 'navigate' ? caches.match('index.html') : Response.error()))));

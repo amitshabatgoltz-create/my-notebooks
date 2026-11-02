@@ -2442,11 +2442,23 @@ function subscribeTimetable() {
     if (timetable.start !== 0 && ttSubjects().length) {
       const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
       if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, updatedAt: Date.now() }).catch(() => {}); }
+    }
+    { // שמות ישנים עם קודים ("מתמטיקה א1", "אנגלית הקבצה"): מנקים פעם אחת
+      const ds = timetable.days; let changed = false; const nd = {};
+      for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
+      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, updatedAt: Date.now() }).catch(() => {}); }
     } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
 const squash = x => normS(x).replace(/\s/g, '');
+// ניקוי שם מקצוע: בלי [מספרים], בלי קודי כיתה/קבוצה (ח4, א1, 6ח-4ח), בלי "הקבצה א"
+function cleanSubj(v) {
+  let x = String(v || '').replace(/\[[^\]]*\]|\([^)]*\d[^)]*\)/g, ' ');
+  x = x.replace(/(?:^|\s)(?:הקבצה|הקבצת|קבוצה|מגמה)\s+[א-ת]['׳]?(?=\s|$)/g, ' ').replace(/(?:^|\s)(?:הקבצה|קבוצה)(?=\s|$)/g, ' ');
+  x = x.split(/\s+/).filter(w => w && !/\d/.test(w)).join(' ');
+  return x.replace(/\s+/g, ' ').trim().slice(0, 40);
+}
 function ttSubjects() { const set = new Set(); Object.values(timetable.days || {}).forEach(a => (a || []).forEach(v => { if (normS(v)) set.add(normS(v)); })); return [...set]; }
 function subjMatches(text, subj) {
   const T = ' ' + normS(text) + ' ', S = squash(subj);
@@ -2521,8 +2533,11 @@ function timetableDialog() {
         const L = (Array.isArray(j.lessons) ? j.lessons : []).filter(x => x && x.s && +x.day >= 0 && +x.day <= 5 && Number.isFinite(+x.p));
         if (L.length) {
           start = Math.min(...L.map(x => +x.p)) <= 0 ? 0 : 1;
-          L.forEach(x => { const r = +x.p - start; if (r >= 0 && r < TT_ROWS) { const v = String(x.s).replace(/\s+/g, ' ').trim().slice(0, 40); const cur = days[+x.day][r]; days[+x.day][r] = cur && cur !== v ? (cur + ' / ' + v).slice(0, 40) : v; } });
-        } else if (j.days) { for (let i = 0; i < 6; i++) days[i] = (j.days[i] || j.days[String(i)] || []).slice(0, TT_ROWS).map(v => String(v || '').trim().slice(0, 40)); }
+          L.forEach(x => { const r = +x.p - start; if (r >= 0 && r < TT_ROWS) { const v = String(x.s).split('/').map(cleanSubj).filter(Boolean).join(' / '); const cur = days[+x.day][r]; days[+x.day][r] = cur && cur !== v ? (cur + ' / ' + v).slice(0, 40) : v; } });
+        } else if (j.days) { for (let i = 0; i < 6; i++) days[i] = (j.days[i] || j.days[String(i)] || []).slice(0, TT_ROWS).map(cleanSubj); }
+        // אם השורה הראשונה יצאה ריקה בכל הימים, זו כמעט תמיד שעה 0 ריקה שנספרה בטעות: מזיזים שורה למעלה
+        let guard = 0;
+        while (guard++ < 2 && [0, 1, 2, 3, 4, 5].every(i => !days[i][0]) && [0, 1, 2, 3, 4, 5].some(i => days[i].some(Boolean))) { for (let i = 0; i < 6; i++) days[i] = days[i].slice(1); if (start === 0) start = 1; }
         d.querySelector('#ttZero').checked = start === 0; relabel();
         fill(days); showTable(); d.querySelector('#ttPhoto').classList.add('small'); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
       } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. נסה תמונה ברורה יותר, או הקלד בטבלה.'; showTable(); }
@@ -2534,6 +2549,7 @@ function timetableDialog() {
       const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
       d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
       for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
+      if (start === 1 && [0, 1, 2, 3, 4, 5].every(i => !days[i][0]) && [0, 1, 2, 3, 4, 5].some(i => days[i].length)) for (let i = 0; i < 6; i++) days[i] = days[i].slice(1);
       try { await setDoc(ttDoc(), { days, start, updatedAt: Date.now() }); timetable = { days, start }; paintTTBtn(); closeDialog(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
       catch (e) { console.error(e); toast('לא נשמר'); }
     };
