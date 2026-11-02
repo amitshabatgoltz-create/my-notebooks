@@ -618,9 +618,11 @@ function evRow(e, showDate) {
   const sp = document.createElement('span'); sp.textContent = e.title;
   const sm = document.createElement('small');
   const d = fromKey(e.date);
-  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : ''].filter(Boolean).join(' · ');
+  const nf = (e.files || []).length;
+  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : '', nf ? `📎 ${nf === 1 ? 'קובץ' : nf + ' קבצים'}` : ''].filter(Boolean).join(' · ');
   t.append(sp, sm);
-  if (showDate) { t.style.cursor = 'pointer'; t.onclick = () => { selDay = e.date; viewMonth = new Date(d.getFullYear(), d.getMonth(), 1); renderCalendar(); }; }
+  if (e.note) { const nt = document.createElement('small'); nt.className = 'ev-note'; nt.textContent = e.note; t.appendChild(nt); }
+  t.style.cursor = 'pointer'; t.title = 'פרטים, הערות וקבצים'; t.onclick = () => eventDialog(e.id);
   const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'מחיקה';
   x.onclick = () => deleteDoc(evDoc(e.id)).catch(() => toast('המחיקה נכשלה'));
   r.append(bar, cb, t, x); return r;
@@ -2225,10 +2227,14 @@ function quickPreview() {
   $('quickAdd').classList.toggle('has', lines.length > 0);
 }
 async function quickAdd() {
-  const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length) return;
+  const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean);
+  if (!lines.length) { if (qaFiles.length) { toast('תכתוב מה זה, למשל: ש״ב במתמטיקה למחר'); $('qaInput').focus(); } return; }
+  if (qaFiles.some(f => !f.up)) { toast('רגע, הקובץ עוד עולה'); return; }
   $('qaGo').disabled = true;
   try {
-    for (const l of lines.slice(0, 30)) { const q = parseQuick(l); await addDoc(evCol(), { title: q.title, type: q.type, time: q.time || '', date: q.date, done: false, createdAt: Date.now() }); }
+    const fl = qaFiles.map(f => f.up);
+    for (const [i, l] of lines.slice(0, 30).entries()) { const q = parseQuick(l); await addDoc(evCol(), { title: q.title, type: q.type, time: q.time || '', date: q.date, done: false, createdAt: Date.now(), ...(i === 0 && fl.length ? { files: fl } : {}) }); }
+    qaFiles = []; paintQaFiles(); $('qaInput').placeholder = 'מה יש לך? למשל: ש״ב במתמטיקה עמ׳ 45 למחר';
     const one = parseQuick(lines[0]);
     toast(lines.length > 1 ? `נוספו ${lines.length} דברים ליומן ✓` : `נוסף ליומן: ${one.dateLabel} ✓`);
     $('qaInput').value = ''; quickPreview(); $('qaInput').style.height = '';
@@ -2245,6 +2251,16 @@ const FILE_MAX = 15 * 1024 * 1024, CHUNK = 700000;
 const fileBlobs = new Map();
 const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
 const fileIcon = n => { const e = (n.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? '📕' : /^(docx?|odt|rtf)$/.test(e) ? '📘' : /^(xlsx?|csv|ods)$/.test(e) ? '📗' : /^(pptx?|odp|key)$/.test(e) ? '📙' : /^(png|jpe?g|gif|webp|heic)$/.test(e) ? '🖼️' : /^(mp3|m4a|wav|ogg)$/.test(e) ? '🎧' : /^(mp4|mov|webm)$/.test(e) ? '🎬' : /^(zip|rar|7z)$/.test(e) ? '🗜️' : '📄'; };
+async function uploadFile(f, onProgress) {
+  if (f.size > FILE_MAX) throw Object.assign(new Error('big'), { code: 'too-big' });
+  const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+  const ref = doc(collection(db, 'users', me.uid, 'files')); const n = Math.max(1, Math.ceil(b64.length / CHUNK));
+  for (let i = 0; i < n; i++) { await setDoc(chunkDoc(ref.id, i), { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) }); if (onProgress) onProgress(Math.round((i + 1) / n * 100)); }
+  const meta = { name: f.name.slice(0, 120), type: f.type || '', size: f.size };
+  await setDoc(ref, { ...meta, chunks: n, createdAt: Date.now() });
+  return { id: ref.id, name: meta.name, size: meta.size };
+}
+const fileChipHtml = (fl, removable) => `<div class="file-chip" data-file="${fl.id}" data-name="${String(fl.name).replace(/[<>"&]/g, '')}" data-size="${fl.size || 0}"><span class="fi">${fileIcon(fl.name)}</span><span class="fn"><b>${String(fl.name).replace(/[<>&]/g, '')}</b><small>${fl.size ? fmtSize(fl.size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה">⬇</button>${removable ? '<button type="button" class="fx" data-fa="rm" title="הסרה">✕</button>' : ''}</div>`;
 const fileDoc = (id, uid) => doc(db, 'users', uid || me.uid, 'files', id);
 const chunkDoc = (id, i, uid) => doc(db, 'users', uid || me.uid, 'files', id, 'chunks', String(i));
 
@@ -2269,7 +2285,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('.file-chip [data-fa]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const chip = b.closest('.file-chip'), id = chip.getAttribute('data-file'), uid = chip.dataset.uid || undefined, act = b.dataset.fa;
-  if (act === 'rm') { chip.remove(); markDirty(); return; }
+  if (act === 'rm') { const inEv = chip.closest('.ev-files'); chip.remove(); if (!inEv) markDirty(); return; }
   // חלון חדש נפתח מיד (אחרת הדפדפן חוסם), והקובץ נטען לתוכו
   const canView = /\.(pdf|png|jpe?g|gif|webp|txt|mp3|mp4)$/i.test(chip.getAttribute('data-name') || '');
   const win = act === 'open' && canView ? window.open('', '_blank') : null;
@@ -2294,13 +2310,8 @@ async function addFiles(list) {
     holder.querySelector('b').textContent = f.name;
     insertBlockAtCaret(holder);
     try {
-      const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
-      const ref = doc(collection(db, 'users', me.uid, 'files')); const n = Math.max(1, Math.ceil(b64.length / CHUNK));
-      for (let i = 0; i < n; i++) {
-        await setDoc(chunkDoc(ref.id, i), { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) });
-        holder.querySelector('small').textContent = `מעלה... ${Math.round((i + 1) / n * 100)}%`;
-      }
-      await setDoc(ref, { name: f.name.slice(0, 120), type: f.type || '', size: f.size, chunks: n, createdAt: Date.now() });
+      const up = await uploadFile(f, pc => { holder.querySelector('small').textContent = `מעלה... ${pc}%`; });
+      const ref = { id: up.id };
       const el = document.createElement('div'); el.setAttribute('data-file', ref.id); el.setAttribute('data-name', f.name.slice(0, 120)); el.setAttribute('data-size', String(f.size));
       holder.replaceWith(el); renderFiles(el.parentElement || $('editor'));
       if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
@@ -2317,3 +2328,71 @@ $('editor').addEventListener('drop', e => {
   if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) { const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); savedRange = r.cloneRange(); } }
   addFiles(fs);
 });
+
+/* ===== פרטי משימה ביומן: הערה ("אילו שאלות") וקבצים ===== */
+function eventDialog(id) {
+  const e = events.find(x => x.id === id); if (!e) return;
+  dialog(d => {
+    d.classList.add('ev-dlg');
+    d.innerHTML = `<h3>פרטי משימה</h3>
+      <label class="fl">מה</label><input id="edTitle">
+      <div class="ed-row">
+        <div><label class="fl">סוג</label><select id="edType">${Object.entries(TYPE_NAME).map(([k, v]) => `<option value="${k}"${k === (e.type || 'other') ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+        <div><label class="fl">תאריך</label><input id="edDate" type="date" value="${e.date}"></div>
+        <div><label class="fl">שעה</label><input id="edTime" type="time" value="${e.time || ''}"></div>
+      </div>
+      <label class="fl">הערות</label><textarea id="edNote" rows="3" placeholder="למשל: שאלות 1–5 ו־8, עמוד 45. לא לשכוח להראות דרך."></textarea>
+      <label class="fl">קבצים</label>
+      <div class="ev-files" id="edFiles">${(e.files || []).map(f => fileChipHtml(f, true)).join('')}</div>
+      <button type="button" class="btn btn-ghost add-file" id="edAdd">📎 צירוף קובץ</button>
+      <input type="file" id="edInput" multiple hidden>`;
+    d.querySelector('#edTitle').value = e.title || '';
+    d.querySelector('#edNote').value = e.note || '';
+    d.querySelectorAll('.ev-files .file-chip').forEach(c => c.dataset.uid = '');
+    const files = d.querySelector('#edFiles'), inp = d.querySelector('#edInput');
+    d.querySelector('#edAdd').onclick = () => inp.click();
+    inp.onchange = async () => {
+      for (const f of [...inp.files]) {
+        const ph = document.createElement('div'); ph.className = 'file-chip uploading'; ph.innerHTML = `<span class="fi">${fileIcon(f.name)}</span><span class="fn"><b></b><small>מעלה... 0%</small></span>`; ph.querySelector('b').textContent = f.name; files.appendChild(ph);
+        try { const up = await uploadFile(f, pc => ph.querySelector('small').textContent = `מעלה... ${pc}%`); ph.outerHTML = fileChipHtml(up, true); }
+        catch (err) { ph.remove(); toast(err.code === 'too-big' ? `"${f.name}" גדול מדי (עד 15MB)` : 'ההעלאה נכשלה'); }
+      }
+      inp.value = '';
+    };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+    ok.onclick = async () => {
+      if (files.querySelector('.uploading')) { toast('רגע, הקובץ עוד עולה'); return; }
+      const fl = [...files.querySelectorAll('.file-chip[data-file]')].map(c => ({ id: c.getAttribute('data-file'), name: c.getAttribute('data-name'), size: +c.getAttribute('data-size') || 0 }));
+      const dt = d.querySelector('#edDate').value || e.date;
+      try {
+        await updateDoc(evDoc(e.id), { title: d.querySelector('#edTitle').value.trim() || e.title, type: d.querySelector('#edType').value, date: dt, time: d.querySelector('#edTime').value || '', note: d.querySelector('#edNote').value.trim().slice(0, 2000), files: fl });
+        closeDialog(); toast('נשמר ✓');
+      } catch (err) { console.error(err); toast('לא נשמר'); }
+    };
+    const del = document.createElement('button'); del.className = 'btn btn-ghost danger-t'; del.textContent = 'מחיקה';
+    del.onclick = () => { if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'בטוח? לחץ שוב'; return; } deleteDoc(evDoc(e.id)).then(closeDialog).catch(() => toast('המחיקה נכשלה')); };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok, no, del); d.appendChild(row);
+  });
+}
+
+// 📎 גם בהוספה המהירה: הקבצים נצמדים למשימה שנוספת
+let qaFiles = [];
+function paintQaFiles() {
+  const box = $('qaFiles'); box.innerHTML = qaFiles.map((f, i) => `<span class="qa-file${f.up ? '' : ' up'}"><span>${fileIcon(f.name)}</span><span class="nm"></span>${f.up ? `<button type="button" data-i="${i}" title="הסרה">✕</button>` : `<small>${f.pc || 0}%</small>`}</span>`).join('');
+  box.querySelectorAll('.nm').forEach((n, i) => n.textContent = qaFiles[i].name);
+  $('quickAdd').classList.toggle('has', !!qaFiles.length || !!$('qaInput').value.trim());
+}
+$('qaFiles').addEventListener('click', e => { const b = e.target.closest('button[data-i]'); if (!b) return; qaFiles.splice(+b.dataset.i, 1); paintQaFiles(); });
+$('qaFileBtn').onclick = () => $('qaFileInput').click();
+$('qaFileInput').onchange = async () => {
+  for (const f of [...$('qaFileInput').files]) {
+    const it = { name: f.name, pc: 0 }; qaFiles.push(it); paintQaFiles();
+    try { it.up = await uploadFile(f, pc => { it.pc = pc; paintQaFiles(); }); }
+    catch (err) { qaFiles = qaFiles.filter(x => x !== it); toast(err.code === 'too-big' ? `"${f.name}" גדול מדי (עד 15MB)` : 'ההעלאה נכשלה'); }
+    paintQaFiles();
+  }
+  $('qaFileInput').value = '';
+  if (!$('qaInput').value.trim()) { $('qaInput').placeholder = 'מה זה? למשל: ש״ב במתמטיקה שאלות 1–5 למחר'; $('qaInput').focus(); }
+};

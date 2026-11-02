@@ -669,3 +669,25 @@ body.viewing-share{overflow:hidden}
 .file-chip.uploading{opacity:.75}
 @media (max-width:600px){.file-chip{max-width:100%}.file-chip .fo[data-fa=dl]{display:none}}
 .file-chip .fn small{direction:ltr;text-align:right}
+
+.qa-btns{display:flex;gap:6px}
+.qa-clip{width:44px;padding:0;display:grid;place-items:center}
+.qa-clip svg{width:20px;height:20px}
+.qa-files{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.qa-files:empty{display:none}
+.qa-file{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:10px;background:var(--accent-soft);font-size:13.5px;max-width:100%}
+.qa-file .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;direction:ltr}
+.qa-file button{width:22px;height:22px;border-radius:6px;font-size:11px;color:var(--muted)}
+.qa-file.up{opacity:.7}
+.ev .ev-note{display:block;color:var(--ink);opacity:.75;font-size:13px;white-space:pre-wrap;margin-top:2px}
+.dialog.ev-dlg{width:min(520px,94vw)}
+.ev-dlg .fl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+.ev-dlg input,.ev-dlg select,.ev-dlg textarea{width:100%;box-sizing:border-box}
+.ev-dlg textarea{font:inherit;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);resize:vertical}
+.ed-row{display:grid;grid-template-columns:1.2fr 1.3fr 1fr;gap:8px}
+.ev-files{display:grid;gap:6px}
+.ev-files .file-chip{margin:0;box-shadow:none;max-width:none}
+.ev-dlg .add-file{margin:8px 0 14px}
+@media (max-width:600px){.quick-add .qa-btns{width:100%}.quick-add .qa-btns #qaGo{flex:1}.ed-row{grid-template-columns:1fr 1fr}.ed-row>div:first-child{grid-column:1/-1}}
+.quick-add .qa-clip{width:44px;flex:none}
+.ev-dlg select{height:46px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 10px;font:inherit}
