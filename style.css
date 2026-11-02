@@ -486,7 +486,7 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .box-move{position:absolute;width:44px;height:26px;border-radius:13px;cursor:move !important;background:var(--surface);border:2px solid var(--accent);color:var(--accent);display:grid;place-items:center;cursor:ew-resize;touch-action:none;z-index:6;box-shadow:var(--shadow);transition:transform .12s var(--ease)}
 .box-move svg{width:18px;height:18px}
 .box-move:hover,.box-move.active{background:var(--accent);color:var(--accent-ink);transform:scale(1.08)}
-#editor .cv:not(.sel){overflow:hidden}
+
 
 /* יישור */
 #editor [data-a="center"]{text-align:center}
@@ -525,3 +525,10 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .topbar{background:var(--bg)}
 .toolbar{background:var(--surface);top:58px}
 @media (max-width:900px){.toolbar{top:58px}}
+
+/* בלי מסגרת: הקווים והטקסטים פשוט יושבים על הדף */
+#editor .cv,#editor .cv:hover,#editor .cv.sel{box-shadow:none;background:none;border-radius:0;margin:6px 0;overflow:visible}
+.cv-rz,.cv-empty{display:none !important}
+.cv-stage{pointer-events:none}
+.cv-stage .cv-text,.cv-stage .cv-lh{pointer-events:auto}
+.cv-stage .cv-line .hit{pointer-events:stroke}.cv-stage .cv-line .hd{pointer-events:all}

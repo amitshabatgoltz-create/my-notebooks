@@ -1188,6 +1188,7 @@ function fitCv(el) {
 function renderCanvases(root) { root.querySelectorAll('div[data-cv]').forEach(drawCv); }
 function drawCv(el) {
   const o = cvData(el), isSel = el === selCv;
+  if (!o.items.length && !editing) { if (selCv === el) selCv = null; const n = el.nextElementSibling; el.remove(); if (n && n.tagName === 'P' && isEmpty(n) && n.previousElementSibling) n.remove(); markDirty(); return; }
   el.contentEditable = 'false'; el.className = 'cv' + (isSel ? ' sel' : '');
   const st = document.createElement('div'); st.className = 'cv-stage'; st.dataset.h = o.h;
   st.style.width = CV_W + 'px'; st.style.height = o.h + 'px';
@@ -1196,13 +1197,22 @@ function drawCv(el) {
   if (si && si.t === 'l' && !si.lk) st.appendChild(lineHandles(si, selIdx));
   st.insertAdjacentHTML('beforeend', '<i class="cv-guide v"></i><i class="cv-guide h"></i>');
   el.innerHTML = ''; el.appendChild(st);
-  if (isSel) {
-    el.appendChild(cvBar(o));
-    const rz = document.createElement('div'); rz.className = 'cv-rz'; rz.title = 'גרור כדי לשנות את גובה הלוח'; el.appendChild(rz);
-  }
-  if (!o.items.length) { const em = document.createElement('div'); em.className = 'cv-empty'; em.textContent = 'לוח ריק. הוסף טקסט או קו מהסרגל שמעל.'; el.appendChild(em); }
+  if (isSel && si) el.appendChild(cvBar(o));
   fitCv(el); ro.observe(el);
+  autoH(el, o, st);
   if (si) placeMini(el, si);
+}
+// בלי מסגרת: גובה האזור נקבע לפי הפריטים עצמם
+function autoH(el, o, st) {
+  if (drag) return;
+  let bottom = 0, ok = true;
+  o.items.forEach((it, i) => {
+    if (it.t === 'l') bottom = Math.max(bottom, Math.max(it.y1, it.y2) + it.w / 2 + 8);
+    else { const t = st.querySelector(`.cv-text[data-i="${i}"]`); if (!t || !t.offsetHeight) ok = false; else bottom = Math.max(bottom, it.y + t.offsetHeight + 8); }
+  });
+  if (!ok) return;
+  const h = Math.max(24, Math.ceil(bottom));
+  if (h !== o.h) { o.h = h; el.setAttribute('data-cv', JSON.stringify(cvSan(o))); st.dataset.h = h; st.style.height = h + 'px'; fitCv(el); }
 }
 function lineHandles(it, i) {
   const g = document.createElement('div'); g.className = 'cv-lh'; g.dataset.i = i; posLineHandles(g, it);
@@ -1223,7 +1233,9 @@ function placeMini(el, it) {
   const k = cvScale(el); let cx, top;
   if (it.t === 'l') { cx = (it.x1 + it.x2) / 2 * k; top = Math.min(it.y1, it.y2) * k; }
   else { const t = el.querySelector(`.cv-text[data-i="${selIdx}"]`); const r = t.getBoundingClientRect(), cr = el.getBoundingClientRect(); cx = r.left - cr.left + r.width / 2; top = r.top - cr.top; }
-  m.style.left = cx + 'px'; m.style.top = Math.max(-40, top - 44) + 'px';
+  const mt = top - 44; m.style.left = cx + 'px'; m.style.top = mt + 'px';
+  // הסרגל הגדול יושב ממש מעל הסרגל הקטן, ליד הפריט
+  const bar = el.querySelector('.cv-bar'); if (bar) { bar.style.bottom = 'auto'; bar.style.top = (mt - bar.offsetHeight - 6) + 'px'; }
 }
 function lineEl(it, i, sel) {
   const id = 'm' + Math.random().toString(36).slice(2, 7);
@@ -1279,11 +1291,11 @@ function addItem(kind, preset = 'x') {
   if (kind === 'x') { const P = PRESETS[preset] || PRESETS.x;
     // מתחת לטקסט האחרון, כדי שלא ייפול עליו; הלוח גדל אם צריך
     const lastX = [...el.querySelectorAll('.cv-text')].pop(), k = cvScale(el);
-    let ny = cy - P.s / 2;
+    let ny = o.items.length ? cy - P.s / 2 : 6;
     if (lastX) { const r = lastX.getBoundingClientRect(), sr = el.querySelector('.cv-stage').getBoundingClientRect(); ny = (r.bottom - sr.top) / k + 14; }
     const need = ny + P.s * 1.6 + 20; if (need > o.h) o.h = Math.min(2000, Math.ceil(need));
     o.items.push({ t: 'x', x: (CV_W - P.w) / 2, y: ny, w: P.w, rot: 0, s: P.s, c: '#1D1D1F', bg: 'none', b: P.b, a: 'center', text: P.text, f: 'rubik' }); }
-  else o.items.push({ t: 'l', x1: 250, y1: cy, x2: 550, y2: cy, w: 3, c: '#1D1D1F', d: false, r: false });
+  else { const ly = o.items.length ? o.h + 16 : 18; o.h = Math.max(o.h, ly + 16); o.items.push({ t: 'l', x1: 250, y1: ly, x2: 550, y2: ly, w: 3, c: '#1D1D1F', d: false, r: false }); }
   el.setAttribute('data-cv', JSON.stringify(cvSan(o))); markDirty();
   selectCv(el, o.items.length - 1);
   if (kind === 'x') { startEdit(el, o.items.length - 1); if (preset !== 'x') { const t = el.querySelector(`.cv-text[data-i="${o.items.length - 1}"] .tx`); if (t) { const r = document.createRange(); r.selectNodeContents(t); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); } } }
@@ -1321,7 +1333,7 @@ $('editor').addEventListener('pointerdown', e => {
   const onLineHit = e.target.closest('.hit, .hd');
   if (!rz && (!itemEl || (itemEl.classList.contains('cv-line') && !onLineHit))) {   // לחיצה על שטח ריק: סימון הלוח
     if (editing) document.activeElement.blur();
-    selectCv(el, -1); return;
+    selectCv(null); return;
   }
   e.preventDefault();
   const o = cvData(el);
@@ -1506,12 +1518,11 @@ function boxDialog() {
 $('boxBtn').addEventListener('click', () => {
   restoreSelection();
   if (caretBox()) return boxDialog();                    // בתוך מסגרת צבעונית קיימת: עריכה שלה
-  if (selCv && selCv.isConnected) return addItem('x');   // לוח מסומן: מוסיפים אליו טקסט
   dialog(d => {
-    d.innerHTML = '<h3>תיבת טקסט</h3><p>איזה סוג?</p>';
+    d.innerHTML = '<h3>תיבת טקסט</h3><p>מה להוסיף?</p>';
     const g = document.createElement('div'); g.className = 'kind-pick';
-    g.innerHTML = '<button data-k="free"><b>✍️ תיבת טקסט חופשית</b><span>כמו בקנבה: מזיזים לכל מקום, מגדילים, מסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>';
-    g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'free') addItem('x'); else boxDialog(); };
+    g.innerHTML = '<button data-k="h1"><b style="font-size:22px">הוסף כותרת</b></button><button data-k="h2"><b style="font-size:17px">הוסף כותרת משנה</b></button><button data-k="body"><b style="font-weight:500">הוסף גוף טקסט</b><span>טקסט חופשי שמזיזים לכל מקום, מגדילים ומסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>';
+    g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'box') boxDialog(); else addItem('x', b.dataset.k); };
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול'; c.onclick = closeDialog;
     d.append(g, c);
   });
