@@ -2473,12 +2473,16 @@ function timetableDialog() {
     const has = ttSubjects().length > 0;
     d.innerHTML = `<h3>🗓 מערכת שעות</h3>
       <p class="muted-s">כשתכתוב "ש״ב במתמטיקה" בלי תאריך, האתר ישים את זה ליום של השיעור הבא במתמטיקה.</p>
-      <div class="tt-actions"><button type="button" class="btn btn-ghost" id="ttPhoto">📷 העלאת תמונה של המערכת</button><span class="muted-s" id="ttStatus">${has ? '' : 'או להקליד את המקצועות בטבלה'}</span></div>
+      <button type="button" class="tt-up${has ? ' small' : ''}" id="ttPhoto"><span class="ic">📷</span><b>${has ? 'להעלות תמונה חדשה של המערכת' : 'העלאת תמונה של המערכת'}</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
+      <p class="tt-status" id="ttStatus"></p>
       <input type="file" id="ttFile" accept="image/*,application/pdf" hidden>
-      <div class="tt-scroll"><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      ${has ? '' : '<button type="button" class="link tt-manual" id="ttManual">או להקליד את המערכת ידנית</button>'}
+      <div class="tt-scroll${has ? '' : ' hidden'}"><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     const fill = days => d.querySelectorAll('.tt input').forEach(i => { i.value = ((days[i.dataset.d] || [])[i.dataset.r]) || ''; });
     fill(timetable.days || {});
     d.querySelector('#ttPhoto').onclick = () => d.querySelector('#ttFile').click();
+    const showTable = () => { d.querySelector('.tt-scroll').classList.remove('hidden'); const m = d.querySelector('#ttManual'); if (m) m.remove(); };
+    if (d.querySelector('#ttManual')) d.querySelector('#ttManual').onclick = () => { showTable(); d.querySelector('.tt input').focus(); };
     d.querySelector('#ttFile').onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
       const st = d.querySelector('#ttStatus'); st.textContent = '✨ קורא את המערכת מהתמונה... (10–20 שניות)'; d.querySelector('#ttPhoto').disabled = true;
@@ -2494,8 +2498,8 @@ function timetableDialog() {
         if (!txt) throw lastErr || new Error('empty');
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const days = {}; for (let i = 0; i < 6; i++) days[i] = (j.days && Array.isArray(j.days[i]) ? j.days[i] : (j.days && j.days[String(i)]) || []).slice(0, TT_ROWS).map(v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 40));
-        fill(days); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
-      } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. אפשר להקליד בטבלה.'; }
+        fill(days); showTable(); d.querySelector('#ttPhoto').classList.add('small'); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
+      } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. נסה תמונה ברורה יותר, או הקלד בטבלה.'; showTable(); }
       d.querySelector('#ttPhoto').disabled = false;
     };
     const row = document.createElement('div'); row.className = 'row';
