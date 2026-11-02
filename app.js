@@ -2231,7 +2231,7 @@ function quickPreview() {
 }
 async function quickAdd() {
   const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean);
-  if (!lines.length) { if (qaFiles.length) { toast('תכתוב מה זה, למשל: ש״ב במתמטיקה למחר'); $('qaInput').focus(); } return; }
+  if (!lines.length) { if (qaFiles.length) { toast(ttSubjects().length ? 'בחר מקצוע, או כתוב מה זה' : 'תכתוב לאיזה מקצוע, למשל: מתמטיקה'); $('qaInput').focus(); } return; }
   if (qaFiles.some(f => !f.up)) { toast('רגע, הקובץ עוד עולה'); return; }
   $('qaGo').disabled = true;
   try {
@@ -2244,7 +2244,7 @@ async function quickAdd() {
   } catch (e) { console.error(e); toast('לא הצלחתי להוסיף'); }
   $('qaGo').disabled = false;
 }
-$('qaInput').addEventListener('input', () => { const i = $('qaInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; quickPreview(); });
+$('qaInput').addEventListener('input', () => { const i = $('qaInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; quickPreview(); if (qaFiles.length) paintQaFiles(); });
 $('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !$('qaInput').value.includes('\n')) { e.preventDefault(); quickAdd(); } });
 $('qaGo').onclick = quickAdd;
 quickPreview();
@@ -2425,7 +2425,17 @@ function paintQaFiles() {
   const box = $('qaFiles'); box.innerHTML = qaFiles.map((f, i) => `<span class="qa-file${f.up ? '' : ' up'}"><span>${fileIcon(f.name)}</span><span class="nm"></span>${f.up ? `<button type="button" data-i="${i}" title="הסרה">✕</button>` : `<small>${f.pc || 0}%</small>`}</span>`).join('');
   box.querySelectorAll('.nm').forEach((n, i) => n.textContent = qaFiles[i].name);
   $('quickAdd').classList.toggle('has', !!qaFiles.length || !!$('qaInput').value.trim());
+  // יש קובץ ואין טקסט: מציעים את המקצועות מהמערכת, לחיצה אחת ומוסיף
+  const subs = Object.values(timetable.days || {}).flat().flatMap(x => String(x || '').split(' / ')).map(x => x.trim()).filter((v, i, a) => v && a.indexOf(v) === i);
+  if (qaFiles.length && !$('qaInput').value.trim() && subs.length) {
+    box.insertAdjacentHTML('beforeend', `<div class="qa-subj"><span>לאיזה מקצוע?</span>${subs.map(x => `<button type="button" data-subj="${x.replace(/"/g, '&quot;')}">${x.replace(/</g, '&lt;')}</button>`).join('')}</div>`);
+  }
 }
+$('qaFiles').addEventListener('click', e => {
+  const b = e.target.closest('[data-subj]'); if (!b) return;
+  if (qaFiles.some(f => !f.up)) { toast('רגע, הקובץ עוד עולה'); return; }
+  $('qaInput').value = 'שיעורי בית ב' + b.dataset.subj; quickPreview(); quickAdd();
+});
 $('qaFiles').addEventListener('click', e => { const b = e.target.closest('button[data-i]'); if (!b) return; qaFiles.splice(+b.dataset.i, 1); paintQaFiles(); });
 $('qaFileBtn').onclick = () => $('qaFileInput').click();
 $('qaFileInput').onchange = async () => {
@@ -2436,7 +2446,13 @@ $('qaFileInput').onchange = async () => {
     paintQaFiles();
   }
   $('qaFileInput').value = '';
-  if (!$('qaInput').value.trim()) { $('qaInput').placeholder = 'מה זה? למשל: ש״ב במתמטיקה שאלות 1–5 למחר'; $('qaInput').focus(); }
+  if (!$('qaInput').value.trim()) {
+    const nm = qaFiles.map(f => f.name.replace(/\.[^.]+$/, '').replace(/[_\-.]+/g, ' ')).join(' ');
+    const g = ttSubjects().find(x => subjMatches(nm, x)) || (/math|מתמ/i.test(nm) && ttSubjects().find(x => subjMatches('מתמטיקה', x)));
+    if (g) { $('qaInput').value = 'שיעורי בית ב' + g; quickPreview(); }
+    else { $('qaInput').placeholder = 'לאיזה מקצוע? אפשר פשוט לכתוב "מתמטיקה"'; }
+    paintQaFiles();
+  }
 };
 
 /* ===== מערכת שעות: יודעים מתי השיעור הבא בכל מקצוע ===== */

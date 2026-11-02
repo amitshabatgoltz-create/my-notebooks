@@ -742,3 +742,7 @@ table.tt-view{border-collapse:separate;border-spacing:6px;width:100%;min-width:6
 .tabbar button{font-size:11px}
 .tt-zero{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:14px;color:var(--muted);cursor:pointer}.tt-zero input{width:18px;height:18px;accent-color:var(--accent)}
 .next-lesson{margin-top:10px;width:100%;justify-content:center;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.qa-subj{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px}
+.qa-subj span{font-size:13.5px;color:var(--muted);margin-inline-end:4px}
+.qa-subj button{padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);font-size:14px;font-weight:500;background:var(--surface)}
+.qa-subj button:hover{border-color:var(--accent);color:var(--accent)}
