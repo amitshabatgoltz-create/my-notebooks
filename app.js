@@ -637,9 +637,11 @@ function renderUpcoming() {
 
 $('evForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const title = $('evTitle').value.trim(); if (!title) return;
+  const raw = $('evTitle').value.trim(); if (!raw) return;
+  const q = parseQuick(raw);    // "מחר", "ביום חמישי" וכו' בתוך הטקסט מנצחים את היום שבחרת
   try {
-    await addDoc(evCol(), { title, type: $('evType').value, time: $('evTime').value || '', date: selDay, done: false, createdAt: Date.now() });
+    await addDoc(evCol(), { title: q.title, type: q.typeFound ? q.type : $('evType').value, time: $('evTime').value || q.time || '', date: q.dateFound ? q.date : selDay, done: false, createdAt: Date.now() });
+    if (q.dateFound && q.date !== selDay) toast(`נוסף ל${q.dateLabel}`);
     $('evTitle').value = ''; $('evTime').value = '';
   } catch (err) { toast('לא הצלחתי להוסיף'); }
 });
@@ -2157,3 +2159,75 @@ function sketchDialog() {
 $('sketchBtn').addEventListener('click', sketchDialog);
 
 $('statsCard').addEventListener('click', e => { if (e.target.closest('[data-go=cal]')) showTab('cal'); });
+
+/* ===== הוספה מהירה: כותבים כמו שמדברים ("ש״ב במתמטיקה עמ' 45 למחר") ===== */
+const WD = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+const WD_L = { 'א': 0, 'ב': 1, 'ג': 2, 'ד': 3, 'ה': 4, 'ו': 5 };
+function dayLabel(k) {
+  const d = fromKey(k), n = daysUntil(k);
+  if (n === 0) return 'היום'; if (n === 1) return 'מחר'; if (n === 2) return 'מחרתיים';
+  return `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}`;
+}
+function parseQuick(text) {
+  let t = ' ' + text.replace(/\s+/g, ' ').trim() + ' ';
+  const now = new Date(); now.setHours(12, 0, 0, 0);
+  let date = null, time = '', type = 'hw', typeFound = false;
+  const cut = re => { const m = t.match(re); if (m) t = t.replace(re, ' '); return m; };
+  const add = n => { const d = new Date(now); d.setDate(d.getDate() + n); return d; };
+  const nextWd = (w, nextWeek) => { const d = new Date(now); let diff = (w - d.getDay() + 7) % 7; if (diff === 0) diff = 7; if (nextWeek && diff < 7) diff += 7; d.setDate(d.getDate() + diff); return d; };
+  const P = '(?:^|\\s)(?:עד |ל|ב|ל-|ב-|עד ה|עד ל)?';   // מילות יחס לפני התאריך
+  let m;
+  // שעה
+  if ((m = cut(/\s(?:ב?שעה\s*)?(\d{1,2}):(\d{2})(?=\s)/))) time = `${String(Math.min(23, +m[1])).padStart(2, '0')}:${m[2]}`;
+  else if ((m = cut(/\sב?שעה\s*(\d{1,2})(?=\s)/))) time = `${String(Math.min(23, +m[1])).padStart(2, '0')}:00`;
+  // תאריך
+  if ((m = cut(/(?:^|\s)(?:עד |ל|ב|ל-|ב-)?(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s)/))) {
+    let y = m[3] ? +m[3] : now.getFullYear(); if (y < 100) y += 2000;
+    const d = new Date(y, +m[2] - 1, +m[1], 12); if (!m[3] && d < add(-1)) d.setFullYear(y + 1); date = d;
+  }
+  else if ((m = cut(new RegExp(P + 'מחרתיים(?=\\s)')))) date = add(2);
+  else if ((m = cut(new RegExp(P + 'מחר(?=\\s)')))) date = add(1);
+  else if ((m = cut(new RegExp(P + 'היום(?=\\s)')))) date = add(0);
+  else if ((m = cut(/(?:^|\s)(?:עוד|בעוד)\s+(\d{1,2}|יומיים|שבוע|שבועיים)\s*(?:ימים)?(?=\s)/))) date = add({ 'יומיים': 2, 'שבוע': 7, 'שבועיים': 14 }[m[1]] ?? +m[1]);
+  else if ((m = cut(new RegExp(P + '(?:יום\\s+)?(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(\\s+(?:ה)?(?:בא|הבא))?(?=\\s)')))) date = nextWd(WD[m[1]], false);
+  else if ((m = cut(new RegExp(P + 'יום\\s+([אבגדהו])[\'׳]?(\\s+(?:ה)?(?:בא|הבא))?(?=\\s)')))) date = nextWd(WD_L[m[1]], false);
+  else if ((m = cut(new RegExp(P + '(?:ה)?שבוע (?:ה)?בא(?=\\s)')))) date = add(7);
+  // סוג
+  if (/מבחן|בוחן|בחינה|בגרות|מבדק|בחן/.test(t)) { type = 'test'; typeFound = true; }
+  else if (/ש״ב|ש"ב|שיעורי[- ]?בית|תרגיל|להגיש|הגשה|עבודה|לקרוא|לפתור|לסיים|דף עבודה|עמ['׳]?\s*\d|עמוד/.test(t)) { type = 'hw'; typeFound = true; }
+  else if (/טיול|יום הולדת|יומולדת|מסיבה|הצגה|אסיפה|חוג|אימון|משחק|טקס|כנס|פגישה/.test(t)) { type = 'event'; typeFound = true; }
+  const title = t.replace(/\s+/g, ' ').replace(/^[\s,:\-–]+|[\s,:\-–]+$/g, '').trim() || text.trim();
+  const dateFound = !!date; if (!date) date = add(1);
+  const k = key(date);
+  return { title, type, typeFound, date: k, dateFound, dateLabel: dayLabel(k), time };
+}
+function quickPreview() {
+  const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean);
+  const pv = $('qaPreview'); pv.innerHTML = '';
+  lines.slice(0, 12).forEach(l => {
+    const q = parseQuick(l);
+    const r = document.createElement('div'); r.className = 'qa-item';
+    r.innerHTML = `<i class="dot t-${q.type}"></i><span class="tt"></span><span class="meta"></span>`;
+    r.querySelector('.tt').textContent = q.title;
+    r.querySelector('.meta').textContent = `${TYPE_NAME[q.type]} · ${q.dateLabel}${q.time ? ' · ' + q.time : ''}`;
+    pv.appendChild(r);
+  });
+  $('qaGo').textContent = lines.length > 1 ? `הוספת ${lines.length} ליומן` : 'הוספה ליומן';
+  $('qaGo').disabled = !lines.length;
+  $('quickAdd').classList.toggle('has', lines.length > 0);
+}
+async function quickAdd() {
+  const lines = $('qaInput').value.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length) return;
+  $('qaGo').disabled = true;
+  try {
+    for (const l of lines.slice(0, 30)) { const q = parseQuick(l); await addDoc(evCol(), { title: q.title, type: q.type, time: q.time || '', date: q.date, done: false, createdAt: Date.now() }); }
+    const one = parseQuick(lines[0]);
+    toast(lines.length > 1 ? `נוספו ${lines.length} דברים ליומן ✓` : `נוסף ליומן: ${one.dateLabel} ✓`);
+    $('qaInput').value = ''; quickPreview(); $('qaInput').style.height = '';
+  } catch (e) { console.error(e); toast('לא הצלחתי להוסיף'); }
+  $('qaGo').disabled = false;
+}
+$('qaInput').addEventListener('input', () => { const i = $('qaInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; quickPreview(); });
+$('qaInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !$('qaInput').value.includes('\n')) { e.preventDefault(); quickAdd(); } });
+$('qaGo').onclick = quickAdd;
+quickPreview();

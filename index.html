@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793647450">
+<link rel="stylesheet" href="style.css?v=1793647583">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -139,6 +139,12 @@
             </div>
           </div>
         </div>
+        <div class="quick-add" id="quickAdd">
+          <textarea id="qaInput" rows="1" placeholder="מה יש לך? למשל: ש״ב במתמטיקה עמ׳ 45 למחר" aria-label="הוספה מהירה ליומן"></textarea>
+          <button class="btn btn-primary" id="qaGo" type="button">הוספה ליומן</button>
+          <div class="qa-preview" id="qaPreview"></div>
+          <p class="qa-hint">כותבים כמו שמדברים: "מחר", "ביום חמישי", "12/11". אפשר להדביק כמה שורות מהוואטסאפ של הכיתה, וכל שורה תיכנס לבד.</p>
+        </div>
         <div class="home-grid">
           <div class="card countdown" id="nextTest" style="--i:0"></div>
           <div class="card" id="todayCard" style="--i:1"></div>
@@ -262,6 +268,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793647450"></script>
+<script type="module" src="app.js?v=1793647583"></script>
 </body>
 </html>
