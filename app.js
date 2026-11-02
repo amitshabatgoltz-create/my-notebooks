@@ -157,19 +157,25 @@ function clean(html) {
         walk(ch); ch.replaceWith(...ch.childNodes); return;
       }
       if (ch.tagName === 'DIV' && ch.hasAttribute('data-box')) {    // תיבת טקסט: שומרים רק את הצבע
-        const c = ch.getAttribute('data-box'), bw = ch.getAttribute('data-w'), bh = ch.getAttribute('data-h');
+        const c = ch.getAttribute('data-box'), bw = ch.getAttribute('data-w'), bh = ch.getAttribute('data-h'), bx = ch.getAttribute('data-x');
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
         ch.setAttribute('data-box', BOX_COLORS.includes(c) ? c : 'yellow');
         if (/^\d{2,3}$/.test(bw || '') && +bw >= 15 && +bw <= 100) ch.setAttribute('data-w', bw);
         if (/^\d{2,4}$/.test(bh || '') && +bh >= 40 && +bh <= 3000) ch.setAttribute('data-h', bh);
+        if (/^\d{1,2}$/.test(bx || '') && +bx > 0 && +bx <= 85) ch.setAttribute('data-x', bx);
         walk(ch); return;
       }
-      if (ch.tagName === 'DIV' && (ch.hasAttribute('data-ln') || ch.hasAttribute('data-line'))) {   // קו נשמר רק עם הנקודות וההגדרות שלו
-        let v = ch.getAttribute('data-ln');
-        if (!v && LINE_RE.test(ch.getAttribute('data-line') || '')) v = oldLineToLn(ch.getAttribute('data-line'));
-        if (!v || !LN_RE.test(v)) { ch.remove(); return; }
+      if (ch.tagName === 'DIV' && (ch.hasAttribute('data-cv') || ch.hasAttribute('data-ln') || ch.hasAttribute('data-line'))) {   // לוח עיצוב: נשמר רק כ-JSON בדוק
+        let cv = null;
+        if (ch.hasAttribute('data-cv')) cv = cvParse(ch.getAttribute('data-cv'));
+        else {
+          let v = ch.getAttribute('data-ln');
+          if (!v && LINE_RE.test(ch.getAttribute('data-line') || '')) v = oldLineToLn(ch.getAttribute('data-line'));
+          if (v && LN_RE.test(v)) { const q = v.split('|'); cv = cvSan({ h: Math.max(+q[1], +q[3]) + 40, items: [{ t: 'l', x1: +q[0], y1: +q[1], x2: +q[2], y2: +q[3], w: +q[4], c: q[5], d: q[6] === '1', r: q[7] === '1' }] }); }
+        }
+        if (!cv) { ch.remove(); return; }
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-        ch.setAttribute('data-ln', v); ch.innerHTML = ''; return;
+        ch.setAttribute('data-cv', JSON.stringify(cv)); ch.innerHTML = ''; return;
       }
       if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה
         const id = ch.getAttribute('data-img');
@@ -257,7 +263,7 @@ function openNotebook(id) {
   $('docColor').style.setProperty('--c', n.color || COLORS[0]);
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
-  renderLines($('editor'));
+  renderCanvases($('editor'));
   applyBoxSizes($('editor'));
   $('save').textContent = 'נשמר';
   setView('notebook', 'מחברות › ' + (n.title || ''));
@@ -335,7 +341,7 @@ window.addEventListener('beforeunload', e => { if (dirty) { flush(); e.preventDe
 let savedRange = null;
 document.addEventListener('selectionchange', () => {
   const s = window.getSelection();
-  if (s.rangeCount && $('editor').contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange();
+  if (s.rangeCount && $('editor').contains(s.anchorNode) && !(s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentElement).closest('.cv')) savedRange = s.getRangeAt(0).cloneRange();
 });
 function restoreSelection() {
   const ed = $('editor');
@@ -1140,127 +1146,257 @@ $('editor').addEventListener('keydown', e => {
 });
 
 
-/* ================= קו שמותחים בתוך המחברת ================= */
-// כל קו נשמר כ: x1|y1|x2|y2|עובי|צבע|מקווקו|חץ   (קואורדינטות ברוחב 800)
+/* ================= לוח עיצוב חופשי (בסגנון Canva): טקסט וקווים ================= */
 const LINE_COLORS = ['#1D1D1F', '#5E5CE6', '#E5484D', '#10B981', '#3B82F6', '#F59E0B'];
-const VBW = 800;
+const TEXT_COLORS = ['#1D1D1F', '#5E5CE6', '#E5484D', '#10B981', '#3B82F6', '#F59E0B', '#FFFFFF'];
+const TEXT_BGS = ['none', '#FFF3A3', '#DCEBFF', '#D9F5E8', '#FFE0EA', '#EEE7FF', '#1D1D1F'];
+const CV_W = 800;
 function oldLineToLn(v) {
   const [L, A, W, C, D, R] = v.split('|'); const rad = +A * Math.PI / 180, l = Math.min(+L, 760);
   const dx = Math.cos(rad) * l / 2, dy = Math.sin(rad) * l / 2, cy = Math.abs(dy) + 30;
   return [400 - dx, cy + dy, 400 + dx, cy - dy].map(n => Math.max(5, Math.round(n))).concat([W, C, D, R]).join('|');
 }
-const parseLn = v => { const a = v.split('|'); return { x1: +a[0], y1: +a[1], x2: +a[2], y2: +a[3], W: +a[4], C: a[5], D: a[6] === '1', R: a[7] === '1' }; };
-const lnValue = o => [o.x1, o.y1, o.x2, o.y2].map(n => Math.round(Math.max(5, Math.min(n, 995)))).concat([o.W, o.C, o.D ? 1 : 0, o.R ? 1 : 0]).join('|');
-const lnHeight = o => Math.max(60, Math.max(o.y1, o.y2) + 30);
-let selLine = null;
+const num = (v, lo, hi, d) => { v = +v; return Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v * 10) / 10)) : d; };
+const hex = (v, d) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
+function cvSan(o) {
+  if (!o || typeof o !== 'object') return null;
+  const h = num(o.h, 80, 3000, 300); const items = [];
+  (Array.isArray(o.items) ? o.items : []).slice(0, 80).forEach(it => {
+    if (!it) return;
+    if (it.t === 'l') items.push({ t: 'l', x1: num(it.x1, 0, CV_W, 200), y1: num(it.y1, 0, h, 40), x2: num(it.x2, 0, CV_W, 600), y2: num(it.y2, 0, h, 40), w: num(it.w, 1, 16, 3), c: hex(it.c, '#1D1D1F'), d: !!it.d, r: !!it.r });
+    else if (it.t === 'x') items.push({ t: 'x', x: num(it.x, -200, CV_W, 300), y: num(it.y, -50, h, 40), w: num(it.w, 30, CV_W, 240), rot: num(it.rot, -180, 180, 0), s: num(it.s, 8, 120, 22),
+      c: hex(it.c, '#1D1D1F'), bg: it.bg === 'none' ? 'none' : hex(it.bg, 'none'), b: !!it.b, a: ['right', 'center', 'left'].includes(it.a) ? it.a : 'center', text: String(it.text || '').slice(0, 3000) });
+  });
+  return { h, items };
+}
+function cvParse(str) { try { return cvSan(JSON.parse(str)); } catch { return null; } }
 
-function drawLine(block) {
-  const o = parseLn(block.getAttribute('data-ln')); const H = lnHeight(o);
-  const id = 'm' + Math.random().toString(36).slice(2, 7), sel = block === selLine;
-  let svg = `<svg viewBox="0 0 ${VBW} ${H}" preserveAspectRatio="xMidYMin meet">`;
-  if (o.R) svg += `<defs><marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="${Math.max(3.5, 10 / o.W + 2)}" markerHeight="${Math.max(3.5, 10 / o.W + 2)}" orient="auto"><path d="M0 0L10 5L0 10z" fill="${o.C}" class="ln-ink"/></marker></defs>`;
-  svg += `<line class="ln-hit" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}"/>`;
-  svg += `<line class="ln-main ln-ink" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" stroke="${o.C}" stroke-width="${o.W}"${o.D ? ` stroke-dasharray="${o.W * 3} ${o.W * 2.5}"` : ''}${o.R ? ` marker-end="url(#${id})"` : ''}/>`;
-  if (sel) svg += `<circle class="ln-h" data-end="1" cx="${o.x1}" cy="${o.y1}" r="11"/><circle class="ln-h" data-end="2" cx="${o.x2}" cy="${o.y2}" r="11"/>`;
-  svg += '</svg>';
-  block.innerHTML = svg + (sel ? lineToolbarHTML(o) : '') + '<span class="ln-tip"></span>';
-  block.contentEditable = 'false'; block.className = 'line-block' + (sel ? ' sel' : '');
+let selCv = null, selIdx = -1, editing = false;
+const cvData = el => cvParse(el.getAttribute('data-cv')) || { h: 300, items: [] };
+const cvSave = (el, o) => { el.setAttribute('data-cv', JSON.stringify(cvSan(o))); markDirty(); };
+const cvScale = el => (el.clientWidth || CV_W) / CV_W;
+const ro = new ResizeObserver(es => es.forEach(e => fitCv(e.target)));
+function fitCv(el) {
+  const st = el.querySelector('.cv-stage'); if (!st) return;
+  const k = cvScale(el), h = +st.dataset.h;
+  st.style.transform = `scale(${k})`; el.style.height = (h * k) + 'px'; el.style.setProperty('--k', k);
 }
-function lineToolbarHTML(o) {
-  return `<div class="ln-bar">
-    <button data-a="thin" title="דק יותר">−</button><span class="ln-w">${o.W}</span><button data-a="thick" title="עבה יותר">+</button><i></i>
-    ${LINE_COLORS.map(c => `<button data-a="color" data-c="${c}" class="ln-c${c === o.C ? ' on' : ''}" style="background:${c}" title="צבע"></button>`).join('')}<i></i>
-    <button data-a="dash" class="${o.D ? 'on' : ''}">מקווקו</button><button data-a="arrow" class="${o.R ? 'on' : ''}">חץ</button><i></i>
-    <button data-a="del" title="מחיקת הקו">🗑</button></div>`;
-}
-function renderLines(root) { root.querySelectorAll('div[data-ln]').forEach(drawLine); }
-function selectLine(block) {
-  const prev = selLine; selLine = block;
-  if (prev && prev !== block && prev.isConnected) drawLine(prev);
-  if (block) drawLine(block);
-}
-function setLn(block, o) { block.setAttribute('data-ln', lnValue(o)); }
 
-// הוספת קו חדש מהסרגל
-$('lineBtn').addEventListener('click', () => {
+function renderCanvases(root) { root.querySelectorAll('div[data-cv]').forEach(drawCv); }
+function drawCv(el) {
+  const o = cvData(el), isSel = el === selCv;
+  el.contentEditable = 'false'; el.className = 'cv' + (isSel ? ' sel' : '');
+  const st = document.createElement('div'); st.className = 'cv-stage'; st.dataset.h = o.h;
+  st.style.width = CV_W + 'px'; st.style.height = o.h + 'px';
+  o.items.forEach((it, i) => st.appendChild(it.t === 'l' ? lineEl(it, i, isSel && i === selIdx) : textEl(it, i, isSel && i === selIdx)));
+  st.insertAdjacentHTML('beforeend', '<i class="cv-guide v"></i><i class="cv-guide h"></i>');
+  el.innerHTML = ''; el.appendChild(st);
+  if (isSel) {
+    el.appendChild(cvBar(o));
+    const rz = document.createElement('div'); rz.className = 'cv-rz'; rz.title = 'גרור כדי לשנות את גובה הלוח'; el.appendChild(rz);
+  }
+  if (!o.items.length) { const em = document.createElement('div'); em.className = 'cv-empty'; em.textContent = 'לוח ריק. הוסף טקסט או קו מהסרגל שמעל.'; el.appendChild(em); }
+  fitCv(el); ro.observe(el);
+}
+function lineEl(it, i, sel) {
+  const id = 'm' + Math.random().toString(36).slice(2, 7);
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); g.setAttribute('class', 'cv-line' + (sel ? ' on' : '')); g.dataset.i = i;
+  let h = '';
+  if (it.r) h += `<defs><marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="${Math.max(3.5, 10 / it.w + 2)}" markerHeight="${Math.max(3.5, 10 / it.w + 2)}" orient="auto"><path d="M0 0L10 5L0 10z" fill="${it.c}" class="ink"/></marker></defs>`;
+  h += `<line class="hit" x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}"/>`;
+  h += `<line class="ink main" x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}" stroke="${it.c}" stroke-width="${it.w}"${it.d ? ` stroke-dasharray="${it.w * 3} ${it.w * 2.5}"` : ''}${it.r ? ` marker-end="url(#${id})"` : ''}/>`;
+  if (sel) h += `<circle class="hd" data-h="p1" cx="${it.x1}" cy="${it.y1}"/><circle class="hd" data-h="p2" cx="${it.x2}" cy="${it.y2}"/>`;
+  g.innerHTML = h; return g;
+}
+function textEl(it, i, sel) {
+  const d = document.createElement('div'); d.className = 'cv-text' + (sel ? ' on' : ''); d.dataset.i = i;
+  d.style.cssText = `left:${it.x}px;top:${it.y}px;width:${it.w}px;transform:rotate(${it.rot}deg)`;
+  const tx = document.createElement('div'); tx.className = 'tx'; tx.dir = 'auto';
+  tx.style.cssText = `font-size:${it.s}px;color:${it.c};font-weight:${it.b ? 700 : 400};text-align:${it.a};` + (it.bg !== 'none' ? `background:${it.bg};padding:.25em .45em;border-radius:.35em;` : '');
+  tx.textContent = it.text; if (!it.text) tx.dataset.ph = 'כתוב כאן';
+  d.appendChild(tx);
+  if (sel) ['w', 'e', 'nw', 'ne', 'sw', 'se', 'rot'].forEach(hh => { const b = document.createElement('span'); b.className = 'hd ' + hh; b.dataset.h = hh; d.appendChild(b); });
+  return d;
+}
+function cvBar(o) {
+  const it = o.items[selIdx]; const bar = document.createElement('div'); bar.className = 'cv-bar';
+  const btn = (a, label, on, title) => `<button data-a="${a}" class="${on ? 'on' : ''}" title="${title || ''}">${label}</button>`;
+  const dots = (a, list, cur) => list.map(c => `<button data-a="${a}" data-v="${c}" class="dot${c === cur ? ' on' : ''}" style="${c === 'none' ? '' : 'background:' + c}" title="${c === 'none' ? 'בלי רקע' : ''}">${c === 'none' ? '⌀' : ''}</button>`).join('');
+  let h = '';
+  if (!it) h = btn('addText', '＋ טקסט') + btn('addLine', '＋ קו') + '<i></i>' + btn('delCv', '🗑 מחיקת הלוח');
+  else if (it.t === 'x') h = btn('sDown', 'A−', 0, 'הקטנת גופן') + `<span class="v">${Math.round(it.s)}</span>` + btn('sUp', 'A+', 0, 'הגדלת גופן') + '<i></i>' + btn('bold', '<b>B</b>', it.b, 'מודגש') + btn('align', { right: '⇥', center: '≡', left: '⇤' }[it.a], 0, 'יישור') + '<i></i>' + dots('color', TEXT_COLORS, it.c) + '<i></i><span class="lbl">רקע</span>' + dots('bg', TEXT_BGS, it.bg) + '<i></i>' + btn('rot0', '⟲', 0, 'ביטול סיבוב') + btn('dup', '⧉', 0, 'שכפול') + btn('del', '🗑', 0, 'מחיקה');
+  else h = btn('wDown', '−', 0, 'דק יותר') + `<span class="v">${it.w}</span>` + btn('wUp', '+', 0, 'עבה יותר') + '<i></i>' + dots('lcolor', LINE_COLORS, it.c) + '<i></i>' + btn('dash', 'מקווקו', it.d) + btn('arrow', 'חץ', it.r) + '<i></i>' + btn('dup', '⧉', 0, 'שכפול') + btn('del', '🗑', 0, 'מחיקה');
+  bar.innerHTML = h; return bar;
+}
+function selectCv(el, idx = -1) {
+  const prev = selCv; selCv = el; selIdx = idx; editing = false;
+  if (prev && prev !== el && prev.isConnected) drawCv(prev);
+  if (el) drawCv(el);
+}
+function newCvAtCaret(h = 300) {
   restoreSelection();
-  const el = document.createElement('div'); el.setAttribute('data-ln', lnValue({ x1: 220, y1: 40, x2: 580, y2: 40, W: 3, C: LINE_COLORS[0], D: false, R: false }));
+  const el = document.createElement('div'); el.setAttribute('data-cv', JSON.stringify({ h, items: [] }));
   insertBlockAtCaret(el);
   if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
-  selectLine(el); markDirty();
-  toast('גרור את הנקודות בקצוות כדי למתוח את הקו');
-});
-
-// גרירה: קצה = מותח, הקו עצמו = מזיז את כל הקו
-let lnDrag = null;
-function svgPoint(block, e) {
-  const svg = block.querySelector('svg'); const r = svg.getBoundingClientRect(); const k = VBW / r.width;
-  return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
+  return el;
 }
+function addItem(kind) {
+  let el = selCv && selCv.isConnected ? selCv : newCvAtCaret();
+  const o = cvData(el); const cy = o.items.length ? Math.min(o.h - 40, 40 + (o.items.length % 5) * 40) : o.h / 2 - 20;
+  if (kind === 'x') o.items.push({ t: 'x', x: 260, y: cy - 10, w: 280, rot: 0, s: 26, c: '#1D1D1F', bg: 'none', b: false, a: 'center', text: '' });
+  else o.items.push({ t: 'l', x1: 250, y1: cy, x2: 550, y2: cy, w: 3, c: '#1D1D1F', d: false, r: false });
+  el.setAttribute('data-cv', JSON.stringify(cvSan(o))); markDirty();
+  selectCv(el, o.items.length - 1);
+  if (kind === 'x') startEdit(el, o.items.length - 1);
+}
+$('lineBtn').addEventListener('click', () => addItem('l'));
+
+// ---- עריכת טקסט (לחיצה כפולה, או לחיצה על טקסט שכבר מסומן)
+function startEdit(el, i) {
+  const t = el.querySelector(`.cv-text[data-i="${i}"] .tx`); if (!t) return;
+  editing = true; el.classList.add('editing');
+  try { t.contentEditable = 'plaintext-only'; } catch { t.contentEditable = 'true'; }
+  if (t.contentEditable !== 'plaintext-only') t.contentEditable = 'true';
+  delete t.dataset.ph; t.focus();
+  const r = document.createRange(); r.selectNodeContents(t); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  t.oninput = () => { const o = cvData(el); if (o.items[i]) { o.items[i].text = t.innerText.replace(/\n$/, ''); el.setAttribute('data-cv', JSON.stringify(cvSan(o))); markDirty(); } };
+  t.onblur = () => {
+    editing = false; el.classList.remove('editing');
+    const o = cvData(el);
+    if (o.items[i] && o.items[i].t === 'x' && !o.items[i].text.trim()) { o.items.splice(i, 1); cvSave(el, o); if (selCv === el) selIdx = -1; }
+    if (el.isConnected) drawCv(el);
+  };
+  t.onkeydown = e => { if (e.key === 'Escape') t.blur(); e.stopPropagation(); };
+}
+
+// ---- גרירה: הזזה, מתיחה מהצדדים/פינות, סיבוב, קצוות של קו, גובה הלוח
+let drag = null;
+const stagePt = (el, e) => { const r = el.querySelector('.cv-stage').getBoundingClientRect(), k = cvScale(el); return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
 $('editor').addEventListener('pointerdown', e => {
-  const block = e.target.closest('.line-block');
-  if (!block) { if (selLine && !e.target.closest('.ln-bar')) selectLine(null); return; }
-  if (e.target.closest('.ln-bar')) return;
-  const onLine = e.target.closest('.ln-h, .ln-hit, .ln-main');
-  if (!onLine) { selectLine(null); return; }
-  e.preventDefault();
-  if (block !== selLine) { selectLine(block); }
-  const end = e.target.closest('.ln-h') ? e.target.getAttribute('data-end') : null;
-  const o = parseLn(block.getAttribute('data-ln')); const p0 = svgPoint(block, e);
-  lnDrag = { block, end, o0: { ...o }, p0, id: e.pointerId };
-  block.setPointerCapture(e.pointerId); block.classList.add('dragging');
-});
-$('editor').addEventListener('pointermove', e => {
-  if (!lnDrag || e.pointerId !== lnDrag.id) return;
-  const { block, end, o0, p0 } = lnDrag; const p = svgPoint(block, e); const o = { ...o0 };
-  const clampX = x => Math.max(8, Math.min(VBW - 8, x)), clampY = y => Math.max(8, Math.min(990, y));
-  if (end) {
-    const fx = end === '1' ? o.x2 : o.x1, fy = end === '1' ? o.y2 : o.y1;
-    let x = clampX(p.x), y = clampY(p.y);
-    // הצמדה לזוויות עגולות (כל 15°)
-    const ang = Math.atan2(fy - y, x - fx) * 180 / Math.PI, len = Math.hypot(x - fx, y - fy);
-    const snap = Math.round(ang / 15) * 15;
-    if (Math.abs(ang - snap) < 3.5 && !e.shiftKey) { const r = snap * Math.PI / 180; x = clampX(fx + Math.cos(r) * len); y = clampY(fy - Math.sin(r) * len); }
-    if (end === '1') { o.x1 = x; o.y1 = y; } else { o.x2 = x; o.y2 = y; }
-  } else {
-    let dx = p.x - p0.x, dy = p.y - p0.y;
-    dx = Math.max(8 - Math.min(o0.x1, o0.x2), Math.min(VBW - 8 - Math.max(o0.x1, o0.x2), dx));
-    dy = Math.max(8 - Math.min(o0.y1, o0.y2), Math.min(990 - Math.max(o0.y1, o0.y2), dy));
-    o.x1 += dx; o.x2 += dx; o.y1 += dy; o.y2 += dy;
+  const el = e.target.closest('.cv');
+  if (!el) { if (selCv && !editing) selectCv(null); return; }
+  if (e.target.closest('.cv-bar')) return;
+  if (editing && e.target.closest('.tx[contenteditable="true"], .tx[contenteditable="plaintext-only"]')) return;
+  const rz = e.target.closest('.cv-rz');
+  const itemEl = e.target.closest('.cv-text, .cv-line');
+  const onLineHit = e.target.closest('.hit, .hd');
+  if (!rz && (!itemEl || (itemEl.classList.contains('cv-line') && !onLineHit))) {   // לחיצה על שטח ריק: סימון הלוח
+    if (editing) document.activeElement.blur();
+    selectCv(el, -1); return;
   }
-  setLn(block, o);
-  // עדכון מהיר של הציור בלי לבנות מחדש
-  const svg = block.querySelector('svg'); svg.setAttribute('viewBox', `0 0 ${VBW} ${lnHeight(o)}`);
-  svg.querySelectorAll('line').forEach(l => { l.setAttribute('x1', o.x1); l.setAttribute('y1', o.y1); l.setAttribute('x2', o.x2); l.setAttribute('y2', o.y2); });
-  const hs = svg.querySelectorAll('.ln-h'); if (hs[0]) { hs[0].setAttribute('cx', o.x1); hs[0].setAttribute('cy', o.y1); hs[1].setAttribute('cx', o.x2); hs[1].setAttribute('cy', o.y2); }
-  let a = Math.round(Math.atan2(o.y1 - o.y2, o.x2 - o.x1) * 180 / Math.PI); if (a < 0) a += 360;
-  const tip = block.querySelector('.ln-tip'); tip.textContent = `${a}° · ${Math.round(Math.hypot(o.x2 - o.x1, o.y2 - o.y1))}`; tip.classList.add('show');
+  e.preventDefault();
+  const o = cvData(el);
+  if (rz) { drag = { el, kind: 'rz', o0: o, p0: stagePt(el, e), id: e.pointerId }; el.setPointerCapture(e.pointerId); return; }
+  const i = +itemEl.dataset.i;
+  const wasSel = selCv === el && selIdx === i;
+  const h = e.target.closest('.hd') ? e.target.closest('.hd').dataset.h : 'move';
+  if (!wasSel) selectCv(el, i);
+  drag = { el, kind: h, i, wasSel, o0: JSON.parse(JSON.stringify(o)), p0: stagePt(el, e), id: e.pointerId, moved: false };
+  el.setPointerCapture(e.pointerId); el.classList.add('dragging');
 });
-function endLnDrag(e) {
-  if (!lnDrag || e.pointerId !== lnDrag.id) return;
-  const { block } = lnDrag; lnDrag = null; block.classList.remove('dragging');
-  const tip = block.querySelector('.ln-tip'); if (tip) tip.classList.remove('show');
-  drawLine(block); markDirty();
+$('editor').addEventListener('dblclick', e => { const t = e.target.closest('.cv-text'); const el = e.target.closest('.cv'); if (t && el) startEdit(el, +t.dataset.i); });
+$('editor').addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const { el, kind, i, o0, p0 } = drag; const p = stagePt(el, e); const dx = p.x - p0.x, dy = p.y - p0.y;
+  if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
+  const o = JSON.parse(JSON.stringify(o0)); const st = el.querySelector('.cv-stage');
+  const gv = st.querySelector('.cv-guide.v'), gh = st.querySelector('.cv-guide.h'); gv.classList.remove('show'); gh.classList.remove('show');
+  if (kind === 'rz') {
+    const minH = Math.max(80, ...o.items.map(it => it.t === 'l' ? Math.max(it.y1, it.y2) + 10 : it.y + 40));
+    o.h = Math.max(minH, Math.min(3000, o0.h + dy));
+  } else {
+    const it = o.items[i];
+    if (it.t === 'l') {
+      if (kind === 'move') { it.x1 += dx; it.x2 += dx; it.y1 += dy; it.y2 += dy; }
+      else {
+        const [fx, fy] = kind === 'p1' ? [it.x2, it.y2] : [it.x1, it.y1];
+        let x = p.x, y = p.y; const ang = Math.atan2(fy - y, x - fx) * 180 / Math.PI, len = Math.hypot(x - fx, y - fy), sn = Math.round(ang / 15) * 15;
+        if (Math.abs(ang - sn) < 3.5 && !e.shiftKey) { const r = sn * Math.PI / 180; x = fx + Math.cos(r) * len; y = fy - Math.sin(r) * len; }
+        if (kind === 'p1') { it.x1 = x; it.y1 = y; } else { it.x2 = x; it.y2 = y; }
+      }
+      const by = Math.max(it.y1, it.y2); if (by > o.h - 12) o.h = by + 12;
+      let a = Math.round(Math.atan2(it.y1 - it.y2, it.x2 - it.x1) * 180 / Math.PI); if (a < 0) a += 360;
+      tipShow(el, `${a}°`);
+    } else {
+      const tEl = st.querySelector(`.cv-text[data-i="${i}"]`); const hgt = tEl ? tEl.offsetHeight : 40;
+      const rad = it.rot * Math.PI / 180, dl = dx * Math.cos(rad) + dy * Math.sin(rad);
+      if (kind === 'move') {
+        it.x += dx; it.y += dy;
+        const cx = it.x + it.w / 2; if (Math.abs(cx - CV_W / 2) < 8) { it.x = CV_W / 2 - it.w / 2; gv.classList.add('show'); }   // הצמדה לאמצע
+        const cyy = it.y + hgt / 2; if (Math.abs(cyy - o.h / 2) < 8) { it.y = o.h / 2 - hgt / 2; gh.classList.add('show'); }
+      } else if (kind === 'e') { it.w = Math.max(30, o0.items[i].w + dl); }
+      else if (kind === 'w') { const nw = Math.max(30, o0.items[i].w - dl); it.x = o0.items[i].x + (o0.items[i].w - nw); it.w = nw; }
+      else if (kind === 'rot') {
+        const c0 = o0.items[i]; const cx = c0.x + c0.w / 2, cyy = c0.y + hgt / 2;
+        let a = Math.atan2(p.y - cyy, p.x - cx) * 180 / Math.PI - 90; a = ((a + 540) % 360) - 180;
+        for (const sn of [-180, -90, -45, 0, 45, 90, 180]) if (Math.abs(a - sn) < 4) a = sn;
+        it.rot = Math.round(a); tipShow(el, `${it.rot}°`);
+      } else {   // פינות: הגדלה/הקטנה של כל התיבה כולל הגופן
+        const sign = kind.includes('e') ? 1 : -1; const f = Math.max(0.2, (o0.items[i].w + sign * dl) / o0.items[i].w);
+        it.w = Math.max(30, o0.items[i].w * f); it.s = Math.max(8, Math.min(120, o0.items[i].s * f));
+        if (sign < 0) it.x = o0.items[i].x + (o0.items[i].w - it.w);
+        if (kind.includes('n')) it.y = o0.items[i].y + hgt * (1 - f);
+        tipShow(el, `${Math.round(it.s)}px`);
+      }
+      if (it.y + hgt > o.h - 8) o.h = Math.min(3000, it.y + hgt + 8);
+    }
+  }
+  drag.cur = o;
+  // ציור מהיר בזמן גרירה
+  el.setAttribute('data-cv', JSON.stringify(cvSan(o)));
+  st.dataset.h = o.h; st.style.height = o.h + 'px'; fitCv(el);
+  if (kind !== 'rz') {
+    const it = cvSan(o).items[i]; const old = st.querySelector(`[data-i="${i}"]`);
+    const nu = it.t === 'l' ? lineEl(it, i, true) : textEl(it, i, true); old.replaceWith(nu);
+  }
+});
+function tipShow(el, txt) { let t = el.querySelector('.cv-tip'); if (!t) { t = document.createElement('span'); t.className = 'cv-tip'; el.appendChild(t); } t.textContent = txt; t.classList.add('show'); }
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const { el, moved, wasSel, kind, i } = drag; el.classList.remove('dragging');
+  const t = el.querySelector('.cv-tip'); if (t) t.classList.remove('show');
+  if (drag.cur && moved) cvSave(el, drag.cur);
+  drag = null; drawCv(el);
+  // לחיצה (בלי גרירה) על טקסט שכבר מסומן = עריכת הטקסט
+  if (!moved && wasSel && kind === 'move') { const it = cvData(el).items[i]; if (it && it.t === 'x') startEdit(el, i); }
 }
-$('editor').addEventListener('pointerup', endLnDrag);
-$('editor').addEventListener('pointercancel', endLnDrag);
+$('editor').addEventListener('pointerup', endDrag);
+$('editor').addEventListener('pointercancel', endDrag);
 
-// כפתורי העריכה שמופיעים מעל קו מסומן
+// ---- סרגל הכלים הצף מעל הבחירה
 $('editor').addEventListener('click', e => {
-  const btn = e.target.closest('.ln-bar button'); if (!btn) return;
+  const b = e.target.closest('.cv-bar button'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
-  const block = btn.closest('.line-block'); const o = parseLn(block.getAttribute('data-ln')); const a = btn.dataset.a;
-  if (a === 'thin') o.W = Math.max(1, o.W - 1);
-  else if (a === 'thick') o.W = Math.min(12, o.W + 1);
-  else if (a === 'color') o.C = btn.dataset.c;
-  else if (a === 'dash') o.D = !o.D;
-  else if (a === 'arrow') o.R = !o.R;
-  else if (a === 'del') { selLine = null; block.remove(); markDirty(); return; }
-  setLn(block, o); drawLine(block); markDirty();
+  const el = b.closest('.cv'); const o = cvData(el); const it = o.items[selIdx]; const a = b.dataset.a, v = b.dataset.v;
+  if (a === 'addText') return addItem('x');
+  if (a === 'addLine') return addItem('l');
+  if (a === 'delCv') { selCv = null; el.remove(); markDirty(); return; }
+  if (!it) return;
+  if (a === 'sDown') it.s = Math.max(8, Math.round(it.s / 1.15));
+  else if (a === 'sUp') it.s = Math.min(120, Math.round(it.s * 1.15));
+  else if (a === 'bold') it.b = !it.b;
+  else if (a === 'align') it.a = { center: 'right', right: 'left', left: 'center' }[it.a];
+  else if (a === 'color') it.c = v;
+  else if (a === 'bg') it.bg = v;
+  else if (a === 'rot0') it.rot = 0;
+  else if (a === 'wDown') it.w = Math.max(1, it.w - 1);
+  else if (a === 'wUp') it.w = Math.min(16, it.w + 1);
+  else if (a === 'lcolor') it.c = v;
+  else if (a === 'dash') it.d = !it.d;
+  else if (a === 'arrow') it.r = !it.r;
+  else if (a === 'dup') { const c = JSON.parse(JSON.stringify(it)); if (c.t === 'x') { c.x += 24; c.y += 24; } else { c.x1 += 24; c.x2 += 24; c.y1 += 24; c.y2 += 24; } o.items.push(c); cvSave(el, o); selectCv(el, o.items.length - 1); return; }
+  else if (a === 'del') { o.items.splice(selIdx, 1); cvSave(el, o); selectCv(el, -1); return; }
+  cvSave(el, o); drawCv(el);
 });
 document.addEventListener('keydown', e => {
-  if (selLine && (e.key === 'Delete' || e.key === 'Backspace') && !e.target.closest('input,textarea') && document.activeElement !== $('editor')) { selLine.remove(); selLine = null; markDirty(); }
-  if (selLine && e.key === 'Escape') selectLine(null);
+  if (!selCv || editing || e.target.closest('input,textarea')) return;
+  const o = cvData(selCv); const it = o.items[selIdx];
+  if (e.key === 'Escape') { selectCv(null); return; }
+  if (!it) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); o.items.splice(selIdx, 1); cvSave(selCv, o); selectCv(selCv, -1); return; }
+  const step = e.shiftKey ? 10 : 1, mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (mv) { e.preventDefault(); if (it.t === 'x') { it.x += mv[0]; it.y += mv[1]; } else { it.x1 += mv[0]; it.x2 += mv[0]; it.y1 += mv[1]; it.y2 += mv[1]; } cvSave(selCv, o); drawCv(selCv); }
+  if (it.t === 'x' && e.key === 'Enter') { e.preventDefault(); startEdit(selCv, selIdx); }
 });
 
 /* ================= תיבת טקסט ================= */
@@ -1310,7 +1446,19 @@ function boxDialog() {
     row.appendChild(cancel); d.append(grid, row);
   });
 }
-$('boxBtn').addEventListener('click', boxDialog);
+$('boxBtn').addEventListener('click', () => {
+  restoreSelection();
+  if (caretBox()) return boxDialog();                    // בתוך מסגרת צבעונית קיימת: עריכה שלה
+  if (selCv && selCv.isConnected) return addItem('x');   // לוח מסומן: מוסיפים אליו טקסט
+  dialog(d => {
+    d.innerHTML = '<h3>תיבת טקסט</h3><p>איזה סוג?</p>';
+    const g = document.createElement('div'); g.className = 'kind-pick';
+    g.innerHTML = '<button data-k="free"><b>✍️ תיבת טקסט חופשית</b><span>כמו בקנבה: מזיזים לכל מקום, מגדילים, מסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>';
+    g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'free') addItem('x'); else boxDialog(); };
+    const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול'; c.onclick = closeDialog;
+    d.append(g, c);
+  });
+});
 // Enter פעמיים בסוף תיבה (שורה ריקה) = יציאה מהתיבה
 $('editor').addEventListener('keydown', e => {
   if (e.key !== 'Enter' || e.shiftKey) return;
@@ -1329,6 +1477,7 @@ function applyBoxSizes(root) {
     const w = b.getAttribute('data-w'), h = b.getAttribute('data-h');
     b.style.width = w && w !== '100' ? w + '%' : '';
     b.style.minHeight = h ? h + 'px' : '';
+    const x = b.getAttribute('data-x'); b.style.marginRight = x ? x + '%' : '';
   });
 }
 const boxHandle = document.createElement('div');
@@ -1378,3 +1527,42 @@ function endBoxDrag(e) {
 }
 boxHandle.addEventListener('pointerup', endBoxDrag);
 boxHandle.addEventListener('pointercancel', endBoxDrag);
+
+
+/* ===== הזזה של מסגרת צבעונית ימינה/שמאלה ===== */
+const boxMove = document.createElement('div');
+boxMove.className = 'box-move hidden'; boxMove.title = 'גרור כדי להזיז את התיבה';
+boxMove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/></svg>';
+document.querySelector('#notebook .page').appendChild(boxMove);
+let moveDrag = null;
+const _placeHandle = placeHandle;
+placeHandle = function (box) {
+  _placeHandle(box);
+  if (!box || !box.isConnected) { boxMove.classList.add('hidden'); return; }
+  const page = boxMove.parentElement.getBoundingClientRect(), r = box.getBoundingClientRect();
+  boxMove.style.left = (r.left + r.width / 2 - page.left - 22) + 'px';
+  boxMove.style.top = (r.top - page.top - 14) + 'px';
+  boxMove.classList.remove('hidden');
+};
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.box-move,.box-handle,div[data-box]') && !moveDrag) boxMove.classList.add('hidden'); });
+boxMove.addEventListener('pointerdown', e => {
+  if (!hBox) return; e.preventDefault();
+  const ed = $('editor').getBoundingClientRect(), r = hBox.getBoundingClientRect();
+  moveDrag = { box: hBox, edRight: ed.right, edW: ed.width, grab: r.right - e.clientX, w: r.width, id: e.pointerId };
+  boxMove.setPointerCapture(e.pointerId); boxMove.classList.add('active'); hBox.classList.add('resizing');
+});
+boxMove.addEventListener('pointermove', e => {
+  if (!moveDrag || e.pointerId !== moveDrag.id) return;
+  const { box, edRight, edW, grab, w } = moveDrag;
+  const maxX = Math.max(0, Math.round((edW - w) / edW * 100));
+  let x = Math.round((edRight - (e.clientX + grab)) / edW * 100); x = Math.max(0, Math.min(maxX, x));
+  if (Math.abs(x - maxX / 2) <= 2) x = Math.round(maxX / 2);           // הצמדה לאמצע
+  if (x <= 1) box.removeAttribute('data-x'); else box.setAttribute('data-x', String(Math.min(85, x)));
+  applyBoxSizes(box.parentElement || $('editor')); placeHandle(box);
+});
+function endMove(e) {
+  if (!moveDrag || e.pointerId !== moveDrag.id) return;
+  moveDrag.box.classList.remove('resizing'); boxMove.classList.remove('active'); moveDrag = null; markDirty();
+}
+boxMove.addEventListener('pointerup', endMove);
+boxMove.addEventListener('pointercancel', endMove);
