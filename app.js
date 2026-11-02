@@ -2321,12 +2321,43 @@ async function addFiles(list) {
 }
 $('fileBtn').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
-// גרירת קובץ לתוך המחברת
-$('editor').addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault(); });
-$('editor').addEventListener('drop', e => {
-  const fs = [...(e.dataTransfer.files || [])]; if (!fs.length) return; e.preventDefault();
-  if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) { const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); savedRange = r.cloneRange(); } }
-  addFiles(fs);
+// גרירת קבצים: לכל מקום בדף. איפה שאתה נמצא קובע לאן הקובץ נכנס
+let dragDepth = 0;
+const hasFiles = e => [...((e.dataTransfer && e.dataTransfer.types) || [])].includes('Files');
+function dropTarget() {
+  if (document.querySelector('.ev-dlg')) return 'event';
+  if (!$('notebook').classList.contains('hidden') && openId) return 'notebook';
+  if (!$('home').classList.contains('hidden')) return 'quick';
+  if (!$('calendar').classList.contains('hidden')) return 'quick';
+  return null;
+}
+function dropHint(on) {
+  let o = $('dropHint');
+  if (!on) { if (o) o.remove(); return; }
+  if (!o) { o = document.createElement('div'); o.id = 'dropHint'; o.className = 'drop-hint'; document.body.appendChild(o); }
+  const t = dropTarget();
+  o.innerHTML = `<div><b>📎 שחרר כדי לצרף</b><span>${t === 'notebook' ? 'הקובץ ייכנס למחברת, איפה שאתה משחרר' : t === 'event' ? 'הקובץ יצורף למשימה' : t === 'quick' ? 'הקובץ יצורף לשיעורי הבית שתוסיף ביומן' : 'פתח מחברת או את מסך הבית כדי לצרף קובץ'}</span></div>`;
+  o.classList.toggle('no', !t);
+}
+document.addEventListener('dragenter', e => { if (!hasFiles(e) || !me) return; e.preventDefault(); dragDepth++; dropHint(true); });
+document.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = dropTarget() ? 'copy' : 'none'; });
+document.addEventListener('dragleave', e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) dropHint(false); });
+document.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; dropHint(false);           // בלי זה הדפדפן פותח את הקובץ במקום האתר
+  const fs = [...(e.dataTransfer.files || [])]; if (!fs.length || !me) return;
+  const t = dropTarget();
+  if (t === 'event') { const inp = document.querySelector('#edInput'); const dt = new DataTransfer(); fs.forEach(f => dt.items.add(f)); inp.files = dt.files; inp.onchange(); return; }
+  if (t === 'notebook') {
+    if ($('editor').contains(e.target) && document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r && $('editor').contains(r.startContainer)) { const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); savedRange = r.cloneRange(); } }
+    addFiles(fs); return;
+  }
+  if (t === 'quick') {
+    if ($('home').classList.contains('hidden')) showTab('home');
+    const dt = new DataTransfer(); fs.forEach(f => dt.items.add(f)); $('qaFileInput').files = dt.files; $('qaFileInput').onchange();
+    return;
+  }
+  toast('פתח מחברת או את מסך הבית כדי לצרף קובץ');
 });
 
 /* ===== פרטי משימה ביומן: הערה ("אילו שאלות") וקבצים ===== */
