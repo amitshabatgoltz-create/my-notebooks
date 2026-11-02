@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc, getDocs
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -1786,3 +1786,56 @@ function netState() {
 window.addEventListener('online', () => { netState(); toast('האינטרנט חזר. השינויים נשלחים לענן'); });
 window.addEventListener('offline', () => { netState(); toast('אין אינטרנט. אפשר להמשיך לכתוב, הכל נשמר במכשיר'); });
 netState();
+
+/* ===== גיבוי ושחזור: כל המחברות, התמונות והיומן בקובץ אחד ===== */
+async function downloadBackup() {
+  $('userMenu').classList.add('hidden');
+  if (dirty) await flush();
+  toast('מכין את הגיבוי...');
+  try {
+    const all = async name => (await getDocs(collection(db, 'users', me.uid, name))).docs.map(d => ({ id: d.id, ...d.data() }));
+    const [nbs, evs, imgs] = await Promise.all([all('notebooks'), all('events'), all('images')]);
+    const data = { app: 'my-notebooks', version: 1, exportedAt: new Date().toISOString(), notebooks: nbs, events: evs, images: imgs };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `my_notebooks_backup_${todayKey()}.json`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`הגיבוי ירד: ${nbs.length} מחברות, ${evs.length} אירועים ביומן`);
+  } catch (e) { console.error(e); toast('הגיבוי נכשל. בדוק שיש אינטרנט ונסה שוב'); }
+}
+function restoreBackup() {
+  $('userMenu').classList.add('hidden');
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch { toast('הקובץ הזה לא גיבוי תקין'); return; }
+    if (!data || data.app !== 'my-notebooks' || !Array.isArray(data.notebooks)) { toast('הקובץ הזה לא גיבוי של המחברות שלי'); return; }
+    const okId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id);
+    const nbs = data.notebooks.filter(n => okId(n.id) && typeof n.html === 'string').slice(0, 500);
+    const evs = (data.events || []).filter(e => okId(e.id) && /^\d{4}-\d{2}-\d{2}$/.test(e.date || '') && typeof e.title === 'string').slice(0, 5000);
+    const imgs = (data.images || []).filter(i => okId(i.id) && typeof i.data === 'string' && /^data:image\/(png|jpe?g|webp|gif);base64,/.test(i.data) && i.data.length < 950000).slice(0, 2000);
+    const when = data.exportedAt ? new Date(data.exportedAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    dialog(d => {
+      d.innerHTML = `<h3>שחזור מגיבוי</h3><p>בקובץ${when ? ` (מ־${when})` : ''}: <b>${nbs.length}</b> מחברות, <b>${evs.length}</b> אירועים ביומן ו־<b>${imgs.length}</b> תמונות.</p><p>מחברות שקיימות גם עכשיו יחזרו לגרסה שבגיבוי. מחברות חדשות שאינן בגיבוי לא יימחקו.</p>`;
+      const row = document.createElement('div'); row.className = 'row';
+      const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'לשחזר';
+      const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+      go.onclick = async () => {
+        go.disabled = true; go.textContent = 'משחזר...';
+        try {
+          const uid = me.uid;
+          for (const i of imgs) await setDoc(doc(db, 'users', uid, 'images', i.id), { data: i.data, createdAt: +i.createdAt || Date.now() });
+          for (const n of nbs) await setDoc(doc(db, 'users', uid, 'notebooks', n.id), { title: String(n.title || 'מחברת ללא שם').slice(0, 200), html: clean(n.html), color: typeof n.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(n.color) ? n.color : COLORS[0], createdAt: +n.createdAt || Date.now(), updatedAt: +n.updatedAt || Date.now() });
+          for (const e of evs) await setDoc(doc(db, 'users', uid, 'events', e.id), { title: e.title.slice(0, 300), date: e.date, time: typeof e.time === 'string' ? e.time.slice(0, 5) : '', type: ['test', 'hw', 'event', 'other'].includes(e.type) ? e.type : 'other', done: !!e.done, createdAt: +e.createdAt || Date.now() });
+          closeDialog(); toast('השחזור הושלם ✓');
+          if (openId) { const n = nbs.find(x => x.id === openId); if (n) showLibrary(); }
+        } catch (err) { console.error(err); go.disabled = false; go.textContent = 'לשחזר'; toast('השחזור נכשל באמצע. אפשר לנסות שוב, זה בטוח'); }
+      };
+      row.append(go, no); d.appendChild(row);
+    });
+  };
+  inp.click();
+}
+$('backupBtn').onclick = downloadBackup;
+$('restoreBtn').onclick = restoreBackup;
