@@ -260,12 +260,12 @@ function renderSide() {
     b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות' }[v] || '';
   document.body.dataset.view = v;
   window.scrollTo(0, 0);
 }
@@ -525,6 +525,7 @@ function showTab(t) {
   flush();
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
   else if (t === 'notes') showLibrary();
+  else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -2436,7 +2437,7 @@ let timetable = { days: {} }, unsubTT = null;
 const ttDoc = () => doc(db, 'users', me.uid, 'meta', 'timetable');
 function subscribeTimetable() {
   if (unsubTT) unsubTT();
-  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {}; paintTTBtn(); if ($('qaInput')) quickPreview(); }, () => {});
+  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {}; paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
@@ -2508,7 +2509,7 @@ function timetableDialog() {
       const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
       d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
       for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
-      try { await setDoc(ttDoc(), { days, updatedAt: Date.now() }); timetable = { days }; paintTTBtn(); closeDialog(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
+      try { await setDoc(ttDoc(), { days, updatedAt: Date.now() }); timetable = { days }; paintTTBtn(); closeDialog(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
       catch (e) { console.error(e); toast('לא נשמר'); }
     };
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
@@ -2517,3 +2518,29 @@ function timetableDialog() {
 }
 $('ttBtn').onclick = timetableDialog;
 if ($('ttBtn2')) $('ttBtn2').onclick = timetableDialog;
+
+// ---- עמוד מערכת השעות
+function renderTT() {
+  const box = $('ttBody'); const has = ttSubjects().length > 0;
+  $('ttEdit').classList.toggle('hidden', !has);
+  if (!has) {
+    box.innerHTML = `<button type="button" class="tt-up big" id="ttEmptyUp"><span class="ic">📷</span><b>העלאת תמונה של המערכת</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
+      <button type="button" class="link tt-manual" id="ttEmptyManual">או להקליד את המערכת ידנית</button>
+      <p class="muted-s tt-why">אחרי שתעלה את המערכת, שיעורי בית שתכתוב בלי תאריך ייכנסו ליום של השיעור הבא באותו מקצוע.</p>`;
+    $('ttEmptyUp').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
+    $('ttEmptyManual').onclick = () => { timetableDialog(); setTimeout(() => { const m = document.querySelector('#ttManual'); if (m) m.click(); }, 50); };
+    return;
+  }
+  const today = new Date().getDay(); let rows = 0;
+  for (let i = 0; i < 6; i++) rows = Math.max(rows, (timetable.days[i] || []).length);
+  const colors = {}; const pal = ['#5E5CE6', '#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6', '#E08A1E', '#2E9E6A'];
+  ttSubjects().forEach((s, i) => colors[s] = pal[i % pal.length]);
+  const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => `<tr><th>${r + 1}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+  // מה מחר
+  const tm = new Date(); tm.setDate(tm.getDate() + 1); const list = (timetable.days[tm.getDay()] || []).filter(Boolean);
+  const open = events.filter(e => !e.done && e.date === key(tm));
+  box.insertAdjacentHTML('beforeend', `<div class="card tt-tomorrow"><h3>מחר (${HE_DAYS[tm.getDay()]})</h3>${list.length ? `<p>${list.map(esc).join(' · ')}</p>` : '<p class="muted-s">אין לימודים מחר 🎉</p>'}${open.length ? `<p class="muted-s">להכין למחר: ${open.map(e => esc(e.title)).join(', ')}</p>` : ''}</div>`);
+}
+$('ttEdit').onclick = timetableDialog;
+$('ttUpload').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
