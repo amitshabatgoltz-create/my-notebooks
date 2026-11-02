@@ -521,3 +521,7 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .drop-line.vert{width:3px !important}
 .cv-text.on{z-index:4}
 @media (max-width:700px){.cv-mini button{width:26px;height:26px;font-size:12px}}
+/* סרגל הכלים אטום: הטקסט של הדף לא נראה מאחוריו בגלילה */
+.topbar{background:var(--bg)}
+.toolbar{background:var(--surface);top:58px}
+@media (max-width:900px){.toolbar{top:58px}}
