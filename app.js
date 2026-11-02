@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -26,7 +26,10 @@ if (recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE')) {
   catch (e) { console.error('App Check', e); }
 }
 const auth = getAuth(fb);
-const db = getFirestore(fb);
+// שמירה גם במכשיר: המחברות נפתחות גם בלי אינטרנט, ומה שכותבים נשלח כשהחיבור חוזר
+let db;
+try { db = initializeFirestore(fb, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+catch (e) { console.warn('offline cache', e); db = getFirestore(fb); }
 auth.languageCode = 'he';
 
 let me = null, unsub = null, unsubEv = null, notebooks = [], events = [];
@@ -123,7 +126,7 @@ const nbCol = () => collection(db, 'users', me.uid, 'notebooks');
 const nbDoc = id => doc(db, 'users', me.uid, 'notebooks', id);
 
 function subscribe() {
-  $('loading').classList.remove('hidden'); $('loading').textContent = 'טוען את המחברות...';
+  $('loading').classList.remove('hidden'); $('loading').innerHTML = '<div class="skel-grid">' + '<div class="skel"><i></i><b></b><b></b></div>'.repeat(4) + '</div>';
   $('sample').classList.add('hidden');
   unsub = onSnapshot(query(nbCol(), orderBy('updatedAt', 'desc')), snap => {
     $('loading').classList.add('hidden');
@@ -526,15 +529,34 @@ function subscribeEvents() {
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
     if (!$('home').classList.contains('hidden')) renderHome();
+    remind();
   }, err => console.error(err));
 }
 
+let hiddenTypes = new Set(); try { hiddenTypes = new Set(JSON.parse(localStorage.getItem('hiddenTypes') || '[]')); } catch {}
+const shown = e => !hiddenTypes.has(e.type || 'other');
+function renderLegend() {
+  const L = document.querySelector('#calendar .legend'); if (!L) return;
+  L.innerHTML = '<span class="lbl">הצג:</span>' + [['test', 'מבחנים'], ['hw', 'שיעורי בית'], ['event', 'אירועים'], ['other', 'אחר']].map(([t, n]) =>
+    `<button type="button" class="flt${hiddenTypes.has(t) ? '' : ' on'}" data-t="${t}" aria-pressed="${!hiddenTypes.has(t)}"><i class="dot t-${t}"></i>${n}</button>`).join('')
+    + (hiddenTypes.size ? '<button type="button" class="flt all" data-t="all">הצג הכל</button>' : '');
+}
+document.querySelector('#calendar .legend').addEventListener('click', e => {
+  const b = e.target.closest('.flt'); if (!b) return;
+  const t = b.dataset.t;
+  if (t === 'all') hiddenTypes.clear();
+  else if (hiddenTypes.has(t)) hiddenTypes.delete(t);
+  else { hiddenTypes.add(t); if (hiddenTypes.size === 4) hiddenTypes.delete(t); }
+  try { localStorage.setItem('hiddenTypes', JSON.stringify([...hiddenTypes])); } catch {}
+  renderCalendar();
+});
 function renderCalendar() {
+  renderLegend();
   $('monthTitle').textContent = `${HE_MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
   const g = $('calGrid'); g.innerHTML = '';
   const start = new Date(viewMonth); start.setDate(1 - start.getDay());
   const byDay = {};
-  events.forEach(e => (byDay[e.date] ||= []).push(e));
+  events.filter(shown).forEach(e => (byDay[e.date] ||= []).push(e));
   const tk = todayKey();
   for (let i = 0; i < 42; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
@@ -585,7 +607,7 @@ function renderDay() {
   const d = fromKey(selDay);
   $('dayTitle').textContent = (selDay === todayKey() ? 'היום · ' : '') + `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}`;
   const box = $('dayList'); box.innerHTML = '';
-  const list = events.filter(e => e.date === selDay);
+  const list = events.filter(e => e.date === selDay && shown(e));
   if (!list.length) { const p = document.createElement('div'); p.className = 'noev'; p.textContent = 'אין כלום ביום הזה.'; box.appendChild(p); }
   list.forEach(e => box.appendChild(evRow(e, false)));
 }
@@ -593,7 +615,7 @@ function renderDay() {
 function renderUpcoming() {
   const box = $('upcoming'); box.innerHTML = '';
   const tk = todayKey();
-  const list = events.filter(e => e.date >= tk && !e.done).slice(0, 6);
+  const list = events.filter(e => e.date >= tk && !e.done && shown(e)).slice(0, 6);
   if (!list.length) { const p = document.createElement('div'); p.className = 'noev'; p.textContent = 'אין משימות פתוחות 🎉'; box.appendChild(p); }
   list.forEach(e => box.appendChild(evRow(e, true)));
 }
@@ -1716,3 +1738,39 @@ $('editor').addEventListener('change', e => {
   cvSave(el, o); drawCv(el);
 });
 $('editor').addEventListener('keydown', e => { if (e.target.closest('.cv-bar input')) { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); } }, true);
+
+/* ===== תזכורות בדפדפן: מבחנים ומשימות של היום ומחר ===== */
+const canNotify = 'Notification' in window;
+function bellState() {
+  const b = $('bellBtn'); if (!b) return;
+  if (!canNotify) { b.classList.add('hidden'); return; }
+  const on = Notification.permission === 'granted';
+  b.classList.toggle('on', on); b.textContent = on ? '🔔 תזכורות פועלות' : '🔔 הפעלת תזכורות';
+  b.title = on ? 'כשהאתר נפתח תקבל התראה על מבחנים ומשימות של היום ומחר' : 'קבל התראה על מבחנים ומשימות קרובים';
+}
+async function remind(force) {
+  if (!canNotify || Notification.permission !== 'granted' || !me) return;
+  const tk = todayKey(), t2 = new Date(); t2.setDate(t2.getDate() + 1); const tm = key(t2);
+  const flag = 'reminded-' + me.uid + '-' + tk;
+  try { if (!force && localStorage.getItem(flag)) return; } catch {}
+  const soon = events.filter(e => !e.done && (e.date === tk || e.date === tm));
+  if (!soon.length) { if (force) toast('אין מבחנים או משימות להיום ולמחר'); return; }
+  try { localStorage.setItem(flag, '1'); } catch {}
+  const line = e => `${e.date === tk ? 'היום' : 'מחר'}: ${TYPE_NAME[e.type] || 'אחר'} – ${e.title}${e.time ? ' (' + e.time + ')' : ''}`;
+  const tests = soon.filter(e => e.type === 'test');
+  const title = tests.length ? (tests.length === 1 ? 'יש לך מבחן קרוב 📚' : `יש לך ${tests.length} מבחנים קרובים 📚`) : 'תזכורת מהמחברות שלי';
+  const opts = { body: soon.slice(0, 4).map(line).join('\n'), icon: 'icon-192.png', badge: 'icon-192.png', tag: 'daily-' + tk, lang: 'he', dir: 'rtl' };
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) reg.showNotification(title, opts); else new Notification(title, opts); }
+  catch { try { new Notification(title, opts); } catch {} }
+}
+if ($('bellBtn')) $('bellBtn').onclick = async () => {
+  if (!canNotify) return;
+  if (Notification.permission === 'denied') { toast('ההתראות חסומות. אפשר להפעיל אותן בהגדרות האתר בדפדפן'); return; }
+  if (Notification.permission !== 'granted') await Notification.requestPermission();
+  bellState();
+  if (Notification.permission === 'granted') remind(true);
+};
+bellState();
+
+/* ===== אפליקציה במסך הבית + עבודה בלי אינטרנט ===== */
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e));

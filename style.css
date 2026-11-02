@@ -532,3 +532,23 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .cv-stage{pointer-events:none}
 .cv-stage .cv-text,.cv-stage .cv-lh{pointer-events:auto}
 .cv-stage .cv-line .hit{pointer-events:stroke}.cv-stage .cv-line .hd{pointer-events:all}
+
+/* סינון ביומן */
+.legend .lbl{align-self:center;font-size:12.5px}
+.legend .flt{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1.5px solid var(--line);font-size:13px;color:var(--muted);opacity:.55;transition:opacity .15s,border-color .15s,background .15s}
+.legend .flt.on{opacity:1;color:var(--ink);border-color:color-mix(in srgb,var(--ink) 18%,transparent);background:var(--surface)}
+.legend .flt.all{opacity:1;border-style:dashed;color:var(--accent)}
+.legend .flt .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.legend{gap:8px}
+.bell.on{color:var(--accent)}
+@media (max-width:700px){.cal-nav .bell{font-size:0;padding:0 10px}.cal-nav .bell::first-letter{font-size:16px}}
+/* טעינה: כרטיסי שלד */
+#loading{padding:0;background:none;border:none}
+.skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.skel{height:150px;border-radius:20px;background:var(--surface);border:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:10px;overflow:hidden;position:relative}
+.skel i{width:40px;height:6px;border-radius:4px;background:color-mix(in srgb,var(--ink) 9%,transparent)}
+.skel b{height:14px;border-radius:7px;background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.skel b+b{width:55%}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--surface) 80%,transparent) 50%,transparent 70%);animation:shimmer 1.3s infinite;transform:translateX(-100%)}
+@keyframes shimmer{to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.skel::after{animation:none}}
