@@ -552,3 +552,17 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .skel::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--surface) 80%,transparent) 50%,transparent 70%);animation:shimmer 1.3s infinite;transform:translateX(-100%)}
 @keyframes shimmer{to{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.skel::after{animation:none}}
+
+/* חיווי שמירה ואופליין */
+#save{display:inline-flex;align-items:center;gap:6px}
+#save::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.6}
+#save[data-st=busy]::before{background:var(--accent);opacity:1;animation:pulse 1s infinite}
+#save[data-st=ok]::before{background:#10B981;opacity:1}
+#save[data-st=off]::before{background:#F59E0B;opacity:1}
+#save[data-st=err]{color:var(--danger)} #save[data-st=err]::before{background:var(--danger);opacity:1}
+@keyframes pulse{50%{opacity:.25}}
+.offline{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:600;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;white-space:nowrap;animation:pop .2s var(--ease)}
+.offline i{width:7px;height:7px;border-radius:50%;background:#F59E0B}
+html[data-theme=dark] .offline{color:#FCD34D;background:color-mix(in srgb,#F59E0B 18%,transparent);border-color:color-mix(in srgb,#F59E0B 40%,transparent)}
+@media (max-width:700px){.offline{font-size:0;gap:0;padding:6px}.offline::after{content:"אין אינטרנט";font-size:12px;margin-inline-start:6px}}
+@media (prefers-reduced-motion:reduce){#save[data-st=busy]::before{animation:none}}

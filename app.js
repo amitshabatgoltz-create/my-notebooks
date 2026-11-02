@@ -270,7 +270,7 @@ function openNotebook(id) {
   loadImages($('editor'));
   renderCanvases($('editor'));
   applyBoxSizes($('editor'));
-  $('save').textContent = 'נשמר';
+  setSave('נשמר בענן', 'ok');
   setView('notebook', 'מחברות › ' + (n.title || ''));
   renderSide();
 }
@@ -324,17 +324,19 @@ $('delBtn').onclick = () => {
 };
 
 /* ================= שמירה אוטומטית ================= */
-function markDirty() { dirty = true; $('save').textContent = 'שומר...'; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1200); }
+function markDirty() { dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1200); }
+const setSave = (txt, st) => { const el = $('save'); el.textContent = txt; el.dataset.st = st || ''; };
 async function flush() {
   clearTimeout(saveTimer);
   if (!dirty || !openId || !me) return;
   if (saving) { saveTimer = setTimeout(flush, 400); return; }
   saving = true; dirty = false;
   const id = openId;
-  try {
-    await updateDoc(nbDoc(id), { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() });
-    if (openId === id && !dirty) $('save').textContent = 'נשמר ✓';
-  } catch (e) { dirty = true; $('save').textContent = 'לא נשמר — מנסה שוב'; saveTimer = setTimeout(flush, 3000); }
+  // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
+  const pr = updateDoc(nbDoc(id), { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() });
+  const done = () => { if (openId === id && !dirty) setSave(navigator.onLine ? 'נשמר בענן' : 'נשמר במכשיר · יסונכרן', navigator.onLine ? 'ok' : 'off'); };
+  pr.then(() => { if (openId === id && !dirty) setSave('נשמר בענן', 'ok'); }).catch(e => { console.error(e); dirty = true; setSave('לא נשמר · מנסה שוב', 'err'); saveTimer = setTimeout(flush, 3000); });
+  try { await Promise.race([pr, new Promise(r => setTimeout(r, navigator.onLine ? 4000 : 300))]); done(); } catch {}
   finally { saving = false; }
 }
 $('editor').addEventListener('input', markDirty);
@@ -1774,3 +1776,13 @@ bellState();
 
 /* ===== אפליקציה במסך הבית + עבודה בלי אינטרנט ===== */
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e));
+
+/* ===== חיווי כשאין אינטרנט ===== */
+function netState() {
+  const off = !navigator.onLine;
+  $('offline').classList.toggle('hidden', !off);
+  if (!off && $('save').dataset.st === 'off') setSave('מסנכרן...', 'busy');
+}
+window.addEventListener('online', () => { netState(); toast('האינטרנט חזר. השינויים נשלחים לענן'); });
+window.addEventListener('offline', () => { netState(); toast('אין אינטרנט. אפשר להמשיך לכתוב, הכל נשמר במכשיר'); });
+netState();
