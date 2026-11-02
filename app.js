@@ -145,6 +145,7 @@ $('sampleBtn').onclick = async () => {
 
 /* ================= עזרים ================= */
 const BOX_COLORS = ['yellow', 'blue', 'green', 'purple', 'red', 'gray'];
+const LN_RE = /^\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
 const LINE_RE = /^\d{1,4}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
 const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH']);
 function clean(html) {
@@ -156,15 +157,19 @@ function clean(html) {
         walk(ch); ch.replaceWith(...ch.childNodes); return;
       }
       if (ch.tagName === 'DIV' && ch.hasAttribute('data-box')) {    // תיבת טקסט: שומרים רק את הצבע
-        const c = ch.getAttribute('data-box');
+        const c = ch.getAttribute('data-box'), bw = ch.getAttribute('data-w'), bh = ch.getAttribute('data-h');
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-        ch.setAttribute('data-box', BOX_COLORS.includes(c) ? c : 'yellow'); walk(ch); return;
+        ch.setAttribute('data-box', BOX_COLORS.includes(c) ? c : 'yellow');
+        if (/^\d{2,3}$/.test(bw || '') && +bw >= 15 && +bw <= 100) ch.setAttribute('data-w', bw);
+        if (/^\d{2,4}$/.test(bh || '') && +bh >= 40 && +bh <= 3000) ch.setAttribute('data-h', bh);
+        walk(ch); return;
       }
-      if (ch.tagName === 'DIV' && ch.hasAttribute('data-line')) {   // קו נשמר רק עם ההגדרות שלו
-        const v = ch.getAttribute('data-line');
-        if (!LINE_RE.test(v)) { ch.remove(); return; }
+      if (ch.tagName === 'DIV' && (ch.hasAttribute('data-ln') || ch.hasAttribute('data-line'))) {   // קו נשמר רק עם הנקודות וההגדרות שלו
+        let v = ch.getAttribute('data-ln');
+        if (!v && LINE_RE.test(ch.getAttribute('data-line') || '')) v = oldLineToLn(ch.getAttribute('data-line'));
+        if (!v || !LN_RE.test(v)) { ch.remove(); return; }
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-        ch.setAttribute('data-line', v); ch.innerHTML = ''; return;
+        ch.setAttribute('data-ln', v); ch.innerHTML = ''; return;
       }
       if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה
         const id = ch.getAttribute('data-img');
@@ -253,6 +258,7 @@ function openNotebook(id) {
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
   renderLines($('editor'));
+  applyBoxSizes($('editor'));
   $('save').textContent = 'נשמר';
   setView('notebook', 'מחברות › ' + (n.title || ''));
   renderSide();
@@ -1134,100 +1140,128 @@ $('editor').addEventListener('keydown', e => {
 });
 
 
-/* ================= קו (אורך + זווית) ================= */
-const PREV_K = 230 / 700;   // קנה מידה קבוע בתצוגה המקדימה
+/* ================= קו שמותחים בתוך המחברת ================= */
+// כל קו נשמר כ: x1|y1|x2|y2|עובי|צבע|מקווקו|חץ   (קואורדינטות ברוחב 800)
 const LINE_COLORS = ['#1D1D1F', '#5E5CE6', '#E5484D', '#10B981', '#3B82F6', '#F59E0B'];
-const parseLine = v => { const [L, A, W, C, D, R] = v.split('|'); return { L: +L, A: +A, W: +W, C, D: D === '1', R: R === '1' }; };
-const lineValue = o => [Math.round(o.L), Math.round(o.A) % 360, o.W, o.C, o.D ? 1 : 0, o.R ? 1 : 0].join('|');
-function lineSVG(o, opts = {}) {
-  const rad = o.A * Math.PI / 180, pad = Math.max(14, o.W * 3);
-  const dx = Math.cos(rad) * o.L / 2, dy = -Math.sin(rad) * o.L / 2;          // 0° = ימינה, נגד כיוון השעון
-  const w = opts.box || Math.max(Math.abs(dx) * 2 + pad * 2, pad * 2), h = opts.box || Math.max(Math.abs(dy) * 2 + pad * 2, pad * 2);
-  const cx = w / 2, cy = h / 2, id = 'a' + Math.random().toString(36).slice(2, 8);
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w.toFixed(1)} ${h.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" style="overflow:visible">`;
-  if (o.R) s += `<defs><marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="${Math.max(4, 12 / o.W + 2)}" markerHeight="${Math.max(4, 12 / o.W + 2)}" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${o.C}"/></marker></defs>`;
-  if (opts.guides) {
-    s += `<line x1="${cx - w / 2 + 8}" y1="${cy}" x2="${cx + w / 2 - 8}" y2="${cy}" stroke="currentColor" stroke-opacity=".15" stroke-dasharray="4 4"/>`;
-    const r = 34, large = o.A > 180 ? 1 : 0, ex = cx + r * Math.cos(rad), ey = cy - r * Math.sin(rad);
-    if (o.A > 0) s += `<path d="M${cx + r} ${cy} A${r} ${r} 0 ${large} 0 ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" stroke="#5E5CE6" stroke-width="2" opacity=".6"/>`;
-  }
-  s += `<line x1="${(cx - dx).toFixed(1)}" y1="${(cy - dy).toFixed(1)}" x2="${(cx + dx).toFixed(1)}" y2="${(cy + dy).toFixed(1)}" stroke="${o.C}" stroke-width="${o.W}" stroke-linecap="round"${o.D ? ` stroke-dasharray="${o.W * 3} ${o.W * 2.5}"` : ''}${o.R ? ` marker-end="url(#${id})"` : ''}/>`;
-  if (opts.guides) s += `<circle cx="${(cx + dx).toFixed(1)}" cy="${(cy + dy).toFixed(1)}" r="9" fill="#5E5CE6" fill-opacity=".18" stroke="#5E5CE6" stroke-width="2"/>`;
-  return s + '</svg>';
+const VBW = 800;
+function oldLineToLn(v) {
+  const [L, A, W, C, D, R] = v.split('|'); const rad = +A * Math.PI / 180, l = Math.min(+L, 760);
+  const dx = Math.cos(rad) * l / 2, dy = Math.sin(rad) * l / 2, cy = Math.abs(dy) + 30;
+  return [400 - dx, cy + dy, 400 + dx, cy - dy].map(n => Math.max(5, Math.round(n))).concat([W, C, D, R]).join('|');
 }
-function renderLines(root) {
-  root.querySelectorAll('div[data-line]').forEach(d => {
-    const v = d.getAttribute('data-line'); if (!LINE_RE.test(v)) return;
-    d.innerHTML = lineSVG(parseLine(v)); d.contentEditable = 'false'; d.className = 'line-block'; d.title = 'לחיצה לעריכת הקו';
-  });
-}
-function lineDialog(existing) {
-  restoreSelection();
-  const o = existing ? parseLine(existing.getAttribute('data-line')) : { L: 300, A: 0, W: 3, C: LINE_COLORS[0], D: false, R: false };
-  dialog(d => {
-    d.classList.add('line-dlg');
-    d.innerHTML = `<h3>${existing ? 'עריכת קו' : 'קו חדש'}</h3><p>אפשר לגרור על הציור, או לכוון עם הסרגלים.</p>`;
-    const prev = document.createElement('div'); prev.className = 'line-prev';
-    const ctrl = document.createElement('div'); ctrl.className = 'line-ctrl';
-    const mk = (label, min, max, key, unit) => {
-      const row = document.createElement('label'); row.className = 'line-row';
-      row.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" value="${o[key]}"><b></b>`;
-      const r = row.querySelector('input'), out = row.querySelector('b');
-      r.oninput = () => { o[key] = +r.value; paint(); };
-      return { row, set: () => { r.value = o[key]; out.textContent = Math.round(o[key]) + unit; } };
-    };
-    const len = mk('אורך', 20, 700, 'L', ''), ang = mk('זווית', 0, 359, 'A', '°'), wid = mk('עובי', 1, 12, 'W', '');
-    const presets = document.createElement('div'); presets.className = 'line-presets';
-    [0, 30, 45, 60, 90, 120, 135, 180].forEach(a => { const b = document.createElement('button'); b.type = 'button'; b.textContent = a + '°'; b.onclick = () => { o.A = a; paint(); }; presets.appendChild(b); });
-    const colors = document.createElement('div'); colors.className = 'picker';
-    LINE_COLORS.forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.onclick = () => { o.C = c; paint(); }; colors.appendChild(b); });
-    const opts = document.createElement('div'); opts.className = 'line-opts';
-    const tog = (label, key) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip-btn'; b.textContent = label; b.onclick = () => { o[key] = !o[key]; paint(); }; return b; };
-    const dash = tog('מקווקו', 'D'), arrow = tog('עם חץ', 'R'); opts.append(dash, arrow);
-    function paint() {
-      prev.innerHTML = lineSVG(o, { box: 260, guides: true }).replace(/viewBox="[^"]+"/, 'viewBox="0 0 260 260"');
-      // בתצוגה מקדימה: קנה מידה כדי שהקו ייכנס
-      const k = PREV_K; const sv = prev.querySelector('svg'); sv.querySelector('line:last-of-type').setAttribute('transform', `translate(${130 - 130 * k} ${130 - 130 * k}) scale(${k})`);
-      const tip = sv.querySelector('circle'); if (tip) tip.setAttribute('transform', `translate(${130 - 130 * k} ${130 - 130 * k}) scale(${k})`);
-      [len, ang, wid].forEach(x => x.set());
-      [...colors.children].forEach((b, i) => b.classList.toggle('on', LINE_COLORS[i] === o.C));
-      dash.classList.toggle('on', o.D); arrow.classList.toggle('on', o.R);
-      [...presets.children].forEach(b => b.classList.toggle('on', b.textContent === o.A + '°'));
-    }
-    // גרירה על התצוגה המקדימה: כיוון = זווית, מרחק = אורך
-    const drag = e => {
-      const r = prev.getBoundingClientRect(); const x = e.clientX - r.left - r.width / 2, y = r.top + r.height / 2 - e.clientY;
-      let a = Math.round(Math.atan2(y, x) * 180 / Math.PI); if (a < 0) a += 360;
-      for (const snap of [0, 45, 90, 135, 180, 225, 270, 315, 360]) if (Math.abs(a - snap) <= 3) a = snap % 360;
-      o.A = a; o.L = Math.max(20, Math.min(700, Math.round(Math.hypot(x, y) * 2 * (260 / r.width) / PREV_K / 10) * 10));
-      paint();
-    };
-    prev.addEventListener('pointerdown', e => { prev.setPointerCapture(e.pointerId); drag(e); prev.onpointermove = drag; });
-    prev.addEventListener('pointerup', () => { prev.onpointermove = null; });
-    ctrl.append(len.row, ang.row, presets, wid.row, colors, opts);
-    const row = document.createElement('div'); row.className = 'row';
-    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = existing ? 'שמירה' : 'הוספת קו';
-    ok.onclick = () => {
-      closeDialog();
-      if (existing) { existing.setAttribute('data-line', lineValue(o)); renderLines(existing.parentElement || $('editor')); }
-      else {
-        restoreSelection();
-        const el = document.createElement('div'); el.setAttribute('data-line', lineValue(o));
-        insertBlockAtCaret(el); const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after);
-        renderLines($('editor')); placeCaret(after);
-      }
-      markDirty();
-    };
-    row.appendChild(ok);
-    if (existing) { const del = document.createElement('button'); del.className = 'btn btn-ghost'; del.textContent = 'מחיקת הקו'; del.onclick = () => { existing.remove(); closeDialog(); markDirty(); }; row.appendChild(del); }
-    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog; row.appendChild(cancel);
-    const wrap = document.createElement('div'); wrap.className = 'line-wrap'; wrap.append(prev, ctrl);
-    d.append(wrap, row); paint();
-  });
-}
-$('lineBtn').addEventListener('click', () => lineDialog(null));
-$('editor').addEventListener('click', e => { const l = e.target.closest('.line-block'); if (l) lineDialog(l); });
+const parseLn = v => { const a = v.split('|'); return { x1: +a[0], y1: +a[1], x2: +a[2], y2: +a[3], W: +a[4], C: a[5], D: a[6] === '1', R: a[7] === '1' }; };
+const lnValue = o => [o.x1, o.y1, o.x2, o.y2].map(n => Math.round(Math.max(5, Math.min(n, 995)))).concat([o.W, o.C, o.D ? 1 : 0, o.R ? 1 : 0]).join('|');
+const lnHeight = o => Math.max(60, Math.max(o.y1, o.y2) + 30);
+let selLine = null;
 
+function drawLine(block) {
+  const o = parseLn(block.getAttribute('data-ln')); const H = lnHeight(o);
+  const id = 'm' + Math.random().toString(36).slice(2, 7), sel = block === selLine;
+  let svg = `<svg viewBox="0 0 ${VBW} ${H}" preserveAspectRatio="xMidYMin meet">`;
+  if (o.R) svg += `<defs><marker id="${id}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="${Math.max(3.5, 10 / o.W + 2)}" markerHeight="${Math.max(3.5, 10 / o.W + 2)}" orient="auto"><path d="M0 0L10 5L0 10z" fill="${o.C}" class="ln-ink"/></marker></defs>`;
+  svg += `<line class="ln-hit" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}"/>`;
+  svg += `<line class="ln-main ln-ink" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" stroke="${o.C}" stroke-width="${o.W}"${o.D ? ` stroke-dasharray="${o.W * 3} ${o.W * 2.5}"` : ''}${o.R ? ` marker-end="url(#${id})"` : ''}/>`;
+  if (sel) svg += `<circle class="ln-h" data-end="1" cx="${o.x1}" cy="${o.y1}" r="11"/><circle class="ln-h" data-end="2" cx="${o.x2}" cy="${o.y2}" r="11"/>`;
+  svg += '</svg>';
+  block.innerHTML = svg + (sel ? lineToolbarHTML(o) : '') + '<span class="ln-tip"></span>';
+  block.contentEditable = 'false'; block.className = 'line-block' + (sel ? ' sel' : '');
+}
+function lineToolbarHTML(o) {
+  return `<div class="ln-bar">
+    <button data-a="thin" title="דק יותר">−</button><span class="ln-w">${o.W}</span><button data-a="thick" title="עבה יותר">+</button><i></i>
+    ${LINE_COLORS.map(c => `<button data-a="color" data-c="${c}" class="ln-c${c === o.C ? ' on' : ''}" style="background:${c}" title="צבע"></button>`).join('')}<i></i>
+    <button data-a="dash" class="${o.D ? 'on' : ''}">מקווקו</button><button data-a="arrow" class="${o.R ? 'on' : ''}">חץ</button><i></i>
+    <button data-a="del" title="מחיקת הקו">🗑</button></div>`;
+}
+function renderLines(root) { root.querySelectorAll('div[data-ln]').forEach(drawLine); }
+function selectLine(block) {
+  const prev = selLine; selLine = block;
+  if (prev && prev !== block && prev.isConnected) drawLine(prev);
+  if (block) drawLine(block);
+}
+function setLn(block, o) { block.setAttribute('data-ln', lnValue(o)); }
+
+// הוספת קו חדש מהסרגל
+$('lineBtn').addEventListener('click', () => {
+  restoreSelection();
+  const el = document.createElement('div'); el.setAttribute('data-ln', lnValue({ x1: 220, y1: 40, x2: 580, y2: 40, W: 3, C: LINE_COLORS[0], D: false, R: false }));
+  insertBlockAtCaret(el);
+  if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
+  selectLine(el); markDirty();
+  toast('גרור את הנקודות בקצוות כדי למתוח את הקו');
+});
+
+// גרירה: קצה = מותח, הקו עצמו = מזיז את כל הקו
+let lnDrag = null;
+function svgPoint(block, e) {
+  const svg = block.querySelector('svg'); const r = svg.getBoundingClientRect(); const k = VBW / r.width;
+  return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
+}
+$('editor').addEventListener('pointerdown', e => {
+  const block = e.target.closest('.line-block');
+  if (!block) { if (selLine && !e.target.closest('.ln-bar')) selectLine(null); return; }
+  if (e.target.closest('.ln-bar')) return;
+  const onLine = e.target.closest('.ln-h, .ln-hit, .ln-main');
+  if (!onLine) { selectLine(null); return; }
+  e.preventDefault();
+  if (block !== selLine) { selectLine(block); }
+  const end = e.target.closest('.ln-h') ? e.target.getAttribute('data-end') : null;
+  const o = parseLn(block.getAttribute('data-ln')); const p0 = svgPoint(block, e);
+  lnDrag = { block, end, o0: { ...o }, p0, id: e.pointerId };
+  block.setPointerCapture(e.pointerId); block.classList.add('dragging');
+});
+$('editor').addEventListener('pointermove', e => {
+  if (!lnDrag || e.pointerId !== lnDrag.id) return;
+  const { block, end, o0, p0 } = lnDrag; const p = svgPoint(block, e); const o = { ...o0 };
+  const clampX = x => Math.max(8, Math.min(VBW - 8, x)), clampY = y => Math.max(8, Math.min(990, y));
+  if (end) {
+    const fx = end === '1' ? o.x2 : o.x1, fy = end === '1' ? o.y2 : o.y1;
+    let x = clampX(p.x), y = clampY(p.y);
+    // הצמדה לזוויות עגולות (כל 15°)
+    const ang = Math.atan2(fy - y, x - fx) * 180 / Math.PI, len = Math.hypot(x - fx, y - fy);
+    const snap = Math.round(ang / 15) * 15;
+    if (Math.abs(ang - snap) < 3.5 && !e.shiftKey) { const r = snap * Math.PI / 180; x = clampX(fx + Math.cos(r) * len); y = clampY(fy - Math.sin(r) * len); }
+    if (end === '1') { o.x1 = x; o.y1 = y; } else { o.x2 = x; o.y2 = y; }
+  } else {
+    let dx = p.x - p0.x, dy = p.y - p0.y;
+    dx = Math.max(8 - Math.min(o0.x1, o0.x2), Math.min(VBW - 8 - Math.max(o0.x1, o0.x2), dx));
+    dy = Math.max(8 - Math.min(o0.y1, o0.y2), Math.min(990 - Math.max(o0.y1, o0.y2), dy));
+    o.x1 += dx; o.x2 += dx; o.y1 += dy; o.y2 += dy;
+  }
+  setLn(block, o);
+  // עדכון מהיר של הציור בלי לבנות מחדש
+  const svg = block.querySelector('svg'); svg.setAttribute('viewBox', `0 0 ${VBW} ${lnHeight(o)}`);
+  svg.querySelectorAll('line').forEach(l => { l.setAttribute('x1', o.x1); l.setAttribute('y1', o.y1); l.setAttribute('x2', o.x2); l.setAttribute('y2', o.y2); });
+  const hs = svg.querySelectorAll('.ln-h'); if (hs[0]) { hs[0].setAttribute('cx', o.x1); hs[0].setAttribute('cy', o.y1); hs[1].setAttribute('cx', o.x2); hs[1].setAttribute('cy', o.y2); }
+  let a = Math.round(Math.atan2(o.y1 - o.y2, o.x2 - o.x1) * 180 / Math.PI); if (a < 0) a += 360;
+  const tip = block.querySelector('.ln-tip'); tip.textContent = `${a}° · ${Math.round(Math.hypot(o.x2 - o.x1, o.y2 - o.y1))}`; tip.classList.add('show');
+});
+function endLnDrag(e) {
+  if (!lnDrag || e.pointerId !== lnDrag.id) return;
+  const { block } = lnDrag; lnDrag = null; block.classList.remove('dragging');
+  const tip = block.querySelector('.ln-tip'); if (tip) tip.classList.remove('show');
+  drawLine(block); markDirty();
+}
+$('editor').addEventListener('pointerup', endLnDrag);
+$('editor').addEventListener('pointercancel', endLnDrag);
+
+// כפתורי העריכה שמופיעים מעל קו מסומן
+$('editor').addEventListener('click', e => {
+  const btn = e.target.closest('.ln-bar button'); if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const block = btn.closest('.line-block'); const o = parseLn(block.getAttribute('data-ln')); const a = btn.dataset.a;
+  if (a === 'thin') o.W = Math.max(1, o.W - 1);
+  else if (a === 'thick') o.W = Math.min(12, o.W + 1);
+  else if (a === 'color') o.C = btn.dataset.c;
+  else if (a === 'dash') o.D = !o.D;
+  else if (a === 'arrow') o.R = !o.R;
+  else if (a === 'del') { selLine = null; block.remove(); markDirty(); return; }
+  setLn(block, o); drawLine(block); markDirty();
+});
+document.addEventListener('keydown', e => {
+  if (selLine && (e.key === 'Delete' || e.key === 'Backspace') && !e.target.closest('input,textarea') && document.activeElement !== $('editor')) { selLine.remove(); selLine = null; markDirty(); }
+  if (selLine && e.key === 'Escape') selectLine(null);
+});
 
 /* ================= תיבת טקסט ================= */
 const BOX_NAMES = { yellow: 'צהוב', blue: 'כחול', green: 'ירוק', purple: 'סגול', red: 'אדום', gray: 'אפור' };
@@ -1287,3 +1321,60 @@ $('editor').addEventListener('keydown', e => {
     const p = document.createElement('p'); p.appendChild(document.createElement('br')); box.after(p); placeCaret(p); markDirty();
   }
 });
+
+
+/* ===== שינוי גודל לתיבת טקסט: ידית בפינה ===== */
+function applyBoxSizes(root) {
+  root.querySelectorAll('div[data-box]').forEach(b => {
+    const w = b.getAttribute('data-w'), h = b.getAttribute('data-h');
+    b.style.width = w && w !== '100' ? w + '%' : '';
+    b.style.minHeight = h ? h + 'px' : '';
+  });
+}
+const boxHandle = document.createElement('div');
+boxHandle.className = 'box-handle hidden'; boxHandle.title = 'גרור כדי לשנות את גודל התיבה';
+boxHandle.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 19 19 5M11 19l8-8M17 19l2-2"/></svg>';
+document.querySelector('#notebook .page').appendChild(boxHandle);
+let hBox = null, boxDrag = null;
+function placeHandle(box) {
+  hBox = box;
+  if (!box || !box.isConnected) { boxHandle.classList.add('hidden'); return; }
+  const page = boxHandle.parentElement.getBoundingClientRect(), r = box.getBoundingClientRect();
+  boxHandle.style.left = (r.left - page.left - 11) + 'px';      // פינה שמאלית-תחתונה (התיבה מיושרת לימין)
+  boxHandle.style.top = (r.bottom - page.top - 11) + 'px';
+  boxHandle.classList.remove('hidden');
+}
+$('editor').addEventListener('pointerover', e => { if (boxDrag) return; const b = e.target.closest('div[data-box]'); if (b) placeHandle(b); });
+document.addEventListener('selectionchange', () => { if (boxDrag) return; const b = caretBox(); if (b) placeHandle(b); });
+$('editor').addEventListener('input', () => { if (hBox) placeHandle(hBox); });
+window.addEventListener('resize', () => { if (hBox) placeHandle(hBox); });
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('.box-handle') || e.target.closest('div[data-box]')) return;
+  if (!boxDrag) placeHandle(null);
+});
+boxHandle.addEventListener('pointerdown', e => {
+  if (!hBox) return; e.preventDefault();
+  const r = hBox.getBoundingClientRect(), ed = $('editor').getBoundingClientRect();
+  boxDrag = { box: hBox, right: r.right, top: r.top, edW: ed.width, id: e.pointerId };
+  boxHandle.setPointerCapture(e.pointerId); boxHandle.classList.add('active'); hBox.classList.add('resizing');
+});
+boxHandle.addEventListener('pointermove', e => {
+  if (!boxDrag || e.pointerId !== boxDrag.id) return;
+  const { box, right, top, edW } = boxDrag;
+  let w = Math.round((right - e.clientX) / edW * 100); w = Math.max(15, Math.min(100, w));
+  if (w > 96) w = 100;                                              // הצמדה לרוחב מלא
+  const content = [...box.children].reduce((h, c) => h + c.getBoundingClientRect().height, 0) + 28;
+  let h = Math.round(e.clientY - top); h = Math.max(40, h);
+  box.setAttribute('data-w', String(w));
+  if (h > content + 8) box.setAttribute('data-h', String(h)); else box.removeAttribute('data-h');
+  applyBoxSizes(box.parentElement || $('editor'));
+  placeHandle(box);
+});
+function endBoxDrag(e) {
+  if (!boxDrag || e.pointerId !== boxDrag.id) return;
+  boxDrag.box.classList.remove('resizing'); boxHandle.classList.remove('active');
+  if (boxDrag.box.getAttribute('data-w') === '100') boxDrag.box.removeAttribute('data-w');
+  boxDrag = null; markDirty();
+}
+boxHandle.addEventListener('pointerup', endBoxDrag);
+boxHandle.addEventListener('pointercancel', endBoxDrag);
