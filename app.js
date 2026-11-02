@@ -1534,7 +1534,7 @@ boxHandle.addEventListener('pointercancel', endBoxDrag);
 /* ===== הזזה של מסגרת צבעונית ימינה/שמאלה ===== */
 const boxMove = document.createElement('div');
 boxMove.className = 'box-move hidden'; boxMove.title = 'גרור כדי להזיז את התיבה';
-boxMove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/></svg>';
+boxMove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3M2 12h20M12 2v20"/></svg>';
 document.querySelector('#notebook .page').appendChild(boxMove);
 let moveDrag = null;
 const _placeHandle = placeHandle;
@@ -1550,21 +1550,44 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('.box-move
 boxMove.addEventListener('pointerdown', e => {
   if (!hBox) return; e.preventDefault();
   const ed = $('editor').getBoundingClientRect(), r = hBox.getBoundingClientRect();
-  moveDrag = { box: hBox, edRight: ed.right, edW: ed.width, grab: r.right - e.clientX, w: r.width, id: e.pointerId };
+  moveDrag = { box: hBox, edRight: ed.right, edW: ed.width, grab: r.right - e.clientX, w: r.width, id: e.pointerId, y0: e.clientY };
   boxMove.setPointerCapture(e.pointerId); boxMove.classList.add('active'); hBox.classList.add('resizing');
 });
+const dropLine = document.createElement('div'); dropLine.className = 'drop-line hidden';
+document.querySelector('#notebook .page').appendChild(dropLine);
 boxMove.addEventListener('pointermove', e => {
   if (!moveDrag || e.pointerId !== moveDrag.id) return;
   const { box, edRight, edW, grab, w } = moveDrag;
+  // ימינה / שמאלה
   const maxX = Math.max(0, Math.round((edW - w) / edW * 100));
   let x = Math.round((edRight - (e.clientX + grab)) / edW * 100); x = Math.max(0, Math.min(maxX, x));
   if (Math.abs(x - maxX / 2) <= 2) x = Math.round(maxX / 2);           // הצמדה לאמצע
   if (x <= 1) box.removeAttribute('data-x'); else box.setAttribute('data-x', String(Math.min(85, x)));
-  applyBoxSizes(box.parentElement || $('editor')); placeHandle(box);
+  applyBoxSizes(box.parentElement || $('editor'));
+  // למעלה / למטה: איפה התיבה תעבור בין השורות
+  const ed = $('editor'), page = dropLine.parentElement.getBoundingClientRect();
+  const sibs = [...ed.children].filter(c => c !== box);
+  let target = null, before = true;
+  for (const c of sibs) { const r = c.getBoundingClientRect(); if (e.clientY < r.top + r.height / 2) { target = c; before = true; break; } }
+  if (!target && sibs.length) { target = sibs[sibs.length - 1]; before = false; }
+  const same = target && ((before && target === box.nextElementSibling) || (!before && target === box.previousElementSibling));
+  moveDrag.target = same ? null : target; moveDrag.before = before;
+  if (moveDrag.target) {
+    const r = target.getBoundingClientRect(), y = before ? r.top - 4 : r.bottom + 4, er = ed.getBoundingClientRect();
+    dropLine.style.top = (y - page.top - 1.5) + 'px'; dropLine.style.left = (er.left - page.left) + 'px'; dropLine.style.width = er.width + 'px';
+    dropLine.classList.remove('hidden');
+  } else dropLine.classList.add('hidden');
+  // התיבה זזה עם האצבע/העכבר בזמן הגרירה
+  box.style.transform = `translateY(${e.clientY - moveDrag.y0}px)`;
+  placeHandle(box);
 });
 function endMove(e) {
   if (!moveDrag || e.pointerId !== moveDrag.id) return;
-  moveDrag.box.classList.remove('resizing'); boxMove.classList.remove('active'); moveDrag = null; markDirty();
+  const { box, target, before } = moveDrag;
+  box.style.transform = ''; dropLine.classList.add('hidden');
+  if (target && target.isConnected) { before ? target.before(box) : target.after(box); }
+  box.classList.remove('resizing'); boxMove.classList.remove('active'); moveDrag = null; markDirty();
+  placeHandle(box);
 }
 boxMove.addEventListener('pointerup', endMove);
 boxMove.addEventListener('pointercancel', endMove);
