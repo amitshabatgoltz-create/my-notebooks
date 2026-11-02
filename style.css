@@ -598,3 +598,10 @@ body.viewing-share{overflow:hidden}
   .share-btn span{display:none}
 }
 .share-link .btn{border-radius:12px;padding:0 18px}.dialog a.btn{text-decoration:none;display:inline-flex;align-items:center}
+
+.mode-pick{display:grid;gap:8px;margin:4px 0 12px}
+.mode-pick .mode{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:right;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);transition:border-color .15s,background .15s}
+.mode-pick .mode span{font-size:13px;color:var(--muted)}
+.mode-pick .mode.on{border-color:var(--accent);background:var(--accent-soft)}
+.share-view.view-only #shareBody{-webkit-user-select:none;user-select:none}
+.share-view.view-only #shareBody img{pointer-events:none;-webkit-touch-callout:none}

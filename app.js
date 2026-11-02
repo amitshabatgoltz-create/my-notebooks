@@ -1853,13 +1853,26 @@ if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
 const shareDoc = id => doc(db, 'shares', id);
 const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
 
+const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אין כפתורים, אי אפשר לשמור עותק ואי אפשר לשנות כלום.'], copy: ['📥 צפייה + שמירת עותק', 'החבר קורא, ויכול לשמור לעצמו עותק משלו ולערוך אותו. המחברת שלך לא משתנה.'] };
+function modePicker(cur, onPick) {
+  const g = document.createElement('div'); g.className = 'mode-pick'; g.setAttribute('role', 'radiogroup');
+  Object.entries(SHARE_MODES).forEach(([k, [t, d]]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mode' + (k === cur ? ' on' : ''); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', k === cur);
+    b.innerHTML = `<b>${t}</b><span>${d}</span>`;
+    b.onclick = () => { [...g.children].forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); }); b.classList.add('on'); b.setAttribute('aria-checked', 'true'); onPick(k); };
+    g.appendChild(b);
+  });
+  return g;
+}
 function shareDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   dialog(d => {
     const paint = () => {
       const cur = notebooks.find(x => x.id === openId) || n;
       if (!cur.shareId) {
-        d.innerHTML = '<h3>שיתוף עם חברים</h3><p>יוצרים קישור למחברת ושולחים אותו לחברים. מי שמקבל את הקישור יכול לקרוא את המחברת ולשמור לעצמו עותק, אבל לא לשנות את שלך.</p><p class="muted-s">כל שינוי שתעשה במחברת יופיע אצלם אוטומטית.</p>';
+        d.innerHTML = '<h3>שיתוף עם חברים</h3><p>יוצרים קישור ושולחים אותו לחברים. מה מותר להם?</p>';
+        let mode = 'view'; d.appendChild(modePicker(mode, m => mode = m));
+        d.insertAdjacentHTML('beforeend', '<p class="muted-s">בשתי האפשרויות אף אחד לא יכול לשנות את המחברת שלך, וכל שינוי שתעשה יופיע אצלם לבד.</p>');
         const row = document.createElement('div'); row.className = 'row';
         const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'יצירת קישור';
         go.onclick = async () => {
@@ -1868,8 +1881,9 @@ function shareDialog() {
             if (dirty) await flush();
             const ref = doc(collection(db, 'shares'));
             const nn = notebooks.find(x => x.id === openId) || n;
-            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], createdAt: Date.now(), updatedAt: Date.now() });
-            await updateDoc(nbDoc(nn.id), { shareId: ref.id });
+            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], mode, createdAt: Date.now(), updatedAt: Date.now() });
+            nn.shareMode = mode;
+            await updateDoc(nbDoc(nn.id), { shareId: ref.id, shareMode: mode });
             nn.shareId = ref.id; paint();
           } catch (e) { console.error(e); go.disabled = false; go.textContent = 'יצירת קישור'; toast(e && e.code === 'permission-denied' ? 'צריך לעדכן את כללי האבטחה ב-Firebase (ראה README)' : 'לא הצלחתי ליצור קישור'); }
         };
@@ -1878,6 +1892,11 @@ function shareDialog() {
       } else {
         const url = shareUrl(cur.shareId);
         d.innerHTML = '<h3>המחברת משותפת ✓</h3><p>שלח את הקישור לחברים. הם יראו תמיד את הגרסה העדכנית.</p>';
+        const cm = cur.shareMode || 'copy';
+        d.appendChild(modePicker(cm, async m => {
+          try { await updateDoc(shareDoc(cur.shareId), { mode: m }); await updateDoc(nbDoc(cur.id), { shareMode: m }); cur.shareMode = m; toast(m === 'view' ? 'עכשיו: צפייה בלבד' : 'עכשיו: צפייה + שמירת עותק'); }
+          catch (e) { console.error(e); toast('לא הצלחתי לשנות'); }
+        }));
         const box = document.createElement('div'); box.className = 'share-link';
         const inp = document.createElement('input'); inp.readOnly = true; inp.value = url; inp.dir = 'ltr'; inp.onclick = () => inp.select();
         const cp = document.createElement('button'); cp.className = 'btn btn-primary'; cp.textContent = 'העתקה';
@@ -1910,14 +1929,15 @@ function openShare(id) {
   if (unsubView) unsubView();
   unsubView = onSnapshot(shareDoc(id), snap => {
     if (!snap.exists()) { $('shTitle').textContent = 'המחברת לא זמינה'; $('shOwner').textContent = ''; $('shBody').innerHTML = '<p class="sh-empty">הקישור הזה בוטל, או שהמחברת נמחקה.</p>'; $('shCopy').classList.add('hidden'); if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {}); return; }
-    const s = snap.data(); const mine = me && s.owner === me.uid;
+    const s = snap.data(); const mine = me && s.owner === me.uid; const viewOnly = (s.mode || 'copy') === 'view';
+    $('shareView').classList.toggle('view-only', viewOnly && !mine);
     document.title = (s.title || 'מחברת') + ' · המחברות שלי';
     $('shTitle').textContent = s.title || 'מחברת';
-    $('shOwner').textContent = mine ? 'זו המחברת שלך. ככה החברים רואים אותה' : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}`;
+    $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
     const b = $('shBody'); b.innerHTML = clean(s.html || '');
     loadImages(b, s.owner); renderCanvases(b); applyBoxSizes(b);
-    const cp = $('shCopy'); cp.classList.remove('hidden');
+    const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     cp.textContent = mine ? 'פתיחה לעריכה' : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
     cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : (me ? copyShare(id, s) : closeShare());
     if (me && !mine) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now() }).catch(() => {});
@@ -1933,6 +1953,7 @@ $('shClose').onclick = closeShare;
 window.addEventListener('popstate', () => { const s = new URLSearchParams(location.search).get('s'); if (s) openShare(s); else if (!$('shareView').classList.contains('hidden')) closeShare(); });
 
 async function copyShare(id, s) {
+  if ((s.mode || 'copy') === 'view') return;
   const cp = $('shCopy'); cp.disabled = true; cp.textContent = 'שומר...';
   try {
     const html = clean(s.html || '');
