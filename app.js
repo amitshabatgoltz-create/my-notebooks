@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc, getDocs
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc, getDocs, increment
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -110,13 +110,14 @@ onAuthStateChanged(auth, user => {
   if (unsub) { unsub(); unsub = null; }
   if (unsubEv) { unsubEv(); unsubEv = null; }
   if (unsubSh) { unsubSh(); unsubSh = null; }
+  if (typeof unsubAct !== 'undefined' && unsubAct) { unsubAct(); unsubAct = null; }
   me = user;
   if (shareParam) { openShare(shareParam); }
   if (user) {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared();
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity();
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -132,7 +133,9 @@ function subscribe() {
   $('sample').classList.add('hidden');
   unsub = onSnapshot(query(nbCol(), orderBy('updatedAt', 'desc')), snap => {
     $('loading').classList.add('hidden');
-    notebooks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    notebooks = allNb.filter(n => !n.trashed); trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
+    purgeTrash(); renderTrashBtn();
     renderGrid();
     if (!$('home').classList.contains('hidden')) renderHome();
     $('sample').classList.toggle('hidden', notebooks.length > 0);
@@ -311,14 +314,18 @@ function newNotebook() {
 $('delBtn').onclick = () => {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   dialog(d => {
-    d.innerHTML = '<h3>למחוק את המחברת?</h3>';
-    const p = document.createElement('p'); p.textContent = `"${n.title}" תימחק עם כל מה שכתוב בה.`;
+    d.innerHTML = '<h3>להעביר לפח?</h3>';
+    const p = document.createElement('p'); p.textContent = `"${n.title}" תעבור לפח המחזור. אפשר להחזיר אותה במשך 30 יום${n.shareId ? ', אבל קישור השיתוף שלה יבוטל' : ''}.`;
     const row = document.createElement('div'); row.className = 'row';
-    const ok = document.createElement('button'); ok.className = 'btn btn-danger'; ok.textContent = 'מחיקה';
+    const ok = document.createElement('button'); ok.className = 'btn btn-danger'; ok.textContent = 'העברה לפח';
     const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog;
     ok.onclick = async () => {
       ok.disabled = true; clearTimeout(saveTimer); dirty = false;
-      try { await deleteDoc(nbDoc(n.id)); closeDialog(); showLibrary(); toast('המחברת נמחקה'); }
+      try {
+        if (n.shareId) await deleteDoc(shareDoc(n.shareId)).catch(() => {});
+        await updateDoc(nbDoc(n.id), { trashed: Date.now(), shareId: null });
+        closeDialog(); showLibrary(); toast('המחברת הועברה לפח');
+      }
       catch (e) { ok.disabled = false; toast('המחיקה נכשלה'); }
     };
     row.append(ok, cancel); d.append(p, row);
@@ -336,6 +343,7 @@ async function flush() {
   const id = openId;
   // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
   const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() };
+  const nbw = notebooks.find(x => x.id === id); if (nbw) fields.words = trackWords(nbw, fields.html);
   const pr = updateDoc(nbDoc(id), fields);
   const nbx = notebooks.find(x => x.id === id);
   if (nbx && nbx.shareId) updateDoc(shareDoc(nbx.shareId), { ...fields, color: nbx.color || COLORS[0] }).catch(e => console.warn('share sync', e));
@@ -1031,6 +1039,7 @@ function countUp(el, to) {
 }
 let homeAnimated = false;
 function renderHome() {
+  renderStats();
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
   const name = firstName();
@@ -1847,6 +1856,7 @@ $('restoreBtn').onclick = restoreBackup;
 
 /* ================= שיתוף עם חברים ================= */
 // כל מחברת משותפת מקבלת עותק חי ב-shares/<קוד>; מי שיש לו את הקישור יכול לקרוא אותו
+let trash = [];
 let unsubSh = null, unsubView = null, sharedList = [];
 let shareParam = new URLSearchParams(location.search).get('s');
 if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
@@ -1992,3 +2002,156 @@ function renderShared() {
   });
 }
 if (shareParam) openShare(shareParam);
+
+/* ===== פח מחזור ===== */
+const TRASH_DAYS = 30;
+function purgeTrash() {
+  const lim = Date.now() - TRASH_DAYS * 864e5;
+  trash.filter(n => n.trashed < lim).forEach(n => deleteDoc(nbDoc(n.id)).catch(() => {}));
+}
+function renderTrashBtn() {
+  const b = $('trashBtn'); if (!b) return;
+  b.classList.toggle('hidden', !trash.length);
+  b.querySelector('span').textContent = `פח מחזור (${trash.length})`;
+}
+function trashDialog() {
+  dialog(d => {
+    const paint = () => {
+      d.innerHTML = `<h3>פח מחזור</h3><p class="muted-s">מחברות נמחקות לגמרי ${TRASH_DAYS} יום אחרי שהועברו לפח.</p>`;
+      if (!trash.length) { d.insertAdjacentHTML('beforeend', '<p class="noev">הפח ריק.</p>'); }
+      const list = document.createElement('div'); list.className = 'trash-list';
+      trash.forEach(n => {
+        const left = Math.max(1, TRASH_DAYS - Math.floor((Date.now() - n.trashed) / 864e5));
+        const r = document.createElement('div'); r.className = 'trash-item'; r.style.setProperty('--c', n.color || COLORS[0]);
+        const t = document.createElement('div'); t.className = 't';
+        const b = document.createElement('b'); b.textContent = n.title || 'מחברת';
+        const sm = document.createElement('small'); sm.textContent = left === 1 ? 'נמחקת מחר' : `עוד ${left} ימים`;
+        t.append(b, sm);
+        const res = document.createElement('button'); res.className = 'btn btn-ghost'; res.textContent = '↩︎ החזרה';
+        res.onclick = async () => { await updateDoc(nbDoc(n.id), { trashed: null, updatedAt: Date.now() }).catch(() => toast('לא הצלחתי להחזיר')); trash = trash.filter(x => x.id !== n.id); toast('המחברת חזרה ✓'); paint(); };
+        const del = document.createElement('button'); del.className = 'btn btn-ghost danger-t'; del.textContent = 'מחיקה לתמיד';
+        del.onclick = async () => { if (del.dataset.sure) { await deleteDoc(nbDoc(n.id)).catch(() => toast('המחיקה נכשלה')); trash = trash.filter(x => x.id !== n.id); paint(); } else { del.dataset.sure = 1; del.textContent = 'בטוח? לחץ שוב'; } };
+        r.append(t, res, del); list.appendChild(r);
+      });
+      d.appendChild(list);
+      const row = document.createElement('div'); row.className = 'row';
+      if (trash.length > 1) { const all = document.createElement('button'); all.className = 'btn btn-ghost danger-t'; all.textContent = 'ריקון הפח';
+        all.onclick = async () => { if (!all.dataset.sure) { all.dataset.sure = 1; all.textContent = `למחוק ${trash.length} מחברות לתמיד?`; return; } for (const n of trash) await deleteDoc(nbDoc(n.id)).catch(() => {}); trash = []; paint(); };
+        row.appendChild(all); }
+      const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog; row.appendChild(c);
+      d.appendChild(row);
+    };
+    paint();
+  });
+}
+$('trashBtn').onclick = trashDialog;
+
+/* ===== סטטיסטיקה: רצף, מילים, משימות ===== */
+let activity = {}, unsubAct = null;
+const actDoc = () => doc(db, 'users', me.uid, 'meta', 'activity');
+const countWords = html => { const t = document.createElement('div'); t.innerHTML = html; return (t.textContent.match(/[\p{L}\p{N}]+/gu) || []).length; };
+function trackWords(nb, html) {
+  const w = countWords(html), prev = typeof nb.words === 'number' ? nb.words : (nb.html ? countWords(nb.html) : 0);
+  nb.words = w;
+  const delta = prev === null ? 0 : w - prev;           // מחברת ישנה בלי ספירה: רק מתחילים לספור
+  const tk = todayKey();
+  if (delta > 0) setDoc(actDoc(), { days: { [tk]: increment(delta) } }, { merge: true }).catch(() => {});
+  else if (!activity[tk]) setDoc(actDoc(), { days: { [tk]: increment(0) } }, { merge: true }).catch(() => {});   // נכנסת ועבדת היום
+  return w;
+}
+function subscribeActivity() {
+  if (unsubAct) unsubAct();
+  unsubAct = onSnapshot(actDoc(), snap => { activity = (snap.exists() && snap.data().days) || {}; if (!$('home').classList.contains('hidden')) renderStats(); }, () => {});
+}
+function streak() {
+  const d = new Date(); let n = 0;
+  if (activity[key(d)] === undefined) d.setDate(d.getDate() - 1);   // עוד לא עבדת היום: הרצף של אתמול עדיין חי
+  while (activity[key(d)] !== undefined) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function renderStats() {
+  const c = $('statsCard'); if (!c) return;
+  const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+  const vals = days.map(d => activity[key(d)] || 0), max = Math.max(10, ...vals), week = vals.reduce((a, b) => a + b, 0);
+  const from = key(days[0]), tk = todayKey();
+  const doneWeek = events.filter(e => e.done && e.date >= from && e.date <= tk).length;
+  const st = streak();
+  c.innerHTML = `<h3>השבוע שלך</h3>
+    <div class="stats">
+      <div class="stat"><span class="n">${st}${st ? ' 🔥' : ''}</span><span class="l">${st === 1 ? 'יום ברצף' : 'ימים ברצף'}</span></div>
+      <div class="stat"><span class="n">${week.toLocaleString('he-IL')}</span><span class="l">מילים כתבת השבוע</span></div>
+      <div class="stat"><span class="n">${doneWeek}</span><span class="l">משימות סיימת השבוע</span></div>
+    </div>
+    <div class="bars" role="img" aria-label="מילים בכל יום בשבוע האחרון">${days.map((d, i) => `<div class="bar${key(d) === tk ? ' today' : ''}" title="${vals[i]} מילים"><i style="height:${Math.max(vals[i] ? 6 : 2, Math.round(vals[i] / max * 100))}%"></i><span>${'אבגדהוש'[d.getDay()]}'</span></div>`).join('')}</div>
+    <p class="muted-s">${st >= 2 ? `כל הכבוד! ${st} ימים ברצף שאתה כותב. אל תשבור את הרצף 💪` : st === 1 ? 'התחלת רצף. תכתוב משהו גם מחר כדי להמשיך אותו.' : 'תכתוב משהו במחברת היום כדי להתחיל רצף.'}</p>`;
+}
+
+/* ===== שרבוט: ציור חופשי שנשמר כתמונה במחברת ===== */
+function sketchDialog() {
+  if (!openId) return;
+  restoreSelection(); const keep = savedRange && savedRange.cloneRange();
+  dialog(d => {
+    d.classList.add('sketch-dlg');
+    d.innerHTML = `<h3>שרבוט</h3>
+      <div class="sk-tools">
+        <div class="sk-group" data-g="color">${['#1D1D1F', '#E5484D', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'].map((c, i) => `<button type="button" class="sk-c${i ? '' : ' on'}" data-c="${c}" style="--c:${c}" aria-label="צבע"></button>`).join('')}</div>
+        <div class="sk-group" data-g="size">${[2, 4, 8, 14].map((w, i) => `<button type="button" class="sk-w${i === 1 ? ' on' : ''}" data-w="${w}" aria-label="עובי ${w}"><i style="width:${w + 2}px;height:${w + 2}px"></i></button>`).join('')}</div>
+        <div class="sk-group"><button type="button" class="sk-tool" data-t="eraser" title="מחק">🧽 מחק</button><button type="button" class="sk-tool" data-t="undo" title="ביטול">↶</button><button type="button" class="sk-tool" data-t="clear" title="ניקוי">🗑</button></div>
+      </div>
+      <div class="sk-wrap"><canvas id="skCv" width="1200" height="720"></canvas></div>`;
+    const cv = d.querySelector('#skCv'), ctx = cv.getContext('2d');
+    const bg = () => { ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore(); };
+    bg();
+    let color = '#1D1D1F', width = 4, eraser = false, drawing = null, empty = true; const hist = [];
+    const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.addEventListener('pointerdown', e => {
+      e.preventDefault(); cv.setPointerCapture(e.pointerId);
+      hist.push(ctx.getImageData(0, 0, cv.width, cv.height)); if (hist.length > 30) hist.shift();
+      const [x, y] = pt(e); drawing = { x, y, id: e.pointerId };
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = eraser ? '#fff' : color; ctx.lineWidth = (eraser ? width * 4 : width) * cv.width / 800;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + .01, y); ctx.stroke(); empty = false;
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!drawing || e.pointerId !== drawing.id) return;
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of evs) { const [x, y] = pt(ev); ctx.beginPath(); ctx.moveTo(drawing.x, drawing.y); ctx.lineTo(x, y); ctx.stroke(); drawing.x = x; drawing.y = y; }
+    });
+    const up = () => { drawing = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    d.querySelector('.sk-tools').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.c) { color = b.dataset.c; eraser = false; d.querySelectorAll('.sk-c').forEach(x => x.classList.toggle('on', x === b)); d.querySelector('[data-t=eraser]').classList.remove('on'); }
+      if (b.dataset.w) { width = +b.dataset.w; d.querySelectorAll('.sk-w').forEach(x => x.classList.toggle('on', x === b)); }
+      if (b.dataset.t === 'eraser') { eraser = !eraser; b.classList.toggle('on', eraser); }
+      if (b.dataset.t === 'undo' && hist.length) ctx.putImageData(hist.pop(), 0, 0);
+      if (b.dataset.t === 'clear') { hist.push(ctx.getImageData(0, 0, cv.width, cv.height)); bg(); }
+    });
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הוספה למחברת';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    ok.onclick = async () => {
+      if (empty) { toast('קודם מציירים משהו'); return; }
+      ok.disabled = true; ok.textContent = 'שומר...';
+      // חותכים את השוליים הלבנים כדי שהשרבוט לא יתפוס מקום מיותר
+      const W = cv.width, H = cv.height, px = ctx.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) { const i = (y * W + x) * 4; if (px[i] < 245 || px[i + 1] < 245 || px[i + 2] < 245) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+      if (x1 < 0) { ok.disabled = false; ok.textContent = 'הוספה למחברת'; toast('קודם מציירים משהו'); return; }
+      const pad = 24; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad);
+      const out = document.createElement('canvas'); out.width = x1 - x0; out.height = y1 - y0;
+      out.getContext('2d').drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+      let data = out.toDataURL('image/png'); if (data.length > 850000) data = out.toDataURL('image/jpeg', 0.85);
+      try {
+        const ref = doc(collection(db, 'users', me.uid, 'images'));
+        await setDoc(ref, { data, createdAt: Date.now() }); imgCache.set(ref.id, data);
+        closeDialog();
+        if (keep) { const sl = getSelection(); sl.removeAllRanges(); sl.addRange(keep); savedRange = keep; }
+        const p = document.createElement('p'); const img = document.createElement('img'); img.setAttribute('data-img', ref.id); img.src = data; p.appendChild(img);
+        insertBlockAtCaret(p);
+        if (!p.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); p.after(after); }
+        markDirty(); toast('השרבוט נוסף ✓');
+      } catch (e) { console.error(e); ok.disabled = false; ok.textContent = 'הוספה למחברת'; toast('לא הצלחתי לשמור את השרבוט'); }
+    };
+    row.append(ok, no); d.appendChild(row);
+  });
+}
+$('sketchBtn').addEventListener('click', sketchDialog);
