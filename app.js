@@ -1475,8 +1475,16 @@ function caretBox() {
   const n = s.getRangeAt(0).startContainer; const el = n.nodeType === 1 ? n : n.parentElement;
   return el && $('editor').contains(el) ? el.closest('div[data-box]') : null;
 }
-function insertBox(color) {
+function insertBox(color, afterBox) {
   restoreSelection();
+  if (afterBox && afterBox.isConnected) {          // מסגרת חדשה מיד אחרי המסגרת שאתה נמצא בה
+    const nb = document.createElement('div'); nb.setAttribute('data-box', color);
+    const w = afterBox.getAttribute('data-w'); if (w) nb.setAttribute('data-w', w);   // מסגרת צרה: החדשה נכנסת לידה באותה שורה
+    const p = document.createElement('p'); p.appendChild(document.createElement('br')); nb.appendChild(p);
+    afterBox.after(nb); applyBoxSizes($('editor'));
+    if (!nb.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); nb.after(after); }
+    placeCaret(p); markDirty(); return;
+  }
   const s = window.getSelection(); const r = s.rangeCount ? s.getRangeAt(0) : null;
   const box = document.createElement('div'); box.setAttribute('data-box', color);
   // אם סימנת טקסט בתוך שורה אחת — הוא נכנס לתוך התיבה
@@ -1491,16 +1499,16 @@ function insertBox(color) {
   if (!box.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); box.after(after); }
   placeCaret(box.querySelector('p') || box); markDirty();
 }
-function boxDialog() {
+function boxDialog(newAfter) {
   restoreSelection();
-  const box = caretBox();
+  const box = newAfter ? null : caretBox();
   dialog(d => {
     d.innerHTML = box ? '<h3>עריכת תיבת טקסט</h3><p>בחר צבע אחר, או הוצא את הטקסט מהתיבה.</p>' : '<h3>תיבת טקסט</h3><p>תיבה צבעונית להדגשת משהו חשוב: הגדרה, כלל, או "חשוב למבחן". אם סימנת טקסט, הוא ייכנס לתוך התיבה.</p>';
     const grid = document.createElement('div'); grid.className = 'box-pick';
     BOX_COLORS.forEach(c => {
       const b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-box', c); b.className = 'box-swatch' + (box && box.getAttribute('data-box') === c ? ' on' : '');
       b.textContent = BOX_NAMES[c];
-      b.onclick = () => { closeDialog(); if (box) { box.setAttribute('data-box', c); markDirty(); } else insertBox(c); };
+      b.onclick = () => { closeDialog(); if (box) { box.setAttribute('data-box', c); markDirty(); } else insertBox(c, newAfter); };
       grid.appendChild(b);
     });
     const row = document.createElement('div'); row.className = 'row';
@@ -1517,12 +1525,12 @@ function boxDialog() {
 }
 $('boxBtn').addEventListener('click', () => {
   restoreSelection();
-  if (caretBox()) return boxDialog();                    // בתוך מסגרת צבעונית קיימת: עריכה שלה
+  const inBox = caretBox();
   dialog(d => {
     d.innerHTML = '<h3>תיבת טקסט</h3><p>מה להוסיף?</p>';
     const g = document.createElement('div'); g.className = 'kind-pick';
-    g.innerHTML = '<button data-k="h1"><b style="font-size:22px">הוסף כותרת</b></button><button data-k="h2"><b style="font-size:17px">הוסף כותרת משנה</b></button><button data-k="body"><b style="font-weight:500">הוסף גוף טקסט</b><span>טקסט חופשי שמזיזים לכל מקום, מגדילים ומסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>';
-    g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'box') boxDialog(); else addItem('x', b.dataset.k); };
+    g.innerHTML = '<button data-k="h1"><b style="font-size:22px">הוסף כותרת</b></button><button data-k="h2"><b style="font-size:17px">הוסף כותרת משנה</b></button><button data-k="body"><b style="font-weight:500">הוסף גוף טקסט</b><span>טקסט חופשי שמזיזים לכל מקום, מגדילים ומסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית חדשה</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>' + (inBox ? '<button data-k="edit"><b>🎨 עריכת המסגרת שאתה נמצא בה</b><span>צבע אחר, הוצאת הטקסט או מחיקה</span></button>' : '');
+    g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'edit') boxDialog(); else if (b.dataset.k === 'box') boxDialog(inBox || undefined); else { if (inBox) { const s2 = getSelection(); const q = document.createElement('p'); q.appendChild(document.createElement('br')); inBox.after(q); const r2 = document.createRange(); r2.setStart(q, 0); s2.removeAllRanges(); s2.addRange(r2); savedRange = r2.cloneRange(); } addItem('x', b.dataset.k); } };
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול'; c.onclick = closeDialog;
     d.append(g, c);
   });
