@@ -3291,6 +3291,9 @@ $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
 const DAILY = { ocr: 3, sum: 2 };
+// חשבונות בלי הגבלה (המנהל של האתר)
+const UNLIMITED = ['amitshabatgoltz@gmail.com'];
+const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
 const OCR_MAX_IMGS = 4;
 const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן' };
 let usage = null;
@@ -3302,13 +3305,15 @@ async function loadUsage() {
   catch { usage = usage && usage.date === tk ? usage : { date: tk, ocr: 0, sum: 0 }; }
   return usage;
 }
-async function usageLeft(k) { const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
+async function usageLeft(k) { if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
 function useOne(k) {
+  if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + 1;
   setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
+  if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה ♾️';
   const dots = Array.from({ length: DAILY[k] }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
   return `<span class="q-dots">${dots}</span> ${left === DAILY[k] ? `יש לך ${DAILY[k]} שימושים היום` : left === 1 ? 'נשאר לך שימוש אחד היום' : `נשארו לך ${left} שימושים היום`}`;
 }
