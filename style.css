@@ -777,3 +777,13 @@ body.editing-shared #sumBtn{display:none}
 .tests-dlg .ts-item input.ts-d{width:150px;height:34px;margin:0;padding:0 6px}
 .tests-dlg .ts-item input[type=checkbox]{width:18px;height:18px;margin:0;padding:0}
 .qa-subj button{unicode-bidi:plaintext}
+
+/* ===== סמנים של שותפים ===== */
+.cursor-layer{position:absolute;inset:0;pointer-events:none;z-index:6}
+.lc-line{position:absolute;border-radius:8px;background:color-mix(in srgb,var(--c) 9%,transparent);border-inline-start:3px solid var(--c);transition:top .15s ease,height .15s ease}
+.lc-caret{position:absolute;width:2px;background:var(--c);border-radius:1px;transition:top .12s ease,left .12s ease}
+.lc-caret span{position:absolute;bottom:100%;right:-2px;transform:translateY(-2px);white-space:nowrap;background:var(--c);color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px 6px 6px 0}
+.lc-mouse{position:absolute;transition:top .25s ease,left .25s ease}
+.lc-mouse svg{width:20px;height:20px;fill:var(--c);stroke:#fff;stroke-width:1.5;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));display:block;margin:-2px 0 0 -4px}
+.lc-mouse span{position:absolute;top:16px;left:12px;white-space:nowrap;background:var(--c);color:#fff;font-size:11px;font-weight:600;padding:1px 6px;border-radius:6px}
+.lc-caret span,.lc-mouse span{opacity:.92}

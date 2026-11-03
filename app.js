@@ -345,7 +345,14 @@ $('delBtn').onclick = () => {
 };
 
 /* ================= שמירה אוטומטית ================= */
-function markDirty() { dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1200); }
+let dirtySince = 0;
+function markDirty() {
+  if (!dirty) dirtySince = Date.now();
+  dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer);
+  // בעריכה משותפת שולחים מהר (אחרי חצי שנייה של שקט, ולא יותר משנייה וחצי בזמן הקלדה)
+  if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1500 ? 0 : 450);
+  else saveTimer = setTimeout(flush, 1200);
+}
 const setSave = (txt, st) => { const el = $('save'); el.textContent = txt; el.dataset.st = st || ''; };
 async function flush() {
   clearTimeout(saveTimer);
@@ -2689,6 +2696,7 @@ function applyRemoteHtml(html) {
   ed.innerHTML = html; loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
   if (pos !== null) caretRestore(pos);
   window.scrollTo(0, y);
+  paintCursors();
 }
 function startLive(shareId, baseHtml) {
   stopLive();
@@ -2704,17 +2712,18 @@ function startLive(shareId, baseHtml) {
     if (s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
     if (s.html === L.base) return;
     if (!dirty) { applyRemoteHtml(s.html); L.base = s.html; showEditorBy(s.updatedByName); }
-    else { /* יש לך שינויים שעוד לא נשמרו: השילוב יקרה בשמירה הקרובה */ }
+    else { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 60); showEditorBy(s.updatedByName); }
     // הבעלים מעדכן גם את המחברת השמורה שלו
     if (!String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === shareId); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
   }, e => console.warn('live', e));
   // מי עוד כאן
-  const pres = () => setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now() }).catch(() => {});
+  const pres = () => setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {});
+  L.pres = pres;
   pres(); L.presTimer = setInterval(pres, 20000);
   L.unsubPres = onSnapshot(collection(db, 'shares', shareId, 'presence'), snap => {
     if (live !== L) return;
     const now = Date.now(); const others = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.id !== me.uid && now - (p.at || 0) < 60000);
-    paintPresence(others);
+    L.others = others; paintPresence(others); paintCursors();
   }, () => {});
   paintPresence([]);
 }
@@ -2722,6 +2731,7 @@ function stopLive() {
   if (!live) { paintPresence(null); return; }
   const L = live; live = null;
   if (L.unsub) L.unsub(); if (L.unsubPres) L.unsubPres(); clearInterval(L.presTimer);
+  const cl = $('cursorLayer'); if (cl) cl.innerHTML = '';
   if (me) deleteDoc(doc(db, 'shares', L.id, 'presence', me.uid)).catch(() => {});
   paintPresence(null);
 }
@@ -2861,3 +2871,62 @@ function testsDialog() {
   });
 }
 $('testsBtn').onclick = testsDialog;
+
+/* ---- הסמן והעכבר של מי שעורך איתך ---- */
+const LIVE_COLORS = ['#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6'];
+const colorOf = uid => LIVE_COLORS[[...String(uid)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % LIVE_COLORS.length];
+const rectOf = n => { if (!n) return null; if (n.getBoundingClientRect) return n.getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(n); return r.getBoundingClientRect(); };
+const topBlocks = () => [...$('editor').childNodes].filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim()));
+function blockIndexOf(node) { const ed = $('editor'); while (node && node.parentNode !== ed) node = node.parentNode; return node ? topBlocks().indexOf(node) : -1; }
+function myCaret() {
+  const sel = getSelection(); if (!sel.rangeCount || !$('editor').contains(sel.anchorNode)) return null;
+  const r = sel.getRangeAt(0); const bi = blockIndexOf(r.startContainer); if (bi < 0) return null;
+  const blk = topBlocks()[bi]; const pre = document.createRange(); pre.selectNodeContents(blk); pre.setEnd(r.startContainer, r.startOffset);
+  return { cb: bi, co: pre.toString().length };
+}
+let presT = null, presPending = false;
+function presPush(patch) {
+  if (!live) return; live.me = { ...(live.me || {}), ...patch };
+  if (presT) { presPending = true; return; }
+  live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, 350);
+}
+document.addEventListener('selectionchange', () => { if (!live) return; const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co)) presPush(c); });
+$('editor').addEventListener('mousemove', e => {
+  if (!live) return; const bi = blockIndexOf(e.target === $('editor') ? null : e.target);
+  const ed = $('editor').getBoundingClientRect();
+  let m;
+  if (bi >= 0) { const r = rectOf(topBlocks()[bi]) || ed; m = { mb: bi, mx: +((e.clientX - r.left) / (r.width || 1)).toFixed(3), my: +((e.clientY - r.top) / (r.height || 1)).toFixed(3) }; }
+  else m = { mb: -1, mx: +((e.clientX - ed.left) / ed.width).toFixed(3), my: Math.round(e.clientY - ed.top) };
+  presPush(m);
+});
+$('editor').addEventListener('mouseleave', () => presPush({ mb: -2 }));
+function caretRect(blk, off) {
+  if (!blk) return null;
+  if (blk.nodeType === 3) { const r = document.createRange(); r.setStart(blk, Math.min(off, blk.length)); r.collapse(true); return r.getClientRects()[0] || null; }
+  const w = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT); let n, left = off, last = null;
+  while ((n = w.nextNode())) { last = n; if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const rr = r.getClientRects(); if (rr.length) return rr[0]; const r2 = document.createRange(); r2.selectNodeContents(n); return r2.getBoundingClientRect(); } left -= n.length; }
+  const b = blk.getBoundingClientRect(); return { left: b.right, top: b.top, height: Math.min(28, b.height || 24), right: b.right };
+}
+function paintCursors() {
+  let layer = $('cursorLayer');
+  if (!layer) { layer = document.createElement('div'); layer.id = 'cursorLayer'; layer.className = 'cursor-layer'; document.querySelector('#notebook .page').appendChild(layer); }
+  if (!live || !live.others || $('notebook').classList.contains('hidden')) { layer.innerHTML = ''; return; }
+  const page = layer.parentElement.getBoundingClientRect(), blocks = topBlocks(), ed = $('editor').getBoundingClientRect();
+  let h = '';
+  live.others.forEach(o => {
+    const c = colorOf(o.id), nm = String(o.name || 'חבר').replace(/[<>&"]/g, '');
+    const blk = blocks[o.cb];
+    if (blk) { const b = rectOf(blk); h += `<div class="lc-line" style="--c:${c};top:${b.top - page.top - 2}px;left:${ed.left - page.left - 8}px;width:${ed.width + 16}px;height:${b.height + 4}px"></div>`; }
+    const cr = blk ? caretRect(blk, o.co || 0) : null;
+    if (cr) h += `<div class="lc-caret" style="--c:${c};top:${cr.top - page.top}px;left:${cr.left - page.left}px;height:${cr.height || 22}px"><span>${nm}</span></div>`;
+    if (o.mb !== undefined && o.mb !== -2) {
+      let x, y;
+      if (o.mb >= 0 && blocks[o.mb]) { const r = rectOf(blocks[o.mb]); x = r.left + o.mx * r.width; y = r.top + o.my * r.height; }
+      else if (o.mb === -1) { x = ed.left + o.mx * ed.width; y = ed.top + o.my; }
+      if (x !== undefined && isFinite(x) && isFinite(y)) h += `<div class="lc-mouse" style="--c:${c};top:${y - page.top}px;left:${x - page.left}px"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><span>${nm}</span></div>`;
+    }
+  });
+  layer.innerHTML = h;
+}
+window.addEventListener('resize', () => live && paintCursors());
+$('editor').addEventListener('input', () => live && requestAnimationFrame(paintCursors));
