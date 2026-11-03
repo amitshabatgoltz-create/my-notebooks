@@ -3242,7 +3242,8 @@ const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכית
 - הדגשה במקור (קו תחתון, מסגרת, צבע בולט): <b>.
 - חצים וקשרים בין רעיונות: כתוב כטקסט עם "←".
 - מילה שלא ברורה: כתוב את הניחוש הכי טוב ואחריו [?].
-- אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.`;
+- אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.
+- העתק מילה במילה. לעולם אל תנסח מחדש, אל תחליף מילה במילה נרדפת ואל "תשפר" ניסוח. עדיף לכתוב [?] מאשר לנחש מילה אחרת.`;
 const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
 const OCR_HW = () => { const d = new Date(); return `
 שיעורי בית: אם כתובים על הלוח/בדף שיעורי בית, מטלה, עבודה להגשה או מבחן (למשל "ש"ב", "שיעורי בית", "להגיש עד", "לקרוא עד", "מבחן ב..."), השאר אותם גם בטקסט, ובנוסף הוסף שורה נפרדת בסוף:
@@ -3262,8 +3263,8 @@ async function ocrDialog() {
     d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך.${left === Infinity ? ' אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים והם נקראים יחד.' : ` נשארו לך היום <b>${left === 1 ? 'תמונה אחת' : left + ' תמונות'}</b>.`}</p>
       ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
-        <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5–10 שניות</span><small>יכולות להיות כמה טעויות</small></button>
-        <button type="button" class="oc-mode" data-m="exact" role="radio"><b>🎯 מדויק</b><span>בערך 30–40 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
+        <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
+        <button type="button" class="oc-mode" data-m="exact" role="radio"><b>🎯 מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
       </div>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
@@ -3292,7 +3293,7 @@ async function ocrDialog() {
       if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
       go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
       const exact = ocMode === 'exact';
-      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? '🎯 קורא בעיון ובודק את עצמו... (בערך 30–40 שניות)' : '⚡ מקליד מהר... (בערך 5–10 שניות)');
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? '🎯 קורא בעיון ובודק את עצמו... (בערך 25 שניות)' : '⚡ מקליד מהר... (בערך 5 שניות)');
       try {
         const parts = [];
         for (const f of files) {
