@@ -552,7 +552,7 @@ function showTab(t) {
   flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared');
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
   else if (t === 'notes') showLibrary();
-  else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); }
+  else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); introOnce('hw'); }
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
@@ -968,6 +968,7 @@ async function makeSummary() {
   const { text, images } = await notebookParts();
   if (!text && !images.length) { toast('המחברת ריקה, אין מה לסכם'); return; }
   const left = await usageLeft('sum'); if (left <= 0) { limitDialog('sum'); return; }
+  if (!(await introOnce('sum'))) return;
   // נושאים מהמחברת: הכותרות
   const heads = [...new Set([...$('editor').querySelectorAll('h1,h2,h3')].map(h => h.textContent.trim()).filter(t => t && t.length < 70 && !/סיכום למבחן/.test(t)))].slice(0, 16);
   dialog(d => {
@@ -1933,8 +1934,9 @@ function modePicker(cur, onPick) {
   });
   return g;
 }
-function shareDialog() {
+async function shareDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
+  if (!n.shareId && !(await introOnce('share'))) return;
   dialog(d => {
     const paint = () => {
       const cur = notebooks.find(x => x.id === openId) || n;
@@ -2564,7 +2566,8 @@ function nextLesson(text) {
 }
 function paintTTBtn() { const b = $('ttBtn'); if (b) b.classList.toggle('on', ttSubjects().length > 0); }
 
-function timetableDialog() {
+async function timetableDialog() {
+  if (!(await introOnce('tt'))) return;
   dialog(d => {
     d.classList.add('tt-dlg');
     const has = ttSubjects().length > 0; let start = timetable.start === 0 ? 0 : 1;
@@ -2833,7 +2836,8 @@ async function fileToAiPart(f) {
   if (/^(txt|csv)$/.test(ext) || /^text\//.test(f.type)) return 'הטקסט מהקובץ:\n' + (await f.text()).slice(0, 60000);
   throw Object.assign(new Error('type'), { code: 'type' });
 }
-function testsDialog() {
+async function testsDialog() {
+  if (!(await introOnce('tests'))) return;
   dialog(d => {
     d.classList.add('tests-dlg');
     d.innerHTML = `<h3>📋 לוח מבחנים</h3>
@@ -3247,12 +3251,16 @@ const OCR_HW = () => { const d = new Date(); return `
 - due: רק אם כתוב עד מתי. היום ${todayKey()}, יום ${HE_DAYS[d.getDay()]}. "עד יום חמישי" = יום חמישי הקרוב. "לשבוע הבא" = בעוד 7 ימים. "למחר" = מחר. אם לא כתוב – "".
 - אם אין שיעורי בית בכלל – אל תוסיף את השורה הזו.`; };
 async function ocrDialog() {
-  const n = notebooks.find(x => x.id === openId) || null;
+  let n = notebooks.find(x => x.id === openId) || null;
   if (openId && !n && !String(openId).startsWith('share:')) return;
   const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
+  const fromHome = !openId;
+  if (!(await introOnce('ocr'))) return;
   dialog(d => {
     d.classList.add('ocr-dlg');
+    const recent = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים (עד ${OCR_MAX_IMGS}) והם נקראים יחד.</p>
+      ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
@@ -3271,7 +3279,9 @@ async function ocrDialog() {
     d.querySelector('#ocFile').onchange = ev => { const add = [...ev.target.files]; const room = OCR_MAX_IMGS - files.length; if (add.length > room) toast(`אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     go.onclick = async () => {
       if (!files.length) return;
-      go.disabled = true; d.querySelector('#ocUp').disabled = true;
+      let mode = '';
+      if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
+      go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
       const st = d.querySelector('#ocStatus'); const stop = ticking(st, '✨ קורא בעיון ומקליד... (בערך 15–30 שניות)');
       try {
         const parts = [];
@@ -3282,7 +3292,8 @@ async function ocrDialog() {
         let txt = '', lastErr = null;
         // כאן דיוק חשוב יותר ממהירות (יש רק 3 ביום): מודל מלא, עם זמן "חשיבה", והקשר מהמחברת
         const ctxTitle = n ? (n.title || '') : openId ? $('title').value : '';
-        const ctxHeads = !openId ? '' : [...$('editor').querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
+        const ctxHeadsSrc = n && n.id !== openId ? (() => { const t = document.createElement('div'); t.innerHTML = n.html || ''; return t; })() : $('editor');
+        const ctxHeads = (!openId && !n) ? '' : [...ctxHeadsSrc.querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
         const ctx = `\nהקשר (רק כדי לזהות מילים, לא להעתיק): שם המחברת: "${ctxTitle}".${ctxHeads ? ` כותרות אחרונות במחברת: ${ctxHeads}.` : ''}
 - כשמילה לא ברורה, העדף מילה עברית אמיתית שמתאימה להקשר של המשפט ושל המקצוע (למשל שמות מהתנ"ך, מקומות, מושגים מהשיעור), על פני רצף אותיות חסר משמעות.
 - מספרי פסוקים ופרקים כתובים באותיות עבריות (א', ב', ט', י'...). שים לב להבדל בין ט' ל-כ', ובין י' ל-ז'/ו'.
@@ -3308,12 +3319,12 @@ async function ocrDialog() {
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; liveBox.remove(); go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
         useOne('ocr');
-        closeDialog(); ocrResult(n, html, title, hw);
+        closeDialog(); ocrResult(n, html, title, hw, mode);
       } catch (e) { stop(); console.error(e); showAiError(e); }
     };
   });
 }
-function ocrResult(n, html, title, hw = []) {
+function ocrResult(n, html, title, hw = [], mode = '') {
   dialog(d => {
     d.classList.add('ai-result');
     d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">קראתי את התמונה פעמיים. מילים שיצאו אחרת בכל קריאה מסומנות בצהוב, ולידן מה שקראתי בפעם השנייה – לחיצה על "אולי" מחליפה. אפשר לתקן כאן לפני שמוסיפים.</p>';
@@ -3333,27 +3344,17 @@ function ocrResult(n, html, title, hw = []) {
     }
     const saveHw = async () => { const pick = hw.filter(x => x.on !== false); if (!pick.length) return 0; for (const x of pick) await addDoc(evCol(), { title: x.title, type: x.type, time: '', date: x.date, done: false, createdAt: Date.now(), ...(x.auto ? { autoDate: true } : {}) }).catch(() => {}); return pick.length; };
     const hwToast = k => k ? ` · ${k === 1 ? 'משימה נוספה' : k + ' משימות נוספו'} ליומן` : '';
-    // מגיעים ממסך הבית (בלי מחברת פתוחה): בוחרים לאיזו מחברת להוסיף
-    let pickSel = null;
-    const fromHome = !n && !String(openId).startsWith('share:');
-    if (fromHome && notebooks.length) {
-      const w = document.createElement('label'); w.className = 'oc-pick'; w.innerHTML = '<span>להוסיף למחברת:</span>';
-      pickSel = document.createElement('select'); notebooks.forEach(x => { const op = document.createElement('option'); op.value = x.id; op.textContent = x.title || 'מחברת'; pickSel.appendChild(op); });
-      const guess = notebooks.find(x => title && (normS(title).includes(normS(x.title)) || normS(x.title).includes(normS(title).split(' ')[0]))); if (guess) pickSel.value = guess.id;
-      w.appendChild(pickSel); d.appendChild(w);
-    }
-    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : fromHome ? 'הוספה למחברת' : 'הוספה לסוף המחברת';
-    if (fromHome && !notebooks.length) add.classList.add('hidden');
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : 'הוספה לסוף המחברת';
+    if (mode === 'new' || (!n && !openId)) add.classList.add('hidden');
     add.onclick = () => {
       const h = final();
       if (n && openId !== n.id) openNotebook(n.id);
-      if (fromHome && pickSel) openNotebook(pickSel.value);
       const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
       $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
       (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
       saveHw().then(k => toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)));
     };
-    const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
+    const sep = document.createElement('button'); sep.className = 'btn ' + (mode === 'new' || (!n && !openId) ? 'btn-primary' : 'btn-ghost'); sep.textContent = mode === 'new' || (!n && !openId) ? 'יצירת המחברת' : 'כמחברת חדשה';
     sep.onclick = () => {
       const h = final(); const hwPick = hw;
       d.innerHTML = '<h3>מחברת חדשה</h3><p>איך לקרוא לה?</p>';
@@ -3374,7 +3375,7 @@ function ocrResult(n, html, title, hw = []) {
       r2.append(ok, back); d.append(inp, r2); inp.focus(); inp.select();
     };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'ביטול'; close.onclick = closeDialog;
-    row.append(add, sep, close); d.insertBefore(box, d.querySelector('.oc-pick')); if (hwBox) d.insertBefore(hwBox, d.querySelector('.oc-pick')); d.append(row);
+    row.append(add, sep, close); d.append(box); if (hwBox) d.append(hwBox); d.append(row);
   });
 }
 // ממיר את מה שה-AI מצא לרשימת משימות עם תאריך: תאריך שכתוב > השיעור הבא במקצוע > מחר
@@ -3506,4 +3507,68 @@ function markDoubts(mainHtml, otherHtml) {
     frag.append(txt.slice(pos)); nd.replaceWith(frag);
   });
   return t.innerHTML + (mainHtml.match(/<!--\s*(title|hw):[\s\S]*?-->/g) || []).join('');
+}
+
+/* ================= הסבר בפעם הראשונה: שלבים עם איורים ================= */
+const ILL = {
+  board: `<svg viewBox="0 0 220 130"><rect x="20" y="14" width="180" height="96" rx="8" fill="#fff" stroke="#C9CCD6" stroke-width="3"/><path d="M150 34h34M60 34h70M40 54h144M70 70h114M100 86h84" stroke="#3B3F4A" stroke-width="4" stroke-linecap="round"/><path d="M120 30q10-8 30 0" stroke="#E5484D" stroke-width="3" fill="none"/><rect x="62" y="56" width="96" height="70" rx="12" fill="#1D1D1F"/><rect x="68" y="62" width="84" height="54" rx="6" fill="#5E5CE6" opacity=".25"/><circle cx="110" cy="89" r="14" fill="none" stroke="#fff" stroke-width="3"/><circle cx="110" cy="89" r="5" fill="#fff"/></svg>`,
+  typing: `<svg viewBox="0 0 220 130"><rect x="30" y="10" width="160" height="110" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="104" y="24" width="72" height="10" rx="5" fill="#1D1D1F"/><rect x="56" y="44" width="120" height="7" rx="3.5" fill="#9AA0AE"/><rect x="76" y="58" width="100" height="7" rx="3.5" fill="#9AA0AE"/><rect x="96" y="72" width="80" height="7" rx="3.5" fill="#9AA0AE" class="ill-grow"/><rect x="92" y="86" width="2.5" height="12" fill="#5E5CE6" class="ill-blink"/><text x="44" y="106" font-size="22">✨</text></svg>`,
+  check: `<svg viewBox="0 0 220 130"><rect x="20" y="20" width="180" height="90" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="120" y="40" width="58" height="9" rx="4.5" fill="#9AA0AE"/><rect x="62" y="36" width="50" height="17" rx="5" fill="#FFE58A" stroke="#F5C400" stroke-width="1.5"/><rect x="66" y="42" width="42" height="6" rx="3" fill="#8A6D00"/><rect x="40" y="62" width="76" height="20" rx="10" fill="#EEEEFD" stroke="#5E5CE6" stroke-width="1.5"/><text x="78" y="76" font-size="11" text-anchor="middle" fill="#5E5CE6" font-weight="700">אולי: …</text><path d="M96 56l-8 8" stroke="#5E5CE6" stroke-width="2"/><rect x="128" y="92" width="50" height="7" rx="3.5" fill="#C9CCD6"/></svg>`,
+  cal: `<svg viewBox="0 0 220 130"><rect x="40" y="14" width="140" height="104" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="40" y="14" width="140" height="24" rx="12" fill="#5E5CE6"/><g fill="#E8E9EF">${[0,1,2,3,4].map(c=>[0,1,2].map(r=>`<rect x="${52+c*25}" y="${48+r*22}" width="18" height="16" rx="4"/>`).join('')).join('')}</g><rect x="102" y="70" width="18" height="16" rx="4" fill="#3B82F6"/><text x="111" y="82" font-size="10" text-anchor="middle" fill="#fff">📌</text></svg>`,
+  sum: `<svg viewBox="0 0 220 130"><rect x="24" y="24" width="70" height="86" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3,4,5].map(i=>`<rect x="34" y="${36+i*11}" width="${50-i%3*8}" height="5" rx="2.5" fill="#C9CCD6"/>`).join('')}<path d="M104 67h22m-8-8 8 8-8 8" stroke="#8B5CF6" stroke-width="3.5" fill="none" stroke-linecap="round"/><rect x="134" y="30" width="64" height="74" rx="10" fill="#fff" stroke="#8B5CF6" stroke-width="2"/><rect x="146" y="42" width="40" height="7" rx="3.5" fill="#8B5CF6"/><circle cx="150" cy="62" r="3" fill="#FF5E8A"/><rect x="158" y="59" width="28" height="5" rx="2.5" fill="#C9CCD6"/><circle cx="150" cy="76" r="3" fill="#FF5E8A"/><rect x="158" y="73" width="22" height="5" rx="2.5" fill="#C9CCD6"/><text x="146" y="98" font-size="12">❓❓</text></svg>`,
+  topics: `<svg viewBox="0 0 220 130"><rect x="30" y="20" width="160" height="40" rx="10" fill="#fff" stroke="#5E5CE6" stroke-width="2"/><rect x="110" y="36" width="66" height="8" rx="4" fill="#9AA0AE"/><g font-size="11" font-weight="600">${[['פרק א׳',150],['דוד ושאול',88],['אדוניהו',30]].map(([t,x])=>`<rect x="${x}" y="76" width="56" height="24" rx="12" fill="#EEEEFD"/><text x="${x+28}" y="92" text-anchor="middle" fill="#5E5CE6">${t}</text>`).join('')}</g></svg>`,
+  tt: `<svg viewBox="0 0 220 130"><rect x="20" y="16" width="180" height="100" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3,4].map(c=>[0,1,2,3].map(r=>`<rect x="${32+c*34}" y="${28+r*21}" width="28" height="15" rx="4" fill="${['#5E5CE6','#E5484D','#10B981','#F59E0B','#3B82F6'][(c+r*2)%5]}" opacity=".35"/>`).join('')).join('')}<rect x="134" y="49" width="28" height="15" rx="4" fill="#5E5CE6"/></svg>`,
+  hw: `<svg viewBox="0 0 220 130"><circle cx="60" cy="64" r="34" fill="none" stroke="#E8E9EF" stroke-width="10"/><circle cx="60" cy="64" r="34" fill="none" stroke="#5E5CE6" stroke-width="10" stroke-dasharray="214" stroke-dashoffset="80" stroke-linecap="round" transform="rotate(-90 60 64)"/><text x="60" y="70" text-anchor="middle" font-size="16" font-weight="800" fill="#1D1D1F">60%</text>${[0,1,2].map(i=>`<rect x="110" y="${24+i*30}" width="92" height="24" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="1.5"/><rect x="110" y="${24+i*30}" width="92" height="3" rx="1.5" fill="${['#E5484D','#10B981','#3B82F6'][i]}"/><circle cx="190" cy="${37+i*30}" r="6" fill="none" stroke="#C9CCD6" stroke-width="2"/><rect x="124" y="${34+i*30}" width="${50-i*8}" height="6" rx="3" fill="#9AA0AE"/>`).join('')}</svg>`,
+  share: `<svg viewBox="0 0 220 130"><rect x="20" y="22" width="84" height="88" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="116" y="22" width="84" height="88" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<rect x="32" y="${38+i*16}" width="60" height="6" rx="3" fill="#C9CCD6"/><rect x="128" y="${38+i*16}" width="60" height="6" rx="3" fill="#C9CCD6"/>`).join('')}<rect x="60" y="66" width="2" height="12" fill="#10B981"/><rect x="156" y="66" width="2" height="12" fill="#E5484D"/><path d="M106 60h8m-4-4 4 4-4 4M114 74h-8m4-4-4 4 4 4" stroke="#5E5CE6" stroke-width="2" fill="none"/></svg>`,
+  tests: `<svg viewBox="0 0 220 130"><rect x="24" y="18" width="70" height="94" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3].map(i=>`<rect x="34" y="${32+i*18}" width="20" height="6" rx="3" fill="#E5484D" opacity=".7"/><rect x="58" y="${32+i*18}" width="28" height="6" rx="3" fill="#C9CCD6"/>`).join('')}<path d="M104 65h22m-8-8 8 8-8 8" stroke="#E5484D" stroke-width="3.5" fill="none" stroke-linecap="round"/><rect x="136" y="26" width="62" height="78" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="136" y="26" width="62" height="18" rx="9" fill="#E5484D"/>${[0,1,2].map(i=>`<rect x="146" y="${52+i*16}" width="42" height="10" rx="5" fill="#E5484D" opacity="${.25+i*.2}"/>`).join('')}</svg>`,
+  timer: `<svg viewBox="0 0 220 130"><circle cx="110" cy="66" r="44" fill="none" stroke="#E8E9EF" stroke-width="8"/><circle cx="110" cy="66" r="44" fill="none" stroke="#5E5CE6" stroke-width="8" stroke-dasharray="276" stroke-dashoffset="90" stroke-linecap="round" transform="rotate(-90 110 66)"/><text x="110" y="74" text-anchor="middle" font-size="22" font-weight="800" fill="#1D1D1F">25:00</text></svg>`,
+};
+const INTROS = {
+  ocr: [
+    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. לוח ארוך? אפשר לצלם בכמה חלקים.'],
+    ['typing', 'ה-AI מקליד בשבילך', 'תוך כמה שניות רואים את הטקסט נכתב: כותרות, רשימות וטבלאות, בדיוק לפי הלוח. בלי רשימת תורנים ובלי דברים שלא שייכים לשיעור.'],
+    ['check', 'בודקים מילים מסומנות', 'האתר קורא את התמונה פעמיים. מילה שלא היה בטוח בה מסומנת בצהוב, ולידה "אולי:" עם התיקון – לחיצה אחת מחליפה.'],
+    ['cal', 'שיעורי בית נכנסים לבד', 'אם כתוב על הלוח שיעורי בית, הם נכנסים ליומן ולשיעורי הבית – עד התאריך שכתוב, או לשיעור הבא במקצוע.'],
+  ],
+  sum: [
+    ['topics', 'בוחרים על מה המבחן', 'כותבים את הנושאים, או לוחצים על כותרות מהמחברת. אפשר גם להשאיר ריק ולסכם הכל.'],
+    ['sum', 'מקבלים סיכום מסודר', 'סיכום קצר עם הנקודות החשובות ושאלות לחזרה, רק מתוך מה שכתוב במחברת שלך. מוסיפים לסוף המחברת או כמחברת חדשה.'],
+  ],
+  tt: [
+    ['board', 'מצלמים את המערכת', 'מעלים צילום מסך או תמונה של מערכת השעות, וה-AI ממלא את הטבלה לבד. אפשר גם להקליד.'],
+    ['tt', 'האתר יודע מתי יש לך כל מקצוע', 'כשתכתוב "ש״ב במתמטיקה" בלי תאריך, זה ייכנס ליום של השיעור הבא במתמטיקה.'],
+  ],
+  tests: [
+    ['tests', 'מעלים את לוח המבחנים', 'תמונה, PDF, Word או Excel של לוח המבחנים מבית הספר. ה-AI מוצא את כל המבחנים והתאריכים.'],
+    ['cal', 'בודקים ומוסיפים ליומן', 'רואים רשימה, מתקנים אם צריך, ולוחצים "הוספה ליומן". מה שכבר ביומן לא נכנס פעמיים.'],
+  ],
+  hw: [
+    ['hw', 'כל שיעורי הבית במקום אחד', 'מסודרים לפי מתי צריך להגיש: באיחור, להיום, למחר, השבוע. כל מקצוע בצבע משלו.'],
+    ['timer', 'מסמנים ✓ ומתרכזים', 'לוחצים על העיגול כשמסיימים (יש קונפטי 🎉), ועל ▶ כדי להתחיל טיימר ריכוז.'],
+  ],
+  share: [
+    ['share', 'משתפים עם חברים', 'יוצרים קישור ושולחים. בוחרים אם החבר רק צופה, יכול לשמור עותק, או כותב איתך ביחד בלייב.'],
+  ],
+};
+function introSeen(k) { try { return localStorage.getItem('intro:' + k) === '1'; } catch { return true; } }
+function introOnce(k, force) {
+  if (!INTROS[k] || (introSeen(k) && !force)) return Promise.resolve(true);
+  return new Promise(res => {
+    const steps = INTROS[k]; let i = 0, done = false;
+    const finish = ok => { if (done) return; done = true; try { localStorage.setItem('intro:' + k, '1'); } catch {} closeDialog(); res(ok); };
+    dialog(d => {
+      d.classList.add('intro-dlg');
+      const paint = () => {
+        const [ill, t, x] = steps[i];
+        d.innerHTML = `<div class="intro-ill">${ILL[ill] || ''}</div>
+          <div class="intro-step">שלב ${i + 1} מתוך ${steps.length}</div><h3>${t}</h3><p>${x}</p>
+          <div class="intro-dots">${steps.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+          <div class="row"><button type="button" class="btn btn-primary" data-a="next">${i === steps.length - 1 ? 'בואו נתחיל 🚀' : 'הבא'}</button>${i > 0 ? '<button type="button" class="btn btn-ghost" data-a="back">חזרה</button>' : ''}<button type="button" class="btn btn-ghost skip" data-a="skip">דילוג</button></div>`;
+      };
+      d.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a; if (a === 'next') { if (i === steps.length - 1) finish(true); else { i++; paint(); } } else if (a === 'back') { i--; paint(); } else finish(true); };
+      paint();
+    });
+    // סגירה בלחיצה מחוץ לחלון = ביטול
+    const ov = document.querySelector('#dialogRoot .overlay'); if (ov) ov.addEventListener('click', e => { if (e.target === ov && !done) { done = true; res(false); } });
+  });
 }

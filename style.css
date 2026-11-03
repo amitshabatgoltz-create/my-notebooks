@@ -918,3 +918,21 @@ body.editing-shared .ai-strip{grid-template-columns:1fr}
 .ai-box mark.doubt{background:#FFE58A;border-radius:4px;padding:0 3px;box-shadow:0 0 0 1.5px #F5C400 inset}
 .alt-chip{display:inline-flex;align-items:center;margin:0 4px;padding:1px 8px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent);vertical-align:middle;cursor:pointer;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
 .alt-chip:hover{background:var(--accent);color:#fff}
+
+/* ===== הסבר בפעם הראשונה ===== */
+.dialog.intro-dlg{width:min(440px,94vw);text-align:center;padding-top:22px}
+.intro-ill{height:150px;margin:0 auto 8px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 12%,var(--surface)),color-mix(in srgb,var(--pink) 10%,var(--surface)));display:grid;place-items:center;animation:pop .35s var(--ease)}
+.intro-ill svg{width:min(240px,80%);height:auto}
+.intro-step{font-size:12.5px;font-weight:700;color:var(--accent);margin-top:8px}
+.intro-dlg h3{margin:4px 0 6px;font-size:21px}
+.intro-dlg p{color:var(--muted);line-height:1.6;margin:0 0 12px}
+.intro-dots{display:flex;justify-content:center;gap:6px;margin-bottom:14px}
+.intro-dots i{width:8px;height:8px;border-radius:4px;background:color-mix(in srgb,var(--ink) 15%,transparent);transition:width .25s var(--ease)}
+.intro-dots i.on{width:22px;background:var(--accent)}
+.intro-dlg .row{justify-content:center}
+.intro-dlg .skip{color:var(--muted)}
+.ill-blink{animation:pulse 1s infinite}
+.ill-grow{transform-origin:right;animation:illgrow 1.6s ease-in-out infinite}
+@keyframes illgrow{0%{transform:scaleX(.1)}60%,100%{transform:scaleX(1)}}
+.oc-pick.top{margin:6px 0 2px}
+.oc-step{font-size:14px;font-weight:600;margin:14px 0 4px}
