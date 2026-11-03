@@ -3264,7 +3264,7 @@ async function ocrDialog() {
       ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
         <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
-        <button type="button" class="oc-mode" data-m="exact" role="radio"><b>🎯 מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
+        <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ ⭐</em><b>🎯 מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
       </div>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
@@ -3538,7 +3538,7 @@ const ILL = {
 };
 const INTROS = {
   ocr: [
-    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. אפשר להעלות 3 תמונות ביום.'],
+    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. אפשר להעלות 3 תמונות ביום.<br><br><b>📸 טיפ: ככל שהתמונה ברורה יותר, כך הקריאה מדויקת יותר.</b> לצלם קרוב, ישר מול הלוח, בלי ברק של אור. לוח ארוך – כמה תמונות קרובות עדיף על אחת רחוקה.'],
     ['typing', 'ה-AI מקליד בשבילך', 'תוך כמה שניות רואים את הטקסט נכתב: כותרות, רשימות וטבלאות, בדיוק לפי הלוח. בלי רשימת תורנים ובלי דברים שלא שייכים לשיעור.'],
     ['check', 'בודקים מילים מסומנות', 'האתר קורא את התמונה פעמיים. מילה שלא היה בטוח בה מסומנת בצהוב, ולידה "אולי:" עם התיקון – לחיצה אחת מחליפה.'],
     ['cal', 'שיעורי בית נכנסים לבד', 'אם כתוב על הלוח שיעורי בית, הם נכנסים ליומן ולשיעורי הבית – עד התאריך שכתוב, או לשיעור הבא במקצוע.'],
