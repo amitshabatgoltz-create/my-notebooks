@@ -667,8 +667,8 @@ $('evForm').addEventListener('submit', async e => {
   const raw = $('evTitle').value.trim(); if (!raw) return;
   const q = parseQuick(raw);    // "מחר", "ביום חמישי" וכו' בתוך הטקסט מנצחים את היום שבחרת
   try {
-    await addDoc(evCol(), { title: q.title, type: q.typeFound ? q.type : $('evType').value, time: $('evTime').value || q.time || '', date: q.dateFound ? q.date : selDay, done: false, createdAt: Date.now() });
-    if (q.dateFound && q.date !== selDay) toast(`נוסף ל${q.dateLabel}`);
+    await addDoc(evCol(), { title: q.title, type: q.typeFound ? q.type : $('evType').value, time: $('evTime').value || q.time || '', date: q.written ? q.date : selDay, done: false, createdAt: Date.now() });
+    if (q.written && q.date !== selDay) toast(`נוסף ל${q.dateLabel}`);
     $('evTitle').value = ''; $('evTime').value = '';
   } catch (err) { toast('לא הצלחתי להוסיף'); }
 });
@@ -1100,7 +1100,7 @@ function renderHome() {
   } else {
     const big = document.createElement('div'); big.className = 'big'; big.innerHTML = '<span class="num word">אין</span>';
     const what = document.createElement('div'); what.className = 'what'; what.textContent = 'אין מבחנים ביומן כרגע';
-    const add = document.createElement('button'); add.className = 'link'; add.textContent = 'הוספת מבחן ליומן'; add.onclick = () => showTab('cal');
+    const add = document.createElement('button'); add.className = 'link'; add.textContent = '📋 העלאת לוח המבחנים'; add.onclick = () => testsDialog();
     nt.append(h, big, what, add); nt.classList.remove('soon');
   }
 
@@ -1790,7 +1790,7 @@ function bellState() {
   const b = $('bellBtn'); if (!b) return;
   if (!canNotify) { b.classList.add('hidden'); return; }
   const on = Notification.permission === 'granted';
-  b.classList.toggle('on', on); b.textContent = on ? '🔔 תזכורות פועלות' : '🔔 הפעלת תזכורות';
+  b.classList.toggle('on', on); b.innerHTML = on ? '🔔<span> תזכורות פועלות</span>' : '🔔<span> הפעלת תזכורות</span>';
   b.title = on ? 'כשהאתר נפתח תקבל התראה על מבחנים ומשימות של היום ומחר' : 'קבל התראה על מבחנים ומשימות קרובים';
 }
 async function remind(force) {
@@ -2755,3 +2755,109 @@ function openSharedEdit(id, s) {
   startLive(id, clean(s.html || ''));
   if (live) live.remote = s;
 }
+
+/* ===== לוח מבחנים: מעלים קובץ, ה-AI מוצא את המבחנים ומכניס ליומן ===== */
+const loadScript = src => new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+async function fileToAiPart(f) {
+  const ext = (f.name.split('.').pop() || '').toLowerCase();
+  const b64 = () => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+  if (/^image\//.test(f.type) && !/heic|heif/.test(f.type)) { const d = await shrink(f); return { inlineData: { mimeType: (d.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: d.split(',')[1] } }; }
+  if (f.type === 'application/pdf' || ext === 'pdf') return { inlineData: { mimeType: 'application/pdf', data: await b64() } };
+  if (/^(xlsx|xls|ods)$/.test(ext)) {
+    await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    const wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true });
+    return 'הטבלה מהקובץ (CSV לכל גיליון):\n' + wb.SheetNames.map(n => `### ${n}\n` + window.XLSX.utils.sheet_to_csv(wb.Sheets[n], { dateNF: 'yyyy-mm-dd' })).join('\n').slice(0, 60000);
+  }
+  if (ext === 'docx') {
+    await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
+    const r = await window.mammoth.convertToHtml({ arrayBuffer: await f.arrayBuffer() });
+    const t = document.createElement('div'); t.innerHTML = r.value;
+    t.querySelectorAll('td,th').forEach(c => c.append(' | ')); t.querySelectorAll('tr,p,li').forEach(c => c.append('\n'));
+    return 'הטקסט מהקובץ:\n' + t.textContent.slice(0, 60000);
+  }
+  if (/^(txt|csv)$/.test(ext) || /^text\//.test(f.type)) return 'הטקסט מהקובץ:\n' + (await f.text()).slice(0, 60000);
+  throw Object.assign(new Error('type'), { code: 'type' });
+}
+function testsDialog() {
+  dialog(d => {
+    d.classList.add('tests-dlg');
+    d.innerHTML = `<h3>📋 לוח מבחנים</h3>
+      <p class="muted-s">מעלים את לוח המבחנים מבית הספר, והמבחנים נכנסים ליומן לבד.</p>
+      <button type="button" class="tt-up" id="tsUp"><span class="ic">📋</span><b>העלאת לוח המבחנים</b><span>תמונה, צילום מסך, PDF, Word או Excel</span></button>
+      <input type="file" id="tsFile" accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xls,.csv,.txt" hidden>
+      <p class="tt-status" id="tsStatus"></p>
+      <div id="tsClasses"></div>
+      <div class="ts-list" id="tsList"></div>`;
+    const st = d.querySelector('#tsStatus'), list = d.querySelector('#tsList');
+    let items = [], cls = null;
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary hidden'; ok.textContent = 'הוספה ליומן';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
+    row.append(ok, no); d.appendChild(row);
+    const paint = () => {
+      const vis = items.filter(x => !cls || !x.cls || x.cls === cls);
+      list.innerHTML = vis.map(x => `<label class="ts-item${x.dup ? ' dup' : ''}"><input type="checkbox" data-k="${x.k}"${x.on ? ' checked' : ''}><i class="dot t-${x.type}"></i><input type="text" class="ts-t" data-k="${x.k}"><input type="date" class="ts-d" data-k="${x.k}" value="${x.date}"><small>${x.dup ? 'כבר ביומן' : x.past ? 'כבר עבר' : ''}</small></label>`).join('');
+      list.querySelectorAll('.ts-t').forEach(i => i.value = items.find(x => x.k === i.dataset.k).title);
+      const n = vis.filter(x => x.on).length;
+      ok.textContent = n === 1 ? 'הוספת מבחן אחד ליומן' : `הוספת ${n} ליומן`; ok.classList.toggle('hidden', !vis.length); ok.disabled = !n;
+    };
+    list.addEventListener('change', e => {
+      const it = items.find(x => x.k === e.target.dataset.k); if (!it) return;
+      if (e.target.type === 'checkbox') it.on = e.target.checked;
+      if (e.target.classList.contains('ts-d') && e.target.value) it.date = e.target.value;
+      if (e.target.classList.contains('ts-t')) it.title = e.target.value.trim() || it.title;
+      paint();
+    });
+    d.querySelector('#tsUp').onclick = () => d.querySelector('#tsFile').click();
+    d.querySelector('#tsFile').onchange = async ev => {
+      const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
+      const up = d.querySelector('#tsUp'); up.disabled = true; st.textContent = '✨ קורא את לוח המבחנים... (10–30 שניות)'; list.innerHTML = ''; ok.classList.add('hidden');
+      try {
+        const part = await fileToAiPart(f);
+        const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+        const prompt = `זה לוח מבחנים (או מטלות) של תלמיד בבית ספר בישראל. מצא בו את כל המבחנים, הבחנים, הבגרויות, העבודות להגשה ותאריכי ההגשה.
+היום ${todayKey()}. שנת הלימודים היא ${y0}–${y0 + 1}: תאריך בלי שנה בין ספטמבר לדצמבר הוא ב-${y0}, ובין ינואר לאוגוסט הוא ב-${y0 + 1}. תאריך כמו 12/11 הוא 12 בנובמבר (יום/חודש).
+החזר JSON בלבד, בלי שום טקסט נוסף:
+{"items":[{"date":"YYYY-MM-DD","subject":"מתמטיקה","title":"מבחן במתמטיקה – פרקים 1-3","time":"","kind":"test","class":""}]}
+- kind: "test" למבחן/בוחן/בגרות, "hw" לעבודה/הגשה, "event" לאחר.
+- title: קצר וברור בעברית, שמתחיל במה זה ובמקצוע, ואם כתוב חומר למבחן – אחרי מקף.
+- time: שעה בפורמט HH:MM אם כתובה, אחרת "".
+- class: אם הלוח מחולק לכיתות או לקבוצות (למשל ח1, ח2, הקבצה א), כתוב לאיזו. אחרת "".
+- אל תמציא. אם אין תאריך ברור לשורה, דלג עליה.`;
+        let txt = '', lastErr = null;
+        for (const name of AI_MODELS) { try { const r = await aiModel(name).generateContent([prompt, part]); txt = r.response.text(); if (txt) break; } catch (e) { lastErr = e; console.error(name, e); } }
+        if (!txt) throw lastErr || new Error('empty');
+        const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
+        const tk = todayKey();
+        items = (Array.isArray(j.items) ? j.items : []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x && x.date || '')).slice(0, 150).map((x, i) => {
+          const title = String(x.title || x.subject || 'מבחן').replace(/\s+/g, ' ').trim().slice(0, 200);
+          const type = ['test', 'hw', 'event'].includes(x.kind) ? x.kind : 'test';
+          const dup = events.some(e => e.date === x.date && (e.title === title || (x.subject && normS(e.title).includes(normS(x.subject)) && e.type === type)));
+          return { k: 'i' + i, date: x.date, title, type, time: /^\d{1,2}:\d{2}$/.test(x.time || '') ? x.time.padStart(5, '0') : '', cls: String(x.class || '').trim(), dup, past: x.date < tk, on: !dup && x.date >= tk };
+        }).sort((a, b) => a.date.localeCompare(b.date));
+        if (!items.length) { st.textContent = 'לא מצאתי מבחנים בקובץ. נסה תמונה ברורה יותר, או קובץ אחר.'; up.disabled = false; return; }
+        const classes = [...new Set(items.map(x => x.cls).filter(Boolean))];
+        const cb = d.querySelector('#tsClasses');
+        if (classes.length > 1) {
+          cb.innerHTML = `<div class="qa-subj"><span>באיזו כיתה/קבוצה אתה?</span>${classes.map(c => `<button type="button" data-c="${c.replace(/"/g, '&quot;')}">${c.replace(/</g, '&lt;')}</button>`).join('')}<button type="button" data-c="">הכל</button></div>`;
+          cb.onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; cls = b.dataset.c || null; cb.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); paint(); };
+        } else cb.innerHTML = '';
+        const nNew = items.filter(x => x.on).length;
+        st.textContent = `✓ מצאתי ${items.length} ${items.length === 1 ? 'פריט' : 'פריטים'}. ${nNew ? 'תבדוק שהתאריכים נכונים ותלחץ "הוספה ליומן".' : 'כולם כבר ביומן או שכבר עברו.'}`;
+        up.classList.add('small'); paint();
+      } catch (e) { console.error(e); st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : 'לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור.'; }
+      up.disabled = false;
+    };
+    ok.onclick = async () => {
+      const pick = items.filter(x => x.on && (!cls || !x.cls || x.cls === cls)); if (!pick.length) return;
+      ok.disabled = true; ok.textContent = 'מוסיף...';
+      try {
+        for (const x of pick) await addDoc(evCol(), { title: x.title, type: x.type, time: x.time || '', date: x.date, done: false, createdAt: Date.now() });
+        closeDialog(); toast(pick.length === 1 ? 'המבחן נוסף ליומן ✓' : `${pick.length} מבחנים נוספו ליומן ✓`);
+        const first = pick[0].date; selDay = first; const fd = fromKey(first); viewMonth = new Date(fd.getFullYear(), fd.getMonth(), 1);
+        showTab('cal');
+      } catch (e) { console.error(e); ok.disabled = false; toast('לא הצלחתי להוסיף'); paint(); }
+    };
+  });
+}
+$('testsBtn').onclick = testsDialog;

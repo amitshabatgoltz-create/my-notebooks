@@ -541,7 +541,7 @@ html[data-theme="dark"] .cv-text .tx[style*="color: rgb(29, 29, 31)"]{color:#F2F
 .legend .flt .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .legend{gap:8px}
 .bell.on{color:var(--accent)}
-@media (max-width:700px){.cal-nav .bell{font-size:0;padding:0 10px}.cal-nav .bell::first-letter{font-size:16px}}
+
 /* טעינה: כרטיסי שלד */
 #loading{padding:0;background:none;border:none}
 .skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
@@ -709,7 +709,7 @@ table.tt{border-collapse:collapse;width:100%;min-width:560px}
 .tt input:focus{border-color:var(--accent);background:var(--surface);outline:none}
 .tt-btn.on{color:var(--accent)}
 .qa-hint .link{font-size:inherit;padding:0}
-@media (max-width:700px){.cal-nav .tt-btn{font-size:0;padding:0 10px}.cal-nav .tt-btn::first-letter{font-size:16px}}
+
 
 .tt-up{width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;padding:30px 20px;margin:8px 0 6px;border-radius:18px;border:2px dashed color-mix(in srgb,var(--accent) 50%,transparent);background:var(--accent-soft);color:var(--ink);transition:transform .15s var(--ease),border-color .15s}
 .tt-up:hover{border-color:var(--accent);transform:translateY(-2px)}
@@ -758,3 +758,22 @@ body.editing-shared .shared-by{display:inline}
 body.editing-shared #shareBtn,body.editing-shared #delBtn{display:none}
 @media (max-width:600px){.presence .ptxt{display:none}}
 body.editing-shared #sumBtn{display:none}
+
+/* ===== לוח מבחנים ===== */
+.dialog.tests-dlg{width:min(680px,96vw);max-width:none}
+.ts-list{display:grid;gap:6px;max-height:48vh;overflow:auto;margin:6px 0 14px}
+.ts-list:empty{display:none}
+.ts-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+.ts-item.dup{opacity:.55}
+.ts-item input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.ts-item .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.ts-item .ts-t{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-weight:500;color:var(--ink);padding:4px}
+.ts-item .ts-d{width:150px;flex:none;border:1px solid var(--line);border-radius:9px;padding:4px 6px;font:inherit;font-size:13.5px;background:var(--surface);color:var(--ink)}
+.ts-item small{flex:none;color:var(--muted);font-size:12px;min-width:0}
+.qa-subj button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+@media (max-width:700px){.ts-item{flex-wrap:wrap}.ts-item .ts-t{flex-basis:calc(100% - 50px)}.ts-item .ts-d{margin-inline-start:44px}}
+@media (max-width:700px){.cal-nav .btn span{display:none}.cal-nav .bell,.cal-nav .tt-btn,.cal-nav .tests-btn{padding:0 10px;font-size:17px}}
+.tests-dlg .ts-item input.ts-t{width:auto;height:34px;margin:0;border:none;box-shadow:none;background:transparent;padding:0 4px}
+.tests-dlg .ts-item input.ts-d{width:150px;height:34px;margin:0;padding:0 6px}
+.tests-dlg .ts-item input[type=checkbox]{width:18px;height:18px;margin:0;padding:0}
+.qa-subj button{unicode-bidi:plaintext}
