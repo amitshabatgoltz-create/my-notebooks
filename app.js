@@ -967,11 +967,12 @@ async function makeSummary() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   const { text, images } = await notebookParts();
   if (!text && !images.length) { toast('המחברת ריקה, אין מה לסכם'); return; }
+  const left = await usageLeft('sum'); if (left <= 0) { limitDialog('sum'); return; }
   // נושאים מהמחברת: הכותרות
   const heads = [...new Set([...$('editor').querySelectorAll('h1,h2,h3')].map(h => h.textContent.trim()).filter(t => t && t.length < 70 && !/סיכום למבחן/.test(t)))].slice(0, 16);
   dialog(d => {
     d.classList.add('topics-dlg');
-    d.innerHTML = '<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p>';
+    d.innerHTML = `<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p><p class="quota-line">${quotaText('sum', left)}</p>`;
     const ta = document.createElement('textarea'); ta.rows = 3; ta.className = 'topics-input';
     ta.placeholder = 'למשל: דוד ובת-שבע; העונשים של דוד; פרק י"ב';
     ta.value = n.testTopics || '';
@@ -1029,6 +1030,7 @@ async function runSummary(n, text, images, topics) {
   }
   if (cancelled) return;
   if (!html) { showAiError(lastErr); return; }
+  useOne('sum');
   html = clean(html.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
   showSummary(n, html, topics);
 }
@@ -3183,12 +3185,13 @@ const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכית
 - מילה שלא ברורה: כתוב את הניחוש הכי טוב ואחריו [?].
 - אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.`;
 const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
-function ocrDialog() {
+async function ocrDialog() {
   const n = notebooks.find(x => x.id === openId);
   if (!n && !String(openId).startsWith('share:')) return;
+  const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
   dialog(d => {
     d.classList.add('ocr-dlg');
-    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר כמה תמונות ביחד.</p>
+    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת.</p><p class="quota-line">${quotaText('ocr', left)}</p>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
@@ -3204,7 +3207,7 @@ function ocrDialog() {
     };
     d.querySelector('#ocThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
     d.querySelector('#ocUp').onclick = () => d.querySelector('#ocFile').click();
-    d.querySelector('#ocFile').onchange = ev => { [...ev.target.files].slice(0, 10).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    d.querySelector('#ocFile').onchange = ev => { const add = [...ev.target.files]; const room = OCR_MAX_IMGS - files.length; if (add.length > room) toast(`אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     go.onclick = async () => {
       if (!files.length) return;
       go.disabled = true; d.querySelector('#ocUp').disabled = true;
@@ -3230,6 +3233,7 @@ function ocrDialog() {
         const html = clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
+        useOne('ocr');
         closeDialog(); ocrResult(n, html, title);
       } catch (e) { stop(); console.error(e); showAiError(e); }
     };
@@ -3276,3 +3280,35 @@ function ocrResult(n, html, title) {
   });
 }
 $('ocrBtn').addEventListener('click', ocrDialog);
+
+/* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
+const DAILY = { ocr: 3, sum: 2 };
+const OCR_MAX_IMGS = 4;
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן' };
+let usage = null;
+const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
+async function loadUsage() {
+  const tk = todayKey();
+  if (usage && usage.date === tk) return usage;
+  try { const sn = await getDoc(usageDoc()); const u = sn.exists() ? sn.data() : null; usage = u && u.date === tk ? u : { date: tk, ocr: 0, sum: 0 }; }
+  catch { usage = usage && usage.date === tk ? usage : { date: tk, ocr: 0, sum: 0 }; }
+  return usage;
+}
+async function usageLeft(k) { const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
+function useOne(k) {
+  const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
+  usage[k] = (usage[k] || 0) + 1;
+  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0 }).catch(() => {});
+}
+function quotaText(k, left) {
+  const dots = Array.from({ length: DAILY[k] }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
+  return `<span class="q-dots">${dots}</span> ${left === DAILY[k] ? `יש לך ${DAILY[k]} שימושים היום` : left === 1 ? 'נשאר לך שימוש אחד היום' : `נשארו לך ${left} שימושים היום`}`;
+}
+function limitDialog(k) {
+  dialog(d => {
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>נגמרו השימושים ב"${USE_NAME[k]}" להיום</h3><p>לכל חשבון יש ${DAILY[k]} ${k === 'ocr' ? 'שימושים בתמונה לטקסט' : 'סיכומים למבחן'} ביום. זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
+    row.appendChild(ok); d.appendChild(row);
+  });
+}

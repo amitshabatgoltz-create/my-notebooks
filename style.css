@@ -870,3 +870,12 @@ body.editing-shared #sumBtn{display:none}
 .ai-box[contenteditable=true]{outline:none;border:1.5px dashed transparent;border-radius:12px;transition:border-color .15s}
 .ai-box[contenteditable=true]:focus{border-color:var(--accent)}
 .ai-box mark{background:#FFE58A;border-radius:4px;padding:0 2px}
+
+.quota-line{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin:-4px 0 10px}
+.q-dots{display:inline-flex;gap:4px}
+.q-dots i{width:10px;height:10px;border-radius:50%;background:color-mix(in srgb,var(--ink) 12%,transparent)}
+.q-dots i.on{background:var(--accent)}
+.limit-box{text-align:center;padding:6px 4px 2px}
+.limit-box .big{font-size:46px}
+.limit-box h3{margin:6px 0}
+.limit-box p{color:var(--muted)}
