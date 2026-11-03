@@ -3171,3 +3171,108 @@ function liveBroadcast(now) {
   if (bcT) { bcPending = true; return; }
   send(); bcT = setTimeout(() => { bcT = null; if (bcPending) { bcPending = false; send(); } }, 150);
 }
+
+/* ===== תמונה לטקסט: מצלמים לוח/דף, וה-AI מקליד את זה ===== */
+const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכיתה, דף מחברת בכתב יד או דף מודפס, בעברית (לפעמים גם אנגלית/מתמטיקה).
+הקלד את כל התוכן בדיוק כפי שהוא כתוב, לפי הסדר (מימין לשמאל, מלמעלה למטה; אם יש כמה תמונות – לפי הסדר שלהן).
+החזר HTML נקי בלבד, בלי הסברים ובלי \`\`\`:
+- כותרות: <h2> לכותרת ראשית, <h3> לכותרת משנה.
+- טקסט רגיל: <p>. רשימות: <ul>/<ol> עם <li>. טבלה: <table> עם <tr>/<td>.
+- הדגשה במקור (קו תחתון, מסגרת, צבע בולט): <b>.
+- חצים וקשרים בין רעיונות: כתוב כטקסט עם "←".
+- מילה שלא ברורה: כתוב את הניחוש הכי טוב ואחריו [?].
+- אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.`;
+const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
+function ocrDialog() {
+  const n = notebooks.find(x => x.id === openId);
+  if (!n && !String(openId).startsWith('share:')) return;
+  dialog(d => {
+    d.classList.add('ocr-dlg');
+    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר כמה תמונות ביחד.</p>
+      <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
+      <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
+      <div class="oc-thumbs" id="ocThumbs"></div>
+      <p class="tt-status" id="ocStatus"></p>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary hidden'; go.textContent = '✨ להקליד את זה';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.appendChild(row);
+    let files = [];
+    const paint = () => {
+      d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>📕</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
+      go.classList.toggle('hidden', !files.length); go.textContent = files.length > 1 ? `✨ להקליד ${files.length} תמונות` : '✨ להקליד את זה';
+    };
+    d.querySelector('#ocThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
+    d.querySelector('#ocUp').onclick = () => d.querySelector('#ocFile').click();
+    d.querySelector('#ocFile').onchange = ev => { [...ev.target.files].slice(0, 10).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    go.onclick = async () => {
+      if (!files.length) return;
+      go.disabled = true; d.querySelector('#ocUp').disabled = true;
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, '✨ מקליד...');
+      try {
+        const parts = [];
+        for (const f of files) {
+          if (/^image\//.test(f.type)) { const dd = await shrink(f, 1800); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
+          else parts.push({ inlineData: { mimeType: 'application/pdf', data: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }) } });
+        }
+        let txt = '', lastErr = null;
+        let order = FAST_MODELS.slice(); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
+        for (const name of order) {
+          for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } }, { temperature: 0.1 }]) {
+            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
+            catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
+          }
+          if (txt) break;
+        }
+        stop();
+        if (!txt) throw lastErr || new Error('empty');
+        const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
+        const html = clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
+        if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
+        files.forEach(f => URL.revokeObjectURL(f.url));
+        closeDialog(); ocrResult(n, html, title);
+      } catch (e) { stop(); console.error(e); showAiError(e); }
+    };
+  });
+}
+function ocrResult(n, html, title) {
+  dialog(d => {
+    d.classList.add('ai-result');
+    d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. מילים שלא היו ברורות מסומנות ב-[?].</p>';
+    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html.replace(/\[\?\]/g, '<mark>[?]</mark>');
+    const row = document.createElement('div'); row.className = 'row';
+    const final = () => clean(box.innerHTML.replace(/<mark>\[\?\]<\/mark>/g, '[?]'));
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : 'הוספה לסוף המחברת';
+    add.onclick = () => {
+      const h = final();
+      if (n && openId !== n.id) openNotebook(n.id);
+      const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
+      $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
+      (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('הטקסט נוסף לסוף המחברת ✓');
+    };
+    const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
+    sep.onclick = () => {
+      const h = final();
+      d.innerHTML = '<h3>מחברת חדשה</h3><p>איך לקרוא לה?</p>';
+      const inp = document.createElement('input'); inp.value = title || (n ? n.title + ' – המשך' : 'מחברת חדשה');
+      const r2 = document.createElement('div'); r2.className = 'row';
+      const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יצירה';
+      const back = document.createElement('button'); back.className = 'btn btn-ghost'; back.textContent = 'ביטול'; back.onclick = closeDialog;
+      ok.onclick = async () => {
+        ok.disabled = true;
+        try {
+          const ref = doc(nbCol()); const now = Date.now();
+          await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color: COLORS[notebooks.length % COLORS.length], html: h, createdAt: now, updatedAt: now });
+          closeDialog(); toast('נוצרה מחברת חדשה ✓');
+          const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
+        } catch { ok.disabled = false; toast('לא הצלחתי לשמור'); }
+      };
+      inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); };
+      r2.append(ok, back); d.append(inp, r2); inp.focus(); inp.select();
+    };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'ביטול'; close.onclick = closeDialog;
+    row.append(add, sep, close); d.append(box, row);
+  });
+}
+$('ocrBtn').addEventListener('click', ocrDialog);

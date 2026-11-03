@@ -855,3 +855,18 @@ body.editing-shared #sumBtn{display:none}
 .focus-btns .on{background:var(--accent-soft);color:var(--accent)}
 @media (max-width:600px){.hw-hero{padding:20px;gap:16px}.hw-ring{width:84px;height:84px}.hw-grid{grid-template-columns:1fr}.hw-add small{display:none}}
 @media (max-width:900px){.tabbar button{font-size:10.5px;padding:4px 2px}}
+
+/* ===== תמונה לטקסט ===== */
+.toolbar .ocr-btn{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 14%,transparent),color-mix(in srgb,var(--pink) 12%,transparent));color:var(--accent);font-weight:600}
+.toolbar .ocr-btn span{font-size:13px}
+@media (max-width:700px){.toolbar .ocr-btn span{display:none}}
+.dialog.ocr-dlg{width:min(620px,96vw);max-width:none}
+.oc-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.oc-thumbs:empty{display:none}
+.oc-th{position:relative;width:96px;height:96px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;font-size:34px}
+.oc-th img{width:100%;height:100%;object-fit:cover}
+.oc-th button{position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px}
+.oc-th i{position:absolute;bottom:4px;right:6px;font-style:normal;font-size:12px;font-weight:700;color:#fff;background:rgba(0,0,0,.5);padding:0 6px;border-radius:6px}
+.ai-box[contenteditable=true]{outline:none;border:1.5px dashed transparent;border-radius:12px;transition:border-color .15s}
+.ai-box[contenteditable=true]:focus{border-color:var(--accent)}
+.ai-box mark{background:#FFE58A;border-radius:4px;padding:0 2px}
