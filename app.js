@@ -710,17 +710,17 @@ async function loadImages(root, uid) {
 }
 
 // מקטינים את התמונה כדי שתישמר מהר ותיכנס במגבלת הגודל
-function shrink(file, maxSide) {
+function shrink(file, maxSide, maxBytes) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file); const im = new Image();
     im.onload = () => {
-      let max = maxSide || 1400, q = 0.8, out;
+      let max = maxSide || 1400, q = maxBytes ? 0.9 : 0.8, out;
       for (let i = 0; i < 6; i++) {
         const k = Math.min(1, max / Math.max(im.width, im.height));
         const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
         const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
         out = c.toDataURL('image/jpeg', q);
-        if (out.length < 900000) break;
+        if (out.length < (maxBytes || 900000)) break;
         max = Math.round(max * 0.8); q = Math.max(0.5, q - 0.08);
       }
       URL.revokeObjectURL(url); res(out);
@@ -3211,18 +3211,26 @@ async function ocrDialog() {
     go.onclick = async () => {
       if (!files.length) return;
       go.disabled = true; d.querySelector('#ocUp').disabled = true;
-      const st = d.querySelector('#ocStatus'); const stop = ticking(st, '✨ מקליד...');
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, '✨ קורא בעיון ומקליד... (בערך 15–30 שניות)');
       try {
         const parts = [];
         for (const f of files) {
-          if (/^image\//.test(f.type)) { const dd = await shrink(f, 1800); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
+          if (/^image\//.test(f.type)) { const dd = await shrink(f, 2600, 3500000); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
           else parts.push({ inlineData: { mimeType: 'application/pdf', data: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }) } });
         }
         let txt = '', lastErr = null;
-        let order = FAST_MODELS.slice(); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
-        for (const name of order) {
-          for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } }, { temperature: 0.1 }]) {
-            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
+        // כאן דיוק חשוב יותר ממהירות (יש רק 3 ביום): מודל מלא, עם זמן "חשיבה", והקשר מהמחברת
+        const ctxTitle = n ? (n.title || '') : $('title').value;
+        const ctxHeads = [...$('editor').querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
+        const ctx = `\nהקשר (רק כדי לזהות מילים, לא להעתיק): שם המחברת: "${ctxTitle}".${ctxHeads ? ` כותרות אחרונות במחברת: ${ctxHeads}.` : ''}
+- כשמילה לא ברורה, העדף מילה עברית אמיתית שמתאימה להקשר של המשפט ושל המקצוע (למשל שמות מהתנ"ך, מקומות, מושגים מהשיעור), על פני רצף אותיות חסר משמעות.
+- מספרי פסוקים ופרקים כתובים באותיות עבריות (א', ב', ט', י'...). שים לב להבדל בין ט' ל-כ', ובין י' ל-ז'/ו'.
+- שים לב לאותיות שדומות בכתב יד: ד/ר/ל, ב/כ, ה/ח/ת, ו/ז/ן, ס/ם, מ/ט, ע/צ.
+- הערות קטנות מעל מילה (עם חץ או סוגר מסולסל) הן הסבר למילה הזו: כתוב אותן בסוגריים מיד אחריה.
+- טקסט שכתוב בצד הלוח (למשל רשימת שמות במסגרת) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
+        for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
+          for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 2048 } }, { temperature: 0.1 }]) {
+            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + ctx + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
             catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
           }
           if (txt) break;

@@ -1,5 +1,5 @@
 // עבודה בלי אינטרנט: קודם מנסים מהרשת (כדי לקבל עדכונים), ואם אין חיבור – מהעותק השמור
-const CACHE = 'notebooks-1793708459';
+const CACHE = 'notebooks-1793708635';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'sample-notebook.js', 'manifest.webmanifest', 'icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
