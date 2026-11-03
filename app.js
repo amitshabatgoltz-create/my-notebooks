@@ -3197,7 +3197,7 @@ async function ocrDialog() {
   const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
   dialog(d => {
     d.classList.add('ocr-dlg');
-    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת.</p>
+    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים (עד ${OCR_MAX_IMGS}) והם נקראים יחד.</p>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
@@ -3356,7 +3356,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>נגמרו השימושים ב"${USE_NAME[k]}" להיום</h3><p>לכל חשבון יש ${DAILY[k]} ${k === 'ocr' ? 'שימושים בתמונה לטקסט' : 'סיכומים למבחן'} ביום. זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>נגמרו השימושים ב"${USE_NAME[k]}" להיום</h3><p>${k === 'ocr' ? `אפשר להשתמש בתמונה לטקסט ${DAILY.ocr} פעמים ביום (ובכל פעם עד ${OCR_MAX_IMGS} תמונות).` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
