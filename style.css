@@ -911,3 +911,10 @@ body.editing-shared .ai-strip{grid-template-columns:1fr}
 .oc-pick select{flex:1;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 10px;font:inherit}
 @media (max-width:600px){.ai-strip{gap:8px}.ai-card{flex-direction:column;align-items:center;text-align:center;gap:6px;padding:14px 8px}.ai-card .tx{align-items:center}.ai-card b{font-size:15px}.ai-card small{font-size:11.5px}}
 @media (prefers-reduced-motion:reduce){.ai-card::after{animation:none}}
+
+.live-read{max-height:46vh;overflow:auto;margin:10px 0;border:1.5px dashed color-mix(in srgb,var(--accent) 40%,transparent);animation:none}
+.live-read:empty{display:none}
+
+.ai-box mark.doubt{background:#FFE58A;border-radius:4px;padding:0 3px;box-shadow:0 0 0 1.5px #F5C400 inset}
+.alt-chip{display:inline-flex;align-items:center;margin:0 4px;padding:1px 8px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent);vertical-align:middle;cursor:pointer;border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.alt-chip:hover{background:var(--accent);color:#fff}

@@ -1012,7 +1012,7 @@ async function runSummary(n, text, images, topics) {
   let cancelled = false;
   dialog(d => {
     d.innerHTML = '<h3>✨ מכין סיכום למבחן...</h3>';
-    const p = document.createElement('p'); p.textContent = topics ? `מתמקד ב: ${topics}` : 'מסכם את כל המחברת. זה לוקח בדרך כלל 10–30 שניות.';
+    const p = document.createElement('p'); p.textContent = topics ? `מתמקד ב: ${topics}` : 'מסכם את כל המחברת. הסיכום יופיע כאן תוך כדי כתיבה.';
     const sp = document.createElement('div'); sp.className = 'ai-spinner';
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול';
     c.onclick = () => { cancelled = true; closeDialog(); }; d.append(p, sp, c);
@@ -1022,12 +1022,10 @@ async function runSummary(n, text, images, topics) {
     : '';
   const parts = [SUMMARY_PROMPT + focus, `שם המחברת: ${n.title || ''}\n\nהטקסט במחברת:\n${text || '(אין טקסט, רק תמונות)'}`, ...images];
   let html = '', lastErr = null;
-  for (const name of AI_MODELS) {
-    try {
-      const res = await aiModel(name).generateContent(parts);
-      html = res.response.text(); if (html) break;
-    } catch (e) { lastErr = e; console.error(name, e); }
-  }
+  const box = document.createElement('div'); box.className = 'ai-box live-read';
+  const dl = document.querySelector('#dialogRoot .dialog'); if (dl) { dl.classList.add('ai-result'); dl.insertBefore(box, dl.querySelector('.btn')); }
+  try { html = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
+  catch (e) { lastErr = e; }
   if (cancelled) return;
   if (!html) { showAiError(lastErr); return; }
   useOne('sum');
@@ -3292,21 +3290,22 @@ async function ocrDialog() {
 - הערות קטנות מעל מילה (עם חץ או סוגר מסולסל) הן הסבר למילה הזו: כתוב אותן בסוגריים מיד אחריה.
 - דלג לגמרי על דברים שלא קשורים לחומר הלימודי: רשימת תורנים (ת.ח. / ת"ח / תורנות / תורני השבוע) ושמות תלמידים, תאריך ויום בשבוע בפינת הלוח, "לא למחוק", מספר כיתה, שעון והודעות כלליות לכיתה.
 - טקסט בצד הלוח שכן קשור לשיעור (למשל הגדרה, מילה חשובה, שיעורי בית) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
-        for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
-          for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 2048 } }, { temperature: 0.1 }]) {
-            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
-            catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
-          }
-          if (txt) break;
-        }
+        const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
+        // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
+        const second = aiText(['gemini-2.5-flash-lite', 'gemini-2.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
+        // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
+        const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
+        try { txt = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: 1024 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        catch (e) { lastErr = e; }
         stop();
+        if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), 6000))]); if (t2) txt = markDoubts(txt, t2); }
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
         let hw = []; const hm = txt.match(/<!--\s*hw:\s*(\[[\s\S]*?\])\s*-->/);
         if (hm) { try { hw = JSON.parse(hm[1]); } catch { hw = []; } }
         hw = hwFromOcr(hw, n);
-        const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
-        if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
+        const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/<mark class="chk"(?: data-alt="([^"]*)")?>([^<]*)<\/mark>/g, (m, a, w) => `⁅${w}⁆[?${a ? '|' + a : ''}]`).replace(/(\[\?[^\]]*\])\s*\[\?\]/g, '$1').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
+        if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; liveBox.remove(); go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
         useOne('ocr');
         closeDialog(); ocrResult(n, html, title, hw);
@@ -3317,10 +3316,13 @@ async function ocrDialog() {
 function ocrResult(n, html, title, hw = []) {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. מילים שלא היו ברורות מסומנות ב-[?].</p>';
-    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html.replace(/\[\?\]/g, '<mark>[?]</mark>');
+    d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">קראתי את התמונה פעמיים. מילים שיצאו אחרת בכל קריאה מסומנות בצהוב, ולידן מה שקראתי בפעם השנייה – לחיצה על "אולי" מחליפה. אפשר לתקן כאן לפני שמוסיפים.</p>';
+    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true';
+    // מילה מסופקת: "מילה [?|חלופה]" → מילה מסומנת + כפתור "אולי: חלופה" שמחליף בלחיצה
+    box.innerHTML = html.replace(/⁅([^⁆]+)⁆\[\?\|([^\]]+)\]/g, (m, w, a) => `<mark class="doubt">${w}</mark><button type="button" class="alt-chip" contenteditable="false" data-alt="${a.replace(/"/g, '&quot;')}">אולי: ${a}</button>`).replace(/⁅([^⁆]+)⁆\[\?\]/g, '<mark class="doubt">$1</mark>').replace(/[⁅⁆]/g, '').replace(/\[\?\]/g, '<mark>[?]</mark>');
+    box.addEventListener('click', e => { const b = e.target.closest('.alt-chip'); if (!b) return; e.preventDefault(); const mk = b.previousElementSibling; if (mk && mk.classList.contains('doubt')) { const tail = (mk.textContent.match(/[.,:;!?]+$/) || [''])[0]; mk.replaceWith(document.createTextNode(b.dataset.alt + tail)); } b.remove(); });
     const row = document.createElement('div'); row.className = 'row';
-    const final = () => clean(box.innerHTML.replace(/<mark>\[\?\]<\/mark>/g, '[?]'));
+    const final = () => { const t = box.cloneNode(true); t.querySelectorAll('.alt-chip').forEach(x => x.remove()); t.querySelectorAll('mark.doubt').forEach(x => x.replaceWith(document.createTextNode(x.textContent + ' [?]'))); return clean(t.innerHTML.replace(/<mark>\[\?\]<\/mark>/g, '[?]')); };
     // שיעורי בית שנמצאו בתמונה
     let hwBox = null;
     if (hw.length) {
@@ -3455,3 +3457,53 @@ function dropRoster(html) {
 $('aiOcr').addEventListener('click', ocrDialog);
 $('aiSum').addEventListener('click', () => $('sumBtn').click());
 $('homeOcr').addEventListener('click', () => { openId = null; ocrDialog(); });
+
+/* ---- עזרים ל-AI: תשובה בזרם (רואים את הטקסט נכתב) ובדיקה כפולה ---- */
+async function aiText(models, cfg, parts, onText) {
+  let lastErr = null;
+  for (const name of models) {
+    for (const c of [cfg, { temperature: cfg.temperature }]) {
+      try {
+        const m = aiModel(name, c);
+        if (onText && m.generateContentStream) {
+          const r = await m.generateContentStream(parts); let acc = '';
+          for await (const ch of r.stream) { try { acc += ch.text(); } catch {} onText(acc); }
+          if (acc) return acc;
+        } else { const r = await m.generateContent(parts); const t = r.response.text(); if (t) return t; }
+      } catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
+    }
+  }
+  throw lastErr || new Error('empty');
+}
+// משווה שתי קריאות של אותה תמונה. מילה שבקריאה השנייה יצאה אחרת – מסומנת [?] כדי שתבדוק אותה
+function markDoubts(mainHtml, otherHtml) {
+  const norm = w => w.replace(/[^\p{L}\p{N}]/gu, '');
+  const t = document.createElement('div'); t.innerHTML = mainHtml.replace(/<!--(?!\s*(title|hw):)[\s\S]*?-->/g, '');
+  const o = document.createElement('div'); o.innerHTML = otherHtml.replace(/<!--[\s\S]*?-->/g, '').replace(/</g, ' <').replace(/>/g, '> ');
+  const Braw = (o.textContent.match(/\S+/g) || []).filter(x => norm(x));
+  const B = Braw.map(norm);
+  const nodes = []; const w = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) nodes.push(n);
+  const words = []; nodes.forEach((nd, ni) => { const re = /\S+/g; let m; while ((m = re.exec(nd.data))) { const k = norm(m[0]); if (k) words.push({ ni, i: m.index, len: m[0].length, k }); } });
+  if (words.length > 1500 || B.length > 1500 || !B.length) return mainHtml;
+  // LCS על המילים
+  const A = words.map(x => x.k), N = A.length, M = B.length;
+  const dp = Array.from({ length: N + 1 }, () => new Uint16Array(M + 1));
+  for (let i = N - 1; i >= 0; i--) for (let j = M - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  // אם הקריאות שונות מדי (למשל הקריאה השנייה נכשלה) – לא מסמנים כלום
+  if (dp[0][0] < N * 0.6) return mainHtml;
+  const bad = new Set(), alt = new Map(), gid = new Map(); let i = 0, j = 0, gA = [], gB = [], g = 0;
+  const closeGap = () => { if (gA.length) { g++; gA.forEach(k => gid.set(k, g)); const a = gB.map(k => Braw[k].replace(/[.,:;!?]+$/, '')).join(' '); if (a) alt.set(g, a); } gA = []; gB = []; };
+  while (i < N && j < M) { if (A[i] === B[j]) { closeGap(); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) { bad.add(i); gA.push(i); i++; } else { gB.push(j); j++; } }
+  while (i < N) { bad.add(i); gA.push(i); i++; } while (j < M) gB.push(j++); closeGap();
+  // מספרים ומילים של אות אחת לא מסמנים אם רק הפיסוק שונה; מסמנים לכל היותר 15% מהמילים
+  if (bad.size > Math.max(8, N * 0.3)) return mainHtml;
+  const byNode = new Map(); words.forEach((x, k) => { if (bad.has(k)) { if (!byNode.has(x.ni)) byNode.set(x.ni, []); byNode.get(x.ni).push(x); } });
+  byNode.forEach((list, ni) => {
+    const nd = nodes[ni]; let txt = nd.data; const frag = document.createDocumentFragment(); let pos = 0;
+    // מילים רצופות מאותו "חור" מסומנות יחד כביטוי אחד
+    const runs = []; list.forEach(x => { const k = words.indexOf(x), gg = gid.get(k); const last = runs[runs.length - 1]; if (last && last.g === gg) { last.end = x.i + x.len; } else runs.push({ g: gg, start: x.i, end: x.i + x.len }); });
+    runs.forEach(r => { frag.append(txt.slice(pos, r.start)); const mk = document.createElement('mark'); mk.className = 'chk'; mk.textContent = txt.slice(r.start, r.end); if (alt.has(r.g)) mk.dataset.alt = alt.get(r.g); frag.append(mk); pos = r.end; });
+    frag.append(txt.slice(pos)); nd.replaceWith(frag);
+  });
+  return t.innerHTML + (mainHtml.match(/<!--\s*(title|hw):[\s\S]*?-->/g) || []).join('');
+}
