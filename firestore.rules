@@ -16,12 +16,25 @@ service cloud.firestore {
         allow get: if true;
       }
     }
-    // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל
+    // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
+    // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)
     match /shares/{shareId} {
       allow get: if true;
+      allow list: if request.auth != null && resource.data.owner == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.owner == request.auth.uid
-                            && (!('owner' in request.resource.data) || request.resource.data.owner == resource.data.owner);
+      allow update: if request.auth != null && (
+        (resource.data.owner == request.auth.uid && request.resource.data.owner == resource.data.owner)
+        || (resource.data.mode == 'edit'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['html', 'title', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && request.resource.data.updatedBy == request.auth.uid
+            && request.resource.data.html.size() < 900000)
+      );
+      allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+      // מי נמצא עכשיו במחברת
+      match /presence/{uid} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }

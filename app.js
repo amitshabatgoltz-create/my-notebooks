@@ -112,6 +112,7 @@ onAuthStateChanged(auth, user => {
   if (unsubSh) { unsubSh(); unsubSh = null; }
   if (typeof unsubAct !== 'undefined' && unsubAct) { unsubAct(); unsubAct = null; }
   me = user;
+  if (!shareParam && user) { try { const ps = sessionStorage.getItem('pendingShare'); if (ps) { sessionStorage.removeItem('pendingShare'); shareParam = ps; history.replaceState(null, '', '?s=' + ps); } } catch {} }
   if (shareParam) { openShare(shareParam); }
   if (user) {
     showUser(user);
@@ -139,7 +140,7 @@ function subscribe() {
     renderGrid();
     if (!$('home').classList.contains('hidden')) renderHome();
     $('sample').classList.toggle('hidden', notebooks.length > 0);
-    if (openId && !notebooks.find(n => n.id === openId)) showLibrary();
+    if (openId && !String(openId).startsWith('share:') && !notebooks.find(n => n.id === openId)) showLibrary();
   }, err => {
     console.error(err);
     $('loading').textContent = 'לא ניתן לטעון את המחברות. בדוק את כללי האבטחה ב-Firebase (ראה README).';
@@ -186,17 +187,17 @@ function clean(html) {
         ch.setAttribute('data-cv', JSON.stringify(cv)); ch.innerHTML = ''; return;
       }
       if (ch.tagName === 'DIV' && ch.hasAttribute('data-file')) {   // קובץ מצורף: רק מזהה, שם וגודל
-        const id = ch.getAttribute('data-file'), nm = (ch.getAttribute('data-name') || 'קובץ').slice(0, 120), sz = ch.getAttribute('data-size');
+        const id = ch.getAttribute('data-file'), nm = (ch.getAttribute('data-name') || 'קובץ').slice(0, 120), sz = ch.getAttribute('data-size'), fu = ch.getAttribute('data-u');
         if (!/^[\w-]{1,64}$/.test(id || '')) { ch.remove(); return; }
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-        ch.setAttribute('data-file', id); ch.setAttribute('data-name', nm); if (/^\d{1,9}$/.test(sz || '')) ch.setAttribute('data-size', sz);
+        ch.setAttribute('data-file', id); ch.setAttribute('data-name', nm); if (/^\d{1,9}$/.test(sz || '')) ch.setAttribute('data-size', sz); if (/^[\w]{6,64}$/.test(fu || '')) ch.setAttribute('data-u', fu);
         ch.innerHTML = ''; return;
       }
-      if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה
-        const id = ch.getAttribute('data-img');
+      if (ch.tagName === 'IMG') {                     // תמונה נשמרת רק עם המזהה שלה (ומי העלה אותה)
+        const id = ch.getAttribute('data-img'), u = ch.getAttribute('data-u');
         if (!id || !/^[\w-]+$/.test(id)) { ch.remove(); return; }
         [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-        ch.setAttribute('data-img', id); return;
+        ch.setAttribute('data-img', id); if (/^[\w]{6,64}$/.test(u || '')) ch.setAttribute('data-u', u); return;
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a');
@@ -286,8 +287,11 @@ function openNotebook(id) {
   setSave('נשמר בענן', 'ok');
   setView('notebook', 'מחברות › ' + (n.title || ''));
   renderSide();
+  document.body.classList.remove('editing-shared');
+  stopLive();
+  if (n.shareId && n.shareMode === 'edit') startLive(n.shareId, clean(n.html || ''));
 }
-$('backBtn').onclick = async () => { await flush(); showLibrary(); };
+$('backBtn').onclick = async () => { await flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared'); showLibrary(); };
 $('newBtn').onclick = () => newNotebook();
 
 function newNotebook() {
@@ -350,11 +354,23 @@ async function flush() {
   saving = true; dirty = false;
   const id = openId;
   // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
-  const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: clean($('editor').innerHTML), updatedAt: Date.now() };
-  const nbw = notebooks.find(x => x.id === id); if (nbw) fields.words = trackWords(nbw, fields.html);
-  const pr = updateDoc(nbDoc(id), fields);
-  const nbx = notebooks.find(x => x.id === id);
-  if (nbx && nbx.shareId) updateDoc(shareDoc(nbx.shareId), { ...fields, color: nbx.color || COLORS[0] }).catch(e => console.warn('share sync', e));
+  let localHtml = clean($('editor').innerHTML);
+  // עריכה משותפת: אם מישהו אחר שינה בינתיים, משלבים לפי פסקאות
+  if (live && live.remote && live.remote.html !== live.base) {
+    const merged = mergeHtml(live.base, localHtml, live.remote.html);
+    if (merged !== localHtml) { localHtml = merged; applyRemoteHtml(merged); }
+  }
+  const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: localHtml, updatedAt: Date.now() };
+  if (live) { live.base = localHtml; live.lastSent = fields.updatedAt; }
+  let pr;
+  if (String(id).startsWith('share:')) {                   // חבר שעורך מחברת של מישהו אחר
+    pr = updateDoc(shareDoc(id.slice(6)), { ...fields, updatedBy: me.uid, updatedByName: myName() });
+  } else {
+    const nbw = notebooks.find(x => x.id === id); if (nbw) fields.words = trackWords(nbw, fields.html);
+    pr = updateDoc(nbDoc(id), fields);
+    const nbx = notebooks.find(x => x.id === id);
+    if (nbx && nbx.shareId) updateDoc(shareDoc(nbx.shareId), { title: fields.title, html: fields.html, updatedAt: fields.updatedAt, color: nbx.color || COLORS[0], updatedBy: me.uid, updatedByName: myName() }).catch(e => console.warn('share sync', e));
+  }
   const done = () => { if (openId === id && !dirty) setSave(navigator.onLine ? 'נשמר בענן' : 'נשמר במכשיר · יסונכרן', navigator.onLine ? 'ok' : 'off'); };
   pr.then(() => { if (openId === id && !dirty) setSave('נשמר בענן', 'ok'); }).catch(e => { console.error(e); dirty = true; setSave('לא נשמר · מנסה שוב', 'err'); saveTimer = setTimeout(flush, 3000); });
   try { await Promise.race([pr, new Promise(r => setTimeout(r, navigator.onLine ? 4000 : 300))]); done(); } catch {}
@@ -522,7 +538,7 @@ $('editor').addEventListener('paste', e => {
 
 /* ================= ניווט ================= */
 function showTab(t) {
-  flush();
+  flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared');
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
   else if (t === 'notes') showLibrary();
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
@@ -668,11 +684,11 @@ const imgDoc = (id, uid) => doc(db, 'users', uid || me.uid, 'images', id);
 
 async function loadImages(root, uid) {
   root.querySelectorAll('img[data-img]').forEach(async img => {
-    const id = img.getAttribute('data-img');
+    const id = img.getAttribute('data-img'); const iu = img.getAttribute('data-u') || uid;
     if (imgCache.has(id)) { img.src = imgCache.get(id); return; }
     img.classList.add('loading-img');
     try {
-      const snap = await getDoc(imgDoc(id, uid));
+      const snap = await getDoc(imgDoc(id, iu));
       if (snap.exists()) { imgCache.set(id, snap.data().data); img.src = snap.data().data; }
       else img.alt = 'התמונה לא נמצאה';
     } catch { img.alt = 'לא הצלחתי לטעון את התמונה'; }
@@ -714,7 +730,7 @@ async function addImages(files) {
       await setDoc(ref, { data, createdAt: Date.now() });
       imgCache.set(ref.id, data);
       const p = document.createElement('p'); const img = document.createElement('img');
-      img.setAttribute('data-img', ref.id); img.src = data; p.appendChild(img);
+      img.setAttribute('data-img', ref.id); img.setAttribute('data-u', me.uid); img.src = data; p.appendChild(img);
       const after = document.createElement('p'); after.appendChild(document.createElement('br'));
       holder.replaceWith(p); p.after(after); placeCaret(after);
       markDirty();
@@ -1876,7 +1892,7 @@ if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
 const shareDoc = id => doc(db, 'shares', id);
 const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
 
-const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אין כפתורים, אי אפשר לשמור עותק ואי אפשר לשנות כלום.'], copy: ['📥 צפייה + שמירת עותק', 'החבר קורא, ויכול לשמור לעצמו עותק משלו ולערוך אותו. המחברת שלך לא משתנה.'] };
+const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אין כפתורים, אי אפשר לשמור עותק ואי אפשר לשנות כלום.'], copy: ['📥 צפייה + שמירת עותק', 'החבר קורא, ויכול לשמור לעצמו עותק משלו ולערוך אותו. המחברת שלך לא משתנה.'], edit: ['✏️ עריכה משותפת', 'החבר כותב איתך באותה מחברת, ושניכם רואים את השינויים בלייב. צריך להתחבר כדי לערוך.'] };
 function modePicker(cur, onPick) {
   const g = document.createElement('div'); g.className = 'mode-pick'; g.setAttribute('role', 'radiogroup');
   Object.entries(SHARE_MODES).forEach(([k, [t, d]]) => {
@@ -1895,7 +1911,7 @@ function shareDialog() {
       if (!cur.shareId) {
         d.innerHTML = '<h3>שיתוף עם חברים</h3><p>יוצרים קישור ושולחים אותו לחברים. מה מותר להם?</p>';
         let mode = 'view'; d.appendChild(modePicker(mode, m => mode = m));
-        d.insertAdjacentHTML('beforeend', '<p class="muted-s">בשתי האפשרויות אף אחד לא יכול לשנות את המחברת שלך, וכל שינוי שתעשה יופיע אצלם לבד.</p>');
+        d.insertAdjacentHTML('beforeend', '<p class="muted-s">בצפייה ובשמירת עותק אף אחד לא יכול לשנות את המחברת שלך. כל שינוי שתעשה יופיע אצלם לבד.</p>');
         const row = document.createElement('div'); row.className = 'row';
         const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'יצירת קישור';
         go.onclick = async () => {
@@ -1906,6 +1922,7 @@ function shareDialog() {
             const nn = notebooks.find(x => x.id === openId) || n;
             await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], mode, createdAt: Date.now(), updatedAt: Date.now() });
             nn.shareMode = mode;
+            if (mode === 'edit') startLive(ref.id, clean($('editor').innerHTML));
             await updateDoc(nbDoc(nn.id), { shareId: ref.id, shareMode: mode });
             nn.shareId = ref.id; paint();
           } catch (e) { console.error(e); go.disabled = false; go.textContent = 'יצירת קישור'; toast(e && e.code === 'permission-denied' ? 'צריך לעדכן את כללי האבטחה ב-Firebase (ראה README)' : 'לא הצלחתי ליצור קישור'); }
@@ -1917,7 +1934,11 @@ function shareDialog() {
         d.innerHTML = '<h3>המחברת משותפת ✓</h3><p>שלח את הקישור לחברים. הם יראו תמיד את הגרסה העדכנית.</p>';
         const cm = cur.shareMode || 'copy';
         d.appendChild(modePicker(cm, async m => {
-          try { await updateDoc(shareDoc(cur.shareId), { mode: m }); await updateDoc(nbDoc(cur.id), { shareMode: m }); cur.shareMode = m; toast(m === 'view' ? 'עכשיו: צפייה בלבד' : 'עכשיו: צפייה + שמירת עותק'); }
+          try {
+            await updateDoc(shareDoc(cur.shareId), { mode: m }); await updateDoc(nbDoc(cur.id), { shareMode: m }); cur.shareMode = m;
+            toast({ view: 'עכשיו: צפייה בלבד', copy: 'עכשיו: צפייה + שמירת עותק', edit: 'עכשיו: עריכה משותפת' }[m]);
+            stopLive(); if (m === 'edit' && openId === cur.id) startLive(cur.shareId, clean($('editor').innerHTML));
+          }
           catch (e) { console.error(e); toast('לא הצלחתי לשנות'); }
         }));
         const box = document.createElement('div'); box.className = 'share-link';
@@ -1943,8 +1964,10 @@ function shareDialog() {
 $('shareBtn').onclick = shareDialog;
 
 // ---- צפייה במחברת שמישהו שיתף
+let shareEditOpened = false;
+const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
-  shareParam = id;
+  shareParam = id; shareEditOpened = false;
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
   const v = $('shareView'); v.classList.remove('hidden'); document.body.classList.add('viewing-share');
   $('shBody').innerHTML = '<div class="skel-grid"><div class="skel"><i></i><b></b><b></b></div></div>';
@@ -1961,16 +1984,18 @@ function openShare(id) {
     const b = $('shBody'); b.innerHTML = clean(s.html || '');
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
-    cp.textContent = mine ? 'פתיחה לעריכה' : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
-    cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : (me ? copyShare(id, s) : closeShare());
+    const editMode = s.mode === 'edit';
+    if (editMode && me && !mine && !shareEditOpened) { shareEditOpened = true; if (me) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now(), mode: 'edit' }).catch(() => {}); closeShare(true); openSharedEdit(id, s); return; }
+    cp.textContent = mine ? 'פתיחה לעריכה' : editMode ? (me ? '✏️ לערוך יחד' : 'התחברות כדי לערוך') : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
+    cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : editMode ? (me ? (closeShare(true), openSharedEdit(id, s)) : (pendingShare(id), closeShare())) : (me ? copyShare(id, s) : (pendingShare(id), closeShare()));
     if (me && !mine) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now() }).catch(() => {});
   }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; $('shCopy').classList.add('hidden'); });
 }
-function closeShare() {
+function closeShare(keepUrl) {
   if (unsubView) { unsubView(); unsubView = null; }
   shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share');
   document.title = 'המחברות שלי';
-  if (location.search) history.replaceState(null, '', location.pathname);
+  if (location.search && !keepUrl) history.replaceState(null, '', location.pathname);
 }
 $('shClose').onclick = closeShare;
 window.addEventListener('popstate', () => { const s = new URLSearchParams(location.search).get('s'); if (s) openShare(s); else if (!$('shareView').classList.contains('hidden')) closeShare(); });
@@ -2008,7 +2033,7 @@ function renderShared() {
   sharedList.forEach(x => {
     const b = document.createElement('button'); b.className = 'sh-item'; b.style.setProperty('--c', x.color || COLORS[0]);
     const t = document.createElement('b'); t.textContent = x.title || 'מחברת';
-    const o = document.createElement('small'); o.textContent = x.ownerName ? 'מאת ' + x.ownerName : '';
+    const o = document.createElement('small'); o.textContent = (x.ownerName ? 'מאת ' + x.ownerName : '') + (x.mode === 'edit' ? ' · ✏️ עריכה משותפת' : '');
     const rm = document.createElement('span'); rm.className = 'rm'; rm.textContent = '✕'; rm.title = 'הסרה מהרשימה';
     rm.onclick = ev => { ev.stopPropagation(); deleteDoc(doc(db, 'users', me.uid, 'shared', x.id)).catch(() => {}); };
     b.append(t, o, rm); b.onclick = () => openShare(x.id); list.appendChild(b);
@@ -2158,7 +2183,7 @@ function sketchDialog() {
         await setDoc(ref, { data, createdAt: Date.now() }); imgCache.set(ref.id, data);
         closeDialog();
         if (keep) { const sl = getSelection(); sl.removeAllRanges(); sl.addRange(keep); savedRange = keep; }
-        const p = document.createElement('p'); const img = document.createElement('img'); img.setAttribute('data-img', ref.id); img.src = data; p.appendChild(img);
+        const p = document.createElement('p'); const img = document.createElement('img'); img.setAttribute('data-img', ref.id); img.setAttribute('data-u', me.uid); img.src = data; p.appendChild(img);
         insertBlockAtCaret(p);
         if (!p.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); p.after(after); }
         markDirty(); toast('השרבוט נוסף ✓');
@@ -2273,7 +2298,7 @@ function renderFiles(root, uid, readOnly) {
     el.contentEditable = 'false'; el.className = 'file-chip';
     el.innerHTML = `<span class="fi">${fileIcon(name)}</span><span class="fn"><b></b><small>${size ? fmtSize(size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה">⬇</button>${readOnly ? '' : '<button type="button" class="fx" data-fa="rm" title="הסרה מהמחברת">✕</button>'}`;
     el.querySelector('b').textContent = name;
-    el.dataset.uid = uid || '';
+    el.dataset.uid = el.getAttribute('data-u') || uid || '';
   });
 }
 async function getFileBlob(id, uid) {
@@ -2315,7 +2340,7 @@ async function addFiles(list) {
     try {
       const up = await uploadFile(f, pc => { holder.querySelector('small').textContent = `מעלה... ${pc}%`; });
       const ref = { id: up.id };
-      const el = document.createElement('div'); el.setAttribute('data-file', ref.id); el.setAttribute('data-name', f.name.slice(0, 120)); el.setAttribute('data-size', String(f.size));
+      const el = document.createElement('div'); el.setAttribute('data-file', ref.id); el.setAttribute('data-u', me.uid); el.setAttribute('data-name', f.name.slice(0, 120)); el.setAttribute('data-size', String(f.size));
       holder.replaceWith(el); renderFiles(el.parentElement || $('editor'));
       if (!el.nextElementSibling) { const after = document.createElement('p'); after.appendChild(document.createElement('br')); el.after(after); }
       markDirty(); toast('הקובץ נוסף ✓');
@@ -2617,4 +2642,116 @@ function redateAuto() {
     const nl = nextLesson(e.title); if (nl && key(nl.date) !== e.date) { n++; updateDoc(evDoc(e.id), { date: key(nl.date) }).catch(() => {}); }
   });
   if (n) toast(n === 1 ? 'משימה אחת עברה ליום של השיעור הבא' : `${n} משימות עברו ליום של השיעור הבא`);
+}
+
+/* ================= עריכה משותפת בלייב ================= */
+// מקור האמת בזמן עריכה משותפת: shares/<קוד>. כל צד שומר לשם, ומקבל את השינויים של השני
+let live = null;
+const myName = () => (me && (me.displayName || (me.email || '').split('@')[0])) || 'חבר';
+function blocksOf(html) { const t = document.createElement('div'); t.innerHTML = html || ''; return [...t.childNodes].map(n => n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? n.textContent : '').filter(x => x !== ''); }
+// שילוב לפי פסקאות: מה שרק אתה שינית נשאר שלך, מה שרק החבר שינה נכנס, ואם שניכם שיניתם אותה פסקה – שתי הגרסאות נשארות (כלום לא נמחק)
+function mergeHtml(base, local, remote) {
+  const B = blocksOf(base), L = blocksOf(local), R = blocksOf(remote);
+  if (L.join('') === B.join('')) return remote;
+  if (R.join('') === B.join('')) return local;
+  // התאמה לפי סדר (LCS) בין הבסיס לכל צד
+  const lcs = (a, b) => { const n = a.length, m = b.length, dp = Array.from({ length: n + 1 }, () => new Int16Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const map = new Map(); let i = 0, j = 0; while (i < n && j < m) { if (a[i] === b[j]) { map.set(i, j); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; } return map; };
+  if (B.length > 400 || L.length > 400 || R.length > 400) return local;
+  const mL = lcs(B, L), mR = lcs(B, R);
+  // עוברים על הבסיס. פסקה שנשארה אצל שניהם נשארת; פסקה שאחד הצדדים שינה – נכנסת הגרסה החדשה שלו (מתוך ה"חורים")
+  const out = []; let pl = 0, pr = 0;
+  const pushL = to => { for (; pl < to; pl++) out.push(L[pl]); };
+  const pushR = to => { for (; pr < to; pr++) if (!out.includes(R[pr])) out.push(R[pr]); };
+  for (let i = 0; i < B.length; i++) {
+    const jl = mL.get(i), jr = mR.get(i);
+    if (jl !== undefined && jr !== undefined) { pushL(jl); pushR(jr); out.push(B[i]); pl = jl + 1; pr = jr + 1; }
+    else if (jl !== undefined) { pushL(jl); pl = jl + 1; }        // החבר שינה/מחק את הפסקה הזו: לא לוקחים את הישנה שלך
+    else if (jr !== undefined) { pushR(jr); pr = jr + 1; }        // אתה שינית/מחקת אותה: לא לוקחים את הישנה של החבר
+  }
+  pushL(L.length); pushR(R.length);
+  return out.join('');
+}
+function caretMark() {
+  const sel = getSelection(); const ed = $('editor');
+  if (!sel.rangeCount || !ed.contains(sel.anchorNode)) return null;
+  const r = sel.getRangeAt(0); const pre = document.createRange(); pre.selectNodeContents(ed); pre.setEnd(r.startContainer, r.startOffset);
+  return pre.toString().length;
+}
+function caretRestore(pos) {
+  if (pos === null) return; const ed = $('editor'); const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let n, left = pos;
+  while ((n = w.nextNode())) { if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); return; } left -= n.length; }
+}
+function applyRemoteHtml(html) {
+  const ed = $('editor'); const pos = document.activeElement === ed ? caretMark() : null;
+  const y = window.scrollY;
+  ed.innerHTML = html; loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
+  if (pos !== null) caretRestore(pos);
+  window.scrollTo(0, y);
+}
+function startLive(shareId, baseHtml) {
+  stopLive();
+  live = { id: shareId, base: baseHtml, remote: null, lastSent: 0, unsub: null, presTimer: null, unsubPres: null };
+  const L = live;
+  L.unsub = onSnapshot(shareDoc(shareId), snap => {
+    if (live !== L) return;
+    if (!snap.exists()) { toast('השיתוף בוטל'); stopLive(); if (String(openId).startsWith('share:')) { openId = null; document.body.classList.remove('editing-shared'); showLibrary(); } return; }
+    const s = snap.data();
+    if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
+    if (s.updatedBy === me.uid || (s.updatedAt || 0) <= L.lastSent) return;     // השינוי שלי חזר אליי
+    L.remote = s;
+    if (s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
+    if (s.html === L.base) return;
+    if (!dirty) { applyRemoteHtml(s.html); L.base = s.html; showEditorBy(s.updatedByName); }
+    else { /* יש לך שינויים שעוד לא נשמרו: השילוב יקרה בשמירה הקרובה */ }
+    // הבעלים מעדכן גם את המחברת השמורה שלו
+    if (!String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === shareId); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
+  }, e => console.warn('live', e));
+  // מי עוד כאן
+  const pres = () => setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now() }).catch(() => {});
+  pres(); L.presTimer = setInterval(pres, 20000);
+  L.unsubPres = onSnapshot(collection(db, 'shares', shareId, 'presence'), snap => {
+    if (live !== L) return;
+    const now = Date.now(); const others = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.id !== me.uid && now - (p.at || 0) < 60000);
+    paintPresence(others);
+  }, () => {});
+  paintPresence([]);
+}
+function stopLive() {
+  if (!live) { paintPresence(null); return; }
+  const L = live; live = null;
+  if (L.unsub) L.unsub(); if (L.unsubPres) L.unsubPres(); clearInterval(L.presTimer);
+  if (me) deleteDoc(doc(db, 'shares', L.id, 'presence', me.uid)).catch(() => {});
+  paintPresence(null);
+}
+function paintPresence(others) {
+  const el = $('presence'); if (!el) return;
+  if (others === null) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = others.length
+    ? `<span class="dot-live"></span>${others.slice(0, 3).map(p => `<span class="pav" title="${String(p.name || 'חבר').replace(/"/g, '')}">${String(p.name || '?').trim().charAt(0)}</span>`).join('')}<span class="ptxt">${others.length === 1 ? `${String(others[0].name || 'חבר').replace(/</g, '')} כאן עכשיו` : `${others.length} אנשים כאן עכשיו`}</span>`
+    : '<span class="dot-live"></span><span class="ptxt">עריכה משותפת</span>';
+}
+let byTimer = null;
+function showEditorBy(name) {
+  if (!name) return; const el = $('presence'); if (!el) return;
+  el.dataset.by = `${name} עדכן/ה`; el.classList.add('by'); clearTimeout(byTimer); byTimer = setTimeout(() => el.classList.remove('by'), 2500);
+}
+// חבר פותח מחברת משותפת לעריכה: אותו עורך, אבל השמירה הולכת ל-shares
+function openSharedEdit(id, s) {
+  if (openId) flush();
+  openId = 'share:' + id; dirty = false;
+  $('title').value = s.title || '';
+  $('docColor').style.setProperty('--c', s.color || COLORS[0]);
+  $('editor').innerHTML = clean(s.html || '');
+  loadImages($('editor'), s.owner); renderFiles($('editor'), s.owner); renderCanvases($('editor')); applyBoxSizes($('editor'));
+  $('app').classList.remove('hidden'); $('login').classList.add('hidden');
+  setSave('עריכה משותפת', 'ok');
+  setView('notebook', `משותפת · ${s.title || ''}`);
+  document.body.classList.add('editing-shared');
+  $('sharedBy').textContent = `של ${s.ownerName || 'חבר'}`;
+  renderSide();
+  startLive(id, clean(s.html || ''));
+  if (live) live.remote = s;
 }

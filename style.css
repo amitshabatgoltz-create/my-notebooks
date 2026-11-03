@@ -746,3 +746,15 @@ table.tt-view{border-collapse:separate;border-spacing:6px;width:100%;min-width:6
 .qa-subj span{font-size:13.5px;color:var(--muted);margin-inline-end:4px}
 .qa-subj button{padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);font-size:14px;font-weight:500;background:var(--surface)}
 .qa-subj button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ===== עריכה משותפת ===== */
+.presence{display:inline-flex;align-items:center;gap:4px;padding:4px 10px 4px 6px;border-radius:999px;background:color-mix(in srgb,#10B981 12%,transparent);font-size:12.5px;font-weight:600;color:#0B8A5E;position:relative}
+.presence .dot-live{width:8px;height:8px;border-radius:50%;background:#10B981;animation:pulse 1.6s infinite;margin-inline-end:2px}
+.presence .pav{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#5E5CE6,#FF5E8A);border:2px solid var(--surface);margin-inline-start:-6px}
+.presence .pav:first-of-type{margin-inline-start:0}
+.presence.by::after{content:attr(data-by);position:absolute;top:calc(100% + 6px);right:0;white-space:nowrap;background:var(--ink);color:var(--bg);padding:4px 10px;border-radius:8px;font-size:12px;animation:pop .2s var(--ease)}
+.shared-by{display:none;font-size:12.5px;color:var(--muted)}
+body.editing-shared .shared-by{display:inline}
+body.editing-shared #shareBtn,body.editing-shared #delBtn{display:none}
+@media (max-width:600px){.presence .ptxt{display:none}}
+body.editing-shared #sumBtn{display:none}
