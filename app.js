@@ -3261,6 +3261,10 @@ async function ocrDialog() {
     const recent = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים (עד ${OCR_MAX_IMGS}) והם נקראים יחד.</p>
       ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
+      <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
+        <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5–10 שניות</span><small>יכולות להיות כמה טעויות</small></button>
+        <button type="button" class="oc-mode" data-m="exact" role="radio"><b>🎯 מדויק</b><span>בערך 30–40 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
+      </div>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
@@ -3270,6 +3274,10 @@ async function ocrDialog() {
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     let files = [];
+    let ocMode = 'exact'; try { ocMode = localStorage.getItem('ocMode') || 'exact'; } catch {}
+    const paintMode = () => d.querySelectorAll('.oc-mode').forEach(b => { const on = b.dataset.m === ocMode; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    d.querySelector('.oc-modes').onclick = e => { const b = e.target.closest('.oc-mode'); if (!b || go.disabled) return; ocMode = b.dataset.m; try { localStorage.setItem('ocMode', ocMode); } catch {} paintMode(); };
+    paintMode();
     const paint = () => {
       d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>📕</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
       go.classList.toggle('hidden', !files.length); go.textContent = files.length > 1 ? `✨ להקליד ${files.length} תמונות` : '✨ להקליד את זה';
@@ -3282,11 +3290,12 @@ async function ocrDialog() {
       let mode = '';
       if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
       go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
-      const st = d.querySelector('#ocStatus'); const stop = ticking(st, '✨ קורא בעיון ומקליד... (בערך 15–30 שניות)');
+      const exact = ocMode === 'exact';
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? '🎯 קורא בעיון ובודק את עצמו... (בערך 30–40 שניות)' : '⚡ מקליד מהר... (בערך 5–10 שניות)');
       try {
         const parts = [];
         for (const f of files) {
-          if (/^image\//.test(f.type)) { const dd = await shrink(f, 2600, 3500000); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
+          if (/^image\//.test(f.type)) { const dd = exact ? await shrink(f, 2600, 3500000) : await shrink(f, 1800, 1500000); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
           else parts.push({ inlineData: { mimeType: 'application/pdf', data: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }) } });
         }
         let txt = '', lastErr = null;
@@ -3303,13 +3312,15 @@ async function ocrDialog() {
 - טקסט בצד הלוח שכן קשור לשיעור (למשל הגדרה, מילה חשובה, שיעורי בית) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
         const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
         // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
-        const second = aiText(['gemini-2.5-flash-lite', 'gemini-2.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
+        const second = exact
+          ? aiText(['gemini-2.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
+          : aiText(['gemini-2.5-flash-lite', 'gemini-2.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: 1024 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        try { txt = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
-        if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), 6000))]); if (t2) txt = markDoubts(txt, t2); }
+        if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
         let hw = []; const hm = txt.match(/<!--\s*hw:\s*(\[[\s\S]*?\])\s*-->/);
