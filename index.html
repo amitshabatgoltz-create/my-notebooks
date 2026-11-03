@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793699293">
+<link rel="stylesheet" href="style.css?v=1793699679">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -22,6 +22,7 @@
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
   <symbol id="i-tt" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="17" rx="3"/><path d="M3 9h18M9 9v11.5M15 9v11.5M3 14.5h18"/></symbol>
+  <symbol id="i-hw" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8.5l1.5 1.5L12 7.5M8 14.5l1.5 1.5L12 13.5M14.5 9h2.5M14.5 15h2.5"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
@@ -103,6 +104,7 @@
     <nav class="side-nav" aria-label="ניווט">
       <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
       <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
+      <button data-tab="hw"><svg><use href="#i-hw"/></svg>שיעורי בית</button>
       <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
     </nav>
@@ -227,6 +229,14 @@
       </section>
 
       <!-- יומן -->
+      <section id="hwView" class="view hidden">
+        <div class="hw-hero" id="hwHero"></div>
+        <div class="hw-add"><span>＋</span><input id="hwAdd" placeholder="שיעורי בית חדשים? למשל: מתמטיקה עמ׳ 45 שאלות 1–6" aria-label="הוספת שיעורי בית"><small id="hwAddHint"></small></div>
+        <div class="hw-filters" id="hwFilters"></div>
+        <div id="hwList"></div>
+        <div class="hw-done" id="hwDone"></div>
+      </section>
+
       <section id="ttView" class="view hidden">
         <div class="lib-head">
           <div><h2>מערכת שעות</h2><div class="sub">לפיה האתר יודע עד מתי צריך להכין כל שיעורי בית</div></div>
@@ -280,13 +290,14 @@
   <nav class="tabbar" aria-label="ניווט">
     <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
     <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
-    <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
+    <button data-tab="hw"><svg><use href="#i-hw"/></svg>שיעורי בית</button>
+      <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
   </nav>
 </div>
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793699293"></script>
+<script type="module" src="app.js?v=1793699679"></script>
 </body>
 </html>

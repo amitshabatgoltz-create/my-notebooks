@@ -261,12 +261,12 @@ function renderSide() {
     b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית' }[v] || '';
   document.body.dataset.view = v;
   window.scrollTo(0, 0);
 }
@@ -548,6 +548,7 @@ function showTab(t) {
   flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared');
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
   else if (t === 'notes') showLibrary();
+  else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); }
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
@@ -576,6 +577,7 @@ function subscribeEvents() {
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
     if (!$('home').classList.contains('hidden')) renderHome();
+    if (!$('hwView').classList.contains('hidden')) renderHW();
     remind();
   }, err => console.error(err));
 }
@@ -2630,7 +2632,7 @@ function renderTT() {
   }
   const today = new Date().getDay(); let rows = 0;
   for (let i = 0; i < 6; i++) rows = Math.max(rows, (timetable.days[i] || []).length);
-  const colors = {}; const pal = ['#5E5CE6', '#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6', '#E08A1E', '#2E9E6A'];
+  const colors = {}; const pal = HW_COLORS;
   ttSubjects().forEach((s, i) => colors[s] = pal[i % pal.length]);
   const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => `<tr><th>${r + (timetable.start === 0 ? 0 : 1)}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
@@ -2930,3 +2932,126 @@ function paintCursors() {
 }
 window.addEventListener('resize', () => live && paintCursors());
 $('editor').addEventListener('input', () => live && requestAnimationFrame(paintCursors));
+
+/* ================= שיעורי בית ================= */
+let hwFilter = null, hwShowDone = false;
+const HW_COLORS = ['#5E5CE6', '#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6', '#E08A1E', '#2E9E6A'];
+function subjectOf(title) {
+  const subs = ttSubjects(); const hit = subs.find(x => subjMatches(title, x));
+  if (hit) { for (const v of Object.values(timetable.days || {}).flat()) if (normS(v) === hit) return String(v).trim(); return hit; }
+  for (const g of SUBJ_GROUPS) if (g.some(a => subjMatches(title, a))) return g[0] === 'תנך' ? 'תנ"ך' : g[0];
+  return '';
+}
+const subjColor = sub => { if (!sub) return '#8E8E93'; const i = ttSubjects().indexOf(normS(sub)); return i >= 0 ? HW_COLORS[i % HW_COLORS.length] : HW_COLORS[[...normS(sub)].reduce((a, c) => (a * 33 + c.charCodeAt(0)) >>> 0, 5) % HW_COLORS.length]; };
+function lessonOn(dateKey, sub) {
+  if (!sub) return null; const d = fromKey(dateKey); const arr = timetable.days[d.getDay()] || []; const st = timetable.start === 0 ? 0 : 1;
+  const i = arr.findIndex(v => normS(v) === normS(sub) || normS(v).split(' / ').includes(normS(sub))); return i < 0 ? null : i + st;
+}
+function dueText(k) {
+  const n = daysUntil(k);
+  if (n < -1) return `באיחור של ${-n} ימים`; if (n === -1) return 'היה אמור להיות אתמול';
+  if (n === 0) return 'להיום'; if (n === 1) return 'למחר'; if (n <= 6) return `ליום ${HE_DAYS[fromKey(k).getDay()]}`; return `עוד ${n} ימים`;
+}
+function weekRange() { const d = new Date(); d.setHours(12); const s0 = new Date(d); s0.setDate(d.getDate() - d.getDay()); const e0 = new Date(s0); e0.setDate(s0.getDate() + 6); return [key(s0), key(e0)]; }
+function renderHW() {
+  const all = events.filter(e => e.type === 'hw').map(e => ({ ...e, sub: subjectOf(e.title) }));
+  const tk = todayKey(), [ws, we] = weekRange();
+  const week = all.filter(e => e.date >= ws && e.date <= we), wDone = week.filter(e => e.done).length;
+  const pct = week.length ? Math.round(wDone / week.length * 100) : 0;
+  const open = all.filter(e => !e.done), late = open.filter(e => e.date < tk);
+  // טבעת התקדמות
+  const C = 2 * Math.PI * 42;
+  $('hwHero').innerHTML = `
+    <div class="hw-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="bg"/><circle cx="50" cy="50" r="42" class="fg" style="stroke-dasharray:${C};stroke-dashoffset:${C * (1 - pct / 100)}"/></svg><div><b>${pct}%</b><small>השבוע</small></div></div>
+    <div class="hw-hero-t">
+      <h2>${!open.length ? 'אין שיעורי בית פתוחים 🎉' : late.length ? `${late.length === 1 ? 'משימה אחת באיחור' : late.length + ' משימות באיחור'} 😬` : open.length === 1 ? 'נשארה משימה אחת' : `נשארו ${open.length} משימות`}</h2>
+      <p>${week.length ? `השבוע סיימת ${wDone} מתוך ${week.length}.` : 'עוד אין שיעורי בית לשבוע הזה.'} ${pct === 100 && week.length ? 'שבוע מושלם! 🏆' : ''}</p>
+    </div>`;
+  // סינון לפי מקצוע
+  const subs = [...new Set(open.map(e => e.sub).filter(Boolean))];
+  if (hwFilter && !subs.includes(hwFilter)) hwFilter = null;
+  $('hwFilters').innerHTML = subs.length > 1 ? `<button type="button" class="hw-f${hwFilter ? '' : ' on'}" data-f="">הכל <span>${open.length}</span></button>` + subs.map(x => `<button type="button" class="hw-f${hwFilter === x ? ' on' : ''}" data-f="${x.replace(/"/g, '&quot;')}" style="--c:${subjColor(x)}"><i></i>${x.replace(/</g, '&lt;')} <span>${open.filter(e => e.sub === x).length}</span></button>`).join('') : '';
+  const vis = open.filter(e => !hwFilter || e.sub === hwFilter);
+  const groups = [
+    ['late', '🔥 באיחור', vis.filter(e => e.date < tk)],
+    ['today', '📌 להיום', vis.filter(e => e.date === tk)],
+    ['tomorrow', '⏭️ למחר', vis.filter(e => daysUntil(e.date) === 1)],
+    ['week', '🗓 השבוע', vis.filter(e => daysUntil(e.date) >= 2 && daysUntil(e.date) <= 6)],
+    ['later', '🌤 בהמשך', vis.filter(e => daysUntil(e.date) > 6)],
+  ];
+  const box = $('hwList'); box.innerHTML = '';
+  groups.forEach(([k, label, list]) => {
+    if (!list.length) return;
+    const g = document.createElement('section'); g.className = 'hw-group g-' + k;
+    g.innerHTML = `<h3>${label} <span>${list.length}</span></h3>`;
+    const grid = document.createElement('div'); grid.className = 'hw-grid';
+    list.forEach((e, i) => grid.appendChild(hwCard(e, i)));
+    g.appendChild(grid); box.appendChild(g);
+  });
+  if (!vis.length) box.innerHTML = `<div class="hw-empty"><div class="big">🏖️</div><b>${open.length ? 'אין משימות במקצוע הזה' : 'הכל גמור!'}</b><p>${open.length ? '' : 'אין שיעורי בית פתוחים. מגיע לך הפסקה.'}</p></div>`;
+  // הושלמו
+  const done = all.filter(e => e.done && (!hwFilter || e.sub === hwFilter)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
+  $('hwDone').innerHTML = done.length ? `<button type="button" class="hw-done-t" id="hwDoneT">✅ הושלמו (${done.length}) <span>${hwShowDone ? '▲' : '▼'}</span></button>` : '';
+  if (done.length && hwShowDone) { const grid = document.createElement('div'); grid.className = 'hw-grid'; done.forEach((e, i) => grid.appendChild(hwCard(e, i))); $('hwDone').appendChild(grid); }
+  if ($('hwDoneT')) $('hwDoneT').onclick = () => { hwShowDone = !hwShowDone; renderHW(); };
+}
+function hwCard(e, i) {
+  const c = document.createElement('div'); c.className = 'hw-card' + (e.done ? ' done' : '') + (e.date < todayKey() && !e.done ? ' late' : ''); c.style.setProperty('--c', subjColor(e.sub)); c.style.setProperty('--i', i);
+  const per = lessonOn(e.date, e.sub);
+  const nf = (e.files || []).length;
+  c.innerHTML = `<button type="button" class="hw-check" title="${e.done ? 'לא סיימתי' : 'סיימתי!'}" aria-label="סיימתי"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+    <div class="hw-body"><div class="hw-sub">${e.sub ? e.sub.replace(/</g, '&lt;') : 'שיעורי בית'}</div><div class="hw-title"></div>
+    ${e.note ? '<div class="hw-note"></div>' : ''}
+    <div class="hw-meta"><span class="due">${dueText(e.date)}${per !== null ? ` · שיעור ${per}` : ''}</span>${nf ? `<span>📎 ${nf}</span>` : ''}</div></div>
+    ${e.done ? '' : '<button type="button" class="hw-focus" title="להתחיל לעבוד: טיימר ריכוז של 25 דקות">▶</button>'}`;
+  c.querySelector('.hw-title').textContent = e.title; if (e.note) c.querySelector('.hw-note').textContent = e.note;
+  c.querySelector('.hw-check').onclick = ev => { ev.stopPropagation(); const d2 = !e.done; if (d2) { confetti(ev.currentTarget); c.classList.add('pop'); } setTimeout(() => updateDoc(evDoc(e.id), { done: d2 }).catch(() => toast('לא נשמר')), d2 ? 450 : 0); };
+  const f = c.querySelector('.hw-focus'); if (f) f.onclick = ev => { ev.stopPropagation(); focusTimer(e); };
+  c.onclick = () => eventDialog(e.id);
+  return c;
+}
+function confetti(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = el.getBoundingClientRect(); const cols = ['#5E5CE6', '#FF5E8A', '#2EC4B6', '#F59E0B', '#10B981'];
+  for (let k = 0; k < 26; k++) {
+    const p = document.createElement('i'); p.className = 'confetti';
+    const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 70;
+    p.style.cssText = `left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px;background:${cols[k % cols.length]};--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d - 40}px;--r:${Math.random() * 720 - 360}deg`;
+    document.body.appendChild(p); setTimeout(() => p.remove(), 900);
+  }
+}
+// טיימר ריכוז (פומודורו)
+let focusT = null;
+function focusTimer(e) {
+  clearInterval(focusT);
+  const old = $('focusBox'); if (old) old.remove();
+  let total = 25 * 60, left = total, paused = false;
+  const o = document.createElement('div'); o.id = 'focusBox'; o.className = 'focus-box';
+  o.innerHTML = `<div class="focus-in"><small>מתרכזים ב:</small><b class="ft"></b>
+    <div class="focus-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" class="bg"/><circle cx="50" cy="50" r="45" class="fg"/></svg><span class="tm">25:00</span></div>
+    <div class="focus-btns"><button type="button" class="btn btn-ghost" data-m="5">5 דק׳</button><button type="button" class="btn btn-ghost" data-m="15">15</button><button type="button" class="btn btn-ghost on" data-m="25">25</button><button type="button" class="btn btn-ghost" data-m="45">45</button></div>
+    <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">הפסקה</button><button type="button" class="btn btn-ghost" id="fDone">✅ סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div></div>`;
+  o.querySelector('.ft').textContent = e.title; document.body.appendChild(o);
+  const fg = o.querySelector('.fg'), C = 2 * Math.PI * 45; fg.style.strokeDasharray = C;
+  const paint = () => { o.querySelector('.tm').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; fg.style.strokeDashoffset = C * (1 - left / total); document.title = `${o.querySelector('.tm').textContent} · ${e.title}`; };
+  const end = () => { clearInterval(focusT); o.remove(); document.title = 'המחברות שלי'; };
+  focusT = setInterval(() => {
+    if (paused) return; left--; paint();
+    if (left <= 0) { clearInterval(focusT); o.querySelector('.tm').textContent = '🎉'; toast('הזמן נגמר! סיימת?'); try { if (Notification.permission === 'granted') new Notification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png' }); } catch {} }
+  }, 1000);
+  o.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { total = left = +b.dataset.m * 60; o.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); paint(); });
+  o.querySelector('#fPause').onclick = ev => { paused = !paused; ev.target.textContent = paused ? 'המשך' : 'הפסקה'; };
+  o.querySelector('#fStop').onclick = end;
+  o.querySelector('#fDone').onclick = ev => { confetti(ev.target); updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
+  paint();
+}
+// הוספה מהירה בתוך הכרטיסייה: תמיד שיעורי בית
+$('hwAdd').addEventListener('keydown', async ev => {
+  if (ev.key !== 'Enter' || ev.isComposing) return; ev.preventDefault();
+  const v = $('hwAdd').value.trim(); if (!v) return;
+  const q = parseQuick(v);
+  try { await addDoc(evCol(), { title: q.title, type: 'hw', time: q.time || '', date: q.date, done: false, createdAt: Date.now(), ...(q.written ? {} : { autoDate: true }) }); $('hwAdd').value = ''; $('hwAddHint').textContent = ''; toast(`נוסף: ${q.dateLabel} ✓`); }
+  catch { toast('לא הצלחתי להוסיף'); }
+});
+$('hwAdd').addEventListener('input', () => { const v = $('hwAdd').value.trim(); if (!v) { $('hwAddHint').textContent = ''; return; } const q = parseQuick(v); const sub = subjectOf(v); $('hwAddHint').textContent = `${sub ? sub + ' · ' : ''}${q.dateLabel}`; });
+$('hwFilters').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; hwFilter = b.dataset.f || null; renderHW(); });
