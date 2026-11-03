@@ -3075,7 +3075,7 @@ function hwCard(e, i) {
     ${e.done ? '' : '<button type="button" class="hw-focus" title="להתחיל לעבוד: טיימר ריכוז של 25 דקות">▶</button>'}`;
   c.querySelector('.hw-title').textContent = e.title; if (e.note) c.querySelector('.hw-note').textContent = e.note;
   c.querySelector('.hw-check').onclick = ev => { ev.stopPropagation(); const d2 = !e.done; if (d2) { confetti(ev.currentTarget); c.classList.add('pop'); } setTimeout(() => updateDoc(evDoc(e.id), { done: d2 }).catch(() => toast('לא נשמר')), d2 ? 450 : 0); };
-  const f = c.querySelector('.hw-focus'); if (f) f.onclick = ev => { ev.stopPropagation(); focusTimer(e); };
+  const f = c.querySelector('.hw-focus'); if (f) f.onclick = ev => { ev.stopPropagation(); prepSound(); focusTimer(e); };
   c.onclick = () => eventDialog(e.id);
   return c;
 }
@@ -3105,6 +3105,7 @@ function focusTimer(e, saved) {
     <div class="focus-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" class="bg"/><circle cx="50" cy="50" r="45" class="fg"/></svg><span class="tm">25:00</span></div>
     <div class="focus-btns">${[5, 15, 25, 45].map(m => `<button type="button" class="btn btn-ghost${m * 60 === total ? ' on' : ''}" data-m="${m}">${m === 5 ? '5 דק׳' : m}</button>`).join('')}</div>
     <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">${pausedLeft !== null ? 'המשך' : 'הפסקה'}</button><button type="button" class="btn btn-ghost" id="fDone">✅ סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div>
+    <label class="focus-wake"><input type="checkbox" id="fWake"> 📱 להשאיר את המסך דלוק (ואז יהיה צלצול בסוף)</label>
     <small class="focus-note">הטיימר ממשיך לרוץ גם אם עוברים מסך או נועלים את הטלפון</small></div>`;
   o.querySelector('.ft').textContent = e.title; document.body.appendChild(o);
   const fg = o.querySelector('.fg'), C = 2 * Math.PI * 45; fg.style.strokeDasharray = C;
@@ -3115,7 +3116,8 @@ function focusTimer(e, saved) {
     if (finished) return; finished = true; clearInterval(focusT); forget();
     o.querySelector('.tm').textContent = '🎉'; fg.style.strokeDashoffset = C; document.title = 'הזמן נגמר! ⏰';
     toast('הזמן נגמר! סיימת?');
-    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch {}
+    try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch {}
+    ding();
     try { if (Notification.permission === 'granted') navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png', tag: 'focus' }) : new Notification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png' })); } catch {}
   };
   const paint = () => {
@@ -3124,8 +3126,13 @@ function focusTimer(e, saved) {
     fg.style.strokeDashoffset = C * (1 - left / total); document.title = `${o.querySelector('.tm').textContent} · ${e.title}`;
     if (left <= 0 && pausedLeft === null) finish();
   };
-  const end = () => { clearInterval(focusT); forget(); document.removeEventListener('visibilitychange', onVis); o.remove(); document.title = 'המחברות שלי'; };
-  const onVis = () => { if (!document.hidden && o.isConnected) paint(); };       // חוזרים למסך: מעדכנים מיד
+  let wake = null;
+  const wakeOn = async () => { try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch { toast('הטלפון לא מאפשר להשאיר את המסך דלוק'); o.querySelector('#fWake').checked = false; } };
+  const wakeOff = () => { try { wake && wake.release(); } catch {} wake = null; };
+  o.querySelector('#fWake').onchange = ev => { prepSound(); ev.target.checked ? wakeOn() : wakeOff(); };
+  if (!('wakeLock' in navigator)) o.querySelector('.focus-wake').remove();
+  const end = () => { clearInterval(focusT); forget(); wakeOff(); document.removeEventListener('visibilitychange', onVis); o.remove(); document.title = 'המחברות שלי'; };
+  const onVis = () => { if (!document.hidden && o.isConnected) { paint(); if (o.querySelector('#fWake') && o.querySelector('#fWake').checked && !wake && !finished) wakeOn(); } };       // חוזרים למסך: מעדכנים מיד
   document.addEventListener('visibilitychange', onVis);
   focusT = setInterval(paint, 500);
   o.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
@@ -3142,6 +3149,19 @@ function focusTimer(e, saved) {
   o.querySelector('#fStop').onclick = end;
   o.querySelector('#fDone').onclick = ev => { confetti(ev.target); updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
   store(); paint();
+}
+// צלצול קצר בסוף (צריך "לפתוח" את הקול בלחיצה לפני כן, בגלל חוקי הדפדפן)
+let audioCtx = null;
+function prepSound() { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch {} }
+function ding() {
+  try {
+    prepSound(); if (!audioCtx) return; const t0 = audioCtx.currentTime;
+    [0, 0.35, 0.7, 1.4, 1.75, 2.1].forEach((dt, i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = 'sine'; o.frequency.value = i % 3 === 2 ? 1046 : 880;
+      g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.4, t0 + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.3);
+      o.connect(g).connect(audioCtx.destination); o.start(t0 + dt); o.stop(t0 + dt + 0.32);
+    });
+  } catch {}
 }
 // אם סגרו את האתר באמצע, הטיימר חוזר כשנכנסים שוב
 function resumeFocus() {
