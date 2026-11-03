@@ -121,7 +121,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable();
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); setTimeout(resumeFocus, 300);
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -3091,28 +3091,65 @@ function confetti(el) {
 }
 // טיימר ריכוז (פומודורו)
 let focusT = null;
-function focusTimer(e) {
+// הטיימר נמדד לפי השעה שבה הוא צריך להיגמר (ולא לפי ספירת שניות), אז הוא ממשיך גם כשעוברים מסך או מכבים את המסך
+const FOCUS_KEY = 'focusTimer';
+function focusTimer(e, saved) {
   clearInterval(focusT);
   const old = $('focusBox'); if (old) old.remove();
-  let total = 25 * 60, left = total, paused = false;
+  let total = saved ? saved.total : 25 * 60;
+  let endAt = saved ? saved.endAt : Date.now() + total * 1000;
+  let pausedLeft = saved ? saved.pausedLeft : null;           // אם עצרו: כמה שניות נשארו
+  let finished = false;
   const o = document.createElement('div'); o.id = 'focusBox'; o.className = 'focus-box';
   o.innerHTML = `<div class="focus-in"><small>מתרכזים ב:</small><b class="ft"></b>
     <div class="focus-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" class="bg"/><circle cx="50" cy="50" r="45" class="fg"/></svg><span class="tm">25:00</span></div>
-    <div class="focus-btns"><button type="button" class="btn btn-ghost" data-m="5">5 דק׳</button><button type="button" class="btn btn-ghost" data-m="15">15</button><button type="button" class="btn btn-ghost on" data-m="25">25</button><button type="button" class="btn btn-ghost" data-m="45">45</button></div>
-    <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">הפסקה</button><button type="button" class="btn btn-ghost" id="fDone">✅ סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div></div>`;
+    <div class="focus-btns">${[5, 15, 25, 45].map(m => `<button type="button" class="btn btn-ghost${m * 60 === total ? ' on' : ''}" data-m="${m}">${m === 5 ? '5 דק׳' : m}</button>`).join('')}</div>
+    <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">${pausedLeft !== null ? 'המשך' : 'הפסקה'}</button><button type="button" class="btn btn-ghost" id="fDone">✅ סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div>
+    <small class="focus-note">הטיימר ממשיך לרוץ גם אם עוברים מסך או נועלים את הטלפון</small></div>`;
   o.querySelector('.ft').textContent = e.title; document.body.appendChild(o);
   const fg = o.querySelector('.fg'), C = 2 * Math.PI * 45; fg.style.strokeDasharray = C;
-  const paint = () => { o.querySelector('.tm').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; fg.style.strokeDashoffset = C * (1 - left / total); document.title = `${o.querySelector('.tm').textContent} · ${e.title}`; };
-  const end = () => { clearInterval(focusT); o.remove(); document.title = 'המחברות שלי'; };
-  focusT = setInterval(() => {
-    if (paused) return; left--; paint();
-    if (left <= 0) { clearInterval(focusT); o.querySelector('.tm').textContent = '🎉'; toast('הזמן נגמר! סיימת?'); try { if (Notification.permission === 'granted') new Notification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png' }); } catch {} }
-  }, 1000);
-  o.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { total = left = +b.dataset.m * 60; o.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); paint(); });
-  o.querySelector('#fPause').onclick = ev => { paused = !paused; ev.target.textContent = paused ? 'המשך' : 'הפסקה'; };
+  const leftNow = () => pausedLeft !== null ? pausedLeft : Math.max(0, Math.round((endAt - Date.now()) / 1000));
+  const store = () => { try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ id: e.id, title: e.title, total, endAt, pausedLeft })); } catch {} };
+  const forget = () => { try { localStorage.removeItem(FOCUS_KEY); } catch {} };
+  const finish = () => {
+    if (finished) return; finished = true; clearInterval(focusT); forget();
+    o.querySelector('.tm').textContent = '🎉'; fg.style.strokeDashoffset = C; document.title = 'הזמן נגמר! ⏰';
+    toast('הזמן נגמר! סיימת?');
+    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch {}
+    try { if (Notification.permission === 'granted') navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png', tag: 'focus' }) : new Notification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png' })); } catch {}
+  };
+  const paint = () => {
+    const left = leftNow();
+    o.querySelector('.tm').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+    fg.style.strokeDashoffset = C * (1 - left / total); document.title = `${o.querySelector('.tm').textContent} · ${e.title}`;
+    if (left <= 0 && pausedLeft === null) finish();
+  };
+  const end = () => { clearInterval(focusT); forget(); document.removeEventListener('visibilitychange', onVis); o.remove(); document.title = 'המחברות שלי'; };
+  const onVis = () => { if (!document.hidden && o.isConnected) paint(); };       // חוזרים למסך: מעדכנים מיד
+  document.addEventListener('visibilitychange', onVis);
+  focusT = setInterval(paint, 500);
+  o.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+    total = +b.dataset.m * 60; finished = false;
+    if (pausedLeft !== null) pausedLeft = total; else endAt = Date.now() + total * 1000;
+    o.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b)); store(); clearInterval(focusT); focusT = setInterval(paint, 500); paint();
+  });
+  o.querySelector('#fPause').onclick = ev => {
+    if (finished) return;
+    if (pausedLeft === null) { pausedLeft = leftNow(); ev.target.textContent = 'המשך'; }
+    else { endAt = Date.now() + pausedLeft * 1000; pausedLeft = null; ev.target.textContent = 'הפסקה'; }
+    store(); paint();
+  };
   o.querySelector('#fStop').onclick = end;
   o.querySelector('#fDone').onclick = ev => { confetti(ev.target); updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
-  paint();
+  store(); paint();
+}
+// אם סגרו את האתר באמצע, הטיימר חוזר כשנכנסים שוב
+function resumeFocus() {
+  try {
+    const f = JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); if (!f || !f.id) return;
+    if (f.pausedLeft === null && f.endAt < Date.now() - 6 * 3600e3) { localStorage.removeItem(FOCUS_KEY); return; }
+    focusTimer({ id: f.id, title: f.title }, f);
+  } catch {}
 }
 // הוספה מהירה בתוך הכרטיסייה: תמיד שיעורי בית
 $('hwAdd').addEventListener('keydown', async ev => {

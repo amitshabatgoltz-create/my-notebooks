@@ -886,3 +886,4 @@ body.editing-shared #sumBtn{display:none}
 .oc-hw .ts-item input.ts-d{width:150px;height:34px;margin:0;padding:0 6px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px}
 .oc-hw .ts-item input[type=checkbox]{width:18px;height:18px;margin:0;padding:0;accent-color:var(--accent)}
 @media (max-width:700px){.oc-hw .ts-item{flex-wrap:wrap}.oc-hw .ts-item input.ts-t{flex:1 1 calc(100% - 60px)}.oc-hw .ts-item input.ts-d{margin-inline-start:44px}}
+.focus-note{color:var(--muted);font-size:12.5px;margin-top:6px}
