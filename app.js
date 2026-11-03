@@ -710,11 +710,11 @@ async function loadImages(root, uid) {
 }
 
 // מקטינים את התמונה כדי שתישמר מהר ותיכנס במגבלת הגודל
-function shrink(file) {
+function shrink(file, maxSide) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file); const im = new Image();
     im.onload = () => {
-      let max = 1400, q = 0.8, out;
+      let max = maxSide || 1400, q = 0.8, out;
       for (let i = 0; i < 6; i++) {
         const k = Math.min(1, max / Math.max(im.width, im.height));
         const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
@@ -916,10 +916,27 @@ applyThemeIcon();
 /* ================= ✨ סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */
 const AI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
 let aiService = null;
-function aiModel(name) {
+function aiModel(name, generationConfig) {
   if (!aiService) aiService = getAI(fb, { backend: new GoogleAIBackend() });
-  return getGenerativeModel(aiService, { model: name });
+  return getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name });
 }
+// קריאה מהירה של קובץ (מערכת שעות / לוח מבחנים): מודל קל, בלי "חשיבה", ותשובה ישר כ-JSON
+const FAST_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+async function aiExtract(prompt, part) {
+  let order = FAST_MODELS.slice(); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
+  let lastErr = null;
+  for (const name of order) {
+    for (const cfg of [{ temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }, { temperature: 0, responseMimeType: 'application/json' }]) {
+      try {
+        const r = await aiModel(name, cfg).generateContent([prompt, part]); const txt = r.response.text();
+        if (txt) { try { localStorage.setItem('fastModel', name); } catch {} return txt; }
+      } catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
+    }
+  }
+  throw lastErr || new Error('empty');
+}
+// מונה שניות כדי שיהיה ברור שזה עובד
+function ticking(el, label) { const t0 = Date.now(); const f = () => { el.textContent = `${label} ${Math.round((Date.now() - t0) / 1000)} שנ׳`; }; f(); const id = setInterval(f, 500); return () => clearInterval(id); }
 const SUMMARY_PROMPT = `אתה עוזר לתלמיד בחטיבת ביניים להתכונן למבחן.
 לפניך החומר מהמחברת שלו: טקסט, ולפעמים גם תמונות של דפי מחברת בכתב יד או של הלוח.
 הכן סיכום למבחן בעברית, ברור וקצר, שכולל:
@@ -2575,10 +2592,10 @@ function timetableDialog() {
     if (d.querySelector('#ttManual')) d.querySelector('#ttManual').onclick = () => { showTable(); d.querySelector('.tt input').focus(); };
     d.querySelector('#ttFile').onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
-      const st = d.querySelector('#ttStatus'); st.textContent = '✨ קורא את המערכת מהתמונה... (10–20 שניות)'; d.querySelector('#ttPhoto').disabled = true;
+      const st = d.querySelector('#ttStatus'); const stop = ticking(st, '✨ קורא את המערכת...'); d.querySelector('#ttPhoto').disabled = true;
       try {
         let data, mime = f.type || 'image/jpeg';
-        if (/^image\//.test(mime)) { data = (await shrink(f)); mime = (data.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg'; data = data.split(',')[1]; }
+        if (/^image\//.test(mime)) { data = (await shrink(f, 1280)); mime = (data.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg'; data = data.split(',')[1]; }
         else data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
         const prompt = `זו מערכת שעות של תלמיד בישראל. קרא אותה והחזר JSON בלבד, בלי שום טקסט נוסף, בפורמט:
 {"lessons":[{"day":0,"p":1,"s":"אנגלית"},{"day":0,"p":2,"s":"אנגלית"}]}
@@ -2587,9 +2604,7 @@ function timetableDialog() {
 - s: רק שם המקצוע, קצר וברור. בלי שם המורה, בלי חדר, בלי שעה, בלי מספרים בסוגריים מרובעים ובלי פרטי קבוצה כמו "הקבצה א" או "ח1-6". למשל "מתמטיקה א1 ח1-6 [6843]" → "מתמטיקה", "עברית הבעה ולשון ח4 [7034]" → "עברית הבעה ולשון".
 - אם יש שני שיעורים באותה שעה באותו יום, שים אותם באותו פריט עם " / " ביניהם.
 - כלול רק משבצות שיש בהן שיעור. אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.`;
-        let txt = '', lastErr = null;
-        for (const name of AI_MODELS) { try { const r = await aiModel(name).generateContent([prompt, { inlineData: { mimeType: mime, data } }]); txt = r.response.text(); if (txt) break; } catch (e) { lastErr = e; console.error(name, e); } }
-        if (!txt) throw lastErr || new Error('empty');
+        const txt = await aiExtract(prompt, { inlineData: { mimeType: mime, data } }); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
         const L = (Array.isArray(j.lessons) ? j.lessons : []).filter(x => x && x.s && +x.day >= 0 && +x.day <= 5 && Number.isFinite(+x.p));
@@ -2602,7 +2617,7 @@ function timetableDialog() {
         while (guard++ < 2 && [0, 1, 2, 3, 4, 5].every(i => !days[i][0]) && [0, 1, 2, 3, 4, 5].some(i => days[i].some(Boolean))) { for (let i = 0; i < 6; i++) days[i] = days[i].slice(1); if (start === 0) start = 1; }
         d.querySelector('#ttZero').checked = start === 0; relabel();
         fill(days); showTable(); d.querySelector('#ttPhoto').classList.add('small'); st.textContent = '✓ מילאתי לפי התמונה. תבדוק שהכל נכון ותלחץ "שמירה".';
-      } catch (e) { console.error(e); st.textContent = 'לא הצלחתי לקרוא את התמונה. נסה תמונה ברורה יותר, או הקלד בטבלה.'; showTable(); }
+      } catch (e) { console.error(e); stop(); st.textContent = 'לא הצלחתי לקרוא את התמונה. נסה תמונה ברורה יותר, או הקלד בטבלה.'; showTable(); }
       d.querySelector('#ttPhoto').disabled = false;
     };
     const row = document.createElement('div'); row.className = 'row';
@@ -2801,7 +2816,7 @@ const loadScript = src => new Promise((res, rej) => { if (document.querySelector
 async function fileToAiPart(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const b64 = () => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
-  if (/^image\//.test(f.type) && !/heic|heif/.test(f.type)) { const d = await shrink(f); return { inlineData: { mimeType: (d.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: d.split(',')[1] } }; }
+  if (/^image\//.test(f.type) && !/heic|heif/.test(f.type)) { const d = await shrink(f, 1280); return { inlineData: { mimeType: (d.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: d.split(',')[1] } }; }
   if (f.type === 'application/pdf' || ext === 'pdf') return { inlineData: { mimeType: 'application/pdf', data: await b64() } };
   if (/^(xlsx|xls|ods)$/.test(ext)) {
     await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
@@ -2851,7 +2866,7 @@ function testsDialog() {
     d.querySelector('#tsUp').onclick = () => d.querySelector('#tsFile').click();
     d.querySelector('#tsFile').onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
-      const up = d.querySelector('#tsUp'); up.disabled = true; st.textContent = '✨ קורא את לוח המבחנים... (10–30 שניות)'; list.innerHTML = ''; ok.classList.add('hidden');
+      const up = d.querySelector('#tsUp'); up.disabled = true; const stop = ticking(st, '✨ קורא את לוח המבחנים...'); list.innerHTML = ''; ok.classList.add('hidden');
       try {
         const part = await fileToAiPart(f);
         const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
@@ -2864,9 +2879,7 @@ function testsDialog() {
 - time: שעה בפורמט HH:MM אם כתובה, אחרת "".
 - class: אם הלוח מחולק לכיתות או לקבוצות (למשל ח1, ח2, הקבצה א), כתוב לאיזו. אחרת "".
 - אל תמציא. אם אין תאריך ברור לשורה, דלג עליה.`;
-        let txt = '', lastErr = null;
-        for (const name of AI_MODELS) { try { const r = await aiModel(name).generateContent([prompt, part]); txt = r.response.text(); if (txt) break; } catch (e) { lastErr = e; console.error(name, e); } }
-        if (!txt) throw lastErr || new Error('empty');
+        const txt = await aiExtract(prompt, part); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const tk = todayKey();
         items = (Array.isArray(j.items) ? j.items : []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x && x.date || '')).slice(0, 150).map((x, i) => {
@@ -2875,7 +2888,7 @@ function testsDialog() {
           const dup = events.some(e => e.date === x.date && (e.title === title || (x.subject && normS(e.title).includes(normS(x.subject)) && e.type === type)));
           return { k: 'i' + i, date: x.date, title, type, time: /^\d{1,2}:\d{2}$/.test(x.time || '') ? x.time.padStart(5, '0') : '', cls: String(x.class || '').trim(), dup, past: x.date < tk, on: !dup && x.date >= tk };
         }).sort((a, b) => a.date.localeCompare(b.date));
-        if (!items.length) { st.textContent = 'לא מצאתי מבחנים בקובץ. נסה תמונה ברורה יותר, או קובץ אחר.'; up.disabled = false; return; }
+        if (!items.length) { stop(); st.textContent = 'לא מצאתי מבחנים בקובץ. נסה תמונה ברורה יותר, או קובץ אחר.'; up.disabled = false; return; }
         const classes = [...new Set(items.map(x => x.cls).filter(Boolean))];
         const cb = d.querySelector('#tsClasses');
         if (classes.length > 1) {
@@ -2885,7 +2898,7 @@ function testsDialog() {
         const nNew = items.filter(x => x.on).length;
         st.textContent = `✓ מצאתי ${items.length} ${items.length === 1 ? 'פריט' : 'פריטים'}. ${nNew ? 'תבדוק שהתאריכים נכונים ותלחץ "הוספה ליומן".' : 'כולם כבר ביומן או שכבר עברו.'}`;
         up.classList.add('small'); paint();
-      } catch (e) { console.error(e); st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : 'לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור.'; }
+      } catch (e) { console.error(e); stop(); st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : 'לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור.'; }
       up.disabled = false;
     };
     ok.onclick = async () => {
