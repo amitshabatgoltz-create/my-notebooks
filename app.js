@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
+import { getDatabase, ref as dbRef, set as dbSet, onValue, onDisconnect, remove as dbRemove } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
 import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615860";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
@@ -26,6 +27,8 @@ if (recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE')) {
   catch (e) { console.error('App Check', e); }
 }
 const auth = getAuth(fb);
+// Realtime Database: ערוץ מהיר לעכבר, לסמן ולטקסט בזמן עריכה משותפת (אם הוגדר)
+let rtdb = null; try { if (firebaseConfig.databaseURL) rtdb = getDatabase(fb); } catch (e) { console.warn('rtdb', e); }
 // שמירה גם במכשיר: המחברות נפתחות גם בלי אינטרנט, ומה שכותבים נשלח כשהחיבור חוזר
 let db;
 try { db = initializeFirestore(fb, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
@@ -350,7 +353,8 @@ function markDirty() {
   if (!dirty) dirtySince = Date.now();
   dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer);
   // בעריכה משותפת שולחים מהר (אחרי חצי שנייה של שקט, ולא יותר משנייה וחצי בזמן הקלדה)
-  if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1500 ? 0 : 450);
+  if (live && rtdb) { liveBroadcast(); saveTimer = setTimeout(flush, Date.now() - dirtySince > 4000 ? 0 : 1500); }
+  else if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1500 ? 0 : 450);
   else saveTimer = setTimeout(flush, 1200);
 }
 const setSave = (txt, st) => { const el = $('save'); el.textContent = txt; el.dataset.st = st || ''; };
@@ -363,12 +367,12 @@ async function flush() {
   // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
   let localHtml = clean($('editor').innerHTML);
   // עריכה משותפת: אם מישהו אחר שינה בינתיים, משלבים לפי פסקאות
-  if (live && live.remote && live.remote.html !== live.base) {
-    const merged = mergeHtml(live.base, localHtml, live.remote.html);
+  if (live && !live.rt && live.remote && live.remote.html !== live.base) {
+    const merged = mergeHtml(live.base, localHtml, live.remote.html, live.remote.updatedBy);
     if (merged !== localHtml) { localHtml = merged; applyRemoteHtml(merged); }
   }
   const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: localHtml, updatedAt: Date.now() };
-  if (live) { live.base = localHtml; live.lastSent = fields.updatedAt; }
+  if (live) { if (!live.rt) live.base = localHtml; live.lastSent = fields.updatedAt; }
   let pr;
   if (String(id).startsWith('share:')) {                   // חבר שעורך מחברת של מישהו אחר
     pr = updateDoc(shareDoc(id.slice(6)), { ...fields, updatedBy: me.uid, updatedByName: myName() });
@@ -2659,7 +2663,29 @@ let live = null;
 const myName = () => (me && (me.displayName || (me.email || '').split('@')[0])) || 'חבר';
 function blocksOf(html) { const t = document.createElement('div'); t.innerHTML = html || ''; return [...t.childNodes].map(n => n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? n.textContent : '').filter(x => x !== ''); }
 // שילוב לפי פסקאות: מה שרק אתה שינית נשאר שלך, מה שרק החבר שינה נכנס, ואם שניכם שיניתם אותה פסקה – שתי הגרסאות נשארות (כלום לא נמחק)
-function mergeHtml(base, local, remote) {
+// שילוב ברמת התווים: כל צד שינה אזור אחד; אם האזורים נפרדים – שניהם נכנסים. אם הם חופפים – שניהם נשארים בסדר קבוע (כך ששני המכשירים מגיעים לאותה תוצאה)
+function editRegion(base, x) {
+  let s = 0; const m = Math.min(base.length, x.length);
+  while (s < m && base[s] === x[s]) s++;
+  let e = 0; while (e < m - s && base[base.length - 1 - e] === x[x.length - 1 - e]) e++;
+  return { s, e: base.length - e, ins: x.slice(s, x.length - e) };
+}
+function merge3(base, a, b, aFirst) {
+  if (a === base) return b; if (b === base || a === b) return a;
+  const ra = editRegion(base, a), rb = editRegion(base, b);
+  if (ra.e <= rb.s && !(ra.e === rb.s && ra.s === rb.s)) return base.slice(0, ra.s) + ra.ins + base.slice(ra.e, rb.s) + rb.ins + base.slice(rb.e);
+  if (rb.e <= ra.s && !(rb.e === ra.s && ra.s === rb.s)) return base.slice(0, rb.s) + rb.ins + base.slice(rb.e, ra.s) + ra.ins + base.slice(ra.e);
+  // שניהם הוסיפו באותה נקודה בדיוק: שתי התוספות נכנסות בסדר קבוע
+  if (ra.s === ra.e && rb.s === rb.e && ra.s === rb.s) return base.slice(0, ra.s) + (aFirst ? ra.ins + rb.ins : rb.ins + ra.ins) + base.slice(ra.e);
+  // שינויים חופפים באותו מקום: גרסה אחת מנצחת (תמיד אותה אחת בשני המכשירים), בלי כפילויות
+  const s0 = Math.min(ra.s, rb.s), e0 = Math.max(ra.e, rb.e);
+  const win = aFirst ? a : b;
+  return base.slice(0, s0) + win.slice(s0, win.length - (base.length - e0)) + base.slice(e0);
+}
+function mergeHtml(base, local, remote, remoteUid) {
+  return clean(merge3(base, local, remote, String(me && me.uid) < String(remoteUid || '')));
+}
+function mergeBlocksOld(base, local, remote) {
   const B = blocksOf(base), L = blocksOf(local), R = blocksOf(remote);
   if (L.join('') === B.join('')) return remote;
   if (R.join('') === B.join('')) return local;
@@ -2693,10 +2719,15 @@ function caretRestore(pos) {
   while ((n = w.nextNode())) { if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); return; } left -= n.length; }
 }
 function applyRemoteHtml(html) {
-  const ed = $('editor'); const pos = document.activeElement === ed ? caretMark() : null;
-  const y = window.scrollY;
+  const ed = $('editor'); let pos = document.activeElement === ed ? caretMark() : null;
+  const y = window.scrollY, oldText = ed.textContent;
   ed.innerHTML = html; loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
-  if (pos !== null) caretRestore(pos);
+  if (pos !== null) {
+    // הסמן שלך זז יחד עם הטקסט: אם החבר הוסיף לפניך, הסמן מתקדם בהתאם
+    const nt = ed.textContent, r = editRegion(oldText, nt), delta = nt.length - oldText.length;
+    if (pos >= r.e) pos += delta; else if (pos > r.s) pos = Math.min(pos, r.s + r.ins.length);
+    caretRestore(Math.max(0, pos));
+  }
   window.scrollTo(0, y);
   paintCursors();
 }
@@ -2710,15 +2741,10 @@ function startLive(shareId, baseHtml) {
     const s = snap.data();
     if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     if (s.updatedBy === me.uid || (s.updatedAt || 0) <= L.lastSent) return;     // השינוי שלי חזר אליי
-    L.remote = s;
-    if (s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
-    if (s.html === L.base) return;
-    if (!dirty) { applyRemoteHtml(s.html); L.base = s.html; showEditorBy(s.updatedByName); }
-    else { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 60); showEditorBy(s.updatedByName); }
-    // הבעלים מעדכן גם את המחברת השמורה שלו
-    if (!String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === shareId); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
+    handleRemote(L, s, true);
   }, e => console.warn('live', e));
-  // מי עוד כאן
+  if (rtdb) { startRtdb(L); paintPresence([]); return; }
+  // מי עוד כאן (בלי Realtime Database: דרך Firestore, איטי יותר)
   const pres = () => setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {});
   L.pres = pres;
   pres(); L.presTimer = setInterval(pres, 20000);
@@ -2733,8 +2759,10 @@ function stopLive() {
   if (!live) { paintPresence(null); return; }
   const L = live; live = null;
   if (L.unsub) L.unsub(); if (L.unsubPres) L.unsubPres(); clearInterval(L.presTimer);
+  if (L.rt) { try { L.rt.offCur(); L.rt.offTxt(); dbRemove(L.rt.me).catch(() => {}); } catch {} }
+  cursorEls.clear();
   const cl = $('cursorLayer'); if (cl) cl.innerHTML = '';
-  if (me) deleteDoc(doc(db, 'shares', L.id, 'presence', me.uid)).catch(() => {});
+  if (me && !L.rt) deleteDoc(doc(db, 'shares', L.id, 'presence', me.uid)).catch(() => {});
   paintPresence(null);
 }
 function paintPresence(others) {
@@ -2890,7 +2918,7 @@ let presT = null, presPending = false;
 function presPush(patch) {
   if (!live) return; live.me = { ...(live.me || {}), ...patch };
   if (presT) { presPending = true; return; }
-  live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, 350);
+  live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, live.rt ? 40 : 350);
 }
 document.addEventListener('selectionchange', () => { if (!live) return; const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co)) presPush(c); });
 $('editor').addEventListener('mousemove', e => {
@@ -2909,26 +2937,52 @@ function caretRect(blk, off) {
   while ((n = w.nextNode())) { last = n; if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const rr = r.getClientRects(); if (rr.length) return rr[0]; const r2 = document.createRange(); r2.selectNodeContents(n); return r2.getBoundingClientRect(); } left -= n.length; }
   const b = blk.getBoundingClientRect(); return { left: b.right, top: b.top, height: Math.min(28, b.height || 24), right: b.right };
 }
+const cursorEls = new Map();
+let cursorAnim = null;
 function paintCursors() {
   let layer = $('cursorLayer');
   if (!layer) { layer = document.createElement('div'); layer.id = 'cursorLayer'; layer.className = 'cursor-layer'; document.querySelector('#notebook .page').appendChild(layer); }
-  if (!live || !live.others || $('notebook').classList.contains('hidden')) { layer.innerHTML = ''; return; }
+  if (!live || !live.others || $('notebook').classList.contains('hidden')) { layer.innerHTML = ''; cursorEls.clear(); return; }
   const page = layer.parentElement.getBoundingClientRect(), blocks = topBlocks(), ed = $('editor').getBoundingClientRect();
-  let h = '';
+  const seen = new Set();
   live.others.forEach(o => {
-    const c = colorOf(o.id), nm = String(o.name || 'חבר').replace(/[<>&"]/g, '');
+    seen.add(o.id);
+    let E = cursorEls.get(o.id);
+    const c = colorOf(o.id), nm = String(o.name || 'חבר');
+    if (!E) {
+      E = { line: document.createElement('div'), caret: document.createElement('div'), mouse: document.createElement('div'), cur: null, tgt: null };
+      E.line.className = 'lc-line'; E.caret.className = 'lc-caret'; E.caret.innerHTML = '<span></span>';
+      E.mouse.className = 'lc-mouse'; E.mouse.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><span></span>';
+      [E.line, E.caret, E.mouse].forEach(x => { x.style.setProperty('--c', c); layer.appendChild(x); });
+      cursorEls.set(o.id, E);
+    }
+    E.caret.querySelector('span').textContent = nm; E.mouse.querySelector('span').textContent = nm;
     const blk = blocks[o.cb];
-    if (blk) { const b = rectOf(blk); h += `<div class="lc-line" style="--c:${c};top:${b.top - page.top - 2}px;left:${ed.left - page.left - 8}px;width:${ed.width + 16}px;height:${b.height + 4}px"></div>`; }
+    const b = blk ? rectOf(blk) : null;
+    if (b) Object.assign(E.line.style, { display: '', top: (b.top - page.top - 2) + 'px', left: (ed.left - page.left - 8) + 'px', width: (ed.width + 16) + 'px', height: (b.height + 4) + 'px' }); else E.line.style.display = 'none';
     const cr = blk ? caretRect(blk, o.co || 0) : null;
-    if (cr) h += `<div class="lc-caret" style="--c:${c};top:${cr.top - page.top}px;left:${cr.left - page.left}px;height:${cr.height || 22}px"><span>${nm}</span></div>`;
+    if (cr) Object.assign(E.caret.style, { display: '', top: (cr.top - page.top) + 'px', left: (cr.left - page.left) + 'px', height: (cr.height || 22) + 'px' }); else E.caret.style.display = 'none';
+    let x, y;
     if (o.mb !== undefined && o.mb !== -2) {
-      let x, y;
       if (o.mb >= 0 && blocks[o.mb]) { const r = rectOf(blocks[o.mb]); x = r.left + o.mx * r.width; y = r.top + o.my * r.height; }
       else if (o.mb === -1) { x = ed.left + o.mx * ed.width; y = ed.top + o.my; }
-      if (x !== undefined && isFinite(x) && isFinite(y)) h += `<div class="lc-mouse" style="--c:${c};top:${y - page.top}px;left:${x - page.left}px"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><span>${nm}</span></div>`;
     }
+    if (x !== undefined && isFinite(x) && isFinite(y)) { E.tgt = { x: x - page.left, y: y - page.top }; if (!E.cur) E.cur = { ...E.tgt }; E.mouse.style.display = ''; }
+    else { E.tgt = null; E.mouse.style.display = 'none'; }
   });
-  layer.innerHTML = h;
+  for (const [id, E] of cursorEls) if (!seen.has(id)) { E.line.remove(); E.caret.remove(); E.mouse.remove(); cursorEls.delete(id); }
+  // תנועה חלקה של העכבר אל המיקום החדש
+  if (!cursorAnim) cursorAnim = requestAnimationFrame(stepCursors);
+}
+function stepCursors() {
+  cursorAnim = null; let moving = false;
+  for (const E of cursorEls.values()) {
+    if (!E.tgt || !E.cur) continue;
+    const dx = E.tgt.x - E.cur.x, dy = E.tgt.y - E.cur.y;
+    if (Math.abs(dx) + Math.abs(dy) > .5) { E.cur.x += dx * .45; E.cur.y += dy * .45; moving = true; } else { E.cur.x = E.tgt.x; E.cur.y = E.tgt.y; }
+    E.mouse.style.transform = `translate(${E.cur.x}px,${E.cur.y}px)`;
+  }
+  if (moving) cursorAnim = requestAnimationFrame(stepCursors);
 }
 window.addEventListener('resize', () => live && paintCursors());
 $('editor').addEventListener('input', () => live && requestAnimationFrame(paintCursors));
@@ -3055,3 +3109,52 @@ $('hwAdd').addEventListener('keydown', async ev => {
 });
 $('hwAdd').addEventListener('input', () => { const v = $('hwAdd').value.trim(); if (!v) { $('hwAddHint').textContent = ''; return; } const q = parseQuick(v); const sub = subjectOf(v); $('hwAddHint').textContent = `${sub ? sub + ' · ' : ''}${q.dateLabel}`; });
 $('hwFilters').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; hwFilter = b.dataset.f || null; renderHW(); });
+
+/* ---- ערוץ מהיר: Realtime Database ---- */
+const hsh = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + ':' + str.length; };
+function remember(L, html) { L.hist = L.hist || new Map(); L.hist.set(hsh(html), html); if (L.hist.size > 60) L.hist.delete(L.hist.keys().next().value); }
+function handleRemote(L, s, fromStore) {
+  L.remote = { ...(L.remote || {}), ...s };
+  if (s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
+  // הבעלים מעדכן גם את המחברת השמורה שלו (רק מהשמירה האמיתית)
+  if (fromStore && !String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === L.id); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
+  if (fromStore && L.rt) return;                        // את הטקסט עצמו מקבלים מהערוץ המהיר
+  if (s.html === undefined || s.html === L.base) return;
+  if (!dirty) { applyRemoteHtml(s.html); L.base = s.html; showEditorBy(s.updatedByName || s.name); }
+  else { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 60); }
+}
+function startRtdb(L) {
+  const meRef = dbRef(rtdb, `cursors/${L.id}/${me.uid}`), txtRef = dbRef(rtdb, `livetext/${L.id}`);
+  L.rt = { me: meRef }; remember(L, L.base);
+  onDisconnect(meRef).remove().catch(() => {});
+  L.pres = () => dbSet(meRef, { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {});
+  L.pres(); L.presTimer = setInterval(L.pres, 20000);
+  L.rt.offCur = onValue(dbRef(rtdb, `cursors/${L.id}`), snap => {
+    if (live !== L) return; const v = snap.val() || {}; const now = Date.now();
+    L.others = Object.entries(v).map(([id, d]) => ({ id, ...d })).filter(p => p.id !== me.uid && now - (p.at || 0) < 90000);
+    paintPresence(L.others); paintCursors();
+  });
+  L.rt.offTxt = onValue(txtRef, snap => {
+    if (live !== L) return; const v = snap.val(); if (!v || v.by === me.uid || typeof v.html !== 'string') return;
+    if (v.title && document.activeElement !== $('title') && $('title').value !== v.title) $('title').value = v.title;
+    // שילוב בשלושה כיוונים מול הגרסה שהחבר בנה עליה
+    const base = (L.hist && L.hist.get(v.baseH)) || L.base;
+    const local = clean($('editor').innerHTML);
+    const merged = local === base ? v.html : mergeHtml(base, local, v.html, v.by);
+    remember(L, v.html); L.base = v.html;
+    if (merged !== local) { applyRemoteHtml(merged); showEditorBy(v.name); }
+    if (merged !== v.html) { liveBroadcast(true); if (!dirty) { dirty = true; dirtySince = Date.now(); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 1500); } }
+  });
+}
+let bcT = null, bcPending = false;
+function liveBroadcast(now) {
+  if (!live || !live.rt) return;
+  const send = () => {
+    if (!live || !live.rt) return; const L = live; const html = clean($('editor').innerHTML); if (html === L.base) return;
+    dbSet(dbRef(rtdb, `livetext/${L.id}`), { html, title: $('title').value, by: me.uid, name: myName(), t: Date.now(), baseH: hsh(L.base) }).catch(() => {});
+    remember(L, html); L.base = html;
+  };
+  if (now) { send(); return; }
+  if (bcT) { bcPending = true; return; }
+  send(); bcT = setTimeout(() => { bcT = null; if (bcPending) { bcPending = false; send(); } }, 150);
+}

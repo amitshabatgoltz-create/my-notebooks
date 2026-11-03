@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "cursors": {
+      "$share": {
+        ".read": "auth != null",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "livetext": {
+      "$share": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
