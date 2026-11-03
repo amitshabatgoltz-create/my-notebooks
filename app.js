@@ -3259,7 +3259,7 @@ async function ocrDialog() {
   dialog(d => {
     d.classList.add('ocr-dlg');
     const recent = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים (עד ${OCR_MAX_IMGS}) והם נקראים יחד.</p>
+    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך.${left === Infinity ? ' אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים והם נקראים יחד.' : ` נשארו לך היום <b>${left === 1 ? 'תמונה אחת' : left + ' תמונות'}</b>.`}</p>
       ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
         <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5–10 שניות</span><small>יכולות להיות כמה טעויות</small></button>
@@ -3284,7 +3284,8 @@ async function ocrDialog() {
     };
     d.querySelector('#ocThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
     d.querySelector('#ocUp').onclick = () => d.querySelector('#ocFile').click();
-    d.querySelector('#ocFile').onchange = ev => { const add = [...ev.target.files]; const room = OCR_MAX_IMGS - files.length; if (add.length > room) toast(`אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    const maxImgs = Math.min(OCR_MAX_IMGS, left);
+    d.querySelector('#ocFile').onchange = ev => { const add = [...ev.target.files]; const room = maxImgs - files.length; if (add.length > room) toast(left < OCR_MAX_IMGS ? `נשארו לך היום ${left === 1 ? 'תמונה אחת' : left + ' תמונות'}` : `אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     go.onclick = async () => {
       if (!files.length) return;
       let mode = '';
@@ -3329,7 +3330,7 @@ async function ocrDialog() {
         const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/<mark class="chk"(?: data-alt="([^"]*)")?>([^<]*)<\/mark>/g, (m, a, w) => `⁅${w}⁆[?${a ? '|' + a : ''}]`).replace(/(\[\?[^\]]*\])\s*\[\?\]/g, '$1').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; liveBox.remove(); go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
-        useOne('ocr');
+        useOne('ocr', files.length);
         closeDialog(); ocrResult(n, html, title, hw, mode);
       } catch (e) { stop(); console.error(e); showAiError(e); }
     };
@@ -3425,10 +3426,10 @@ async function loadUsage() {
   return usage;
 }
 async function usageLeft(k) { if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
-function useOne(k) {
+function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
-  usage[k] = (usage[k] || 0) + 1;
+  usage[k] = (usage[k] || 0) + count;
   setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
@@ -3438,7 +3439,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>נגמרו השימושים ב"${USE_NAME[k]}" להיום</h3><p>${k === 'ocr' ? `אפשר להשתמש בתמונה לטקסט ${DAILY.ocr} פעמים ביום (ובכל פעם עד ${OCR_MAX_IMGS} תמונות).` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3536,7 +3537,7 @@ const ILL = {
 };
 const INTROS = {
   ocr: [
-    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. לוח ארוך? אפשר לצלם בכמה חלקים.'],
+    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. אפשר להעלות 3 תמונות ביום.'],
     ['typing', 'ה-AI מקליד בשבילך', 'תוך כמה שניות רואים את הטקסט נכתב: כותרות, רשימות וטבלאות, בדיוק לפי הלוח. בלי רשימת תורנים ובלי דברים שלא שייכים לשיעור.'],
     ['check', 'בודקים מילים מסומנות', 'האתר קורא את התמונה פעמיים. מילה שלא היה בטוח בה מסומנת בצהוב, ולידה "אולי:" עם התיקון – לחיצה אחת מחליפה.'],
     ['cal', 'שיעורי בית נכנסים לבד', 'אם כתוב על הלוח שיעורי בית, הם נכנסים ליומן ולשיעורי הבית – עד התאריך שכתוב, או לשיעור הבא במקצוע.'],
