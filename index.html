@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793739386">
+<link rel="stylesheet" href="style.css?v=1793739615">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -140,6 +140,7 @@
             <h1 id="greet"></h1>
             <p class="hero-sub" id="greetSub"></p>
             <div class="hero-actions">
+              <button class="btn btn-ai" id="homeOcr">📷 צילום לוח</button>
               <button class="btn btn-light" id="homeNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
               <button class="btn btn-glass" id="homeCal"><svg><use href="#i-cal"/></svg>ליומן</button>
             </div>
@@ -193,6 +194,10 @@
         <div class="doc">
           <div class="doc-color" id="docColor"></div>
           <input class="ed-title" id="title" aria-label="שם המחברת" placeholder="שם המחברת">
+          <div class="ai-strip">
+            <button type="button" class="ai-card ocr" id="aiOcr"><span class="ic">📷</span><span class="tx"><b>תמונה לטקסט</b><small>מצלמים את הלוח והוא מקליד</small></span></button>
+            <button type="button" class="ai-card sum" id="aiSum"><span class="ic">✨</span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
+          </div>
           <div class="toolbar" id="toolbar">
             <div class="seg">
               <button data-cmd="h1" title="כותרת ראשית" class="t-h1">כותרת</button>
@@ -300,6 +305,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793739386"></script>
+<script type="module" src="app.js?v=1793739615"></script>
 </body>
 </html>

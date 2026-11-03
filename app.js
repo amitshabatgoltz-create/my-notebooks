@@ -3249,8 +3249,8 @@ const OCR_HW = () => { const d = new Date(); return `
 - due: רק אם כתוב עד מתי. היום ${todayKey()}, יום ${HE_DAYS[d.getDay()]}. "עד יום חמישי" = יום חמישי הקרוב. "לשבוע הבא" = בעוד 7 ימים. "למחר" = מחר. אם לא כתוב – "".
 - אם אין שיעורי בית בכלל – אל תוסיף את השורה הזו.`; };
 async function ocrDialog() {
-  const n = notebooks.find(x => x.id === openId);
-  if (!n && !String(openId).startsWith('share:')) return;
+  const n = notebooks.find(x => x.id === openId) || null;
+  if (openId && !n && !String(openId).startsWith('share:')) return;
   const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
   dialog(d => {
     d.classList.add('ocr-dlg');
@@ -3283,8 +3283,8 @@ async function ocrDialog() {
         }
         let txt = '', lastErr = null;
         // כאן דיוק חשוב יותר ממהירות (יש רק 3 ביום): מודל מלא, עם זמן "חשיבה", והקשר מהמחברת
-        const ctxTitle = n ? (n.title || '') : $('title').value;
-        const ctxHeads = [...$('editor').querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
+        const ctxTitle = n ? (n.title || '') : openId ? $('title').value : '';
+        const ctxHeads = !openId ? '' : [...$('editor').querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
         const ctx = `\nהקשר (רק כדי לזהות מילים, לא להעתיק): שם המחברת: "${ctxTitle}".${ctxHeads ? ` כותרות אחרונות במחברת: ${ctxHeads}.` : ''}
 - כשמילה לא ברורה, העדף מילה עברית אמיתית שמתאימה להקשר של המשפט ושל המקצוע (למשל שמות מהתנ"ך, מקומות, מושגים מהשיעור), על פני רצף אותיות חסר משמעות.
 - מספרי פסוקים ופרקים כתובים באותיות עבריות (א', ב', ט', י'...). שים לב להבדל בין ט' ל-כ', ובין י' ל-ז'/ו'.
@@ -3331,10 +3331,21 @@ function ocrResult(n, html, title, hw = []) {
     }
     const saveHw = async () => { const pick = hw.filter(x => x.on !== false); if (!pick.length) return 0; for (const x of pick) await addDoc(evCol(), { title: x.title, type: x.type, time: '', date: x.date, done: false, createdAt: Date.now(), ...(x.auto ? { autoDate: true } : {}) }).catch(() => {}); return pick.length; };
     const hwToast = k => k ? ` · ${k === 1 ? 'משימה נוספה' : k + ' משימות נוספו'} ליומן` : '';
-    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : 'הוספה לסוף המחברת';
+    // מגיעים ממסך הבית (בלי מחברת פתוחה): בוחרים לאיזו מחברת להוסיף
+    let pickSel = null;
+    const fromHome = !n && !String(openId).startsWith('share:');
+    if (fromHome && notebooks.length) {
+      const w = document.createElement('label'); w.className = 'oc-pick'; w.innerHTML = '<span>להוסיף למחברת:</span>';
+      pickSel = document.createElement('select'); notebooks.forEach(x => { const op = document.createElement('option'); op.value = x.id; op.textContent = x.title || 'מחברת'; pickSel.appendChild(op); });
+      const guess = notebooks.find(x => title && (normS(title).includes(normS(x.title)) || normS(x.title).includes(normS(title).split(' ')[0]))); if (guess) pickSel.value = guess.id;
+      w.appendChild(pickSel); d.appendChild(w);
+    }
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : fromHome ? 'הוספה למחברת' : 'הוספה לסוף המחברת';
+    if (fromHome && !notebooks.length) add.classList.add('hidden');
     add.onclick = () => {
       const h = final();
       if (n && openId !== n.id) openNotebook(n.id);
+      if (fromHome && pickSel) openNotebook(pickSel.value);
       const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
       $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
       (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3361,13 +3372,13 @@ function ocrResult(n, html, title, hw = []) {
       r2.append(ok, back); d.append(inp, r2); inp.focus(); inp.select();
     };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'ביטול'; close.onclick = closeDialog;
-    row.append(add, sep, close); d.append(box); if (hwBox) d.append(hwBox); d.append(row);
+    row.append(add, sep, close); d.insertBefore(box, d.querySelector('.oc-pick')); if (hwBox) d.insertBefore(hwBox, d.querySelector('.oc-pick')); d.append(row);
   });
 }
 // ממיר את מה שה-AI מצא לרשימת משימות עם תאריך: תאריך שכתוב > השיעור הבא במקצוע > מחר
 function hwFromOcr(list, n) {
   if (!Array.isArray(list)) return [];
-  const ctx = n ? n.title || '' : $('title').value;
+  const ctx = n ? n.title || '' : openId ? $('title').value : '';
   return list.filter(x => x && x.title).slice(0, 10).map(x => {
     const title0 = String(x.title).replace(/\s+/g, ' ').trim().slice(0, 200);
     const subj = String(x.subject || '').trim() || subjectOf(title0) || subjectOf(ctx) || ctx;
@@ -3439,3 +3450,8 @@ function dropRoster(html) {
   [...t.querySelectorAll('h3')].forEach(h => { if (/בצד הלוח/.test(h.textContent) && (!h.nextElementSibling || /^H[1-3]$/.test(h.nextElementSibling.tagName))) h.remove(); });
   return t.innerHTML;
 }
+
+// כפתורי ה-AI הבולטים
+$('aiOcr').addEventListener('click', ocrDialog);
+$('aiSum').addEventListener('click', () => $('sumBtn').click());
+$('homeOcr').addEventListener('click', () => { openId = null; ocrDialog(); });

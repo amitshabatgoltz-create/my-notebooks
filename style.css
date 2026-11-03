@@ -888,3 +888,26 @@ body.editing-shared #sumBtn{display:none}
 @media (max-width:700px){.oc-hw .ts-item{flex-wrap:wrap}.oc-hw .ts-item input.ts-t{flex:1 1 calc(100% - 60px)}.oc-hw .ts-item input.ts-d{margin-inline-start:44px}}
 .focus-note{color:var(--muted);font-size:12.5px;margin-top:6px}
 .focus-wake{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;cursor:pointer}.focus-wake input{width:18px;height:18px;accent-color:var(--accent)}
+
+/* ===== כפתורי AI בולטים ===== */
+.ai-strip{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 16px}
+.ai-card{position:relative;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;text-align:right;color:#fff;overflow:hidden;box-shadow:0 8px 24px -10px color-mix(in srgb,var(--accent) 70%,transparent);transition:transform .18s var(--ease),box-shadow .18s}
+.ai-card.ocr{background:linear-gradient(135deg,#5E5CE6,#2EC4B6)}
+.ai-card.sum{background:linear-gradient(135deg,#8B5CF6,#FF5E8A)}
+.ai-card::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);transform:translateX(-120%);animation:aishine 4.5s ease-in-out infinite}
+.ai-card.sum::after{animation-delay:2.2s}
+@keyframes aishine{0%,70%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+.ai-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 80%,transparent)}
+.ai-card:active{transform:scale(.98)}
+.ai-card .ic{font-size:26px;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.2);flex:none}
+.ai-card .tx{display:flex;flex-direction:column;min-width:0}
+.ai-card b{font-size:16.5px;font-weight:700}
+.ai-card small{font-size:12.5px;opacity:.9}
+#notebook .ed-top #sumBtn{display:none}
+body.editing-shared .ai-card.sum{display:none}
+body.editing-shared .ai-strip{grid-template-columns:1fr}
+.btn-ai{background:linear-gradient(135deg,#5E5CE6,#2EC4B6);color:#fff;font-weight:700;box-shadow:0 8px 20px -8px #5E5CE6}
+.oc-pick{display:flex;align-items:center;gap:10px;margin:12px 0 4px;font-size:14px;font-weight:600}
+.oc-pick select{flex:1;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 10px;font:inherit}
+@media (max-width:600px){.ai-strip{gap:8px}.ai-card{flex-direction:column;align-items:center;text-align:center;gap:6px;padding:14px 8px}.ai-card .tx{align-items:center}.ai-card b{font-size:15px}.ai-card small{font-size:11.5px}}
+@media (prefers-reduced-motion:reduce){.ai-card::after{animation:none}}
