@@ -972,7 +972,7 @@ async function makeSummary() {
   const heads = [...new Set([...$('editor').querySelectorAll('h1,h2,h3')].map(h => h.textContent.trim()).filter(t => t && t.length < 70 && !/סיכום למבחן/.test(t)))].slice(0, 16);
   dialog(d => {
     d.classList.add('topics-dlg');
-    d.innerHTML = `<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p><p class="quota-line">${quotaText('sum', left)}</p>`;
+    d.innerHTML = `<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p>`;
     const ta = document.createElement('textarea'); ta.rows = 3; ta.className = 'topics-input';
     ta.placeholder = 'למשל: דוד ובת-שבע; העונשים של דוד; פרק י"ב';
     ta.value = n.testTopics || '';
@@ -3191,7 +3191,7 @@ async function ocrDialog() {
   const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
   dialog(d => {
     d.classList.add('ocr-dlg');
-    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת.</p><p class="quota-line">${quotaText('ocr', left)}</p>
+    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך. אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת.</p>
       <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
@@ -3227,7 +3227,8 @@ async function ocrDialog() {
 - מספרי פסוקים ופרקים כתובים באותיות עבריות (א', ב', ט', י'...). שים לב להבדל בין ט' ל-כ', ובין י' ל-ז'/ו'.
 - שים לב לאותיות שדומות בכתב יד: ד/ר/ל, ב/כ, ה/ח/ת, ו/ז/ן, ס/ם, מ/ט, ע/צ.
 - הערות קטנות מעל מילה (עם חץ או סוגר מסולסל) הן הסבר למילה הזו: כתוב אותן בסוגריים מיד אחריה.
-- טקסט שכתוב בצד הלוח (למשל רשימת שמות במסגרת) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
+- דלג לגמרי על דברים שלא קשורים לחומר הלימודי: רשימת תורנים (ת.ח. / ת"ח / תורנות / תורני השבוע) ושמות תלמידים, תאריך ויום בשבוע בפינת הלוח, "לא למחוק", מספר כיתה, שעון והודעות כלליות לכיתה.
+- טקסט בצד הלוח שכן קשור לשיעור (למשל הגדרה, מילה חשובה, שיעורי בית) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
         for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
           for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 2048 } }, { temperature: 0.1 }]) {
             try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + ctx + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
@@ -3238,7 +3239,7 @@ async function ocrDialog() {
         stop();
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
-        const html = clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, ''));
+        const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
         useOne('ocr');
@@ -3324,4 +3325,24 @@ function limitDialog(k) {
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
   });
+}
+
+// ליתר ביטחון: מוחקים רשימת תורנים (ת.ח. + שמות) אם בכל זאת נכנסה
+function dropRoster(html) {
+  const t = document.createElement('div'); t.innerHTML = html;
+  const isRoster = el => /^\s*(ת\s*[.״"׳']?\s*[חת]\s*[.״"׳']?|תורנ(ים|ות|י השבוע)|תורנים)\s*:?\s*$/.test(el.textContent);
+  [...t.children].forEach(el => {
+    if (el.parentNode !== t) return;
+    if (isRoster(el) || (/^(UL|OL|P)$/.test(el.tagName) && /^\s*(ת\s*[.״"׳']?\s*[חת]\s*[.״"׳']?|תורנים)\s*:?/.test(el.textContent) && el.textContent.trim().split(/\s+/).length <= 8)) {
+      // מוחקים גם את השמות שאחריו (שורות קצרות של מילה אחת)
+      const headerOnly = isRoster(el); let n = el.nextElementSibling; el.remove();
+      const isName = x => { const tx = x.textContent.trim(); return tx && tx.split(/\s+/).length <= 2 && !/[:.,;?!–-]/.test(tx) && /^(P|LI|DIV)$/.test(x.tagName); };
+      while (headerOnly && n && isName(n)) { const nx = n.nextElementSibling; n.remove(); n = nx; }
+      // רשימה (ul/ol) שאחרי הכותרת וכולה שמות
+      if (headerOnly && n && /^(UL|OL)$/.test(n.tagName) && [...n.children].every(isName)) n.remove();
+    }
+  });
+  // כותרת "בצד הלוח" שנשארה ריקה
+  [...t.querySelectorAll('h3')].forEach(h => { if (/בצד הלוח/.test(h.textContent) && (!h.nextElementSibling || /^H[1-3]$/.test(h.nextElementSibling.tagName))) h.remove(); });
+  return t.innerHTML;
 }
