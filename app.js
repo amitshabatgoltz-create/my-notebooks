@@ -3185,6 +3185,12 @@ const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכית
 - מילה שלא ברורה: כתוב את הניחוש הכי טוב ואחריו [?].
 - אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.`;
 const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
+const OCR_HW = () => { const d = new Date(); return `
+שיעורי בית: אם כתובים על הלוח/בדף שיעורי בית, מטלה, עבודה להגשה או מבחן (למשל "ש"ב", "שיעורי בית", "להגיש עד", "לקרוא עד", "מבחן ב..."), השאר אותם גם בטקסט, ובנוסף הוסף שורה נפרדת בסוף:
+<!--hw: [{"title":"מה צריך לעשות, קצר וברור","subject":"המקצוע","due":"YYYY-MM-DD או ריק","kind":"hw או test"}]-->
+- subject: המקצוע לפי ההקשר (שם המחברת, התוכן). למשל אם מדובר בפסוקים ובמלכים – "תנ"ך".
+- due: רק אם כתוב עד מתי. היום ${todayKey()}, יום ${HE_DAYS[d.getDay()]}. "עד יום חמישי" = יום חמישי הקרוב. "לשבוע הבא" = בעוד 7 ימים. "למחר" = מחר. אם לא כתוב – "".
+- אם אין שיעורי בית בכלל – אל תוסיף את השורה הזו.`; };
 async function ocrDialog() {
   const n = notebooks.find(x => x.id === openId);
   if (!n && !String(openId).startsWith('share:')) return;
@@ -3231,7 +3237,7 @@ async function ocrDialog() {
 - טקסט בצד הלוח שכן קשור לשיעור (למשל הגדרה, מילה חשובה, שיעורי בית) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
         for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
           for (const cfg of [{ temperature: 0.1, thinkingConfig: { thinkingBudget: 2048 } }, { temperature: 0.1 }]) {
-            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + ctx + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
+            try { const r = await aiModel(name, cfg).generateContent([OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE, ...parts]); txt = r.response.text(); if (txt) break; }
             catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
           }
           if (txt) break;
@@ -3239,22 +3245,35 @@ async function ocrDialog() {
         stop();
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
+        let hw = []; const hm = txt.match(/<!--\s*hw:\s*(\[[\s\S]*?\])\s*-->/);
+        if (hm) { try { hw = JSON.parse(hm[1]); } catch { hw = []; } }
+        hw = hwFromOcr(hw, n);
         const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
         useOne('ocr');
-        closeDialog(); ocrResult(n, html, title);
+        closeDialog(); ocrResult(n, html, title, hw);
       } catch (e) { stop(); console.error(e); showAiError(e); }
     };
   });
 }
-function ocrResult(n, html, title) {
+function ocrResult(n, html, title, hw = []) {
   dialog(d => {
     d.classList.add('ai-result');
     d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. מילים שלא היו ברורות מסומנות ב-[?].</p>';
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html.replace(/\[\?\]/g, '<mark>[?]</mark>');
     const row = document.createElement('div'); row.className = 'row';
     const final = () => clean(box.innerHTML.replace(/<mark>\[\?\]<\/mark>/g, '[?]'));
+    // שיעורי בית שנמצאו בתמונה
+    let hwBox = null;
+    if (hw.length) {
+      hwBox = document.createElement('div'); hwBox.className = 'oc-hw';
+      hwBox.innerHTML = `<b>📌 מצאתי ${hw.length === 1 ? 'משימה' : hw.length + ' משימות'} – להוסיף ליומן ולשיעורי הבית?</b>` + hw.map((x, i) => `<label class="ts-item"><input type="checkbox" data-i="${i}" checked><i class="dot t-${x.type}"></i><input type="text" class="ts-t" data-i="${i}"><input type="date" class="ts-d" data-i="${i}" value="${x.date}"><small>${x.why}</small></label>`).join('');
+      hwBox.querySelectorAll('.ts-t').forEach(inp => inp.value = hw[+inp.dataset.i].title);
+      hwBox.addEventListener('change', e => { const it = hw[+e.target.dataset.i]; if (!it) return; if (e.target.type === 'checkbox') it.on = e.target.checked; if (e.target.classList.contains('ts-d') && e.target.value) { it.date = e.target.value; it.auto = false; } if (e.target.classList.contains('ts-t')) it.title = e.target.value.trim() || it.title; });
+    }
+    const saveHw = async () => { const pick = hw.filter(x => x.on !== false); if (!pick.length) return 0; for (const x of pick) await addDoc(evCol(), { title: x.title, type: x.type, time: '', date: x.date, done: false, createdAt: Date.now(), ...(x.auto ? { autoDate: true } : {}) }).catch(() => {}); return pick.length; };
+    const hwToast = k => k ? ` · ${k === 1 ? 'משימה נוספה' : k + ' משימות נוספו'} ליומן` : '';
     const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? `הוספה לסוף "${(n.title || 'המחברת').slice(0, 24)}"` : 'הוספה לסוף המחברת';
     add.onclick = () => {
       const h = final();
@@ -3262,11 +3281,11 @@ function ocrResult(n, html, title) {
       const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
       $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
       (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
-      toast('הטקסט נוסף לסוף המחברת ✓');
+      saveHw().then(k => toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)));
     };
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
     sep.onclick = () => {
-      const h = final();
+      const h = final(); const hwPick = hw;
       d.innerHTML = '<h3>מחברת חדשה</h3><p>איך לקרוא לה?</p>';
       const inp = document.createElement('input'); inp.value = title || (n ? n.title + ' – המשך' : 'מחברת חדשה');
       const r2 = document.createElement('div'); r2.className = 'row';
@@ -3277,7 +3296,7 @@ function ocrResult(n, html, title) {
         try {
           const ref = doc(nbCol()); const now = Date.now();
           await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color: COLORS[notebooks.length % COLORS.length], html: h, createdAt: now, updatedAt: now });
-          closeDialog(); toast('נוצרה מחברת חדשה ✓');
+          closeDialog(); const k = await saveHw(); toast('נוצרה מחברת חדשה ✓' + hwToast(k));
           const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
         } catch { ok.disabled = false; toast('לא הצלחתי לשמור'); }
       };
@@ -3285,7 +3304,24 @@ function ocrResult(n, html, title) {
       r2.append(ok, back); d.append(inp, r2); inp.focus(); inp.select();
     };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'ביטול'; close.onclick = closeDialog;
-    row.append(add, sep, close); d.append(box, row);
+    row.append(add, sep, close); d.append(box); if (hwBox) d.append(hwBox); d.append(row);
+  });
+}
+// ממיר את מה שה-AI מצא לרשימת משימות עם תאריך: תאריך שכתוב > השיעור הבא במקצוע > מחר
+function hwFromOcr(list, n) {
+  if (!Array.isArray(list)) return [];
+  const ctx = n ? n.title || '' : $('title').value;
+  return list.filter(x => x && x.title).slice(0, 10).map(x => {
+    const title0 = String(x.title).replace(/\s+/g, ' ').trim().slice(0, 200);
+    const subj = String(x.subject || '').trim() || subjectOf(title0) || subjectOf(ctx) || ctx;
+    const type = x.kind === 'test' ? 'test' : 'hw';
+    // שם המשימה כולל את המקצוע, כדי שיזוהה גם בהמשך
+    const title = subj && !normS(title0).includes(normS(subj)) ? `${title0} – ${subj}` : title0;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(x.due || '') && x.due >= todayKey()) return { title, type, date: x.due, auto: false, why: 'כתוב בלוח', on: true };
+    const nl = nextLesson(subj) || nextLesson(title);
+    if (nl) return { title, type, date: key(nl.date), auto: true, why: `השיעור הבא ב${nl.subj}`, on: true };
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    return { title, type, date: key(d), auto: true, why: 'לא כתוב עד מתי', on: true };
   });
 }
 $('ocrBtn').addEventListener('click', ocrDialog);

@@ -879,3 +879,10 @@ body.editing-shared #sumBtn{display:none}
 .limit-box .big{font-size:46px}
 .limit-box h3{margin:6px 0}
 .limit-box p{color:var(--muted)}
+
+.oc-hw{display:grid;gap:6px;margin:12px 0 4px;padding:12px;border-radius:14px;background:var(--accent-soft)}
+.oc-hw>b{font-size:14.5px}
+.oc-hw .ts-item input.ts-t{width:auto;height:34px;margin:0;border:none;box-shadow:none;background:transparent;padding:0 4px;flex:1;min-width:0;font:inherit;font-weight:500;color:var(--ink)}
+.oc-hw .ts-item input.ts-d{width:150px;height:34px;margin:0;padding:0 6px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px}
+.oc-hw .ts-item input[type=checkbox]{width:18px;height:18px;margin:0;padding:0;accent-color:var(--accent)}
+@media (max-width:700px){.oc-hw .ts-item{flex-wrap:wrap}.oc-hw .ts-item input.ts-t{flex:1 1 calc(100% - 60px)}.oc-hw .ts-item input.ts-d{margin-inline-start:44px}}
