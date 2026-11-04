@@ -4298,17 +4298,33 @@ function chatRemember(files) {
   const textSize = () => chatMem.reduce((t, m) => t + (typeof m.part === 'string' ? m.part.length : 0), 0);
   while (chatMem.length > 1 && (chatMem.length > 6 || textSize() > CHAT_MAX_MEM_TEXT || chatMem.reduce((t, m) => t + size(m), 0) > CHAT_MAX_MEM)) chatMem.shift();
 }
+// קוד השגיאה שחזר מהשרת (503 וכו'). 0 = לא הגענו לשרת בכלל.
+const chatStatus = e => e?.customErrorData?.status || +(String(e?.message).match(/\[(\d{3})\b/) || [])[1] || 0;
+const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e));
+// כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
+async function chatAsk(parts, onText, onWait) {
+  for (let i = 0; ; i++) {
+    try { return await aiText(CHAT_MODELS, { temperature: 0.4 }, parts, onText); }
+    catch (e) {
+      if (i >= 2 || !chatBusyErr(e)) throw e;
+      onWait();
+      await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+    }
+  }
+}
 function chatWhy(e) {
   const m = String(e && (e.message || e.code) || '');
+  const detail = m.replace(/^.*?https?:\/\/\S+:\s*/, '').replace(/\s*\(AI\/[\w-]+\)\s*$/, '');
   let why = 'לא הצלחתי לענות. נסה שוב בעוד דקה.';
-  if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
+  if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
+  else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) why = 'הגעת למגבלת השימוש לרגע. נסה שוב בעוד כמה דקות, או הדבק חלק קטן יותר.';
   else if (/too large|exceeds|token count|\b413\b/i.test(m)) why = 'הטקסט ארוך מדי בשביל Gemini. נסה להדביק חלק קטן יותר.';
   else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';
   else if (/app.?check|attestation|PERMISSION_DENIED|\b403\b/i.test(m)) why = 'החיבור ל-Gemini נחסם. תרענן פעמיים ונסה שוב.';
-  else if (/failed to fetch|network|fetch-error/i.test(m)) why = 'אין חיבור לאינטרנט, או שהחיבור נפל באמצע. נסה שוב.';
-  return `${why}${m ? `\n\nפרטים לבדיקה: ${m.slice(0, 160)}` : ''}`;
+  else if (/failed to fetch|networkerror/i.test(m)) why = 'אין חיבור לאינטרנט, או שהחיבור נפל באמצע. נסה שוב.';
+  return `${why}${detail ? `\n\nפרטים לבדיקה: ${detail.slice(0, 200)}` : ''}`;
 }
 
 async function chatSend() {
@@ -4335,10 +4351,10 @@ async function chatSend() {
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
       `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : msg || 'עזור לי עם מה שהעליתי.'}`,
     ];
-    const raw = await aiText(CHAT_MODELS, { temperature: 0.4 }, parts, t => {
+    const raw = await chatAsk(parts, t => {
       const s = chatSplit(t);
       if (s.text) { b.classList.remove('typing'); b.textContent = s.text; chatScroll(); }
-    });
+    }, () => { b.classList.remove('typing'); b.textContent = 'Gemini עמוס, מנסה שוב…'; });
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
