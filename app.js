@@ -279,14 +279,14 @@ function renderSide() {
     b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי' }[v] || '';
   document.body.dataset.view = v;
-  chatContext();
+  chatPlace(v);
   window.scrollTo(0, 0);
 }
 function showLibrary() {
@@ -582,6 +582,7 @@ function showTab(t) {
   else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); introOnce('hw'); }
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
+  else if (t === 'chat') { openId = null; setView('chatView'); renderSide(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -4182,7 +4183,19 @@ function chatReset() { chatHistory = []; chatPending = []; chatMem = []; chatUid
 function chatOpen(on) {
   if (on && (!chatUid || chatUid !== (me && me.uid))) chatReset();
   $('chatPanel').classList.toggle('hidden', !on); $('chatFab').classList.toggle('hidden', on);
-  if (on) { chatContext(); chatScroll(); setTimeout(() => $('chatInput').focus(), 50); }
+  if (on) {
+    chatContext(); chatScroll();
+    // במסך המלא בטלפון לא פותחים מקלדת מיד, כדי שאפשר יהיה לקרוא את השיחה
+    if (!$('chatPanel').classList.contains('full') || matchMedia('(pointer: fine)').matches) setTimeout(() => $('chatInput').focus(), 50);
+  }
+}
+// אותה שיחה בשני מקומות: מסך מלא בכרטיסייה, וחלון קטן מעל מחברת (שם הוא קורא את המחברת)
+function chatPlace(v) {
+  const p = $('chatPanel'), full = p.classList.contains('full');
+  if (v === 'chatView') { $('chatView').appendChild(p); p.classList.add('full'); chatOpen(true); return; }
+  if (full) { p.classList.remove('full'); $('app').appendChild(p); }
+  if (full || v !== 'notebook') chatOpen(false);
+  chatContext();
 }
 
 function chatPrompt() {
@@ -4342,6 +4355,6 @@ $('chatClose').onclick = () => chatOpen(false);
 $('chatGo').onclick = chatSend;
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }
-  else if (e.key === 'Escape') chatOpen(false);
+  else if (e.key === 'Escape' && !$('chatPanel').classList.contains('full')) chatOpen(false);
 });
 $('chatInput').addEventListener('input', () => { const i = $('chatInput'); i.style.height = ''; i.style.height = Math.min(120, i.scrollHeight) + 'px'; });
