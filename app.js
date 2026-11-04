@@ -4010,8 +4010,8 @@ function gradeTone(v) { return v == null ? '' : v >= 90 ? 'g-top' : v >= 75 ? 'g
 function renderGradesMini() {
   const c = $('gradesCard'); if (!c) return;
   const o = overall();
-  c.innerHTML = `<h3>הממוצע שלי</h3>${o == null ? `<p class="noev">עוד לא הכנסת ציונים. <button type="button" class="link" id="grMiniAdd">＋ להוסיף ציון ראשון</button></p>` : `<div class="gm-row"><div class="gm-big ${gradeTone(o)}">${fmtG(o)}</div><div class="gm-subs">${bySubject().slice(0, 4).map(x => `<span><b>${fmtG(x.avg)}</b> ${esc(x.s)}</span>`).join('')}</div><button type="button" class="link" id="grMiniGo">לכל הציונים</button></div>`}`;
-  c.querySelector('#grMiniAdd')?.addEventListener('click', () => gradeDialog());
+  c.innerHTML = `<h3>הממוצע שלי</h3>${o == null ? `<p class="noev">עוד לא הכנסת ציונים. <button type="button" class="link" id="grMiniAdd">📋 להדביק או לצלם את הציונים</button></p>` : `<div class="gm-row"><div class="gm-big ${gradeTone(o)}">${fmtG(o)}</div><div class="gm-subs">${bySubject().slice(0, 4).map(x => `<span><b>${fmtG(x.avg)}</b> ${esc(x.s)}</span>`).join('')}</div><button type="button" class="link" id="grMiniGo">לכל הציונים</button></div>`}`;
+  c.querySelector('#grMiniAdd')?.addEventListener('click', () => gradesImportDialog());
   c.querySelector('#grMiniGo')?.addEventListener('click', () => showTab('gr'));
 }
 function gradeChart(list, joined = true) {
@@ -4034,8 +4034,8 @@ let grFilter = '';
 function renderGrades() {
   const box = $('grBody'); const subs = bySubject(); const o = overall();
   if (!grades.length) {
-    box.innerHTML = `<div class="card gr-empty"><div class="big">🎯</div><h3>עוד אין ציונים</h3><p class="muted-s">מכניסים כל ציון שמקבלים – מבחן, בוחן או עבודה – ואיזה חלק הוא מהציון הסופי. האתר מחשב את הממוצע בכל מקצוע ואת הממוצע הכללי.</p><button type="button" class="btn btn-primary" id="grFirst">＋ להוסיף ציון ראשון</button></div>`;
-    $('grFirst').onclick = () => gradeDialog(); return;
+    box.innerHTML = `<div class="card gr-empty"><div class="big">🎯</div><h3>עוד אין ציונים</h3><p class="muted-s">מכניסים כל ציון שמקבלים – מבחן, בוחן או עבודה – ואיזה חלק הוא מהציון הסופי. האתר מחשב את הממוצע בכל מקצוע ואת הממוצע הכללי.</p><div class="gr-empty-btns"><button type="button" class="btn btn-primary" id="grFirst">📋 להדביק או לצלם את הציונים</button><button type="button" class="btn btn-ghost" id="grOne">＋ ציון אחד</button></div></div>`;
+    $('grFirst').onclick = gradesImportDialog; $('grOne').onclick = () => gradeDialog(); return;
   }
   if (grFilter && !subs.some(x => x.s === grFilter)) grFilter = '';
   const shown = grFilter ? grades.filter(g => g.s === grFilter) : grades;
@@ -4085,3 +4085,74 @@ function gradeDialog(g, pre) {
   });
 }
 $('grAdd').onclick = () => gradeDialog();
+
+/* ===== ציונים בבת אחת: מדביקים טקסט (למשל ממשו"ב) או מעלים צילום מסך ===== */
+const GR_PROMPT = () => { const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+  return `לפניך ציונים של תלמיד בישראל: טקסט שהודבק ו/או צילום מסך (למשל ממשו"ב, וובטופ, תעודה, או רשימה שכתב).
+מצא את כל הציונים והחזר JSON בלבד:
+{"grades":[{"s":"מקצוע","n":"על מה הציון","g":85,"w":30,"d":"2026-10-15"}]}
+- s: שם המקצוע בלבד, קצר (בלי שם מורה, קבוצה או קוד). אם המקצוע דומה לאחד מאלה, כתוב בדיוק כך: ${[...new Set([...bySubject().map(x => x.s), ...ttSubjects()])].join(', ') || '(אין רשימה)'}.
+- n: על מה הציון (מבחן, בוחן, עבודה, שם הפרק...). אם לא כתוב – "".
+- g: הציון כמספר בין 0 ל-100. ציון במילים (למשל "טוב מאוד") – המר: מצוין=95, טוב מאוד=85, כמעט טוב מאוד=80, טוב=75, כמעט טוב=70, מספיק=60, מספיק בקושי=55, לא מספיק=45. בלי ציון – אל תכלול.
+- w: משקל באחוזים אם כתוב, אחרת 0.
+- d: תאריך בפורמט YYYY-MM-DD אם כתוב, אחרת "". היום ${todayKey()}. שנת הלימודים ${y0}–${y0 + 1}: תאריך בלי שנה בין ספטמבר לדצמבר הוא ב-${y0}, ובין ינואר לאוגוסט ב-${y0 + 1}. 12/11 = 12 בנובמבר.
+- אל תמציא ציונים. אם אותו ציון מופיע פעמיים, כתוב אותו פעם אחת. ממוצעים וציון סופי של תקופה – לא לכלול, רק ציונים בודדים.`; };
+function gradesImportDialog() {
+  dialog(d => {
+    d.classList.add('gr-imp');
+    d.innerHTML = `<h3>📋 הוספת הרבה ציונים בבת אחת</h3>
+      <p class="muted-s">מעתיקים את הציונים מהמשו"ב או מכל מקום ומדביקים כאן, או מעלים צילום מסך. האתר מוצא לבד את המקצוע, הציון, המשקל והתאריך.</p>
+      <textarea id="giText" rows="5" placeholder="למשל:&#10;מתמטיקה – מבחן פרק 3 – 92&#10;אנגלית בוחן 78 (20%)&#10;תנ״ך 15/10 עבודה 88"></textarea>
+      <div class="qa-or">או / וגם</div>
+      <button type="button" class="tt-up small" id="giUp"><span class="ic">📷</span><b>צילום מסך של הציונים</b><span>תמונה, PDF או קובץ אקסל</span></button>
+      <input type="file" id="giFile" accept="image/*,application/pdf,.pdf,.xlsx,.xls,.csv,.txt" multiple>
+      <div class="oc-thumbs" id="giThumbs"></div>
+      <p class="tt-status" id="giSt"></p>
+      <div class="gi-list" id="giList"></div>`;
+    d.querySelector('#giFile').hidden = true;
+    let files = [], found = [];
+    const paintThumbs = () => { d.querySelector('#giThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : `<span>${fileIcon(f.name)}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
+    d.querySelector('#giThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paintThumbs(); };
+    d.querySelector('#giUp').onclick = () => d.querySelector('#giFile').click();
+    d.querySelector('#giFile').onchange = ev => { [...ev.target.files].slice(0, 4 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paintThumbs(); if (files.length) go.textContent = '✨ למצוא את הציונים'; };
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ למצוא את הציונים';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.appendChild(row);
+    const same = (a, b) => a.s === b.s && a.g === b.g && (a.d || '') === (b.d || '') && (a.n || '') === (b.n || '');
+    const paintList = () => {
+      const box = d.querySelector('#giList');
+      if (!found.length) { box.innerHTML = ''; return; }
+      box.innerHTML = `<label class="fl">מצאתי ${found.length === 1 ? 'ציון אחד' : found.length + ' ציונים'} – אפשר לתקן לפני ששומרים</label>` + found.map((x, i) => `<div class="gi-row${x.dup ? ' dup' : ''}"><input type="checkbox" data-i="${i}"${x.on ? ' checked' : ''} aria-label="להוסיף"><input data-f="s" data-i="${i}" value="${esc(x.s)}" aria-label="מקצוע"><input data-f="n" data-i="${i}" value="${esc(x.n)}" placeholder="על מה" aria-label="על מה"><input data-f="g" data-i="${i}" type="number" min="0" max="100" value="${x.g}" aria-label="ציון"><span class="gi-w"><input data-f="w" data-i="${i}" type="number" min="0" max="100" value="${x.w || ''}" placeholder="משקל" aria-label="משקל">%</span><input data-f="d" data-i="${i}" type="date" value="${x.d || ''}" aria-label="תאריך">${x.dup ? '<small>כבר קיים</small>' : ''}</div>`).join('');
+      box.querySelectorAll('input').forEach(inp => inp.oninput = inp.onchange = () => { const x = found[+inp.dataset.i]; if (inp.type === 'checkbox') x.on = inp.checked; else x[inp.dataset.f] = inp.type === 'number' ? parseFloat(inp.value) : inp.value; ok(); });
+      ok();
+    };
+    const ok = () => { const n = found.filter(x => x.on).length; go.textContent = n ? `הוספת ${n === 1 ? 'ציון אחד' : n + ' ציונים'}` : '✨ למצוא את הציונים'; go.dataset.mode = n ? 'save' : 'find'; };
+    go.onclick = async () => {
+      if (go.dataset.mode === 'save') {
+        const add = found.filter(x => x.on && normS(x.s) && x.g >= 0 && x.g <= 100).map(x => ({ id: Math.random().toString(36).slice(2, 10), s: normS(x.s).slice(0, 40), n: String(x.n || '').trim().slice(0, 60), g: Math.round(x.g * 10) / 10, w: x.w > 0 && x.w <= 100 ? Math.round(x.w * 10) / 10 : 0, d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
+        if (!add.length) { toast('אין ציונים תקינים להוספה'); return; }
+        const prev = grades; grades = [...grades, ...add];
+        try { await saveGrades(); closeDialog(); toast(add.length === 1 ? 'נוסף ציון אחד ✓' : `נוספו ${add.length} ציונים ✓`); if (!$('gradesView').classList.contains('hidden')) renderGrades(); renderGradesMini(); }
+        catch { grades = prev; toast('לא נשמר'); }
+        return;
+      }
+      const txt = d.querySelector('#giText').value.trim();
+      if (!txt && !files.length) { toast('הדבק את הציונים או העלה צילום מסך'); return; }
+      go.disabled = true; const st = d.querySelector('#giSt'); const stop = ticking(st, '✨ מחפש ציונים...');
+      try {
+        const parts = []; if (txt) parts.push('=== טקסט שהודבק ===\n' + txt.slice(0, 30000));
+        for (const f of files) parts.push(await fileToAiPart(f));
+        const j = await aiJson(GR_PROMPT(), parts); stop();
+        found = (Array.isArray(j.grades) ? j.grades : []).filter(x => x && x.s && Number.isFinite(+x.g) && +x.g >= 0 && +x.g <= 100).slice(0, 80)
+          .map(x => ({ s: normS(String(x.s).split('/').map(cleanSubj).filter(Boolean)[0] || x.s), n: String(x.n || ''), g: +x.g, w: +x.w || 0, d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
+        found.forEach(x => { x.dup = grades.some(y => same(x, y)); x.on = !x.dup; });
+        st.textContent = found.length ? (found.some(x => x.dup) ? 'ציונים שכבר שמורים אצלך לא מסומנים, כדי שלא ייכנסו פעמיים.' : '') : 'לא מצאתי ציונים. נסה להדביק שוב או צילום ברור יותר.';
+        paintList();
+      } catch (e) { stop(); console.error(e); st.textContent = 'לא הצלחתי לקרוא. נסה שוב, או צילום ברור יותר.'; }
+      go.disabled = false;
+    };
+    setTimeout(() => d.querySelector('#giText').focus(), 30);
+  });
+}
+$('grImport').onclick = gradesImportDialog;
