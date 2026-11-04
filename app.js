@@ -4169,6 +4169,12 @@ $('grImport').onclick = gradesImportDialog;
 
 /* ================= 💬 עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
 const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+const CHAT_FAST_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+const CHAT_SHORT = 80;
+// הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
+const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length
+  && !/\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg)
+  && !chatMem.some(m => typeof m.part !== 'string');
 const CHAT_HELLO = 'היי! אפשר לשאול אותי כל דבר, גם מעבר למה שכתוב במחברת, ולהעלות לי תמונה או קובץ עם 📎. ואם תכתוב למשל "יש לי שיעורים במתמטיקה עמודים 12 ו-13 למחר", אוסיף את זה ליומן.';
 const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 18000000;
 // הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
@@ -4404,9 +4410,11 @@ function chatRemember(files) {
 const chatStatus = e => e?.customErrorData?.status || +(String(e?.message).match(/\[(\d{3})\b/) || [])[1] || 0;
 const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e));
 // כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
-async function chatAsk(parts, onText, onWait) {
+async function chatAsk(parts, onText, onWait, short) {
+  const models = short ? CHAT_FAST_MODELS : CHAT_MODELS;
+  const cfg = short ? { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } } : { temperature: 0.4 };
   for (let i = 0; ; i++) {
-    try { return await aiText(CHAT_MODELS, { temperature: 0.4 }, parts, onText); }
+    try { return await aiText(models, cfg, parts, onText); }
     catch (e) {
       if (i >= 2 || !chatBusyErr(e)) throw e;
       onWait();
@@ -4448,6 +4456,7 @@ async function chatSend() {
     const shown = long ? `📋 חומר שהדבקת (${msg.trim().split(/\s+/).length} מילים)\n${msg.slice(0, 280)}…` : msg;
     chatBubble('me', [...files.map(f => '📎 ' + f.name), shown].filter(Boolean).join('\n'));
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
+    const short = !long && chatIsShort(msg, files);
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
     const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}`).join('\n');
     const parts = [
@@ -4458,7 +4467,7 @@ async function chatSend() {
     const raw = await chatAsk(parts, t => {
       const s = chatSplit(t);
       if (s.text) { b.classList.remove('typing'); b.textContent = s.text; chatScroll(); }
-    }, () => { b.classList.remove('typing'); b.textContent = 'Gemini עמוס, מנסה שוב…'; });
+    }, () => { b.classList.remove('typing'); b.textContent = 'Gemini עמוס, מנסה שוב…'; }, short);
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
