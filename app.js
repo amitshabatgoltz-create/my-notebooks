@@ -3714,7 +3714,7 @@ function qaResult(n, html) {
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
     sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>📝 עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
     const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = '📋 העתקה';
-    cp.onclick = async () => { try { await const t = document.createElement('div'); t.innerHTML = qaForNotebook(box.innerHTML); t.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(t); const txt = t.innerText; t.remove(); await navigator.clipboard.writeText(txt); toast('הועתק ✓ (בלי הציטוטים)'); } catch { toast('לא הצלחתי להעתיק'); } };
+    cp.onclick = async () => { try { const t = document.createElement('div'); t.innerHTML = qaForNotebook(box.innerHTML); t.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(t); const txt = t.innerText; t.remove(); await navigator.clipboard.writeText(txt); toast('הועתק ✓ (בלי הציטוטים)'); } catch { toast('לא הצלחתי להעתיק'); } };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
     row.append(add, sep, cp, close); d.append(box, row);
   });
