@@ -1923,7 +1923,7 @@ if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
 const shareDoc = id => doc(db, 'shares', id);
 const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
 
-const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אין כפתורים, אי אפשר לשמור עותק ואי אפשר לשנות כלום.'], copy: ['📥 צפייה + שמירת עותק', 'החבר קורא, ויכול לשמור לעצמו עותק משלו ולערוך אותו. המחברת שלך לא משתנה.'], edit: ['✏️ עריכה משותפת', 'החבר כותב איתך באותה מחברת, ושניכם רואים את השינויים בלייב. צריך להתחבר כדי לערוך.'] };
+const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אי אפשר לשנות כלום ואי אפשר לשמור עותק.'], edit: ['✏️ עריכה משותפת – כותבים ביחד', 'החבר כותב איתך באותה מחברת, ושניכם רואים את השינויים בלייב. (צריך להיות מחובר)'], copy: ['📥 צפייה + עותק נפרד', 'החבר קורא, ויכול לשמור אצלו עותק נפרד משלו. הוא לא כותב במחברת שלך.'] };
 function modePicker(cur, onPick) {
   const g = document.createElement('div'); g.className = 'mode-pick'; g.setAttribute('role', 'radiogroup');
   Object.entries(SHARE_MODES).forEach(([k, [t, d]]) => {
