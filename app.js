@@ -951,7 +951,7 @@ function aiModel(name, generationConfig) {
   return getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name });
 }
 // קריאה מהירה של קובץ (מערכת שעות / לוח מבחנים): מודל קל, בלי "חשיבה", ותשובה ישר כ-JSON
-const FAST_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+const FAST_MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash'];
 async function aiExtract(prompt, part) {
   let order = FAST_MODELS.slice(); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
   let lastErr = null;
@@ -1055,7 +1055,7 @@ async function runSummary(n, text, images, topics) {
   let html = '', lastErr = null;
   const box = document.createElement('div'); box.className = 'ai-box live-read';
   const dl = document.querySelector('#dialogRoot .dialog'); if (dl) { dl.classList.add('ai-result'); dl.insertBefore(box, dl.querySelector('.btn')); }
-  try { html = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
+  try { html = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
   catch (e) { lastErr = e; }
   if (cancelled) return;
   if (!html) { showAiError(lastErr); return; }
@@ -3421,11 +3421,11 @@ async function ocrDialog() {
         const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
         // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
         const second = exact
-          ? aiText(['gemini-2.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
-          : aiText(['gemini-2.5-flash-lite', 'gemini-2.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
+          ? aiText(['gemini-2.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
+          : aiText(['gemini-3.5-flash-lite', 'gemini-2.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        try { txt = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
         if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
@@ -3580,7 +3580,7 @@ $('homeOcr').addEventListener('click', () => { openId = null; ocrDialog(); });
 
 /* ---- עזרים ל-AI: תשובה בזרם (רואים את הטקסט נכתב) ובדיקה כפולה ---- */
 async function aiText(models, cfg, parts, onText) {
-  let lastErr = null;
+  let lastErr = null; const tried = [];
   for (const name of models) {
     for (const c of [cfg, { temperature: cfg.temperature }]) {
       try {
@@ -3591,10 +3591,15 @@ async function aiText(models, cfg, parts, onText) {
           if (acc) return acc;
           if (stop && stop !== 'STOP') { lastErr = Object.assign(new Error('blocked: ' + stop), { blocked: stop }); break; }
         } else { const r = await m.generateContent(parts); const t = r.response.text(); if (t) return t; }
-      } catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
+      } catch (e) {
+        if (!lastErr || chatStatus(e) !== 404) lastErr = e;
+        tried.push(`${name}: ${chatStatus(e) || 'שגיאה'}`);
+        console.warn(name, e && e.message);
+        if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break;
+      }
     }
   }
-  throw lastErr || new Error('empty');
+  const err = lastErr || new Error('empty'); err.tried = tried.join(' · '); throw err;
 }
 // משווה שתי קריאות של אותה תמונה. מילה שבקריאה השנייה יצאה אחרת – מסומנת [?] כדי שתבדוק אותה
 function markDoubts(mainHtml, otherHtml) {
@@ -3749,7 +3754,7 @@ async function qaDialog() {
         }
         const parts = [QA_PROMPT, `=== המחברת: "${n ? n.title : $('title').value}" ===\n${text || '(רק תמונות)'}`, ...images.slice(0, 6), `=== השאלות ===\n${q || '(השאלות בתמונה המצורפת)'}`, ...qParts];
         const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
-        const html0 = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
+        const html0 = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
         stop(); useOne('qa');
         closeDialog(); qaResult(n, qaHtml(html0));
       } catch (e) { stop(); console.error(e); showAiError(e); }
@@ -3812,7 +3817,7 @@ const FC_PROMPT = `אתה עוזר לתלמיד להתכונן למבחן. מה�
 - עברית פשוטה, כמו שמורה היה שואל במבחן.`;
 async function aiJson(prompt, parts) {
   let lastErr = null;
-  for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
+  for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite']) {
     for (const cfg of [{ temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 512 } }, { temperature: 0.2, responseMimeType: 'application/json' }]) {
       try { const r = await aiModel(name, cfg).generateContent([prompt, ...parts]); const t = r.response.text(); if (t) return JSON.parse((t.match(/\{[\s\S]*\}/) || ['{}'])[0]); }
       catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
@@ -4164,7 +4169,7 @@ function gradesImportDialog() {
 $('grImport').onclick = gradesImportDialog;
 
 /* ================= 💬 עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
-const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
+const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
 const CHAT_HELLO = 'היי! אפשר לשאול אותי כל דבר, גם מעבר למה שכתוב במחברת, ולהעלות לי תמונה או קובץ עם 📎. ואם תכתוב למשל "יש לי שיעורים במתמטיקה עמודים 12 ו-13 למחר", אוסיף את זה ליומן.';
 const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 18000000;
 // הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
@@ -4316,7 +4321,8 @@ function chatWhy(e) {
   const m = String(e && (e.message || e.code) || '');
   const detail = m.replace(/^.*?https?:\/\/\S+:\s*/, '').replace(/\s*\(AI\/[\w-]+\)\s*$/, '');
   let why = 'לא הצלחתי לענות. נסה שוב בעוד דקה.';
-  if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
+  if (chatStatus(e) === 404) why = 'המודל של Gemini שהאתר משתמש בו כבר לא זמין. צריך לעדכן את האתר.';
+  else if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
   else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) why = 'הגעת למגבלת השימוש לרגע. נסה שוב בעוד כמה דקות, או הדבק חלק קטן יותר.';
@@ -4324,7 +4330,7 @@ function chatWhy(e) {
   else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';
   else if (/app.?check|attestation|PERMISSION_DENIED|\b403\b/i.test(m)) why = 'החיבור ל-Gemini נחסם. תרענן פעמיים ונסה שוב.';
   else if (/failed to fetch|networkerror/i.test(m)) why = 'אין חיבור לאינטרנט, או שהחיבור נפל באמצע. נסה שוב.';
-  return `${why}${detail ? `\n\nפרטים לבדיקה: ${detail.slice(0, 200)}` : ''}`;
+  return `${why}${detail ? `\n\nפרטים לבדיקה: ${detail.slice(0, 200)}` : ''}${e && e.tried ? `\n${e.tried}` : ''}`;
 }
 
 async function chatSend() {
