@@ -203,14 +203,23 @@ function clean(html) {
         ch.setAttribute('data-img', id); if (/^[\w]{6,64}$/.test(u || '')) ch.setAttribute('data-u', u); return;
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
-      const al = ch.getAttribute('data-a');
+      const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
+      if (dr === 'ltr' && /^(P|H1|H2|H3|LI|UL|OL)$/.test(ch.tagName)) ch.setAttribute('dir', 'ltr');   // כיוון כתיבה
       if (isTl) ch.className = 'tl';
       if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
       walk(ch);
     } else if (ch.nodeType !== 3) ch.remove();
   });
   const root = d.body.firstChild; walk(root); return root.innerHTML;
+}
+function toastAction(msg, label, fn, ms = 7000) {
+  document.querySelectorAll('.toast.has-act').forEach(x => x.remove());
+  const t = document.createElement('div'); t.className = 'toast has-act'; t.setAttribute('role', 'status');
+  const sp = document.createElement('span'); sp.textContent = msg;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 't-act'; b.textContent = label;
+  b.onclick = () => { t.remove(); fn(); };
+  t.append(sp, b); document.body.appendChild(t); setTimeout(() => t.remove(), ms);
 }
 function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function fmtDate(ms) { try { return ms ? new Date(ms).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' }) : ''; } catch { return ''; } }
@@ -345,7 +354,11 @@ $('delBtn').onclick = () => {
       try {
         if (n.shareId) await deleteDoc(shareDoc(n.shareId)).catch(() => {});
         await updateDoc(nbDoc(n.id), { trashed: Date.now(), shareId: null });
-        closeDialog(); showLibrary(); toast('המחברת הועברה לפח');
+        closeDialog(); showLibrary();
+        toastAction('המחברת הועברה לפח המחזור', 'ביטול מחיקה', async () => {
+          try { await updateDoc(nbDoc(n.id), { trashed: null, updatedAt: Date.now() }); trash = trash.filter(x => x.id !== n.id); toast('המחברת חזרה ✓'); const wait = (k = 0) => notebooks.find(x => x.id === n.id) ? openNotebook(n.id) : k < 30 && setTimeout(() => wait(k + 1), 100); wait(); }
+          catch { toast('לא הצלחתי להחזיר'); }
+        });
       }
       catch (e) { ok.disabled = false; toast('המחיקה נכשלה'); }
     };
@@ -543,6 +556,13 @@ tb.addEventListener('click', e => {
   else document.execCommand(c);
   markDirty();
 });
+// מחברת ריקה: במקום דף לבן – ציור עיפרון והזמנה להתחיל לכתוב
+function checkEmpty() {
+  const ed = $('editor');
+  const empty = !ed.textContent.trim() && !ed.querySelector('img,table,[data-cv],[data-file],[data-box],hr,ol.tl,ul li,ol li');
+  ed.classList.toggle('is-empty', empty);
+}
+{ let raf = 0; new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(checkEmpty); }).observe($('editor'), { childList: true, subtree: true, characterData: true }); }
 $('editor').addEventListener('paste', e => {
   e.preventDefault();
   const files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
@@ -1809,6 +1829,28 @@ function updateAlignButtons() {
   document.querySelectorAll('[data-align]').forEach(b => b.classList.toggle('on', b.dataset.align === cur));
 }
 document.querySelectorAll('[data-align]').forEach(b => b.addEventListener('click', () => alignBlocks(b.dataset.align)));
+// כיוון כתיבה: פסקה באנגלית / קוד / נוסחה – משמאל לימין, כדי שנקודות וסוגריים לא יתבלגנו
+function selBlocks() {
+  restoreSelection(); wrapLoose && wrapLoose();
+  const s = window.getSelection(); if (!s.rangeCount) return [];
+  const r = s.getRangeAt(0); const ed = $('editor'); if (!ed.contains(r.startContainer)) return [];
+  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li'));
+  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI)$/.test(B.tagName)) blocks = [B]; }
+  return blocks;
+}
+function toggleDir() {
+  const blocks = selBlocks(); if (!blocks.length) { toast('שים את הסמן בפסקה שרוצים להפוך'); return; }
+  const toLtr = !blocks.every(b => b.getAttribute('dir') === 'ltr');
+  blocks.forEach(b => { if (toLtr) { b.setAttribute('dir', 'ltr'); b.removeAttribute('data-a'); } else b.removeAttribute('dir'); });
+  updateDirButton(); updateAlignButtons(); markDirty();
+}
+function updateDirButton() {
+  const s = window.getSelection(); let on = false;
+  if (s.rangeCount && $('editor').contains(s.anchorNode)) { const B = blockOf(s.anchorNode); on = !!(B && B.getAttribute('dir') === 'ltr'); }
+  const b = $('dirBtn'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
+}
+if ($('dirBtn')) { $('dirBtn').addEventListener('mousedown', e => e.preventDefault()); $('dirBtn').addEventListener('click', toggleDir); }
+document.addEventListener('selectionchange', updateDirButton);
 document.addEventListener('selectionchange', updateAlignButtons);
 
 // גופן וגודל בסרגל העליון
@@ -2557,12 +2599,12 @@ function subscribeTimetable() {
     // תיקון למערכת שנקראה עם שעה 0 ריקה בתור "שעה 1": אם השורה הראשונה ריקה בכל הימים, מזיזים הכל שורה למעלה
     if (timetable.start !== 0 && ttSubjects().length) {
       const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
-      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, updatedAt: Date.now() }).catch(() => {}); }
+      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
     }
     { // שמות ישנים עם קודים ("מתמטיקה א1", "אנגלית הקבצה"): מנקים פעם אחת
       const ds = timetable.days; let changed = false; const nd = {};
       for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
-      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, updatedAt: Date.now() }).catch(() => {}); }
+      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
     } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
@@ -2612,14 +2654,17 @@ async function timetableDialog() {
       <p class="tt-status" id="ttStatus"></p>
       <input type="file" id="ttFile" accept="image/*,application/pdf" hidden>
       ${has ? '' : '<button type="button" class="link tt-manual" id="ttManual">או להקליד את המערכת ידנית</button>'}
-      <div class="tt-scroll${has ? '' : ' hidden'}"><label class="tt-zero"><input type="checkbox" id="ttZero"${start === 0 ? ' checked' : ''}> יש לי שיעורים בשעה אפס</label><table class="tt"><thead><tr><th></th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th class="pn">${r + start}</th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-    const fill = days => d.querySelectorAll('.tt input').forEach(i => { i.value = ((days[i.dataset.d] || [])[i.dataset.r]) || ''; });
-    const relabel = () => d.querySelectorAll('.tt th.pn').forEach((th, r) => th.textContent = r + start);
+      <div class="tt-scroll${has ? '' : ' hidden'}"><label class="tt-zero"><input type="checkbox" id="ttZero"${start === 0 ? ' checked' : ''}> יש לי שיעורים בשעה אפס</label><p class="muted-s tt-tm-tip">אפשר גם לכתוב את השעות ליד כל שיעור, למשל 08:00-08:45</p><table class="tt"><thead><tr><th>שעה</th>${TT_DAYS.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: TT_ROWS }, (_, r) => `<tr><th class="pn"><b>${r + start}</b><input class="tm" inputmode="numeric" placeholder="+ שעות" aria-label="שעות של שיעור ${r + start}"></th>${TT_DAYS.map((_, c) => `<td><input data-d="${c}" data-r="${r}" aria-label="יום ${TT_DAYS[c]} שיעור ${r + 1}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    const fill = days => d.querySelectorAll('.tt td input').forEach(i => { i.value = ((days[i.dataset.d] || [])[i.dataset.r]) || ''; });
+    let times = { ...(timetable.times || {}) };
+    const readTimes = () => d.querySelectorAll('.tt th.pn').forEach((th, r) => { const v = th.querySelector('input').value.trim(); if (v) times[r + start] = v; else delete times[r + start]; });
+    const relabel = () => d.querySelectorAll('.tt th.pn').forEach((th, r) => { th.querySelector('b').textContent = r + start; const i = th.querySelector('input'); i.value = times[r + start] || ''; i.setAttribute('aria-label', 'שעות של שיעור ' + (r + start)); });
+    relabel();
     d.querySelector('#ttZero').onchange = ev => {
-      const want = ev.target.checked ? 0 : 1; if (want === start) return;
+      const want = ev.target.checked ? 0 : 1; if (want === start) return; readTimes();
       // מזיזים את השיעורים כך שכל שיעור יישאר באותו מספר שעה
       const cur = {}; for (let i = 0; i < 6; i++) cur[i] = [];
-      d.querySelectorAll('.tt input').forEach(i => cur[i.dataset.d][i.dataset.r] = i.value);
+      d.querySelectorAll('.tt td input').forEach(i => cur[i.dataset.d][i.dataset.r] = i.value);
       const shift = start - want; const nd = {};
       for (let i = 0; i < 6; i++) { nd[i] = []; cur[i].forEach((v, r) => { const nr = r + shift; if (nr >= 0 && nr < TT_ROWS) nd[i][nr] = v; }); }
       start = want; fill(nd); relabel();
@@ -2641,10 +2686,12 @@ async function timetableDialog() {
 - p: מספר השעה בדיוק כמו שכתוב בעמודת השעות במערכת (למשל 0, 1, 2...). אל תספור שורות בעצמך. אם יש שורה של שעה 0 בלי שיעורים, פשוט אל תכלול אותה.
 - s: רק שם המקצוע, קצר וברור. בלי שם המורה, בלי חדר, בלי שעה, בלי מספרים בסוגריים מרובעים ובלי פרטי קבוצה כמו "הקבצה א" או "ח1-6". למשל "מתמטיקה א1 ח1-6 [6843]" → "מתמטיקה", "עברית הבעה ולשון ח4 [7034]" → "עברית הבעה ולשון".
 - אם יש שני שיעורים באותה שעה באותו יום, שים אותם באותו פריט עם " / " ביניהם.
-- כלול רק משבצות שיש בהן שיעור. אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.`;
+- כלול רק משבצות שיש בהן שיעור. אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.
+- אם כתובות במערכת השעות של כל שיעור (מתי מתחיל ומתי נגמר), הוסף גם "times": {"1":"08:00-08:45","2":"08:45-09:30"} לפי מספר השעה. אם לא כתוב – אל תמציא, פשוט אל תכלול times.`;
         const txt = await aiExtract(prompt, { inlineData: { mimeType: mime, data } }); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
+        if (j.times && typeof j.times === 'object') { const nt = {}; Object.entries(j.times).forEach(([k, v]) => { if (/^\d{1,2}$/.test(k) && /\d/.test(String(v))) nt[+k] = String(v).replace(/\s+/g, '').replace(/[–—]/g, '-').slice(0, 15); }); if (Object.keys(nt).length) times = nt; }
         const L = (Array.isArray(j.lessons) ? j.lessons : []).filter(x => x && x.s && +x.day >= 0 && +x.day <= 5 && Number.isFinite(+x.p));
         if (L.length) {
           start = Math.min(...L.map(x => +x.p)) <= 0 ? 0 : 1;
@@ -2662,10 +2709,11 @@ async function timetableDialog() {
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
     ok.onclick = async () => {
       const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
-      d.querySelectorAll('.tt input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
+      d.querySelectorAll('.tt td input').forEach(i => { days[i.dataset.d][i.dataset.r] = i.value.replace(/\s+/g, ' ').trim().slice(0, 40); });
+      readTimes(); const tms = {}; Object.entries(times).forEach(([k, v]) => { v = String(v).replace(/\s+/g, '').replace(/[–—]/g, '-').slice(0, 15); if (v && /^\d{1,2}$/.test(k)) tms[k] = v; });
       for (let i = 0; i < 6; i++) { const a = days[i]; for (let r = 0; r < TT_ROWS; r++) if (a[r] === undefined) a[r] = ''; while (a.length && !a[a.length - 1]) a.pop(); }
       if (start === 1 && [0, 1, 2, 3, 4, 5].every(i => !days[i][0]) && [0, 1, 2, 3, 4, 5].some(i => days[i].length)) for (let i = 0; i < 6; i++) days[i] = days[i].slice(1);
-      try { await setDoc(ttDoc(), { days, start, updatedAt: Date.now() }); timetable = { days, start }; paintTTBtn(); closeDialog(); redateAuto(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
+      try { await setDoc(ttDoc(), { days, start, times: tms, updatedAt: Date.now() }); timetable = { days, start, times: tms }; paintTTBtn(); closeDialog(); redateAuto(); if (!$('ttView').classList.contains('hidden')) renderTT(); toast('מערכת השעות נשמרה ✓'); quickPreview(); }
       catch (e) { console.error(e); toast('לא נשמר'); }
     };
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
@@ -2673,6 +2721,7 @@ async function timetableDialog() {
   });
 }
 $('ttBtn').onclick = timetableDialog;
+if ($('qaHelp')) $('qaHelp').onclick = () => { const box = $('qaHelpBox'); const open = box.classList.toggle('hidden') === false; $('qaHelp').setAttribute('aria-expanded', open); };
 if ($('ttBtn2')) $('ttBtn2').onclick = timetableDialog;
 
 // ---- עמוד מערכת השעות
@@ -2692,7 +2741,8 @@ function renderTT() {
   const colors = {}; const pal = HW_COLORS;
   ttSubjects().forEach((s, i) => colors[s] = pal[i % pal.length]);
   const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => `<tr><th>${r + (timetable.start === 0 ? 0 : 1)}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const tms = timetable.times || {}; const hasTm = Object.keys(tms).length > 0;
+  box.innerHTML = `<div class="tt-view-scroll"><table class="tt-view"><thead><tr><th class="${hasTm ? 'has-tm' : ''}"></th>${TT_DAYS.map((d, i) => `<th class="${i === today ? 'today' : ''}">${d}${i === today ? '<small>היום</small>' : ''}</th>`).join('')}</tr></thead><tbody>${Array.from({ length: rows }, (_, r) => { const pn = r + (timetable.start === 0 ? 0 : 1), tm = tms[pn]; return `<tr><th class="${hasTm ? 'has-tm' : ''}">${pn}${tm ? `<small>${esc(tm)}</small>` : ''}</th>${TT_DAYS.map((_, c) => { const v = (timetable.days[c] || [])[r] || ''; return `<td class="${c === today ? 'today' : ''}">${v ? `<span class="subj" style="--c:${colors[normS(v)] || '#888'}">${esc(v)}</span>` : ''}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
   // מה מחר
   const tm = new Date(); tm.setDate(tm.getDate() + 1); const list = (timetable.days[tm.getDay()] || []).filter(Boolean);
   const open = events.filter(e => !e.done && e.date === key(tm));

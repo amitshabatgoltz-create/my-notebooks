@@ -965,3 +965,31 @@ body.editing-shared .ai-card.qa{display:none}
 
 .paste-tip{font-size:12.5px;color:var(--muted,#6b7280);margin:6px 0 2px;text-align:center}
 .ai-box th{background:var(--soft,#f3f4f6);font-weight:700} .ai-box table{margin:8px 0 10px;font-size:14.5px}
+
+/* כיוון כתיבה */
+:is(#editor,#shareBody) [dir="ltr"]{text-align:left}
+:is(#editor,#shareBody) li[dir="ltr"]{direction:ltr}
+.toolbar .dir-btn{font:700 11.5px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.02em;min-width:38px;direction:ltr}
+.toolbar .dir-btn.on{background:var(--accent-soft);color:var(--accent)}
+/* טוסט עם "ביטול" */
+.toast.has-act{display:flex;align-items:center;gap:14px;padding:9px 10px 9px 20px}
+.toast .t-act{background:transparent;border:0;font:inherit;font-weight:700;padding:4px 10px;border-radius:999px;cursor:pointer;color:#a5b4fc}
+.toast .t-act:hover{background:rgba(255,255,255,.12)}
+/* עזרה בהוספה המהירה */
+.qa-hint{display:flex;align-items:center;gap:8px}
+.qa-help{width:22px;height:22px;flex:none;border-radius:50%;border:1.5px solid var(--line);background:var(--card,#fff);color:var(--muted);font-weight:800;font-size:12.5px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+.qa-help[aria-expanded="true"],.qa-help:hover{border-color:var(--accent);color:var(--accent)}
+.qa-help-box{grid-column:1/-1;margin:2px 8px 4px;padding:10px 14px;border-radius:12px;background:var(--accent-soft);color:var(--ink);font-size:13px;line-height:1.6;animation:toast .25s var(--ease)}
+.qa-help-box .link{font-size:inherit;padding:0}
+/* מחברת ריקה */
+#editor.is-empty{position:relative;min-height:260px}
+#editor.is-empty::before{content:"המחברת ריקה. לוחצים כאן ומתחילים לכתוב...";position:absolute;inset:60px 0 auto 0;text-align:center;color:var(--muted);opacity:.65;font-size:16px;pointer-events:none;padding-top:70px;background:no-repeat center top/56px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%239AA0AE' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M44 8l12 12L24 52H12V40z'/%3E%3Cpath d='M38 14l12 12'/%3E%3Cpath d='M8 58h48' stroke-dasharray='3 5'/%3E%3C/svg%3E")}
+/* שעות במערכת */
+table.tt th.pn{white-space:nowrap}
+table.tt th.pn b{display:block}
+table.tt th.pn input.tm{width:92px;font-size:11px;padding:2px 4px;margin-top:2px;text-align:center;direction:ltr;border:1px dashed var(--line);border-radius:6px;background:transparent;color:var(--muted)}
+.tt-view tbody th small{display:block;font-size:10.5px;font-weight:600;color:var(--muted);direction:ltr;white-space:nowrap;opacity:.85}
+.tt-view tbody th.has-tm{width:64px}
+.tt-view thead th:first-child.has-tm{width:64px}
+:is(#editor,#shareBody) [dir="ltr"][data-a="center"]{text-align:center}
+table.tt th.pn input.tm::placeholder{opacity:.55}
