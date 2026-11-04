@@ -3418,7 +3418,7 @@ const DAILY = { ocr: 3, sum: 2, qa: 3 };
 const UNLIMITED = ['amitshabatgoltz@gmail.com'];
 const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'שאלות מהמחברת' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 async function loadUsage() {
@@ -3442,7 +3442,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לשאול ${DAILY.qa} פעמים ביום שאלות מהמחברת.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3610,15 +3610,15 @@ async function qaDialog() {
   if (!(await introOnce('qa'))) return;
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg');
-    d.innerHTML = `<h3>❓ שאלות מהמחברת</h3><p class="muted-s">מדביקים שאלות או מצלמים דף עבודה, והאתר עונה לפי מה שכתוב במחברת "${(n ? n.title : $('title').value || 'הזו').replace(/</g, '&lt;')}" – עם ציטוט מאיפה זה.</p>
+    d.innerHTML = `<h3>📝 עבודה מהמורה</h3><p class="muted-s">מדביקים את השאלות מהעבודה או מצלמים את הדף, והאתר עונה לפי מה שכתוב במחברת "${(n ? n.title : $('title').value || 'הזו').replace(/</g, '&lt;')}" – עם ציטוט מאיפה זה.</p>
       <textarea id="qaText" rows="4" placeholder="מדביקים או כותבים כאן את השאלות. למשל:&#10;1. למה אדוניהו לא הזמין את שלמה?&#10;2. מי היו התומכים של אדוניהו?"></textarea>
       <div class="qa-or">או / וגם</div>
-      <button type="button" class="tt-up small" id="qaUp"><span class="ic">📷</span><b>תמונה של דף השאלות</b><span>עד 3 תמונות</span></button>
+      <button type="button" class="tt-up small" id="qaUp"><span class="ic">📷</span><b>תמונה של דף העבודה</b><span>עד 3 תמונות</span></button>
       <input type="file" id="qaFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="qaThumbs"></div>
       <p class="tt-status" id="qaStatus"></p>`;
     const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ לענות על השאלות';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ לפתור את העבודה';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     let files = [];
@@ -3628,7 +3628,7 @@ async function qaDialog() {
     d.querySelector('#qaFile').onchange = ev => { [...ev.target.files].slice(0, 3 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     go.onclick = async () => {
       const q = d.querySelector('#qaText').value.trim();
-      if (!q && !files.length) { toast('כתוב שאלה או העלה תמונה של דף השאלות'); return; }
+      if (!q && !files.length) { toast('כתוב את השאלות או העלה תמונה של דף העבודה'); return; }
       await flush();
       const { text, images } = await notebookParts();
       if (!text && !images.length) { toast('המחברת ריקה – אין ממה לענות'); return; }
@@ -3662,9 +3662,9 @@ function qaResult(n, html) {
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
     const row = document.createElement('div'); row.className = 'row';
     const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'הוספה לסוף המחברת';
-    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>❓ תשובות לשאלות</h2>' + clean(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות נוספו למחברת ✓'); };
+    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>📝 עבודה מהמורה – תשובות</h2>' + clean(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות לעבודה נוספו למחברת ✓'); };
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
-    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `תשובות – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>❓ תשובות לשאלות</h2>' + clean(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
+    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>📝 עבודה מהמורה – תשובות</h2>' + clean(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
     const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = '📋 העתקה';
     cp.onclick = async () => { try { await navigator.clipboard.writeText(box.innerText); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
@@ -3673,7 +3673,7 @@ function qaResult(n, html) {
 }
 $('aiQa').addEventListener('click', qaDialog);
 INTROS.qa = [
-  ['qa1', 'מעלים את השאלות', 'מדביקים את השאלות, או מצלמים את דף העבודה. אפשר גם וגם.'],
+  ['qa1', 'מעלים את העבודה מהמורה', 'מדביקים את השאלות מהעבודה, או מצלמים את הדף שהמורה נתן. אפשר גם וגם.'],
   ['qa2', 'מקבלים תשובות מהמחברת', 'לכל שאלה יש תשובה, ומתחתיה ציטוט מהמחברת שמראה מאיפה זה. אם משהו לא כתוב במחברת – זה מסומן בצהוב.'],
 ];
 ILL.qa1 = `<svg viewBox="0 0 220 130"><rect x="40" y="12" width="140" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<text x="166" y="${40+i*28}" font-size="13" font-weight="700" fill="#5E5CE6" text-anchor="end">${i+1}.</text><rect x="62" y="${31+i*28}" width="${88-i*12}" height="7" rx="3.5" fill="#9AA0AE"/><text x="54" y="${40+i*28}" font-size="14" fill="#F59E0B" text-anchor="middle">?</text>`).join('')}</svg>`;
