@@ -4172,7 +4172,8 @@ const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-fl
 const CHAT_FAST_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash'];
 const CHAT_SHORT = 80;
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
-const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length
+const CHAT_DEEP = /תבחן|תבחני|שאלון|בוחן|מבחן|תרגול|לתרגל|דף חזרה|דף למידה|תסכם|סיכום/;
+const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length && !CHAT_DEEP.test(msg)
   && !/\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg)
   && !chatMem.some(m => typeof m.part !== 'string');
 const CHAT_HELLO = 'אפשר לשאול אותי כל דבר, להעלות דף או צילום, או לספר לי מה יש לך מחר ואוסיף ליומן.';
@@ -4197,7 +4198,7 @@ function chatBubble(role, text) {
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
 function chatRender() {
   $('chatLog').innerHTML = '';
-  if (chatHistory.length) { chatHistory.forEach(m => chatBubble(m.role, m.text)); return; }
+  if (chatHistory.length) { chatHistory.forEach(m => { if (m.hidden) return; chatBubble(m.role, m.text); if (m.card) chatCardEl(m); }); return; }
   // שיחה ריקה: ברכה והצעות במקום בועה רגילה
   const box = document.createElement('div'); box.className = 'chat-empty';
   const name = ((me && me.displayName) || '').trim().split(/\s+/)[0];
@@ -4216,18 +4217,18 @@ function chatRender() {
 // הצעות לפי מה שקורה עכשיו: מחברת פתוחה, או המבחן הקרוב ביומן
 function chatSuggestions() {
   if (openId) return [
-    { icon: '📝', text: 'תסכם לי את המחברת', send: 'תסכם לי את המחברת הזאת' },
-    { icon: '🎯', text: 'תבחן אותי על החומר', send: 'תבחן אותי על החומר שבמחברת, שאלה אחת בכל פעם' },
+    { icon: '📄', text: 'דף חזרה מהמחברת', send: 'תכין לי דף חזרה מסודר מהמחברת הזאת' },
+    { icon: '🎯', text: 'שאלון על החומר', send: 'תכין לי שאלון על החומר שבמחברת' },
     { icon: '💡', text: 'מה הכי קשה כאן?', send: 'מה הנושא הכי קשה במחברת? תסביר לי אותו בפשטות' },
     { icon: '📎', text: 'להעלות דף או צילום', file: true },
   ];
   const test = events.find(e => e.type === 'test' && !e.done && e.date >= todayKey());
   const title = test ? String(test.title || '').slice(0, 40) : '';
   return [
-    test ? { icon: '🎯', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תעזור לי להתכונן ותבחן אותי` } : { icon: '🎯', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תשאל אותי מה אתה צריך לדעת' },
+    test ? { icon: '🎯', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תכין לי שאלון תרגול למבחן` } : { icon: '🎯', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תגיד לי איזה חומר אתה צריך ממני כדי להכין לי שאלון ודף חזרה' },
+    { icon: '📄', text: 'להכין דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
     { icon: '📅', text: 'מה יש לי השבוע?', send: 'מה יש לי השבוע ביומן? במה כדאי להתחיל?' },
     { icon: '📎', text: 'להעלות דף או צילום', file: true },
-    { icon: '✏️', text: 'להוסיף משהו ליומן', fill: 'יש לי ' },
   ];
 }
 function chatUse(s) {
@@ -4256,7 +4257,7 @@ const chatRef = id => doc(db, 'users', me.uid, 'chats', id);
 const chatOldDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
 function chatApply(id, d) {
   chatId = id; chatSavedTitle = d.title || ''; chatCreated = d.createdAt || d.updatedAt || Date.now();
-  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || '') }));
+  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || ''), ...(m.card ? { card: m.card } : {}), ...(m.hidden ? { hidden: true } : {}) }));
   chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
   chatPending = []; chatPaintFiles(); chatRender();
 }
@@ -4380,6 +4381,15 @@ ${upcoming || '(אין)'}
 הערך של taskType הוא אחד מאלה: "שיעורי בית", "מבחן", "אירוע". ההסבר שאחרי ה-JSON הוא משפט קצר, למשל: הוספתי לך ליומן שיעורי בית במתמטיקה (עמודים 12 ו-13)! בהצלחה בהכנה 👍
 3. בדוק בעצמך מה חסר לך, בלי לחכות שהמשתמש ישאל. כשהוא שולח חומר או מבקש עזרה למבחן, בדוק מה החומר מזכיר אבל לא נמצא אצלך במחברת, בקבצים או בשיחה: למשל מילים מעמודים בספר, טקסט או דף עבודה. אמור לו מיד ובמפורש מה בדיוק חסר ובקש שישלח את זה, ואמור גם במה אפשר להתחיל כבר עכשיו. נושאים כלליים כמו דקדוק אפשר ללמד מהידע שלך. אל תמציא תוכן שאין לך, ואל תעמיד פנים שיש לך אותו.
 
+4. שאלון: אם המשתמש מבקש שתבחן אותו, לתרגל או שאלון, אל תשאל שאלה אחת בטקסט. החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר ומעודד:
+{"action":"QUIZ","title":"שם השאלון","questions":[{"type":"mc","q":"השאלה","options":["א","ב","ג","ד"],"answer":0,"explain":"הסבר קצר למה זו התשובה"},{"type":"text","q":"שאלה לכתיבה","answer":"התשובה","accept":["תשובה נכונה נוספת"],"explain":"הסבר קצר"}]}
+answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ-0. כתוב 8 עד 10 שאלות מגוונות, שמתאימות למבנה המבחן אם הוא ידוע: תרגום, כתיבה, דקדוק והבנה. השתמש במילים המדויקות מהחומר, עם הניקוד שלהן, וערבב את מיקום התשובה הנכונה.
+5. דף חזרה: אם המשתמש מבקש דף חזרה, סיכום או דף למידה, החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר:
+{"action":"SHEET","title":"שם הדף","sections":[{"icon":"📚","heading":"כותרת","table":[["מילה","פירוש"]],"items":["נקודה חשובה"]}],"tips":["טיפ לזכירה"]}
+כל חלק יכול לכלול table או items או את שניהם. סדר את כל החומר לפי נושאים, בלי לדלג על מילים.
+אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
+לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
+
 ענה תמיד בעברית, בטקסט פשוט: בלי markdown ובלי HTML.`;
 }
 
@@ -4398,8 +4408,8 @@ function chatSplit(raw) {
   }
   if (end < 0) return { text: '', action: null, partial: true };
   const rest = t.slice(end + 1).replace(/^\s*```/, '').trim();
-  try { const o = JSON.parse(t.slice(0, end + 1)); return { text: rest, action: o && o.action === 'ADD_TO_CALENDAR' ? o : null }; }
-  catch { return { text: raw.trim(), action: null }; }
+  try { const o = JSON.parse(t.slice(0, end + 1)); return { text: rest, action: o && ['ADD_TO_CALENDAR', 'QUIZ', 'SHEET'].includes(o.action) ? o : null }; }
+  catch { return { text: raw.trim(), action: null, broken: true }; }
 }
 
 // התאריך מגיע מההודעה של המשתמש, באותה דרך של "הוספה מהירה": תאריך שכתוב, אחרת השיעור הבא במקצוע, אחרת מחר
@@ -4509,7 +4519,7 @@ async function chatSend() {
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     const short = !long && chatIsShort(msg, files);
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
-    const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}`).join('\n');
+    const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
     const parts = [
       chatPrompt(),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
@@ -4517,22 +4527,35 @@ async function chatSend() {
     ];
     const raw = await chatAsk(parts, t => {
       const s = chatSplit(t);
-      if (s.text) { b.classList.remove('typing'); b.textContent = s.text; chatScroll(); }
+      if (s.text && !s.broken) { b.classList.remove('typing'); b.textContent = s.text; chatScroll(); }
+      else if (s.partial && !b.classList.contains('making')) {
+        const what = /"QUIZ"/.test(t) ? 'מכין לך שאלון…' : /"SHEET"/.test(t) ? 'מכין לך דף חזרה…' : '';
+        if (what) { b.classList.remove('typing'); b.classList.add('making'); b.textContent = what; chatScroll(); }
+      }
     }, () => { b.classList.remove('typing'); b.textContent = 'Gemini עמוס, מנסה שוב…'; }, short);
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
-    let text = s.partial ? raw.trim() : s.text;
-    if (s.action) {
+    let text = s.partial ? raw.trim() : s.text, card = null;
+    // JSON שבור או חתוך של שאלון לא מוצג למשתמש
+    if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
+    if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
       let ev = null;
       try { ev = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
       if (ev) { if (!text) text = `הוספתי לך ליומן: ${ev.title}`; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
-      b.classList.remove('typing'); b.textContent = text;
+      b.classList.remove('typing', 'making'); b.textContent = text;
       if (ev) chatAddedCard(ev);
-    } else { b.classList.remove('typing'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.'; }
+    } else {
+      if (s.action) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);
+      if (s.action && !card) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
+      else if (card && !text) text = card.kind === 'quiz' ? 'הכנתי לך שאלון. בהצלחה! 💪' : 'הכנתי לך דף חזרה.';
+      b.classList.remove('typing', 'making'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.';
+    }
+    const botItem = { role: 'bot', text, ...(card ? { card } : {}) };
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
-    chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, { role: 'bot', text });
+    chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, botItem);
+    if (card) chatCardEl(botItem);
     chatSave();
   } catch (e) {
     console.warn(e);
@@ -4543,7 +4566,7 @@ async function chatSend() {
       if (!input.value) input.value = msg;
     }
   } finally {
-    chatBusy = false; $('chatGo').disabled = false; chatScroll();
+    chatBusy = false; $('chatGo').disabled = false; if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll();
   }
 }
 
@@ -4553,6 +4576,164 @@ $('chatFab').onclick = () => chatOpen(true);
 $('chatClose').onclick = () => chatOpen(false);
 $('chatNew').onclick = chatNew;
 $('chatListBtn').onclick = chatListDialog;
+
+/* ---- כרטיסים בתוך הצ'אט: שאלון אינטראקטיבי ודף חזרה ---- */
+const CHAT_ACTIONS = [
+  { icon: '🎯', text: 'שאלון', send: 'תכין לי שאלון תרגול על החומר' },
+  { icon: '📄', text: 'דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
+  { icon: '🧭', text: 'במה להתחיל?', send: 'במה כדאי לי להתחיל ללמוד עכשיו, ולמה?' },
+  { icon: '✏️', text: 'הוספה ליומן', fill: 'יש לי ' },
+];
+CHAT_ACTIONS.forEach(s => {
+  const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.textContent = `${s.icon} ${s.text}`;
+  c.onclick = () => chatUse(s); $('chatActions').appendChild(c);
+});
+const chatStr = (v, n) => String(v ?? '').trim().slice(0, n);
+function chatQuizData(a) {
+  const questions = (Array.isArray(a.questions) ? a.questions : []).slice(0, 15).map(q => {
+    const base = { q: chatStr(q.q, 400), explain: chatStr(q.explain, 400) }; if (!base.q) return null;
+    if (q.type === 'text') { const answer = chatStr(q.answer, 200); return answer ? { ...base, type: 'text', answer, accept: (Array.isArray(q.accept) ? q.accept : []).slice(0, 6).map(x => chatStr(x, 200)).filter(Boolean) } : null; }
+    const options = (Array.isArray(q.options) ? q.options : []).slice(0, 5).map(x => chatStr(x, 200)).filter(Boolean);
+    const answer = Number.isInteger(q.answer) ? q.answer : options.indexOf(chatStr(q.answer, 200));
+    return options.length >= 2 && answer >= 0 && answer < options.length ? { ...base, type: 'mc', options, answer } : null;
+  }).filter(Boolean);
+  return questions.length ? { kind: 'quiz', title: chatStr(a.title, 80) || 'שאלון תרגול', questions } : null;
+}
+function chatSheetData(a) {
+  const sections = (Array.isArray(a.sections) ? a.sections : []).slice(0, 12).map(x => {
+    // Firestore לא שומר מערך בתוך מערך, אז שורות הטבלה נשמרות כאובייקטים
+    const table = (Array.isArray(x.table) ? x.table : []).slice(0, 80).filter(Array.isArray).map(r => ({ c: r.slice(0, 4).map(v => chatStr(v, 200)) }));
+    const items = (Array.isArray(x.items) ? x.items : []).slice(0, 30).map(v => chatStr(v, 400)).filter(Boolean);
+    return table.length || items.length ? { icon: chatStr(x.icon, 8), heading: chatStr(x.heading, 80), table, items } : null;
+  }).filter(Boolean);
+  return sections.length ? { kind: 'sheet', title: chatStr(a.title, 80) || 'דף חזרה', sections, tips: (Array.isArray(a.tips) ? a.tips : []).slice(0, 6).map(v => chatStr(v, 300)).filter(Boolean) } : null;
+}
+// מה שהכרטיס הכיל, כדי שהעוזר יוכל לענות עליו בהמשך השיחה
+function chatCardText(c) {
+  if (c.kind === 'quiz') return `[שאלון "${c.title}": ${c.questions.map((q, i) => `${i + 1}. ${q.q} = ${q.type === 'mc' ? q.options[q.answer] : q.answer}`).join('; ')}]`.slice(0, 2500);
+  return `[דף חזרה "${c.title}": ${c.sections.map(s => s.heading).join(', ')}]`;
+}
+function chatCardEl(item) {
+  const el = item.card.kind === 'quiz' ? chatQuizEl(item) : chatSheetEl(item);
+  $('chatLog').appendChild(el); el.scrollIntoView({ block: 'start' }); return el;
+}
+const chatNorm = v => String(v).normalize('NFKC').replace(/[\u0591-\u05C7\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+const chatNode = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) { n.dir = 'auto'; n.textContent = text; } return n; };
+function chatQuizEl(item) {
+  const c = item.card, el = chatNode('section', 'qz');
+  const head = chatNode('header', 'qz-head'), body = chatNode('div', 'qz-body');
+  const title = chatNode('b', '', c.title), count = chatNode('small'), bar = chatNode('div', 'qz-bar'), fill = chatNode('i');
+  bar.appendChild(fill); head.append(title, count, bar); el.append(head, body);
+  let i = 0, wrong = [], score = 0;
+  const next = () => { i++; if (i < c.questions.length) showQ(); else finish(); };
+  function resultRow(q, ok, undoable) {
+    const fb = chatNode('div', 'qz-fb ' + (ok ? 'ok' : 'no'));
+    fb.appendChild(chatNode('b', '', ok ? 'נכון! 🎉' : q.type === 'mc' ? 'לא מדויק' : `התשובה: ${q.answer}`));
+    if (q.explain) fb.appendChild(chatNode('p', '', q.explain));
+    const row = chatNode('div', 'qz-row');
+    if (undoable) { const fix = chatNode('button', 'qz-link', 'בעצם צדקתי'); fix.type = 'button'; fix.onclick = () => { score++; wrong = wrong.filter(x => x !== q); next(); }; row.appendChild(fix); }
+    const go = chatNode('button', 'btn ai-go', i + 1 < c.questions.length ? 'הבאה' : 'לתוצאה'); go.type = 'button'; go.onclick = next; row.appendChild(go);
+    fb.appendChild(row); body.appendChild(fb); chatScroll(); go.focus({ preventScroll: true });
+  }
+  function showQ() {
+    const q = c.questions[i]; body.innerHTML = '';
+    count.textContent = `שאלה ${i + 1} מתוך ${c.questions.length}`; fill.style.width = `${(i / c.questions.length) * 100}%`;
+    body.appendChild(chatNode('p', 'qz-q', q.q));
+    if (q.type === 'mc') {
+      const box = chatNode('div', 'qz-opts');
+      q.options.forEach((o, n) => {
+        const b = chatNode('button', 'qz-opt'); b.type = 'button';
+        const mark = chatNode('span', 'qz-mk'); mark.textContent = 'אבגדה'[n];
+        b.append(mark, chatNode('span', '', o));
+        b.onclick = () => {
+          const ok = n === q.answer; if (ok) score++; else wrong.push(q);
+          [...box.children].forEach((x, k) => { x.disabled = true; if (k === q.answer) x.classList.add('right'); else if (x === b) x.classList.add('bad'); });
+          resultRow(q, ok, false);
+        };
+        box.appendChild(b);
+      });
+      body.appendChild(box);
+    } else {
+      const form = chatNode('div', 'qz-write');
+      const inp = chatNode('input'); inp.type = 'text'; inp.dir = 'auto'; inp.placeholder = 'כתוב את התשובה'; inp.setAttribute('aria-label', 'התשובה שלך');
+      const check = chatNode('button', 'btn ai-go', 'בדיקה'); check.type = 'button';
+      check.onclick = () => {
+        if (!inp.value.trim()) { inp.focus(); return; }
+        const given = chatNorm(inp.value), ok = [q.answer, ...(q.accept || [])].some(a => chatNorm(a) === given);
+        if (ok) score++; else wrong.push(q);
+        inp.disabled = true; check.remove(); inp.classList.add(ok ? 'right' : 'bad');
+        resultRow(q, ok, !ok);
+      };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); check.click(); } });
+      form.append(inp, check); body.appendChild(form);
+    }
+    if (el.isConnected) el.scrollIntoView({ block: 'start' });
+  }
+  function paintResult(res) {
+    const total = c.questions.length, pct = Math.round((res.score / total) * 100);
+    fill.style.width = '100%'; count.textContent = 'סיימת!'; body.innerHTML = '';
+    const ring = chatNode('div', 'qz-ring'); ring.style.setProperty('--p', pct); ring.appendChild(chatNode('b', '', `${pct}%`));
+    const msg = pct >= 90 ? 'מדהים! אתה מוכן למבחן 🏆' : pct >= 70 ? 'יפה מאוד! עוד קצת וזה שם 💪' : pct >= 50 ? 'התחלה טובה. נחזק את מה שטעית בו 🌱' : 'לא נורא, בשביל זה מתרגלים. נעבור על זה יחד 🤝';
+    body.append(ring, chatNode('p', 'qz-msg', msg), chatNode('p', 'qz-sum', `${res.score} נכונות מתוך ${total}`));
+    if (res.wrong.length) {
+      const list = chatNode('div', 'qz-wrongs'); list.appendChild(chatNode('b', '', 'כדאי לחזור על:'));
+      res.wrong.forEach(w => { const r = chatNode('div', 'qz-wrong'); r.append(chatNode('span', '', w.q), chatNode('strong', '', w.a)); list.appendChild(r); });
+      body.appendChild(list);
+    }
+    const row = chatNode('div', 'qz-row wrap');
+    const again = chatNode('button', 'btn btn-ghost', '🔁 שוב'); again.type = 'button'; again.onclick = () => { i = 0; score = 0; wrong = []; delete c.done; showQ(); };
+    row.appendChild(again);
+    if (res.wrong.length) {
+      const more = chatNode('button', 'btn ai-go', '🎯 שאלון על מה שטעיתי'); more.type = 'button';
+      more.onclick = () => chatUse({ send: `תכין לי שאלון חדש שמתמקד במה שטעיתי בו: ${res.wrong.map(w => w.q).join('; ')}`.slice(0, 590) });
+      row.appendChild(more);
+    } else { const sh = chatNode('button', 'btn ai-go', '📄 דף חזרה'); sh.type = 'button'; sh.onclick = () => chatUse({ send: 'תכין לי דף חזרה מסודר על החומר' }); row.appendChild(sh); }
+    body.appendChild(row); if (el.isConnected) el.scrollIntoView({ block: 'start' });
+  }
+  function finish() {
+    const res = { score, wrong: wrong.map(q => ({ q: q.q, a: q.type === 'mc' ? q.options[q.answer] : q.answer })) };
+    c.done = res; paintResult(res);
+    if (score === c.questions.length) { try { confetti(el); } catch {} }
+    chatHistory.push({ role: 'me', hidden: true, text: `(סיים את השאלון "${c.title}": ${score} מתוך ${c.questions.length}${res.wrong.length ? `. טעה ב: ${res.wrong.map(w => w.q).join('; ')}` : ''})`.slice(0, 900) });
+    chatSave();
+  }
+  if (c.done) paintResult(c.done); else showQ();
+  return el;
+}
+function chatSheetEl(item) {
+  const c = item.card, el = chatNode('section', 'sh');
+  const head = chatNode('header', 'qz-head'); head.append(chatNode('b', '', c.title), chatNode('small', '', 'דף חזרה')); el.appendChild(head);
+  const body = chatNode('div', 'sh-body');
+  c.sections.forEach(s => {
+    const box = chatNode('div', 'sh-sec');
+    box.appendChild(chatNode('h4', '', `${s.icon ? s.icon + ' ' : ''}${s.heading}`));
+    if (s.table && s.table.length) {
+      const t = chatNode('div', 'sh-table');
+      s.table.forEach(r => { const row = chatNode('div', 'sh-tr'); r.c.forEach(v => row.appendChild(chatNode('span', '', v))); t.appendChild(row); });
+      box.appendChild(t);
+    }
+    if (s.items && s.items.length) { const ul = chatNode('ul'); s.items.forEach(v => ul.appendChild(chatNode('li', '', v))); box.appendChild(ul); }
+    body.appendChild(box);
+  });
+  if (c.tips && c.tips.length) { const tip = chatNode('div', 'sh-tips'); tip.appendChild(chatNode('b', '', '💡 טיפים לזכירה')); c.tips.forEach(v => tip.appendChild(chatNode('p', '', v))); body.appendChild(tip); }
+  const row = chatNode('div', 'qz-row wrap');
+  const save = chatNode('button', 'btn btn-ghost', '📓 שמירה כמחברת'); save.type = 'button'; save.onclick = () => chatSheetSave(c, save);
+  const quiz = chatNode('button', 'btn ai-go', '🎯 שאלון על זה'); quiz.type = 'button'; quiz.onclick = () => chatUse({ send: `תכין לי שאלון על דף החזרה "${c.title}"` });
+  row.append(save, quiz); body.appendChild(row); el.appendChild(body);
+  return el;
+}
+async function chatSheetSave(c, btn) {
+  const t = document.createElement('div'); t.appendChild(chatNode('h2', '', c.title));
+  c.sections.forEach(s => {
+    t.appendChild(chatNode('h3', '', `${s.icon ? s.icon + ' ' : ''}${s.heading}`));
+    if (s.table && s.table.length) { const tb = document.createElement('table'); s.table.forEach(r => { const tr = document.createElement('tr'); r.c.forEach(v => tr.appendChild(chatNode('td', '', v))); tb.appendChild(tr); }); t.appendChild(tb); }
+    if (s.items && s.items.length) { const ul = document.createElement('ul'); s.items.forEach(v => ul.appendChild(chatNode('li', '', v))); t.appendChild(ul); }
+  });
+  if (c.tips && c.tips.length) { t.appendChild(chatNode('h3', '', '💡 טיפים לזכירה')); const ul = document.createElement('ul'); c.tips.forEach(v => ul.appendChild(chatNode('li', '', v))); t.appendChild(ul); }
+  btn.disabled = true;
+  try { const now = Date.now(); await setDoc(doc(nbCol()), { title: c.title, color: '#7a4fd1', html: clean(t.innerHTML), createdAt: now, updatedAt: now }); btn.textContent = '✓ נשמר במחברות'; toast('נוצרה מחברת חדשה'); }
+  catch (e) { console.warn(e); btn.disabled = false; toast('לא הצלחתי לשמור'); }
+}
 
 // התיבה במסך הבית: שולחים, ועוברים לעמוד של העוזר
 function homeAsk() {
