@@ -2011,6 +2011,8 @@ function openShare(id) {
     $('shareView').classList.toggle('view-only', viewOnly && !mine);
     document.title = (s.title || 'מחברת') + ' · המחברות שלי';
     $('shTitle').textContent = s.title || 'מחברת';
+    const hint = $('shHint');
+    if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? '🔒 שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>✏️ עריכה משותפת</b>.' : '📥 אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>✏️ עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
     const b = $('shBody'); b.innerHTML = clean(s.html || '');
@@ -3112,7 +3114,7 @@ function focusTimer(e, saved) {
   o.querySelector('.ft').textContent = e.title; document.body.appendChild(o);
   const fg = o.querySelector('.fg'), C = 2 * Math.PI * 45; fg.style.strokeDasharray = C;
   const leftNow = () => pausedLeft !== null ? pausedLeft : Math.max(0, Math.round((endAt - Date.now()) / 1000));
-  const store = () => { try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ id: e.id, title: e.title, total, endAt, pausedLeft })); } catch {} };
+  const store = () => { try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ id: e.id, title: e.title, nb: !!e.nb, total, endAt, pausedLeft })); } catch {} };
   const forget = () => { try { localStorage.removeItem(FOCUS_KEY); } catch {} };
   const finish = () => {
     if (finished) return; finished = true; clearInterval(focusT); forget();
@@ -3149,7 +3151,7 @@ function focusTimer(e, saved) {
     store(); paint();
   };
   o.querySelector('#fStop').onclick = end;
-  o.querySelector('#fDone').onclick = ev => { confetti(ev.target); updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
+  o.querySelector('#fDone').onclick = ev => { confetti(ev.target); if (e.id && !e.nb) updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
   store(); paint();
 }
 // צלצול קצר בסוף (צריך "לפתוח" את הקול בלחיצה לפני כן, בגלל חוקי הדפדפן)
@@ -3170,7 +3172,7 @@ function resumeFocus() {
   try {
     const f = JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null'); if (!f || !f.id) return;
     if (f.pausedLeft === null && f.endAt < Date.now() - 6 * 3600e3) { localStorage.removeItem(FOCUS_KEY); return; }
-    focusTimer({ id: f.id, title: f.title }, f);
+    focusTimer({ id: f.id, title: f.title, nb: f.nb }, f);
   } catch {}
 }
 // הוספה מהירה בתוך הכרטיסייה: תמיד שיעורי בית
@@ -3585,3 +3587,7 @@ function introOnce(k, force) {
     const ov = document.querySelector('#dialogRoot .overlay'); if (ov) ov.addEventListener('click', e => { if (e.target === ov && !done) { done = true; res(false); } });
   });
 }
+
+const editMode0 = s => s.mode === 'edit';
+// טיימר ריכוז גם מתוך מחברת
+$('nbTimer').addEventListener('click', () => { prepSound(); focusTimer({ id: openId, title: 'לומדים: ' + ($('title').value || 'מחברת'), nb: true }); });

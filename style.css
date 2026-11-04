@@ -945,3 +945,7 @@ body.editing-shared .ai-strip{grid-template-columns:1fr}
 .oc-mode.on{border-color:var(--accent);background:var(--accent-soft)}
 .oc-mode.on span{color:var(--accent)}
 .oc-mode{position:relative}.oc-mode .rec{position:absolute;top:-9px;left:10px;font-style:normal;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#F59E0B,#FF5E8A);padding:2px 8px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+
+.nb-timer span{font-weight:600}
+@media (max-width:700px){.nb-timer span{display:none}}
+.sh-hint{margin:-10px 0 22px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);font-size:14px;line-height:1.6}

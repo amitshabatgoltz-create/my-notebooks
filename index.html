@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793740560">
+<link rel="stylesheet" href="style.css?v=1793781856">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -23,6 +23,7 @@
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
   <symbol id="i-tt" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="17" rx="3"/><path d="M3 9h18M9 9v11.5M15 9v11.5M3 14.5h18"/></symbol>
   <symbol id="i-hw" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8.5l1.5 1.5L12 7.5M8 14.5l1.5 1.5L12 13.5M14.5 9h2.5M14.5 15h2.5"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M19 6l-1.5 1.5"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
@@ -94,6 +95,7 @@
       <div class="doc-color" id="shColor"></div>
       <h1 class="sh-title" id="shTitle"></h1>
       <div class="sh-owner" id="shOwner"></div>
+      <div class="sh-hint hidden" id="shHint"></div>
       <div class="page"><div id="shareBody"><div id="shBody"></div></div></div>
     </div>
   </main>
@@ -187,6 +189,7 @@
           <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות"><svg><use href="#i-back"/></svg><span>מחברות</span></button>
           <span class="save" id="save"></span>
           <span class="presence hidden" id="presence"></span><span class="shared-by" id="sharedBy"></span>
+          <button class="btn btn-ghost nb-timer" id="nbTimer" type="button" title="טיימר לימוד"><svg><use href="#i-timer"/></svg><span>טיימר</span></button>
           <button class="btn btn-ghost share-btn" id="shareBtn" title="שיתוף עם חברים"><svg><use href="#i-share"/></svg><span>שיתוף</span></button>
           <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
           <button class="btn btn-ghost icon-btn" id="delBtn" title="מחיקת המחברת" aria-label="מחיקת המחברת"><svg><use href="#i-trash"/></svg></button>
@@ -305,6 +308,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793740560"></script>
+<script type="module" src="app.js?v=1793781856"></script>
 </body>
 </html>
