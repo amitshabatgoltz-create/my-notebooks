@@ -2468,7 +2468,7 @@ function dropHint(on) {
   if (!on) { if (o) o.remove(); return; }
   if (!o) { o = document.createElement('div'); o.id = 'dropHint'; o.className = 'drop-hint'; document.body.appendChild(o); }
   const t = dropTarget();
-  o.innerHTML = `<div><b>📎 שחרר כדי לצרף</b><span>${t === 'dialog' ? 'הקובץ ייכנס לחלון הפתוח' : t === 'notebook' ? 'הקובץ ייכנס למחברת, איפה שאתה משחרר' : t === 'event' ? 'הקובץ יצורף למשימה' : t === 'chat' ? 'הקובץ יישלח לעוזר הלימודי' : t === 'quick' ? 'הקובץ יצורף לשיעורי הבית שתוסיף ביומן' : 'פתח מחברת או את מסך הבית כדי לצרף קובץ'}</span></div>`;
+  o.innerHTML = `<div><b>📎 שחרר כדי לצרף</b><span>${t === 'dialog' ? 'הקובץ ייכנס לחלון הפתוח' : t === 'notebook' ? 'הקובץ ייכנס למחברת, איפה שאתה משחרר' : t === 'event' ? 'הקובץ יצורף למשימה' : t === 'chat' ? 'הקובץ יישלח לעוזר הלימודי' : t === 'quick' ? 'הקובץ יישלח לעוזר הלימודי' : 'פתח מחברת או את מסך הבית כדי לצרף קובץ'}</span></div>`;
   o.classList.toggle('no', !t);
 }
 document.addEventListener('dragenter', e => { if (!hasFiles(e) || !me) return; e.preventDefault(); dragDepth++; dropHint(true); });
@@ -2487,8 +2487,7 @@ document.addEventListener('drop', e => {
     addFiles(fs); return;
   }
   if (t === 'quick') {
-    if ($('home').classList.contains('hidden')) showTab('home');
-    const dt = new DataTransfer(); fs.forEach(f => dt.items.add(f)); $('qaFileInput').files = dt.files; $('qaFileInput').onchange();
+    showTab('chat'); feedInput($('chatFile'), fs);
     return;
   }
   toast('פתח מחברת או את מסך הבית כדי לצרף קובץ');
@@ -2502,7 +2501,7 @@ document.addEventListener('paste', e => {
   let inp = dialogFileInput();
   if (!inp && document.querySelector('.ev-dlg')) inp = document.querySelector('#edInput');
   if (!inp && !document.querySelector('#dialogRoot .overlay') && !$('chatPanel').classList.contains('hidden')) inp = $('chatFile');
-  if (!inp && !document.querySelector('#dialogRoot .overlay') && (!$('home').classList.contains('hidden') || !$('calendar').classList.contains('hidden'))) inp = $('qaFileInput');
+  if (!inp && !document.querySelector('#dialogRoot .overlay') && (!$('home').classList.contains('hidden') || !$('calendar').classList.contains('hidden'))) { showTab('chat'); inp = $('chatFile'); }
   if (!inp) return;
   e.preventDefault(); feedInput(inp, fs);
 });
@@ -4379,6 +4378,7 @@ function chatPaintFiles() {
   });
 }
 async function chatAddFiles(list) {
+  await chatReady;   // אחרת טעינת השיחה מוחקת את מה שצורף
   const left = (await usageLeft('cf')) - chatPending.length;
   if (left <= 0) { limitDialog('cf'); return; }
   const room = Math.min(left, CHAT_MAX_ATTACH - chatPending.length);
@@ -4493,6 +4493,19 @@ $('chatFab').onclick = () => chatOpen(true);
 $('chatClose').onclick = () => chatOpen(false);
 $('chatNew').onclick = chatNew;
 $('chatListBtn').onclick = chatListDialog;
+
+// התיבה במסך הבית: שולחים, ועוברים לעמוד של העוזר
+function homeAsk() {
+  const inp = $('haInput'), t = inp.value.trim(); if (!t) return;
+  if (chatWaitBusy()) return;
+  inp.value = ''; inp.style.height = '';
+  showTab('chat');
+  $('chatInput').value = t; chatSend();
+}
+$('haGo').onclick = homeAsk;
+$('haFile').onclick = () => { showTab('chat'); $('chatFile').click(); };
+$('haInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); homeAsk(); } });
+$('haInput').addEventListener('input', () => { const i = $('haInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; });
 $('chatGo').onclick = chatSend;
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }

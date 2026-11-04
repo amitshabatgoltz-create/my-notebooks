@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793803322">
+<link rel="stylesheet" href="style.css?v=1793803545">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -155,7 +155,12 @@
             </div>
           </div>
         </div>
-        <div class="quick-add" id="quickAdd">
+        <div class="quick-add home-ask">
+          <textarea id="haInput" rows="1" dir="auto" placeholder="מה רצית לשאול? אפשר גם: יש לי ש״ב במתמטיקה למחר" aria-label="הודעה לעוזר הלימודי"></textarea>
+          <div class="qa-btns"><button class="btn btn-ghost qa-clip" id="haFile" type="button" title="צירוף תמונה או קובץ" aria-label="צירוף תמונה או קובץ"><svg><use href="#i-clip"/></svg></button><button class="btn btn-primary" id="haGo" type="button">שליחה</button></div>
+        </div>
+        <!-- ההוספה המהירה הישנה: מוסתרת, הקוד שלה עדיין נטען -->
+        <div class="quick-add hidden" id="quickAdd">
           <textarea id="qaInput" rows="1" placeholder="מה יש לך? למשל: ש״ב במתמטיקה עמ׳ 45 למחר" aria-label="הוספה מהירה ליומן"></textarea>
           <div class="qa-btns"><button class="btn btn-ghost qa-clip" id="qaFileBtn" type="button" title="צירוף קובץ (PDF, Word, תמונה...)" aria-label="צירוף קובץ"><svg><use href="#i-clip"/></svg></button><button class="btn btn-primary" id="qaGo" type="button">הוספה ליומן</button></div>
           <input type="file" id="qaFileInput" multiple hidden>
@@ -349,6 +354,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793803322"></script>
+<script type="module" src="app.js?v=1793803545"></script>
 </body>
 </html>
