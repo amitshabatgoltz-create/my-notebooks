@@ -3520,8 +3520,16 @@ $('ocrBtn').addEventListener('click', ocrDialog);
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
 const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
-const UNLIMITED = ['amitshabatgoltz@gmail.com'];
-const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
+const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
+let unlimitedEmail = null, unlimitedYes = false;
+async function refreshUnlimited() {
+  const e = ((me && me.email) || '').toLowerCase();
+  if (e === unlimitedEmail) return;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('my-notebooks:' + e));
+  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  unlimitedYes = UNLIMITED_HASH.includes(hex); unlimitedEmail = e;
+}
+const isUnlimited = () => unlimitedYes && unlimitedEmail === ((me && me.email) || '').toLowerCase();
 const OCR_MAX_IMGS = 4;
 const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה' };
 let usage = null;
@@ -3533,7 +3541,7 @@ async function loadUsage() {
   catch { usage = usage && usage.date === tk ? usage : { date: tk, ocr: 0, sum: 0 }; }
   return usage;
 }
-async function usageLeft(k) { if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
+async function usageLeft(k) { await refreshUnlimited(); if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
 function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
