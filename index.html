@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793799617">
+<link rel="stylesheet" href="style.css?v=1793800619">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -320,10 +320,24 @@
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת</button>
       <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
   </nav>
+
+  <!-- עוזר לימודי -->
+  <button id="chatFab" class="chat-fab" type="button" aria-label="פתיחת העוזר הלימודי" title="עוזר לימודי">💬</button>
+  <section id="chatPanel" class="chat-panel hidden" aria-label="עוזר לימודי">
+    <header class="chat-head">
+      <div><b>עוזר לימודי</b><small id="chatSub"></small></div>
+      <button id="chatClose" class="chat-x" type="button" aria-label="סגירה">✕</button>
+    </header>
+    <div id="chatLog" class="chat-log" aria-live="polite"></div>
+    <div class="chat-form">
+      <textarea id="chatInput" rows="1" dir="auto" placeholder="מה רצית לשאול?" aria-label="הודעה לעוזר"></textarea>
+      <button id="chatGo" class="btn btn-primary" type="button">שליחה</button>
+    </div>
+  </section>
 </div>
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793799617"></script>
+<script type="module" src="app.js?v=1793800619"></script>
 </body>
 </html>
