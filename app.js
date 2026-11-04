@@ -1129,7 +1129,7 @@ function countUp(el, to) {
 }
 let homeAnimated = false;
 function renderHome() {
-  renderStats();
+  renderStats(); homeAskChips();
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
   const name = firstName();
@@ -4175,7 +4175,7 @@ const CHAT_SHORT = 80;
 const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length
   && !/\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg)
   && !chatMem.some(m => typeof m.part !== 'string');
-const CHAT_HELLO = 'היי! אפשר לשאול אותי כל דבר, גם מעבר למה שכתוב במחברת, ולהעלות לי תמונה או קובץ עם 📎. ואם תכתוב למשל "יש לי שיעורים במתמטיקה עמודים 12 ו-13 למחר", אוסיף את זה ליומן.';
+const CHAT_HELLO = 'אפשר לשאול אותי כל דבר, להעלות דף או צילום, או לספר לי מה יש לך מחר ואוסיף ליומן.';
 const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 18000000;
 // הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
 const CHAT_LONG = 600, CHAT_MAX_TEXT = 200000, CHAT_MAX_MEM_TEXT = 250000, CHAT_MAX_HISTORY = 40, CHAT_MAX_HISTORY_TEXT = 30000;
@@ -4185,17 +4185,65 @@ let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMe
 function chatContext() {
   const sub = $('chatSub'); if (!sub) return;
   const title = openId ? ($('title').value || 'מחברת ללא שם') : '';
-  sub.textContent = title ? `קורא את המחברת: ${title}` : 'עוזר כללי למשימות ולשאלות';
+  sub.textContent = title ? `קורא את המחברת: ${title}` : 'אפשר לשאול כל דבר';
+  if ($('chatLog').querySelector('.chat-empty')) chatRender();
 }
 function chatScroll() { const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
 function chatBubble(role, text) {
+  $('chatLog').querySelector('.chat-empty')?.remove();
   const b = document.createElement('div'); b.className = 'chat-msg ' + role; b.dir = 'auto'; b.textContent = text;
   $('chatLog').appendChild(b); chatScroll(); return b;
 }
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
 function chatRender() {
-  $('chatLog').innerHTML = ''; chatBubble('bot', CHAT_HELLO);
-  chatHistory.forEach(m => chatBubble(m.role, m.text));
+  $('chatLog').innerHTML = '';
+  if (chatHistory.length) { chatHistory.forEach(m => chatBubble(m.role, m.text)); return; }
+  // שיחה ריקה: ברכה והצעות במקום בועה רגילה
+  const box = document.createElement('div'); box.className = 'chat-empty';
+  const name = ((me && me.displayName) || '').trim().split(/\s+/)[0];
+  const orb = document.createElement('span'); orb.className = 'ai-orb'; orb.innerHTML = '<svg><use href="#i-spark"/></svg>';
+  const h = document.createElement('h2'); h.textContent = name ? `היי ${name}, מה לומדים היום?` : 'היי, מה לומדים היום?';
+  const p = document.createElement('p'); p.textContent = CHAT_HELLO;
+  const grid = document.createElement('div'); grid.className = 'chat-sugs';
+  chatSuggestions().forEach(s => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'chat-sug';
+    const i = document.createElement('span'); i.className = 'ic'; i.textContent = s.icon;
+    const t = document.createElement('span'); t.dir = 'auto'; t.textContent = s.text;
+    c.append(i, t); c.onclick = () => chatUse(s); grid.appendChild(c);
+  });
+  box.append(orb, h, p, grid); $('chatLog').appendChild(box);
+}
+// הצעות לפי מה שקורה עכשיו: מחברת פתוחה, או המבחן הקרוב ביומן
+function chatSuggestions() {
+  if (openId) return [
+    { icon: '📝', text: 'תסכם לי את המחברת', send: 'תסכם לי את המחברת הזאת' },
+    { icon: '🎯', text: 'תבחן אותי על החומר', send: 'תבחן אותי על החומר שבמחברת, שאלה אחת בכל פעם' },
+    { icon: '💡', text: 'מה הכי קשה כאן?', send: 'מה הנושא הכי קשה במחברת? תסביר לי אותו בפשטות' },
+    { icon: '📎', text: 'להעלות דף או צילום', file: true },
+  ];
+  const test = events.find(e => e.type === 'test' && !e.done && e.date >= todayKey());
+  const title = test ? String(test.title || '').slice(0, 40) : '';
+  return [
+    test ? { icon: '🎯', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תעזור לי להתכונן ותבחן אותי` } : { icon: '🎯', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תשאל אותי מה אתה צריך לדעת' },
+    { icon: '📅', text: 'מה יש לי השבוע?', send: 'מה יש לי השבוע ביומן? במה כדאי להתחיל?' },
+    { icon: '📎', text: 'להעלות דף או צילום', file: true },
+    { icon: '✏️', text: 'להוסיף משהו ליומן', fill: 'יש לי ' },
+  ];
+}
+function chatUse(s) {
+  const inp = $('chatInput');
+  if (s.file) { $('chatFile').click(); return; }
+  if (s.fill) { inp.value = s.fill; inp.focus(); return; }
+  if (chatWaitBusy()) return;
+  inp.value = s.send; chatSend();
+}
+function homeAskChips() {
+  const box = $('haChips'); box.innerHTML = '';
+  chatSuggestions().slice(0, 3).forEach(s => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.dir = 'auto'; c.textContent = `${s.icon} ${s.text}`;
+    c.onclick = () => { showTab('chat'); chatUse(s); };
+    box.appendChild(c);
+  });
 }
 function chatClearState() { chatId = null; chatCreated = 0; chatSavedTitle = ''; chatHistory = []; chatPending = []; chatMem = []; chatPaintFiles(); }
 function chatReset() {
@@ -4269,7 +4317,8 @@ async function chatListDialog() {
   try { await chatReady; list = await chatFetchList(); } catch (e) { console.warn(e); failed = true; }
   dialog(d => {
     d.classList.add('chat-list-dlg');
-    d.innerHTML = '<h3>השיחות שלי</h3>';
+    d.innerHTML = '<div class="chat-list-head"><span class="ai-orb sm" aria-hidden="true"><svg><use href="#i-list"/></svg></span><div><h3>השיחות שלי</h3><small></small></div></div>';
+    d.querySelector('small').textContent = list.length === 1 ? 'שיחה אחת שמורה' : list.length ? `${list.length} שיחות שמורות` : 'כל שיחה נשמרת כאן לבד';
     const box = document.createElement('div'); box.className = 'chat-list';
     if (failed) box.innerHTML = '<p class="chat-list-empty">לא הצלחתי לטעון את השיחות. נסה שוב.</p>';
     else if (!list.length) box.innerHTML = '<p class="chat-list-empty">עוד אין שיחות שמורות.</p>';
@@ -4277,14 +4326,16 @@ async function chatListDialog() {
       const row = document.createElement('div'); row.className = 'chat-row' + (c.id === chatId ? ' on' : '');
       const open = document.createElement('button'); open.type = 'button'; open.className = 'chat-row-open';
       const t = document.createElement('b'); t.dir = 'auto'; t.textContent = c.title || 'שיחה';
-      const when = document.createElement('small'); when.textContent = timeAgo(c.updatedAt);
-      open.append(t, when); open.onclick = () => chatPick(c);
+      const when = document.createElement('small'); when.textContent = `${timeAgo(c.updatedAt)} · ${Math.ceil((c.history || []).length / 2)} שאלות`;
+      const dot = document.createElement('span'); dot.className = 'chat-row-ic'; dot.innerHTML = '<svg><use href="#i-spark"/></svg>';
+      const tx = document.createElement('span'); tx.className = 'chat-row-tx'; tx.append(t, when);
+      open.append(dot, tx); open.onclick = () => chatPick(c);
       const del = document.createElement('button'); del.type = 'button'; del.className = 'chat-row-del'; del.textContent = '✕'; del.setAttribute('aria-label', 'מחיקת השיחה');
       del.onclick = () => chatDelete(c, row);
       row.append(open, del); box.appendChild(row);
     });
     const actions = document.createElement('div'); actions.className = 'row';
-    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'שיחה חדשה'; add.onclick = chatNew;
+    const add = document.createElement('button'); add.className = 'btn ai-go'; add.innerHTML = '<svg><use href="#i-plus"/></svg>שיחה חדשה'; add.onclick = chatNew;
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
     actions.append(add, no); d.append(box, actions);
   });
