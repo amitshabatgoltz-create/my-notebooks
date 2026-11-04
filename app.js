@@ -4173,8 +4173,9 @@ const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-fl
 const CHAT_HELLO = 'היי! אפשר לשאול אותי כל דבר, גם מעבר למה שכתוב במחברת, ולהעלות לי תמונה או קובץ עם 📎. ואם תכתוב למשל "יש לי שיעורים במתמטיקה עמודים 12 ו-13 למחר", אוסיף את זה ליומן.';
 const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 18000000;
 // הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
-const CHAT_LONG = 3000, CHAT_MAX_TEXT = 200000, CHAT_MAX_MEM_TEXT = 250000;
-let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMem = [];
+const CHAT_LONG = 600, CHAT_MAX_TEXT = 200000, CHAT_MAX_MEM_TEXT = 250000, CHAT_MAX_HISTORY = 40, CHAT_MAX_HISTORY_TEXT = 30000;
+const CHAT_FILE_GONE = 'הקובץ הזה הועלה קודם ולא נשמר אחרי רענון. אם צריך אותו, בקש מהמשתמש להעלות אותו שוב.';
+let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMem = [], chatReady = null;
 
 function chatContext() {
   const sub = $('chatSub'); if (!sub) return;
@@ -4187,7 +4188,48 @@ function chatBubble(role, text) {
   $('chatLog').appendChild(b); chatScroll(); return b;
 }
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
-function chatReset() { chatHistory = []; chatPending = []; chatMem = []; chatUid = me && me.uid; $('chatLog').innerHTML = ''; chatPaintFiles(); chatBubble('bot', CHAT_HELLO); }
+function chatRender() {
+  $('chatLog').innerHTML = ''; chatBubble('bot', CHAT_HELLO);
+  chatHistory.forEach(m => chatBubble(m.role, m.text));
+}
+function chatReset() {
+  chatHistory = []; chatPending = []; chatMem = []; chatUid = me && me.uid;
+  chatPaintFiles(); chatRender();
+  chatReady = chatLoad();
+}
+// השיחה נשמרת לכל חשבון ב-users/{uid}/meta/chat: טקסט וחומר שהודבק. תמונות ו-PDF גדולים מדי, אז רק השם שלהם נשמר.
+const chatDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
+async function chatLoad() {
+  const uid = me && me.uid; if (!uid) return;
+  try {
+    const sn = await getDoc(chatDoc());
+    if (!me || me.uid !== uid || !sn.exists()) return;
+    const d = sn.data();
+    chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || '') }));
+    chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
+    chatRender();
+  } catch (e) { console.warn('chat load', e); }
+}
+function chatSave() {
+  if (!me) return;
+  while (chatHistory.length > CHAT_MAX_HISTORY || chatHistory.reduce((t, m) => t + m.text.length, 0) > CHAT_MAX_HISTORY_TEXT) { if (chatHistory.length <= 2) break; chatHistory.shift(); }
+  const mem = chatMem.map(m => ({ name: m.name, part: typeof m.part === 'string' ? m.part : null }));
+  setDoc(chatDoc(), { history: chatHistory, mem, updatedAt: Date.now() }).catch(e => console.warn('chat save', e));
+}
+function chatNew() {
+  dialog(d => {
+    d.innerHTML = '<h3>להתחיל שיחה חדשה?</h3><p>העוזר ישכח את השיחה הזאת ואת החומר ששלחת בה.</p>';
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-danger'; go.textContent = 'שיחה חדשה';
+    go.onclick = () => {
+      closeDialog();
+      chatHistory = []; chatPending = []; chatMem = []; chatPaintFiles(); chatRender();
+      chatReady = deleteDoc(chatDoc()).catch(e => console.warn('chat clear', e));
+    };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.append(row);
+  });
+}
 function chatOpen(on) {
   if (on && (!chatUid || chatUid !== (me && me.uid))) chatReset();
   $('chatPanel').classList.toggle('hidden', !on); $('chatFab').classList.toggle('hidden', on);
@@ -4341,9 +4383,10 @@ async function chatSend() {
   if (msg.length > CHAT_MAX_TEXT) { toast('הטקסט ארוך מדי. הדבק חלק ממנו, או העלה אותו כקובץ'); return; }
   const long = msg.length > CHAT_LONG;
   chatBusy = true; $('chatGo').disabled = true;
-  const uid = me.uid, memBefore = chatMem.slice();
+  const uid = me.uid; let memBefore = chatMem;
   let b = null;
   try {
+    await chatReady; memBefore = chatMem.slice();
     if ((await usageLeft('chat')) <= 0) { limitDialog('chat'); return; }
     input.value = ''; input.style.height = '';
     chatPending = []; chatPaintFiles();
@@ -4352,7 +4395,7 @@ async function chatSend() {
     chatBubble('me', [...files.map(f => '📎 ' + f.name), shown].filter(Boolean).join('\n'));
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
-    const past = chatHistory.slice(-12).map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}`).join('\n');
+    const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}`).join('\n');
     const parts = [
       chatPrompt(),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
@@ -4376,6 +4419,7 @@ async function chatSend() {
     } else { b.classList.remove('typing'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.'; }
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
     chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, { role: 'bot', text });
+    chatSave();
   } catch (e) {
     console.warn(e);
     if (me && me.uid === uid && b) {
@@ -4393,6 +4437,7 @@ $('chatAttach').onclick = () => $('chatFile').click();
 $('chatFile').onchange = () => { const inp = $('chatFile'), list = [...inp.files]; inp.value = ''; if (list.length) chatAddFiles(list); };
 $('chatFab').onclick = () => chatOpen(true);
 $('chatClose').onclick = () => chatOpen(false);
+$('chatNew').onclick = chatNew;
 $('chatGo').onclick = chatSend;
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }
