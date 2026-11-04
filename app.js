@@ -3516,12 +3516,12 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 20, cf: 5 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 15, cf: 3, kit: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED = ['amitshabatgoltz@gmail.com'];
 const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 async function loadUsage() {
@@ -3536,7 +3536,7 @@ function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + count;
-  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0 }).catch(() => {});
+  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0, kit: usage.kit || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
   if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה ♾️';
@@ -3545,7 +3545,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -4172,6 +4172,7 @@ const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-fl
 const CHAT_FAST_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash'];
 const CHAT_SHORT = 80;
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
+const CHAT_KIT = /שאלון|תבחן|תבחני|בוחן|לתרגל|תרגול|דף חזרה|דף למידה/;
 const CHAT_DEEP = /תבחן|תבחני|שאלון|בוחן|מבחן|תרגול|לתרגל|דף חזרה|דף למידה|תסכם|סיכום/;
 const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length && !CHAT_DEEP.test(msg)
   && !/\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg)
@@ -4341,11 +4342,15 @@ async function chatListDialog() {
     actions.append(add, no); d.append(box, actions);
   });
 }
+async function chatLeftHint() {
+  const n = await usageLeft('chat');
+  $('chatInput').placeholder = n > 5 ? 'כתוב לי כאן…' : n <= 0 ? 'נגמרו ההודעות להיום, מחר אפשר שוב' : n === 1 ? 'נשארה לך הודעה אחת היום' : `נשארו לך ${n} הודעות היום`;
+}
 function chatOpen(on) {
   if (on && (!chatUid || chatUid !== (me && me.uid))) chatReset();
   $('chatPanel').classList.toggle('hidden', !on); $('chatFab').classList.toggle('hidden', on);
   if (on) {
-    chatContext(); chatScroll();
+    chatContext(); chatScroll(); chatLeftHint();
     // במסך המלא בטלפון לא פותחים מקלדת מיד, כדי שאפשר יהיה לקרוא את השיחה
     if (!$('chatPanel').classList.contains('full') || matchMedia('(pointer: fine)').matches) setTimeout(() => $('chatInput').focus(), 50);
   }
@@ -4359,7 +4364,7 @@ function chatPlace(v) {
   chatContext();
 }
 
-function chatPrompt() {
+function chatPrompt(noKit) {
   const currentNotebookText = openId ? $('editor').innerText.trim().slice(0, 30000) : '';
   const upcoming = events.filter(e => !e.done && e.date >= todayKey()).slice(0, 30)
     .map(e => `${e.date}${e.time ? ' ' + e.time : ''} | ${TYPE_NAME[e.type] || ''} | ${e.title}`).join('\n');
@@ -4390,7 +4395,7 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
 לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
 
-ענה תמיד בעברית, בטקסט פשוט: בלי markdown ובלי HTML.`;
+${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ענה תמיד בעברית, בטקסט פשוט: בלי markdown ובלי HTML.`;
 }
 
 // מפריד בין ה-JSON שבתחילת התשובה לטקסט. JSON שמופיע באמצע התשובה לא נחשב פקודה.
@@ -4511,6 +4516,8 @@ async function chatSend() {
   try {
     await chatReady; memBefore = chatMem.slice();
     if ((await usageLeft('chat')) <= 0) { limitDialog('chat'); return; }
+    const kitLeft = await usageLeft('kit');
+    if (kitLeft <= 0 && !long && CHAT_KIT.test(msg)) { limitDialog('kit'); return; }
     input.value = ''; input.style.height = '';
     chatPending = []; chatPaintFiles();
     chatContext();
@@ -4521,7 +4528,7 @@ async function chatSend() {
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
     const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
     const parts = [
-      chatPrompt(),
+      chatPrompt(kitLeft <= 0),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
       `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : msg || 'עזור לי עם מה שהעליתי.'}`,
     ];
@@ -4547,8 +4554,10 @@ async function chatSend() {
       b.classList.remove('typing', 'making'); b.textContent = text;
       if (ev) chatAddedCard(ev);
     } else {
-      if (s.action) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);
-      if (s.action && !card) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
+      if (s.action && kitLeft > 0) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);
+      if (card) useOne('kit');
+      if (s.action && kitLeft <= 0) text = 'נגמרו השאלונים ודפי החזרה להיום. מחר אפשר שוב.';
+      else if (s.action && !card) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
       else if (card && !text) text = card.kind === 'quiz' ? 'הכנתי לך שאלון. בהצלחה! 💪' : 'הכנתי לך דף חזרה.';
       b.classList.remove('typing', 'making'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.';
     }
@@ -4566,7 +4575,7 @@ async function chatSend() {
       if (!input.value) input.value = msg;
     }
   } finally {
-    chatBusy = false; $('chatGo').disabled = false; if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll();
+    chatBusy = false; $('chatGo').disabled = false; if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
   }
 }
 
