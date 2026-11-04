@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793794135">
+<link rel="stylesheet" href="style.css?v=1793794977">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -21,6 +21,7 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
+  <symbol id="i-grades" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
   <symbol id="i-tt" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="17" rx="3"/><path d="M3 9h18M9 9v11.5M15 9v11.5M3 14.5h18"/></symbol>
   <symbol id="i-hw" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8.5l1.5 1.5L12 7.5M8 14.5l1.5 1.5L12 13.5M14.5 9h2.5M14.5 15h2.5"/></symbol>
   <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M9.5 2.5h5M19 6l-1.5 1.5"/></symbol>
@@ -110,6 +111,7 @@
       <button data-tab="hw"><svg><use href="#i-hw"/></svg>שיעורי בית</button>
       <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
+      <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
     </nav>
     <div class="side-label">המחברות שלי</div>
     <div class="side-list" id="sideList"></div>
@@ -161,6 +163,7 @@
           <div class="card countdown" id="nextTest" style="--i:0"></div>
           <div class="card" id="todayCard" style="--i:1"></div>
           <div class="card wide" id="statsCard" style="--i:2"></div>
+          <div class="card wide grades-mini" id="gradesCard" style="--i:3"></div>
           <div class="card wide" id="recentCard" style="--i:3"></div>
         </div>
       </section>
@@ -202,6 +205,7 @@
             <button type="button" class="ai-card ocr" id="aiOcr"><span class="ic">📷</span><span class="tx"><b>תמונה לטקסט</b><small>מצלמים את הלוח והוא מקליד</small></span></button>
             <button type="button" class="ai-card sum" id="aiSum"><span class="ic">✨</span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
             <button type="button" class="ai-card qa" id="aiQa"><span class="ic">📝</span><span class="tx"><b>עבודה מהמורה</b><small>מעלים את העבודה והוא עונה לפי המחברת</small></span></button>
+            <button type="button" class="ai-card fc" id="aiFc"><span class="ic">🃏</span><span class="tx"><b>כרטיסיות שינון</b><small>שאלה מקדימה, תשובה מאחורה</small></span></button>
           </div>
           <div class="toolbar" id="toolbar">
             <div class="seg">
@@ -258,6 +262,14 @@
         <div id="ttBody"></div>
       </section>
 
+      <section id="gradesView" class="view hidden">
+        <div class="lib-head">
+          <div><h2>ציונים</h2><div class="sub">הממוצע מחושב לפי המשקל של כל ציון</div></div>
+          <div class="tt-head-btns"><button class="btn btn-primary" id="grAdd" type="button">＋ ציון חדש</button></div>
+        </div>
+        <div id="grBody"></div>
+      </section>
+
       <section id="calendar" class="view hidden">
         <div class="cal-head">
           <h2 id="monthTitle"></h2>
@@ -305,12 +317,13 @@
     <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
     <button data-tab="hw"><svg><use href="#i-hw"/></svg>שיעורי בית</button>
       <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
-      <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
+      <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת</button>
+      <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
   </nav>
 </div>
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793794135"></script>
+<script type="module" src="app.js?v=1793794977"></script>
 </body>
 </html>

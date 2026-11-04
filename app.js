@@ -121,7 +121,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); setTimeout(resumeFocus, 300);
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300);
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -279,12 +279,12 @@ function renderSide() {
     b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים' }[v] || '';
   document.body.dataset.view = v;
   window.scrollTo(0, 0);
 }
@@ -580,6 +580,7 @@ function showTab(t) {
   else if (t === 'notes') showLibrary();
   else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); introOnce('hw'); }
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
+  else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -675,7 +676,8 @@ function evRow(e, showDate) {
   const sm = document.createElement('small');
   const d = fromKey(e.date);
   const nf = (e.files || []).length;
-  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : '', nf ? `📎 ${nf === 1 ? 'קובץ' : nf + ' קבצים'}` : ''].filter(Boolean).join(' · ');
+  const cdn = e.type === 'test' && !e.done && e.date >= todayKey() ? '⏳ ' + countdownText(e) : '';
+  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, cdn, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : '', nf ? `📎 ${nf === 1 ? 'קובץ' : nf + ' קבצים'}` : ''].filter(Boolean).join(' · ');
   t.append(sp, sm);
   if (e.note) { const nt = document.createElement('small'); nt.className = 'ev-note'; nt.textContent = e.note; t.appendChild(nt); }
   t.style.cursor = 'pointer'; t.title = 'פרטים, הערות וקבצים'; t.onclick = () => eventDialog(e.id);
@@ -1151,7 +1153,9 @@ function renderHome() {
     const what = document.createElement('div'); what.className = 'what'; what.textContent = t.title;
     const when = document.createElement('div'); when.className = 'when'; const dd = fromKey(t.date);
     when.textContent = `יום ${HE_DAYS[dd.getDay()]}, ${dd.getDate()} ב${HE_MONTHS[dd.getMonth()]}` + (t.time ? ` · ${t.time}` : '');
-    nt.append(h, big, what, when);
+    const cdl = document.createElement('div'); cdl.className = 'cd-live'; cdl._ev = t; cdl.textContent = countdownText(t);
+    const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'btn btn-ghost plan-btn'; pb.textContent = '📚 תוכנית למידה'; pb.onclick = () => planDialog(t);
+    nt.append(h, big, what, when, cdl); if (d >= 1) nt.appendChild(pb);
     if (d > 1 && !homeAnimated) countUp(num, d);
     nt.classList.toggle('soon', d <= 3);
   } else {
@@ -1161,6 +1165,7 @@ function renderHome() {
     nt.append(h, big, what, add); nt.classList.remove('soon');
   }
 
+  renderGradesMini();
   // היום
   const tc = $('todayCard'); tc.innerHTML = '';
   const h2 = document.createElement('h3'); h2.textContent = 'היום';
@@ -2510,6 +2515,7 @@ function eventDialog(id) {
         <div><label class="fl">שעה</label><input id="edTime" type="time" value="${e.time || ''}"></div>
       </div>
       <div id="edNext"></div>
+      <div id="edTest"></div>
       <label class="fl">הערות</label><textarea id="edNote" rows="3" placeholder="למשל: שאלות 1–5 ו־8, עמוד 45. לא לשכוח להראות דרך."></textarea>
       <label class="fl">קבצים</label>
       <div class="ev-files" id="edFiles">${(e.files || []).map(f => fileChipHtml(f, true)).join('')}</div>
@@ -2523,6 +2529,16 @@ function eventDialog(id) {
       b.textContent = `📅 להעביר לשיעור הבא ב${nl.subj}: ${dayLabel(key(nl.date))}`;
       b.onclick = () => { d.querySelector('#edDate').value = key(nl.date); b.remove(); toast('התאריך עודכן. לחץ "שמירה"'); };
       d.querySelector('#edNext').appendChild(b);
+    }
+    if (e.type === 'test') {
+      const box = d.querySelector('#edTest'); box.className = 'ed-test';
+      const future = e.date >= todayKey() && testAt(e) > Date.now();
+      if (future) { const c = document.createElement('div'); c.className = 'cd-live big'; c.textContent = '⏳ ' + countdownText(e); box.appendChild(c); const iv = setInterval(() => { if (!c.isConnected) return clearInterval(iv); c.textContent = '⏳ ' + countdownText(e); }, 30000); }
+      const bt = document.createElement('div'); bt.className = 'ed-test-btns';
+      if (future && daysUntil(e.date) >= 1) { const p = document.createElement('button'); p.type = 'button'; p.className = 'btn btn-ghost'; p.textContent = '📚 בנה לי תוכנית למידה'; p.onclick = () => planDialog(e); bt.appendChild(p); }
+      const gb = document.createElement('button'); gb.type = 'button'; gb.className = 'btn btn-ghost'; gb.textContent = '🎯 הוספת ציון';
+      gb.onclick = () => { const subj = [...ttSubjects(), ...SUBJ_GROUPS.map(g => g[0])].find(s => subjMatches(e.title, s)) || ''; gradeDialog(null, { s: subj, n: e.title, d: e.date }); };
+      bt.appendChild(gb); box.appendChild(bt);
     }
     d.querySelectorAll('.ev-files .file-chip').forEach(c => c.dataset.uid = '');
     const files = d.querySelector('#edFiles'), inp = d.querySelector('#edInput');
@@ -3496,12 +3512,12 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED = ['amitshabatgoltz@gmail.com'];
 const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 async function loadUsage() {
@@ -3516,7 +3532,7 @@ function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + count;
-  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0 }).catch(() => {});
+  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
   if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה ♾️';
@@ -3525,7 +3541,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3776,3 +3792,296 @@ INTROS.qa = [
 ];
 ILL.qa1 = `<svg viewBox="0 0 220 130"><rect x="40" y="12" width="140" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<text x="166" y="${40+i*28}" font-size="13" font-weight="700" fill="#5E5CE6" text-anchor="end">${i+1}.</text><rect x="62" y="${31+i*28}" width="${88-i*12}" height="7" rx="3.5" fill="#9AA0AE"/><text x="54" y="${40+i*28}" font-size="14" fill="#F59E0B" text-anchor="middle">?</text>`).join('')}</svg>`;
 ILL.qa2 = `<svg viewBox="0 0 220 130"><rect x="30" y="12" width="160" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="96" y="24" width="78" height="9" rx="4.5" fill="#1D1D1F"/><rect x="58" y="42" width="116" height="7" rx="3.5" fill="#9AA0AE"/><rect x="78" y="55" width="96" height="7" rx="3.5" fill="#9AA0AE"/><rect x="62" y="70" width="112" height="16" rx="6" fill="#EEEEFD"/><text x="168" y="82" font-size="10" fill="#5E5CE6" text-anchor="end" font-weight="700">📍 מהמחברת: "..."</text><rect x="92" y="94" width="82" height="14" rx="5" fill="#FFE58A"/><text x="168" y="104" font-size="9" fill="#8A6D00" text-anchor="end">⚠️ לא כתוב במחברת</text></svg>`;
+
+/* ================= 🃏 כרטיסיות שינון ================= */
+// נשמרות לכל מחברת ב-users/<uid>/cards/<מחברת>, כדי שאפשר לחזור אליהן בלי עוד AI
+const fcDoc = id => doc(db, 'users', me.uid, 'cards', id);
+const FC_PROMPT = `אתה עוזר לתלמיד להתכונן למבחן. מהחומר במחברת שלו, הכן כרטיסיות שינון.
+החזר JSON בלבד: {"cards":[{"q":"שאלה","a":"תשובה"}]}
+כללים:
+- בין 8 ל-20 כרטיסיות, לפי כמות החומר. כל כרטיסייה בודקת דבר אחד.
+- שאלה קצרה וברורה. תשובה קצרה: מילה, שם, תאריך, הגדרה או עד 2 משפטים.
+- רק מה שכתוב במחברת. אל תמציא ואל תוסיף ידע מבחוץ.
+- כסה את כל הנושאים במחברת, לא רק את ההתחלה. בלי כרטיסיות כפולות.
+- עברית פשוטה, כמו שמורה היה שואל במבחן.`;
+async function aiJson(prompt, parts) {
+  let lastErr = null;
+  for (const name of ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite']) {
+    for (const cfg of [{ temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 512 } }, { temperature: 0.2, responseMimeType: 'application/json' }]) {
+      try { const r = await aiModel(name, cfg).generateContent([prompt, ...parts]); const t = r.response.text(); if (t) return JSON.parse((t.match(/\{[\s\S]*\}/) || ['{}'])[0]); }
+      catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
+    }
+  }
+  throw lastErr || new Error('empty');
+}
+async function fcOpen() {
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  await flush();
+  let saved = null; try { const sn = await getDoc(fcDoc(n.id)); if (sn.exists()) saved = sn.data(); } catch {}
+  if (saved && (saved.items || []).length) { fcView(n, saved.items, saved.updatedAt); return; }
+  fcMake(n);
+}
+async function fcMake(n) {
+  const { text, images } = await notebookParts();
+  if (text.length < 40 && !images.length) { toast('יש מעט מדי חומר במחברת בשביל כרטיסיות'); return; }
+  const left = await usageLeft('fc'); if (left <= 0) { limitDialog('fc'); return; }
+  if (!(await introOnce('fc'))) return;
+  dialog(d => {
+    d.classList.add('fc-dlg');
+    d.innerHTML = `<h3>🃏 כרטיסיות שינון</h3><p class="muted-s">מכין כרטיסיות מהמחברת "${esc(n.title)}"...</p><div class="fc-loading"><div class="fc-ghost"></div><div class="fc-ghost"></div><div class="fc-ghost"></div></div><p class="tt-status" id="fcSt"></p>`;
+  });
+  const st = document.querySelector('#fcSt'); const stop = ticking(st, '✨ קורא את המחברת');
+  try {
+    const j = await aiJson(FC_PROMPT, [`=== המחברת: "${n.title}" ===\n${text.slice(0, 60000)}`, ...images.slice(0, 6)]);
+    stop();
+    const items = (Array.isArray(j.cards) ? j.cards : []).filter(c => c && c.q && c.a).slice(0, 30).map(c => ({ q: String(c.q).slice(0, 300), a: String(c.a).slice(0, 600) }));
+    if (!items.length) throw new Error('no cards');
+    useOne('fc');
+    const now = Date.now();
+    setDoc(fcDoc(n.id), { items, title: n.title, updatedAt: now }).catch(() => {});
+    fcView(n, items, now);
+  } catch (e) { stop(); console.error(e); if (document.querySelector('.fc-dlg')) closeDialog(); showAiError(e); }
+}
+function esc(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function fcView(n, items, updatedAt) {
+  let deck = [], i = 0, onlyHard = false, saveT = 0;
+  const save = () => { clearTimeout(saveT); saveT = setTimeout(() => setDoc(fcDoc(n.id), { items, title: n.title, updatedAt: updatedAt || Date.now() }).catch(() => {}), 600); };
+  const build = (hard) => { onlyHard = hard; deck = items.map((c, k) => k).filter(k => !hard || items[k].k !== 1); if (!hard) deck.sort((a, b) => (items[a].k === 1) - (items[b].k === 1)); i = 0; };
+  build(false);
+  const onKey = ev => {
+    if (!document.querySelector('.fc-dlg')) { document.removeEventListener('keydown', onKey); return; }
+    if (ev.target.matches && ev.target.matches('input,textarea')) return;
+    const card = document.querySelector('.fc-card'); if (!card) return;
+    if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); card.click(); }
+    else if (card.classList.contains('flip') && (ev.key === '1' || ev.key === 'ArrowRight')) document.querySelector('[data-k="0"]')?.click();
+    else if (card.classList.contains('flip') && (ev.key === '2' || ev.key === 'ArrowLeft')) document.querySelector('[data-k="1"]')?.click();
+  };
+  document.addEventListener('keydown', onKey);
+  dialog(d => {
+    d.classList.add('fc-dlg');
+    const paint = () => {
+      const known = items.filter(c => c.k === 1).length;
+      if (i >= deck.length) {
+        const hard = items.filter(c => c.k !== 1).length;
+        d.innerHTML = `<h3>🃏 סיימת סבב!</h3><div class="fc-end"><div class="fc-score"><b>${known}</b><span>מתוך ${items.length}</span></div><p>${hard ? `נשארו ${hard === 1 ? 'כרטיסייה אחת שעוד לא ידעת' : hard + ' כרטיסיות שעוד לא ידעת'}. כדאי לעבור עליהן שוב.` : 'ידעת הכל 🎉 אתה מוכן.'}</p></div>`;
+        const row = document.createElement('div'); row.className = 'row';
+        if (hard) { const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = `לחזור על מה שקשה לי (${hard})`; a.onclick = () => { build(true); paint(); }; row.appendChild(a); }
+        const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = 'מההתחלה'; b.onclick = () => { items.forEach(c => delete c.k); save(); build(false); paint(); }; row.appendChild(b);
+        const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog; row.appendChild(c);
+        if (!hard) confetti && confetti();
+        d.appendChild(row); return;
+      }
+      const c = items[deck[i]];
+      d.innerHTML = `<div class="fc-top"><h3>🃏 ${esc(n.title)}</h3><span class="fc-count">${i + 1} / ${deck.length}${onlyHard ? ' · מה שקשה לי' : ''}</span></div>
+        <div class="fc-prog"><i style="width:${Math.round(i / deck.length * 100)}%"></i></div>
+        <button type="button" class="fc-card" aria-label="כרטיסייה: לחצו כדי להפוך">
+          <span class="fc-in"><span class="fc-face fc-front"><small>שאלה</small><b></b><em>לוחצים כדי לראות את התשובה</em></span>
+          <span class="fc-face fc-back"><small>תשובה</small><b></b></span></span>
+        </button>
+        <div class="fc-ans hidden"><button type="button" class="btn fc-no" data-k="0">😕 לא ידעתי</button><button type="button" class="btn fc-yes" data-k="1">😎 ידעתי</button></div>
+        <div class="fc-foot"><span class="muted-s">ידעת ${known} מתוך ${items.length}</span><span class="fc-links"><button type="button" class="link" id="fcRe">✨ ליצור מחדש</button><button type="button" class="link" id="fcClose">סגירה</button></span></div>`;
+      d.querySelector('.fc-front b').textContent = c.q; d.querySelector('.fc-back b').textContent = c.a;
+      const card = d.querySelector('.fc-card');
+      card.onclick = () => { card.classList.toggle('flip'); d.querySelector('.fc-ans').classList.toggle('hidden', !card.classList.contains('flip')); };
+      d.querySelectorAll('.fc-ans button').forEach(b => b.onclick = () => { c.k = +b.dataset.k; save(); i++; paint(); });
+      d.querySelector('#fcClose').onclick = closeDialog;
+      d.querySelector('#fcRe').onclick = () => { closeDialog(); fcMake(n); };
+    };
+    paint();
+  });
+}
+$('aiFc').addEventListener('click', fcOpen);
+INTROS.fc = [
+  ['fc1', 'כרטיסיות מהמחברת', 'ה-AI קורא את המחברת ומכין כרטיסיות: שאלה מקדימה, תשובה מאחורה.'],
+  ['fc2', 'ידעתי / לא ידעתי', 'לוחצים על הכרטיסייה כדי להפוך אותה, ומסמנים אם ידעתם. בסוף חוזרים רק על מה שקשה לכם.'],
+];
+ILL.fc1 = `<svg viewBox="0 0 220 130"><rect x="58" y="22" width="110" height="80" rx="12" fill="#EEEEFD" transform="rotate(-8 113 62)"/><rect x="56" y="24" width="110" height="80" rx="12" fill="#fff" stroke="#5E5CE6" stroke-width="2"/><text x="111" y="58" font-size="26" text-anchor="middle" fill="#5E5CE6" font-weight="800">?</text><rect x="78" y="74" width="66" height="7" rx="3.5" fill="#9AA0AE"/></svg>`;
+ILL.fc2 = `<svg viewBox="0 0 220 130"><rect x="60" y="14" width="100" height="64" rx="12" fill="#5E5CE6"/><rect x="78" y="36" width="64" height="8" rx="4" fill="#fff" opacity=".9"/><rect x="88" y="50" width="44" height="7" rx="3.5" fill="#fff" opacity=".6"/><rect x="40" y="90" width="64" height="26" rx="13" fill="#FDECEC"/><text x="72" y="107" font-size="11" text-anchor="middle" fill="#C2343A" font-weight="700">לא ידעתי</text><rect x="116" y="90" width="64" height="26" rx="13" fill="#E3F7EE"/><text x="148" y="107" font-size="11" text-anchor="middle" fill="#1F8A5B" font-weight="700">ידעתי</text></svg>`;
+
+/* ================= ⏳ ספירה לאחור למבחן + תוכנית למידה ================= */
+function testAt(e) { const d = fromKey(e.date); const [h, m] = (e.time || '08:00').split(':').map(Number); d.setHours(h || 8, m || 0, 0, 0); return d; }
+function countdownText(e) {
+  const ms = testAt(e) - Date.now(); if (ms <= 0) return 'המבחן כבר התחיל';
+  const days = Math.floor(ms / 864e5), hrs = Math.floor(ms % 864e5 / 36e5), mins = Math.floor(ms % 36e5 / 6e4);
+  const D = days === 1 ? 'יום אחד' : days === 2 ? 'יומיים' : `${days} ימים`, H = hrs === 1 ? 'שעה' : hrs === 2 ? 'שעתיים' : `${hrs} שעות`;
+  if (days > 0) return hrs ? `עוד ${D} ו${H}` : `עוד ${D}`;
+  if (hrs > 0) return `עוד ${H} ו-${mins} דק׳`;
+  return `עוד ${mins} דקות`;
+}
+// מחברות שמתאימות למקצוע של המבחן
+function nbsForTest(e) {
+  const subs = [...new Set([...ttSubjects(), ...SUBJ_GROUPS.map(g => g[0])])].filter(s => subjMatches(e.title, s));
+  return notebooks.filter(n => subs.some(s => subjMatches(n.title, s)) || squash(e.title).includes(squash(n.title)) && squash(n.title).length >= 3);
+}
+// מחלקים את המחברת לחלקים לפי הכותרות (ואם אין – לפי אורך)
+function nbUnits(n) {
+  const t = document.createElement('div'); t.innerHTML = n.html || '';
+  const heads = [...t.querySelectorAll('h1,h2')].map(h => h.textContent.trim()).filter(x => x && x.length < 80 && !/סיכום למבחן|עבודה מהמורה|תשובות/.test(x));
+  if (heads.length >= 2) return heads.map(h => ({ nb: n.title, label: h }));
+  const h3 = [...t.querySelectorAll('h3')].map(h => h.textContent.trim()).filter(x => x && x.length < 80);
+  if (h3.length >= 2) return h3.map(h => ({ nb: n.title, label: h }));
+  const words = (t.textContent || '').trim().split(/\s+/).filter(Boolean).length;
+  const parts = Math.max(1, Math.min(4, Math.round(words / 450)));
+  return parts === 1 ? [{ nb: n.title, label: '' }] : Array.from({ length: parts }, (_, k) => ({ nb: n.title, label: `חלק ${k + 1} מתוך ${parts}` }));
+}
+function buildPlan(e, nbs) {
+  const tk = todayKey(); const testDay = fromKey(e.date);
+  const days = []; const d0 = fromKey(tk);
+  if (new Date().getHours() >= 21) d0.setDate(d0.getDate() + 1);   // מאוחר בלילה – מתחילים מחר
+  for (const d = new Date(d0); d < testDay; d.setDate(d.getDate() + 1)) days.push(key(d));
+  if (!days.length) return [];
+  const units = nbs.flatMap(nbUnits);
+  const plan = [];
+  const review = days.length >= 2 ? days.pop() : null;           // היום האחרון לפני המבחן: חזרה כללית
+  if (!units.length) days.forEach((k, j) => plan.push({ date: k, task: j === 0 ? 'לקרוא את כל החומר פעם אחת' : 'חזרה על החומר וכתיבת שאלות לעצמך' }));
+  else if (units.length <= days.length) {
+    units.forEach((u, j) => plan.push({ date: days[j], task: `לקרוא ולסכם: ${u.nb}${u.label ? ' – ' + u.label : ''}` }));
+    days.slice(units.length).forEach(k => plan.push({ date: k, task: '🃏 כרטיסיות שינון + חזרה על מה שקשה' }));
+  } else {
+    const per = units.length / days.length;
+    days.forEach((k, j) => { const part = units.slice(Math.round(j * per), Math.round((j + 1) * per)); if (!part.length) return;
+      const byNb = {}; part.forEach(u => (byNb[u.nb] = byNb[u.nb] || []).push(u.label));
+      plan.push({ date: k, task: 'לקרוא ולסכם: ' + Object.entries(byNb).map(([nb, ls]) => nb + (ls.filter(Boolean).length ? ' – ' + ls.filter(Boolean).join(', ') : '')).join(' | ') }); });
+  }
+  if (review) plan.push({ date: review, task: 'חזרה כללית על הכל + 🃏 כרטיסיות שינון' });
+  else if (days.length === 1 && units.length) plan[0].task = 'חזרה על כל החומר: ' + [...new Set(units.map(u => u.nb))].join(', ');
+  return plan.map(p => ({ ...p, task: p.task.slice(0, 180) }));
+}
+function planDialog(e) {
+  const all = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const pre = new Set(nbsForTest(e).map(n => n.id));
+  const old = events.filter(x => x.planFor === e.id);
+  dialog(d => {
+    d.classList.add('plan-dlg');
+    d.innerHTML = `<h3>📚 תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
+      <label class="fl">מאיזה מחברות לומדים?</label>
+      <div class="plan-nbs">${all.length ? all.map(n => `<label class="plan-nb" style="--c:${n.color || '#5E5CE6'}"><input type="checkbox" value="${n.id}"${pre.has(n.id) ? ' checked' : ''}><span>${esc(n.title)}</span></label>`).join('') : '<p class="noev">אין מחברות עדיין.</p>'}</div>
+      <label class="fl">התוכנית</label><div class="plan-list"></div>
+      ${old.length ? `<p class="muted-s">יש כבר תוכנית ביומן למבחן הזה (${old.length} ימים). הוספה תחליף אותה.</p>` : ''}`;
+    const cd = d.querySelector('.cd-live'); const tick = () => { if (!cd.isConnected) return clearInterval(iv); cd.textContent = countdownText(e); }; const iv = setInterval(tick, 30000); tick();
+    let plan = [];
+    const paint = () => {
+      const chosen = all.filter(n => d.querySelector(`.plan-nb input[value="${n.id}"]`)?.checked);
+      plan = buildPlan(e, chosen);
+      const box = d.querySelector('.plan-list');
+      box.innerHTML = plan.length ? plan.map(p => `<div class="plan-day"><span class="pd">${esc(dayLabel(p.date))}</span><span class="pt">${esc(p.task)}</span></div>`).join('') : '<p class="noev">המבחן כבר מחר או היום – אין ימים לחלק. בהצלחה! 🍀</p>';
+      ok.disabled = !plan.length;
+      if (!chosen.length && plan.length) box.insertAdjacentHTML('afterbegin', '<p class="muted-s">לא בחרת מחברות, אז זו תוכנית כללית. סמן מחברות למעלה כדי לחלק את החומר.</p>');
+    };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הוספה ליומן';
+    ok.onclick = async () => {
+      ok.disabled = true;
+      try {
+        for (const x of old) await deleteDoc(evDoc(x.id)).catch(() => {});
+        const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
+        for (const p of plan) await addDoc(evCol(), { title: `📚 ${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() });
+        closeDialog(); toast(`התוכנית נוספה ליומן: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ✓`);
+      } catch (err) { console.error(err); ok.disabled = false; toast('לא הצלחתי להוסיף'); }
+    };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
+    row.append(ok, no); d.appendChild(row);
+    d.querySelector('.plan-nbs').addEventListener('change', paint);
+    paint();
+  });
+}
+// הספירה לאחור בכרטיס "המבחן הבא" מתעדכנת כל דקה
+setInterval(() => { const el = document.querySelector('#nextTest .cd-live'); if (el && el._ev) el.textContent = countdownText(el._ev); }, 60000);
+
+/* ================= 🎯 ציונים ================= */
+let grades = [], unsubGr = null;
+const grDoc = () => doc(db, 'users', me.uid, 'meta', 'grades');
+function subscribeGrades() {
+  if (unsubGr) unsubGr();
+  unsubGr = onSnapshot(grDoc(), sn => { grades = (sn.exists() && sn.data().items) || []; if (!$('gradesView').classList.contains('hidden')) renderGrades(); if (!$('home').classList.contains('hidden')) renderGradesMini(); }, () => {});
+}
+const saveGrades = () => setDoc(grDoc(), { items: grades, updatedAt: Date.now() });
+function wAvg(list) {
+  const ws = list.map(g => +g.w > 0 ? +g.w : 1); const sw = ws.reduce((a, b) => a + b, 0);
+  return sw ? list.reduce((a, g, k) => a + g.g * ws[k], 0) / sw : null;
+}
+function bySubject() {
+  const m = {}; grades.forEach(g => (m[g.s] = m[g.s] || []).push(g));
+  return Object.entries(m).map(([s, list]) => ({ s, list: list.sort((a, b) => (a.d || '').localeCompare(b.d || '')), avg: wAvg(list) })).sort((a, b) => b.list.length - a.list.length || a.s.localeCompare(b.s, 'he'));
+}
+const fmtG = v => v == null ? '–' : (Math.round(v * 10) / 10).toString();
+function overall() { const ss = bySubject().filter(x => x.avg != null); return ss.length ? ss.reduce((a, x) => a + x.avg, 0) / ss.length : null; }
+function gradeTone(v) { return v == null ? '' : v >= 90 ? 'g-top' : v >= 75 ? 'g-good' : v >= 55 ? 'g-mid' : 'g-low'; }
+function renderGradesMini() {
+  const c = $('gradesCard'); if (!c) return;
+  const o = overall();
+  c.innerHTML = `<h3>הממוצע שלי</h3>${o == null ? `<p class="noev">עוד לא הכנסת ציונים. <button type="button" class="link" id="grMiniAdd">＋ להוסיף ציון ראשון</button></p>` : `<div class="gm-row"><div class="gm-big ${gradeTone(o)}">${fmtG(o)}</div><div class="gm-subs">${bySubject().slice(0, 4).map(x => `<span><b>${fmtG(x.avg)}</b> ${esc(x.s)}</span>`).join('')}</div><button type="button" class="link" id="grMiniGo">לכל הציונים</button></div>`}`;
+  c.querySelector('#grMiniAdd')?.addEventListener('click', () => gradeDialog());
+  c.querySelector('#grMiniGo')?.addEventListener('click', () => showTab('gr'));
+}
+function gradeChart(list, joined = true) {
+  // ציונים לאורך הזמן: קו אחד, נקודה לכל ציון. הצבע אחד – זהות לא תלויה בצבע
+  const pts = list.filter(g => g.d).sort((a, b) => a.d.localeCompare(b.d));
+  if (pts.length < 2) return '';
+  const narrow = innerWidth < 600, W = narrow ? 360 : 640, H = narrow ? 190 : 200, L = 30, R = 10, T = 14, B = 26;
+  const t0 = fromKey(pts[0].d).getTime(), t1 = fromKey(pts[pts.length - 1].d).getTime() || t0 + 1;
+  const x = g => L + (t1 === t0 ? (W - L - R) / 2 : (fromKey(g.d).getTime() - t0) / (t1 - t0) * (W - L - R));
+  const lo = Math.max(0, Math.floor(Math.min(...pts.map(g => g.g)) / 10) * 10 - 10), hi = 100;
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const grid = []; for (let v = lo; v <= hi; v += lo <= 40 ? 20 : 10) grid.push(`<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="gc-grid"/><text x="${L - 6}" y="${y(v) + 4}" class="gc-ax" text-anchor="end">${v}</text>`);
+  const path = pts.map((g, k) => `${k ? 'L' : 'M'}${x(g).toFixed(1)},${y(g.g).toFixed(1)}`).join('');
+  const f = k => { const dd = fromKey(k); return `${dd.getDate()}/${dd.getMonth() + 1}`; };
+  return `<svg class="gr-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="גרף הציונים לאורך הזמן">${grid.join('')}
+    ${joined ? `<path d="${path}" class="gc-line"/>` : ''}${pts.map(g => `<g class="gc-pt" tabindex="0"><circle cx="${x(g)}" cy="${y(g.g)}" r="14" class="gc-hit"/><circle cx="${x(g)}" cy="${y(g.g)}" r="5" class="gc-dot"/><title>${esc(g.s)} · ${esc(g.n || '')}: ${g.g}${g.w ? ` (משקל ${g.w}%)` : ''} · ${f(g.d)}</title></g>`).join('')}
+    <text x="${L}" y="${H - 6}" class="gc-ax">${f(pts[0].d)}</text><text x="${W - R}" y="${H - 6}" class="gc-ax" text-anchor="end">${f(pts[pts.length - 1].d)}</text></svg>`;
+}
+let grFilter = '';
+function renderGrades() {
+  const box = $('grBody'); const subs = bySubject(); const o = overall();
+  if (!grades.length) {
+    box.innerHTML = `<div class="card gr-empty"><div class="big">🎯</div><h3>עוד אין ציונים</h3><p class="muted-s">מכניסים כל ציון שמקבלים – מבחן, בוחן או עבודה – ואיזה חלק הוא מהציון הסופי. האתר מחשב את הממוצע בכל מקצוע ואת הממוצע הכללי.</p><button type="button" class="btn btn-primary" id="grFirst">＋ להוסיף ציון ראשון</button></div>`;
+    $('grFirst').onclick = () => gradeDialog(); return;
+  }
+  if (grFilter && !subs.some(x => x.s === grFilter)) grFilter = '';
+  const shown = grFilter ? grades.filter(g => g.s === grFilter) : grades;
+  box.innerHTML = `<div class="gr-top">
+      <div class="card gr-hero"><small>${grFilter ? 'ממוצע ב' + esc(grFilter) : 'ממוצע כללי'}</small><div class="gr-big ${gradeTone(grFilter ? wAvg(shown) : o)}">${fmtG(grFilter ? wAvg(shown) : o)}</div><span class="muted-s">${shown.length === 1 ? 'ציון אחד' : shown.length + ' ציונים'}${grFilter ? '' : ` ב-${subs.length === 1 ? 'מקצוע אחד' : subs.length + ' מקצועות'}`}</span></div>
+      <div class="card gr-bars"><h3>ממוצע לפי מקצוע</h3>${subs.map(x => `<button type="button" class="gb-row${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}" title="${esc(x.s)}: ${fmtG(x.avg)}"><span class="gb-name">${esc(x.s)}</span><span class="gb-track"><i style="width:${Math.max(2, x.avg || 0)}%"></i></span><b class="gb-val">${fmtG(x.avg)}</b></button>`).join('')}</div>
+    </div>
+    <div class="gr-filters"><button type="button" class="chip-f${grFilter ? '' : ' on'}" data-s="">הכל</button>${subs.map(x => `<button type="button" class="chip-f${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}">${esc(x.s)}</button>`).join('')}</div>
+    ${gradeChart(shown) ? `<div class="card"><h3>הציונים לאורך הזמן${grFilter ? ' ב' + esc(grFilter) : ''}</h3>${gradeChart(shown, !!grFilter || subs.length === 1)}${grFilter || subs.length === 1 ? '' : '<p class="muted-s gr-chart-note">כל נקודה היא ציון. בוחרים מקצוע למעלה כדי לראות את הקו שלו.</p>'}</div>` : ''}
+    <div class="card gr-list"><h3>כל הציונים${grFilter ? ' ב' + esc(grFilter) : ''}</h3><table class="gr-table"><thead><tr><th>מקצוע</th><th>על מה</th><th>תאריך</th><th>משקל</th><th>ציון</th><th></th></tr></thead><tbody>${shown.slice().sort((a, b) => (b.d || '').localeCompare(a.d || '')).map(g => `<tr data-id="${g.id}"><td>${esc(g.s)}</td><td>${esc(g.n || '')}</td><td>${g.d ? esc(fmtDate(fromKey(g.d).getTime())) : ''}</td><td>${g.w ? g.w + '%' : '–'}</td><td><b class="gr-pill ${gradeTone(g.g)}">${g.g}</b></td><td class="gr-act"><button type="button" class="link" data-ed="${g.id}">עריכה</button></td></tr>`).join('')}</tbody></table>
+    <p class="muted-s gr-note">איך מחשבים: בכל מקצוע, כל ציון נספר לפי המשקל שלו (בלי משקל = משקל שווה). הממוצע הכללי הוא הממוצע של המקצועות.</p></div>`;
+  box.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { grFilter = b.dataset.s === grFilter ? '' : b.dataset.s; renderGrades(); });
+  box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => gradeDialog(grades.find(g => g.id === b.dataset.ed)));
+}
+function gradeDialog(g, pre) {
+  const editing = !!g; g = g || { s: pre?.s || grFilter || '', n: pre?.n || '', g: '', w: '', d: pre?.d || todayKey() };
+  const subjList = [...new Set([...bySubject().map(x => x.s), ...ttSubjects()])];
+  dialog(d => {
+    d.classList.add('gr-dlg');
+    d.innerHTML = `<h3>${editing ? 'עריכת ציון' : '🎯 ציון חדש'}</h3>
+      <label class="fl">מקצוע</label><input id="gS" list="gSubs" placeholder="למשל: מתמטיקה"><datalist id="gSubs">${subjList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      <label class="fl">על מה הציון? <span class="muted-s">(לא חובה)</span></label><input id="gN" placeholder="למשל: מבחן פרק 3, בוחן, עבודה">
+      <div class="ed-row"><div><label class="fl">ציון</label><input id="gG" type="number" inputmode="decimal" min="0" max="100" placeholder="0–100"></div>
+      <div><label class="fl">משקל מהציון הסופי</label><div class="w-in"><input id="gW" type="number" inputmode="decimal" min="0" max="100" placeholder="למשל 30"><span>%</span></div></div>
+      <div><label class="fl">תאריך</label><input id="gD" type="date"></div></div>
+      <p class="muted-s">לא יודע את המשקל? משאירים ריק וכל הציונים נספרים אותו דבר.</p>`;
+    d.querySelector('#gS').value = g.s; d.querySelector('#gN').value = g.n || ''; d.querySelector('#gG').value = g.g ?? ''; d.querySelector('#gW').value = g.w || ''; d.querySelector('#gD').value = g.d || '';
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+    ok.onclick = async () => {
+      const s = normS(d.querySelector('#gS').value).slice(0, 40), sc = parseFloat(d.querySelector('#gG').value), w = parseFloat(d.querySelector('#gW').value);
+      if (!s) { toast('באיזה מקצוע?'); d.querySelector('#gS').focus(); return; }
+      if (!(sc >= 0 && sc <= 100)) { toast('ציון צריך להיות בין 0 ל-100'); d.querySelector('#gG').focus(); return; }
+      const item = { id: g.id || Math.random().toString(36).slice(2, 10), s, n: d.querySelector('#gN').value.trim().slice(0, 60), g: Math.round(sc * 10) / 10, w: w > 0 && w <= 100 ? Math.round(w * 10) / 10 : 0, d: d.querySelector('#gD').value || '' };
+      const prev = grades; grades = editing ? grades.map(x => x.id === g.id ? item : x) : [...grades, item];
+      try { await saveGrades(); closeDialog(); toast(editing ? 'נשמר ✓' : 'הציון נוסף ✓'); if (!$('gradesView').classList.contains('hidden')) renderGrades(); renderGradesMini(); }
+      catch { grades = prev; toast('לא נשמר'); }
+    };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok, no);
+    if (editing) {
+      const del = document.createElement('button'); del.className = 'btn btn-ghost danger-t'; del.textContent = 'מחיקה';
+      del.onclick = async () => { const prev = grades; grades = grades.filter(x => x.id !== g.id); try { await saveGrades(); closeDialog(); renderGrades(); renderGradesMini(); toastAction('הציון נמחק', 'ביטול', async () => { grades = prev; await saveGrades().catch(() => {}); renderGrades(); renderGradesMini(); }); } catch { grades = prev; toast('לא נמחק'); } };
+      row.appendChild(del);
+    }
+    d.appendChild(row); setTimeout(() => d.querySelector(g.s ? '#gG' : '#gS').focus(), 30);
+  });
+}
+$('grAdd').onclick = () => gradeDialog();
