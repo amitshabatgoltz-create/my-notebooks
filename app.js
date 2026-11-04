@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, addDoc, getDoc, getDocs, increment
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -4175,7 +4175,7 @@ const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 1800
 // הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
 const CHAT_LONG = 600, CHAT_MAX_TEXT = 200000, CHAT_MAX_MEM_TEXT = 250000, CHAT_MAX_HISTORY = 40, CHAT_MAX_HISTORY_TEXT = 30000;
 const CHAT_FILE_GONE = 'הקובץ הזה הועלה קודם ולא נשמר אחרי רענון. אם צריך אותו, בקש מהמשתמש להעלות אותו שוב.';
-let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMem = [], chatReady = null;
+let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMem = [], chatReady = null, chatId = null, chatCreated = 0, chatSavedTitle = '';
 
 function chatContext() {
   const sub = $('chatSub'); if (!sub) return;
@@ -4192,42 +4192,96 @@ function chatRender() {
   $('chatLog').innerHTML = ''; chatBubble('bot', CHAT_HELLO);
   chatHistory.forEach(m => chatBubble(m.role, m.text));
 }
+function chatClearState() { chatId = null; chatCreated = 0; chatSavedTitle = ''; chatHistory = []; chatPending = []; chatMem = []; chatPaintFiles(); }
 function chatReset() {
-  chatHistory = []; chatPending = []; chatMem = []; chatUid = me && me.uid;
-  chatPaintFiles(); chatRender();
+  chatClearState(); chatUid = me && me.uid; chatRender();
   chatReady = chatLoad();
 }
-// השיחה נשמרת לכל חשבון ב-users/{uid}/meta/chat: טקסט וחומר שהודבק. תמונות ו-PDF גדולים מדי, אז רק השם שלהם נשמר.
-const chatDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
+// כל שיחה היא מסמך ב-users/{uid}/chats/{id}: טקסט וחומר שהודבק. תמונות ו-PDF גדולים מדי, אז רק השם שלהם נשמר.
+const chatCol = () => collection(db, 'users', me.uid, 'chats');
+const chatRef = id => doc(db, 'users', me.uid, 'chats', id);
+const chatOldDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
+function chatApply(id, d) {
+  chatId = id; chatSavedTitle = d.title || ''; chatCreated = d.createdAt || d.updatedAt || Date.now();
+  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || '') }));
+  chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
+  chatPending = []; chatPaintFiles(); chatRender();
+}
+async function chatFetchList() {
+  const sn = await getDocs(query(chatCol(), orderBy('updatedAt', 'desc'), limit(50)));
+  return sn.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+function chatTitle(history) {
+  const first = (history.find(m => m.role === 'me') || {}).text || '';
+  const files = first.match(/^\(צירף: ([^)]*)\) ?/);
+  const t = first.replace(/^\(צירף: [^)]*\) ?/, '').replace(/^\(הדביק חומר ארוך שמתחיל ב: (.*)\)$/s, '$1').trim();
+  return (t || (files && files[1]) || 'שיחה').replace(/\s+/g, ' ').slice(0, 60);
+}
+// פותחים את השיחה האחרונה. שיחה ששמורה בפורמט הישן עוברת לרשימה.
 async function chatLoad() {
   const uid = me && me.uid; if (!uid) return;
   try {
-    const sn = await getDoc(chatDoc());
-    if (!me || me.uid !== uid || !sn.exists()) return;
-    const d = sn.data();
-    chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || '') }));
-    chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
-    chatRender();
+    const old = await getDoc(chatOldDoc());
+    if (old.exists()) {
+      const d = old.data(), now = d.updatedAt || Date.now();
+      await setDoc(doc(chatCol()), { title: chatTitle(d.history || []), history: d.history || [], mem: d.mem || [], createdAt: now, updatedAt: now });
+      await deleteDoc(chatOldDoc());
+    }
+    const list = await chatFetchList();
+    if (me && me.uid === uid && list.length) chatApply(list[0].id, list[0]);
   } catch (e) { console.warn('chat load', e); }
 }
 function chatSave() {
   if (!me) return;
   while (chatHistory.length > CHAT_MAX_HISTORY || chatHistory.reduce((t, m) => t + m.text.length, 0) > CHAT_MAX_HISTORY_TEXT) { if (chatHistory.length <= 2) break; chatHistory.shift(); }
+  const now = Date.now();
+  if (!chatId) { chatId = doc(chatCol()).id; chatCreated = now; chatSavedTitle = chatTitle(chatHistory); }
   const mem = chatMem.map(m => ({ name: m.name, part: typeof m.part === 'string' ? m.part : null }));
-  setDoc(chatDoc(), { history: chatHistory, mem, updatedAt: Date.now() }).catch(e => console.warn('chat save', e));
+  setDoc(chatRef(chatId), { title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now }).catch(e => { console.warn('chat save', e); toast('לא הצלחתי לשמור את השיחה'); });
 }
+const chatWaitBusy = () => { if (!chatBusy) return false; toast('רגע, העוזר עוד עונה'); return true; };
 function chatNew() {
+  if (chatWaitBusy()) return;
+  closeDialog(); chatClearState(); chatRender();
+  chatReady = Promise.resolve(); $('chatInput').focus();
+}
+async function chatPick(c) {
+  if (chatWaitBusy()) return;
+  closeDialog(); chatApply(c.id, c); chatReady = Promise.resolve();
+}
+function chatDelete(c, row) {
+  deleteDoc(chatRef(c.id)).catch(e => console.warn('chat delete', e));
+  row.remove();
+  const box = document.querySelector('#dialogRoot .chat-list');
+  if (box && !box.children.length) box.innerHTML = '<p class="chat-list-empty">עוד אין שיחות שמורות.</p>';
+  if (chatId === c.id) { chatClearState(); chatRender(); }
+  const { id, ...data } = c;
+  toastAction('השיחה נמחקה', 'ביטול', () => { setDoc(chatRef(id), data).then(() => chatListDialog()).catch(() => toast('לא הצלחתי לשחזר')); });
+}
+async function chatListDialog() {
+  if (chatWaitBusy()) return;
+  let list = [], failed = false;
+  try { await chatReady; list = await chatFetchList(); } catch (e) { console.warn(e); failed = true; }
   dialog(d => {
-    d.innerHTML = '<h3>להתחיל שיחה חדשה?</h3><p>העוזר ישכח את השיחה הזאת ואת החומר ששלחת בה.</p>';
-    const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-danger'; go.textContent = 'שיחה חדשה';
-    go.onclick = () => {
-      closeDialog();
-      chatHistory = []; chatPending = []; chatMem = []; chatPaintFiles(); chatRender();
-      chatReady = deleteDoc(chatDoc()).catch(e => console.warn('chat clear', e));
-    };
-    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
-    row.append(go, no); d.append(row);
+    d.classList.add('chat-list-dlg');
+    d.innerHTML = '<h3>השיחות שלי</h3>';
+    const box = document.createElement('div'); box.className = 'chat-list';
+    if (failed) box.innerHTML = '<p class="chat-list-empty">לא הצלחתי לטעון את השיחות. נסה שוב.</p>';
+    else if (!list.length) box.innerHTML = '<p class="chat-list-empty">עוד אין שיחות שמורות.</p>';
+    list.forEach(c => {
+      const row = document.createElement('div'); row.className = 'chat-row' + (c.id === chatId ? ' on' : '');
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'chat-row-open';
+      const t = document.createElement('b'); t.dir = 'auto'; t.textContent = c.title || 'שיחה';
+      const when = document.createElement('small'); when.textContent = timeAgo(c.updatedAt);
+      open.append(t, when); open.onclick = () => chatPick(c);
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'chat-row-del'; del.textContent = '✕'; del.setAttribute('aria-label', 'מחיקת השיחה');
+      del.onclick = () => chatDelete(c, row);
+      row.append(open, del); box.appendChild(row);
+    });
+    const actions = document.createElement('div'); actions.className = 'row';
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'שיחה חדשה'; add.onclick = chatNew;
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
+    actions.append(add, no); d.append(box, actions);
   });
 }
 function chatOpen(on) {
@@ -4438,6 +4492,7 @@ $('chatFile').onchange = () => { const inp = $('chatFile'), list = [...inp.files
 $('chatFab').onclick = () => chatOpen(true);
 $('chatClose').onclick = () => chatOpen(false);
 $('chatNew').onclick = chatNew;
+$('chatListBtn').onclick = chatListDialog;
 $('chatGo').onclick = chatSend;
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }

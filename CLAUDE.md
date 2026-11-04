@@ -15,8 +15,8 @@
 - Firebase JS SDK 13.1.0 מ-gstatic: Auth, Firestore (מטמון מקומי), AI Logic (Gemini), App Check (reCAPTCHA Enterprise), Realtime Database (רק אם יש `databaseURL` בהגדרות – כרגע אין, אז עריכה משותפת עובדת דרך Firestore).
 
 ## איפה הנתונים (Firestore)
-- `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון).
-- `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `chat` (שיחה עם העוזר הלימודי: history, mem), `grades` {items: [{id, s, n, g, w, d}]}, `activity`.
+- `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון), `/chats/{id}` (שיחות עם העוזר הלימודי: title, history, mem, createdAt, updatedAt).
+- `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `grades` {items: [{id, s, n, g, w, d}]}, `activity`.
 - `shares/{id}` – מחברות משותפות (mode: view | copy | edit), עם `presence`.
 
 ## מכסה יומית ל-AI
