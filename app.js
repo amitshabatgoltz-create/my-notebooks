@@ -3655,18 +3655,31 @@ function qaHtml(t) {
     .replace(/<p class="src">([\s\S]*?)<\/p>/g, '<p><i>$1</i></p>')
     .replace(/<p class="nf">([\s\S]*?)<\/p>/g, '<p><mark>$1</mark></p>'));
 }
+// לפני שמכניסים למחברת: מורידים ציטוטים, "לא כתוב במחברת" ו"מהידע הכללי:" – נשארות רק התשובות
+function qaForNotebook(html) {
+  const w = document.createElement('div'); w.innerHTML = html;
+  w.querySelectorAll('p, div, li').forEach(el => {
+    const t = el.textContent.trim();
+    if (/^📍/.test(t) || /^⚠️?\s*זה לא כתוב במחברת\.?$/.test(t) || /^(⚠️)?\s*לא כתוב במחברת\.?$/.test(t)) el.remove();
+  });
+  w.querySelectorAll('mark').forEach(m => { if (/לא כתוב במחברת/.test(m.textContent)) m.remove(); });
+  const walk = document.createTreeWalker(w, NodeFilter.SHOW_TEXT);
+  for (let x; (x = walk.nextNode());) x.nodeValue = x.nodeValue.replace(/^\s*מהידע הכללי\s*:\s*/, '').replace(/^\s*לפי המחברת\s*,?\s*/, '');
+  w.querySelectorAll('p').forEach(el => { if (!el.textContent.trim() && !el.querySelector('img')) el.remove(); });
+  return clean(w.innerHTML);
+}
 function qaResult(n, html) {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = '<h3>✅ התשובות</h3><p class="muted-s">כל תשובה מבוססת על המחברת, עם ציטוט מאיפה זה. מה שמסומן בצהוב לא כתוב במחברת – כדאי לבדוק. אפשר לתקן כאן.</p>';
+    d.innerHTML = '<h3>✅ התשובות</h3><p class="muted-s">כל תשובה מבוססת על המחברת, עם ציטוט מאיפה זה. מה שמסומן בצהוב לא כתוב במחברת – כדאי לבדוק. אפשר לתקן כאן.<br>כשמוסיפים למחברת או מעתיקים – נשארות רק התשובות, בלי הציטוטים וההערות.</p>';
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
     const row = document.createElement('div'); row.className = 'row';
     const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'הוספה לסוף המחברת';
-    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>📝 עבודה מהמורה – תשובות</h2>' + clean(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות לעבודה נוספו למחברת ✓'); };
+    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>📝 עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות לעבודה נוספו למחברת ✓'); };
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
-    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>📝 עבודה מהמורה – תשובות</h2>' + clean(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
+    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>📝 עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
     const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = '📋 העתקה';
-    cp.onclick = async () => { try { await navigator.clipboard.writeText(box.innerText); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } };
+    cp.onclick = async () => { try { await const t = document.createElement('div'); t.innerHTML = qaForNotebook(box.innerHTML); t.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(t); const txt = t.innerText; t.remove(); await navigator.clipboard.writeText(txt); toast('הועתק ✓ (בלי הציטוטים)'); } catch { toast('לא הצלחתי להעתיק'); } };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
     row.append(add, sep, cp, close); d.append(box, row);
   });
