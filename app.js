@@ -3586,9 +3586,10 @@ async function aiText(models, cfg, parts, onText) {
       try {
         const m = aiModel(name, c);
         if (onText && m.generateContentStream) {
-          const r = await m.generateContentStream(parts); let acc = '';
-          for await (const ch of r.stream) { try { acc += ch.text(); } catch {} onText(acc); }
+          const r = await m.generateContentStream(parts); let acc = '', stop = '';
+          for await (const ch of r.stream) { stop = ch.promptFeedback?.blockReason || ch.candidates?.[0]?.finishReason || stop; try { acc += ch.text(); } catch {} onText(acc); }
           if (acc) return acc;
+          if (stop && stop !== 'STOP') { lastErr = Object.assign(new Error('blocked: ' + stop), { blocked: stop }); break; }
         } else { const r = await m.generateContent(parts); const t = r.response.text(); if (t) return t; }
       } catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
     }
@@ -4166,6 +4167,8 @@ $('grImport').onclick = gradesImportDialog;
 const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
 const CHAT_HELLO = 'היי! אפשר לשאול אותי כל דבר, גם מעבר למה שכתוב במחברת, ולהעלות לי תמונה או קובץ עם 📎. ואם תכתוב למשל "יש לי שיעורים במתמטיקה עמודים 12 ו-13 למחר", אוסיף את זה ליומן.';
 const CHAT_MAX_FILE = 12 * 1024 * 1024, CHAT_MAX_ATTACH = 4, CHAT_MAX_MEM = 18000000;
+// הודעה ארוכה מזה נשמרת כחומר לשיחה, כמו קובץ. ארוכה מ-CHAT_MAX_TEXT כבר לא נכנסת למגבלת השימוש של Gemini.
+const CHAT_LONG = 3000, CHAT_MAX_TEXT = 200000, CHAT_MAX_MEM_TEXT = 250000;
 let chatHistory = [], chatBusy = false, chatUid = null, chatPending = [], chatMem = [];
 
 function chatContext() {
@@ -4292,13 +4295,28 @@ async function chatAddFiles(list) {
 function chatRemember(files) {
   chatMem.push(...files);
   const size = m => typeof m.part === 'string' ? m.part.length : m.part.inlineData.data.length;
-  while (chatMem.length > 1 && (chatMem.length > 6 || chatMem.reduce((t, m) => t + size(m), 0) > CHAT_MAX_MEM)) chatMem.shift();
+  const textSize = () => chatMem.reduce((t, m) => t + (typeof m.part === 'string' ? m.part.length : 0), 0);
+  while (chatMem.length > 1 && (chatMem.length > 6 || textSize() > CHAT_MAX_MEM_TEXT || chatMem.reduce((t, m) => t + size(m), 0) > CHAT_MAX_MEM)) chatMem.shift();
+}
+function chatWhy(e) {
+  const m = String(e && (e.message || e.code) || '');
+  let why = 'לא הצלחתי לענות. נסה שוב בעוד דקה.';
+  if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
+  else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
+  else if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) why = 'הגעת למגבלת השימוש לרגע. נסה שוב בעוד כמה דקות, או הדבק חלק קטן יותר.';
+  else if (/too large|exceeds|token count|\b413\b/i.test(m)) why = 'הטקסט ארוך מדי בשביל Gemini. נסה להדביק חלק קטן יותר.';
+  else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';
+  else if (/app.?check|attestation|PERMISSION_DENIED|\b403\b/i.test(m)) why = 'החיבור ל-Gemini נחסם. תרענן פעמיים ונסה שוב.';
+  else if (/failed to fetch|network|fetch-error/i.test(m)) why = 'אין חיבור לאינטרנט, או שהחיבור נפל באמצע. נסה שוב.';
+  return `${why}${m ? `\n\nפרטים לבדיקה: ${m.slice(0, 160)}` : ''}`;
 }
 
 async function chatSend() {
   const input = $('chatInput'), msg = input.value.trim(), files = chatPending.slice();
   if ((!msg && !files.length) || chatBusy || !me) return;
   if (files.some(f => !f.part)) { toast('רגע, הקובץ עוד נטען'); return; }
+  if (msg.length > CHAT_MAX_TEXT) { toast('הטקסט ארוך מדי. הדבק חלק ממנו, או העלה אותו כקובץ'); return; }
+  const long = msg.length > CHAT_LONG;
   chatBusy = true; $('chatGo').disabled = true;
   const uid = me.uid, memBefore = chatMem.slice();
   let b = null;
@@ -4307,14 +4325,15 @@ async function chatSend() {
     input.value = ''; input.style.height = '';
     chatPending = []; chatPaintFiles();
     chatContext();
-    chatBubble('me', [...files.map(f => '📎 ' + f.name), msg].filter(Boolean).join('\n'));
+    const shown = long ? `📋 חומר שהדבקת (${msg.trim().split(/\s+/).length} מילים)\n${msg.slice(0, 280)}…` : msg;
+    chatBubble('me', [...files.map(f => '📎 ' + f.name), shown].filter(Boolean).join('\n'));
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
-    chatRemember(files);
+    chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
     const past = chatHistory.slice(-12).map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}`).join('\n');
     const parts = [
       chatPrompt(),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
-      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${msg || 'עזור לי עם מה שהעליתי.'}`,
+      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : msg || 'עזור לי עם מה שהעליתי.'}`,
     ];
     const raw = await aiText(CHAT_MODELS, { temperature: 0.4 }, parts, t => {
       const s = chatSplit(t);
@@ -4326,19 +4345,18 @@ async function chatSend() {
     let text = s.partial ? raw.trim() : s.text;
     if (s.action) {
       let ev = null;
-      try { ev = await chatAddEvent(s.action, msg); } catch (e) { console.error(e); }
+      try { ev = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
       if (ev) { if (!text) text = `הוספתי לך ליומן: ${ev.title}`; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
       b.classList.remove('typing'); b.textContent = text;
       if (ev) chatAddedCard(ev);
     } else { b.classList.remove('typing'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.'; }
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
-    chatHistory.push({ role: 'me', text: note + msg }, { role: 'bot', text });
+    chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, { role: 'bot', text });
   } catch (e) {
     console.warn(e);
     if (me && me.uid === uid && b) {
-      const why = /quota|429|RESOURCE_EXHAUSTED/i.test(String(e && e.message)) ? 'הגעת למגבלת השימוש לרגע. נסה שוב בעוד כמה דקות.' : 'לא הצלחתי לענות. נסה שוב בעוד דקה.';
-      b.classList.remove('typing'); b.classList.add('err'); b.textContent = why;
+      b.classList.remove('typing'); b.classList.add('err'); b.textContent = chatWhy(e);
       // מחזירים את מה שנשלח, כדי שלא צריך לכתוב ולצרף מחדש
       chatMem = memBefore; chatPending = files; chatPaintFiles();
       if (!input.value) input.value = msg;
