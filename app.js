@@ -944,16 +944,18 @@ applyThemeIcon();
 
 
 /* ================= ✨ סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */
-const AI_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+// בינתיים כולם על המודל הקל. המודל החזק שמור למנוי פרו: כשיהיה מנוי, מספיק לשנות את isPro.
+const MODEL_LIGHT = 'gemini-3.5-flash-lite', MODEL_STRONG = 'gemini-3.5-flash';
+const isPro = () => false;
+const aiModels = strongFirst => !isPro() ? [MODEL_LIGHT] : strongFirst ? [MODEL_STRONG, MODEL_LIGHT] : [MODEL_LIGHT, MODEL_STRONG];
 let aiService = null;
 function aiModel(name, generationConfig) {
   if (!aiService) aiService = getAI(fb, { backend: new GoogleAIBackend() });
   return getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name });
 }
 // קריאה מהירה של קובץ (מערכת שעות / לוח מבחנים): מודל קל, בלי "חשיבה", ותשובה ישר כ-JSON
-const FAST_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
 async function aiExtract(prompt, part) {
-  let order = FAST_MODELS.slice(); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
+  let order = aiModels(false); try { const ok = localStorage.getItem('fastModel'); if (ok && order.includes(ok)) order = [ok, ...order.filter(x => x !== ok)]; } catch {}
   let lastErr = null;
   for (const name of order) {
     for (const cfg of [{ temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }, { temperature: 0, responseMimeType: 'application/json' }]) {
@@ -1055,7 +1057,7 @@ async function runSummary(n, text, images, topics) {
   let html = '', lastErr = null;
   const box = document.createElement('div'); box.className = 'ai-box live-read';
   const dl = document.querySelector('#dialogRoot .dialog'); if (dl) { dl.classList.add('ai-result'); dl.insertBefore(box, dl.querySelector('.btn')); }
-  try { html = await aiText(['gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
+  try { html = await aiText(aiModels(true), { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
   catch (e) { lastErr = e; }
   if (cancelled) return;
   if (!html) { showAiError(lastErr); return; }
@@ -3420,11 +3422,11 @@ async function ocrDialog() {
         const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
         // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
         const second = exact
-          ? aiText(['gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
-          : aiText(['gemini-3.5-flash-lite', 'gemini-3.5-flash'], { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
+          ? aiText(aiModels(true), { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
+          : aiText(aiModels(false), { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(['gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        try { txt = await aiText(aiModels(true), { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
         if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
@@ -3753,7 +3755,7 @@ async function qaDialog() {
         }
         const parts = [QA_PROMPT, `=== המחברת: "${n ? n.title : $('title').value}" ===\n${text || '(רק תמונות)'}`, ...images.slice(0, 6), `=== השאלות ===\n${q || '(השאלות בתמונה המצורפת)'}`, ...qParts];
         const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
-        const html0 = await aiText(['gemini-3.5-flash', 'gemini-3.5-flash-lite'], { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
+        const html0 = await aiText(aiModels(true), { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
         stop(); useOne('qa');
         closeDialog(); qaResult(n, qaHtml(html0));
       } catch (e) { stop(); console.error(e); showAiError(e); }
@@ -3816,7 +3818,7 @@ const FC_PROMPT = `אתה עוזר לתלמיד להתכונן למבחן. מה�
 - עברית פשוטה, כמו שמורה היה שואל במבחן.`;
 async function aiJson(prompt, parts) {
   let lastErr = null;
-  for (const name of ['gemini-3.5-flash', 'gemini-3.5-flash-lite']) {
+  for (const name of aiModels(true)) {
     for (const cfg of [{ temperature: 0.2, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 512 } }, { temperature: 0.2, responseMimeType: 'application/json' }]) {
       try { const r = await aiModel(name, cfg).generateContent([prompt, ...parts]); const t = r.response.text(); if (t) return JSON.parse((t.match(/\{[\s\S]*\}/) || ['{}'])[0]); }
       catch (e) { lastErr = e; console.warn(name, e && e.message); if (!/thinking|budget|invalid|unknown|argument/i.test(String(e && e.message))) break; }
@@ -4168,10 +4170,6 @@ function gradesImportDialog() {
 $('grImport').onclick = gradesImportDialog;
 
 /* ================= 💬 עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
-// מכסה של כל האתר יחד (Free tier): המודל החזק 20 ביום ו-5 בדקה, המודל הקל 500 ביום ו-15 בדקה.
-// לכן הודעות רגילות הולכות למודל הקל, והחזק נשמר לשאלונים, לדפי חזרה ולקבצים.
-const CHAT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
-const CHAT_FAST_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'];
 const CHAT_SHORT = 80;
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
 const CHAT_KIT = /שאלון|תבחן|תבחני|בוחן|לתרגל|תרגול|דף חזרה|דף למידה/;
@@ -4479,7 +4477,7 @@ const chatStatus = e => e?.customErrorData?.status || +(String(e?.message).match
 const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e));
 // כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
 async function chatAsk(parts, onText, onWait, short, deep) {
-  const models = deep ? CHAT_MODELS : CHAT_FAST_MODELS;
+  const models = aiModels(deep);
   const cfg = short ? { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } } : { temperature: 0.4 };
   for (let i = 0; ; i++) {
     try { return await aiText(models, cfg, parts, onText); }
