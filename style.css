@@ -949,3 +949,16 @@ body.editing-shared .ai-strip{grid-template-columns:1fr}
 .nb-timer span{font-weight:600}
 @media (max-width:700px){.nb-timer span{display:none}}
 .sh-hint{margin:-10px 0 22px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);font-size:14px;line-height:1.6}
+
+.ai-strip{grid-template-columns:repeat(3,1fr)}
+.ai-card.qa{background:linear-gradient(135deg,#10B981,#3B82F6)}
+.ai-card.qa::after{animation-delay:1.1s}
+body.editing-shared .ai-strip{grid-template-columns:1fr}
+body.editing-shared .ai-card.qa{display:none}
+@media (max-width:900px){.ai-card small{display:none}}
+@media (max-width:600px){.ai-strip{grid-template-columns:repeat(3,1fr);gap:6px}.ai-card{padding:12px 4px}.ai-card .ic{width:38px;height:38px;font-size:22px}.ai-card b{font-size:13px}}
+.qa-dlg textarea{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);resize:vertical;margin-top:6px}
+.qa-dlg textarea:focus{outline:none;border-color:var(--accent)}
+.qa-or{text-align:center;color:var(--muted);font-size:13px;margin:8px 0}
+.qa-dlg .tt-up.small{flex-direction:row;padding:10px 14px;justify-content:center}
+.ai-box i{color:var(--accent);font-style:normal;font-size:13.5px}

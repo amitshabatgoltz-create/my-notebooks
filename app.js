@@ -3413,12 +3413,12 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2 };
+const DAILY = { ocr: 3, sum: 2, qa: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED = ['amitshabatgoltz@gmail.com'];
 const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'שאלות מהמחברת' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 async function loadUsage() {
@@ -3433,7 +3433,7 @@ function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + count;
-  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0 }).catch(() => {});
+  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
   if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה ♾️';
@@ -3442,7 +3442,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לשאול ${DAILY.qa} פעמים ביום שאלות מהמחברת.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3591,3 +3591,90 @@ function introOnce(k, force) {
 const editMode0 = s => s.mode === 'edit';
 // טיימר ריכוז גם מתוך מחברת
 $('nbTimer').addEventListener('click', () => { prepSound(); focusTimer({ id: openId, title: 'לומדים: ' + ($('title').value || 'מחברת'), nb: true }); });
+
+/* ===== שאלות מהמחברת: מעלים דף שאלות (תמונה או טקסט) והאתר עונה לפי המחברת ===== */
+const QA_PROMPT = `אתה עוזר לימוד. קיבלת את המחברת של התלמיד ושאלות (בטקסט ו/או בתמונה של דף עבודה).
+ענה על כל שאלה **לפי מה שכתוב במחברת**. כתוב בעברית פשוטה וברורה, כמו תלמיד טוב שעונה במבחן.
+החזר HTML נקי בלבד (בלי \`\`\`), במבנה הזה לכל שאלה:
+<h3>1. השאלה (בקיצור)</h3>
+<p>התשובה – מלאה אבל ממוקדת. אם יש כמה חלקים לשאלה, ענה על כל אחד.</p>
+<p class="src">📍 מהמחברת: "ציטוט קצר מהמחברת שעליו מבוססת התשובה"</p>
+כללים:
+- אם התשובה לא כתובה במחברת: כתוב <p class="nf">⚠️ זה לא כתוב במחברת.</p> ואחר כך תשובה קצרה מהידע הכללי שלך, שמתחילה ב"מהידע הכללי:".
+- אל תמציא ציטוטים. הציטוט חייב להופיע במחברת כמו שהוא.
+- שאלות אמריקאיות: כתוב את האות/המספר של התשובה הנכונה ואת התשובה עצמה, ומשפט קצר למה.
+- שמור על הסדר והמספור של השאלות כמו בדף.`;
+async function qaDialog() {
+  const n = notebooks.find(x => x.id === openId) || null;
+  const left = await usageLeft('qa'); if (left <= 0) { limitDialog('qa'); return; }
+  if (!(await introOnce('qa'))) return;
+  dialog(d => {
+    d.classList.add('ocr-dlg', 'qa-dlg');
+    d.innerHTML = `<h3>❓ שאלות מהמחברת</h3><p class="muted-s">מדביקים שאלות או מצלמים דף עבודה, והאתר עונה לפי מה שכתוב במחברת "${(n ? n.title : $('title').value || 'הזו').replace(/</g, '&lt;')}" – עם ציטוט מאיפה זה.</p>
+      <textarea id="qaText" rows="4" placeholder="מדביקים או כותבים כאן את השאלות. למשל:&#10;1. למה אדוניהו לא הזמין את שלמה?&#10;2. מי היו התומכים של אדוניהו?"></textarea>
+      <div class="qa-or">או / וגם</div>
+      <button type="button" class="tt-up small" id="qaUp"><span class="ic">📷</span><b>תמונה של דף השאלות</b><span>עד 3 תמונות</span></button>
+      <input type="file" id="qaFile" accept="image/*,application/pdf" multiple hidden>
+      <div class="oc-thumbs" id="qaThumbs"></div>
+      <p class="tt-status" id="qaStatus"></p>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ לענות על השאלות';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.appendChild(row);
+    let files = [];
+    const paint = () => { d.querySelector('#qaThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>📕</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
+    d.querySelector('#qaThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
+    d.querySelector('#qaUp').onclick = () => d.querySelector('#qaFile').click();
+    d.querySelector('#qaFile').onchange = ev => { [...ev.target.files].slice(0, 3 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    go.onclick = async () => {
+      const q = d.querySelector('#qaText').value.trim();
+      if (!q && !files.length) { toast('כתוב שאלה או העלה תמונה של דף השאלות'); return; }
+      await flush();
+      const { text, images } = await notebookParts();
+      if (!text && !images.length) { toast('המחברת ריקה – אין ממה לענות'); return; }
+      go.disabled = true; d.querySelector('#qaUp').disabled = true;
+      const st = d.querySelector('#qaStatus'); const stop = ticking(st, '✨ מחפש במחברת ועונה...');
+      try {
+        const qParts = [];
+        for (const f of files) {
+          if (/^image\//.test(f.type)) { const dd = await shrink(f, 2000, 2500000); qParts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
+          else qParts.push({ inlineData: { mimeType: 'application/pdf', data: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }) } });
+        }
+        const parts = [QA_PROMPT, `=== המחברת: "${n ? n.title : $('title').value}" ===\n${text || '(רק תמונות)'}`, ...images.slice(0, 6), `=== השאלות ===\n${q || '(השאלות בתמונה המצורפת)'}`, ...qParts];
+        const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
+        const html0 = await aiText(['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'], { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
+        stop(); useOne('qa');
+        closeDialog(); qaResult(n, qaHtml(html0));
+      } catch (e) { stop(); console.error(e); showAiError(e); }
+    };
+  });
+}
+// clean() מוריד class – אז מסמנים מקור ו"לא כתוב" בצורה שנשמרת
+function qaHtml(t) {
+  return clean(String(t).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')
+    .replace(/<p class="src">([\s\S]*?)<\/p>/g, '<p><i>$1</i></p>')
+    .replace(/<p class="nf">([\s\S]*?)<\/p>/g, '<p><mark>$1</mark></p>'));
+}
+function qaResult(n, html) {
+  dialog(d => {
+    d.classList.add('ai-result');
+    d.innerHTML = '<h3>✅ התשובות</h3><p class="muted-s">כל תשובה מבוססת על המחברת, עם ציטוט מאיפה זה. מה שמסומן בצהוב לא כתוב במחברת – כדאי לבדוק. אפשר לתקן כאן.</p>';
+    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
+    const row = document.createElement('div'); row.className = 'row';
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'הוספה לסוף המחברת';
+    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>❓ תשובות לשאלות</h2>' + clean(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות נוספו למחברת ✓'); };
+    const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
+    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `תשובות – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>❓ תשובות לשאלות</h2>' + clean(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
+    const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = '📋 העתקה';
+    cp.onclick = async () => { try { await navigator.clipboard.writeText(box.innerText); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(add, sep, cp, close); d.append(box, row);
+  });
+}
+$('aiQa').addEventListener('click', qaDialog);
+INTROS.qa = [
+  ['qa1', 'מעלים את השאלות', 'מדביקים את השאלות, או מצלמים את דף העבודה. אפשר גם וגם.'],
+  ['qa2', 'מקבלים תשובות מהמחברת', 'לכל שאלה יש תשובה, ומתחתיה ציטוט מהמחברת שמראה מאיפה זה. אם משהו לא כתוב במחברת – זה מסומן בצהוב.'],
+];
+ILL.qa1 = `<svg viewBox="0 0 220 130"><rect x="40" y="12" width="140" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<text x="166" y="${40+i*28}" font-size="13" font-weight="700" fill="#5E5CE6" text-anchor="end">${i+1}.</text><rect x="62" y="${31+i*28}" width="${88-i*12}" height="7" rx="3.5" fill="#9AA0AE"/><text x="54" y="${40+i*28}" font-size="14" fill="#F59E0B" text-anchor="middle">?</text>`).join('')}</svg>`;
+ILL.qa2 = `<svg viewBox="0 0 220 130"><rect x="30" y="12" width="160" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="96" y="24" width="78" height="9" rx="4.5" fill="#1D1D1F"/><rect x="58" y="42" width="116" height="7" rx="3.5" fill="#9AA0AE"/><rect x="78" y="55" width="96" height="7" rx="3.5" fill="#9AA0AE"/><rect x="62" y="70" width="112" height="16" rx="6" fill="#EEEEFD"/><text x="168" y="82" font-size="10" fill="#5E5CE6" text-anchor="end" font-weight="700">📍 מהמחברת: "..."</text><rect x="92" y="94" width="82" height="14" rx="5" fill="#FFE58A"/><text x="168" y="104" font-size="9" fill="#8A6D00" text-anchor="end">⚠️ לא כתוב במחברת</text></svg>`;
