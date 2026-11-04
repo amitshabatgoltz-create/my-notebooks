@@ -3516,7 +3516,7 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 15, cf: 3, kit: 3 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED = ['amitshabatgoltz@gmail.com'];
 const isUnlimited = () => !!(me && me.email && UNLIMITED.includes(me.email.toLowerCase()));
