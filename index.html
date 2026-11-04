@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793800619">
+<link rel="stylesheet" href="style.css?v=1793801234">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -329,7 +329,10 @@
       <button id="chatClose" class="chat-x" type="button" aria-label="סגירה">✕</button>
     </header>
     <div id="chatLog" class="chat-log" aria-live="polite"></div>
+    <div id="chatFiles" class="chat-files hidden"></div>
     <div class="chat-form">
+      <input type="file" id="chatFile" accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xls,.csv,.txt" multiple hidden>
+      <button id="chatAttach" class="chat-attach" type="button" aria-label="צירוף תמונה או קובץ" title="צירוף תמונה או קובץ"><svg><use href="#i-clip"/></svg></button>
       <textarea id="chatInput" rows="1" dir="auto" placeholder="מה רצית לשאול?" aria-label="הודעה לעוזר"></textarea>
       <button id="chatGo" class="btn btn-primary" type="button">שליחה</button>
     </div>
@@ -338,6 +341,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793800619"></script>
+<script type="module" src="app.js?v=1793801234"></script>
 </body>
 </html>
