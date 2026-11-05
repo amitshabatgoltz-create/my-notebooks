@@ -3641,7 +3641,13 @@ async function aiText(models, cfg, parts, onText) {
           if (acc) return acc;
           if (stop && stop !== 'STOP') { lastErr = Object.assign(new Error('blocked: ' + stop), { blocked: stop }); break; }
         } else { const r = await m.generateContent(parts); const t = r.response.text(); if (t) return t; }
-      } catch (e) {
+      } catch (e0) {
+        let e = e0;
+        // "Failed to parse stream": הזרם נקטע או שהשרת שלח שגיאה באמצע. מנסים שוב בלי זרם – לרוב זה עובר, ואם לא – מקבלים את השגיאה האמיתית
+        if (onText && /parse stream|failed to parse/i.test(String(e0 && e0.message))) {
+          try { const r = await aiModel(name, c).generateContent(parts); const t = r.response.text(); if (t) { onText(t); return t; } }
+          catch (e1) { e = e1; }
+        }
         if (!lastErr || chatStatus(e) !== 404) lastErr = e;
         tried.push(`${name}: ${chatStatus(e) || 'שגיאה'}`);
         console.warn(name, e && e.message);
@@ -4531,7 +4537,7 @@ async function chatAsk(parts, onText, onWait, short, deep) {
   for (let i = 0; ; i++) {
     try { return await aiText(models, cfg, parts, onText); }
     catch (e) {
-      if (i >= 2 || !(chatBusyErr(e) || chatStatus(e) === 429)) throw e;
+      if (i >= 2 || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
       await new Promise(r => setTimeout(r, [5000, 15000][i]));
     }
@@ -4549,6 +4555,7 @@ function chatWhy(e) {
   else if (/too large|exceeds|token count|\b413\b/i.test(m)) why = 'הטקסט ארוך מדי בשביל Gemini. נסה להדביק חלק קטן יותר.';
   else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';
   else if (/app.?check|attestation|PERMISSION_DENIED|\b403\b/i.test(m)) why = 'החיבור ל-Gemini נחסם. תרענן פעמיים ונסה שוב.';
+  else if (/parse stream|failed to parse/i.test(m)) why = 'התשובה מ-Gemini נקטעה באמצע, גם אחרי כמה ניסיונות. נסה לשלוח שוב, ואם זה חוזר – הדבק חלק קטן יותר מהטקסט.';
   else if (/failed to fetch|networkerror/i.test(m)) why = 'אין חיבור לאינטרנט, או שהחיבור נפל באמצע. נסה שוב.';
   return `${why}${detail ? `\n\nפרטים לבדיקה: ${detail.slice(0, 200)}` : ''}${e && e.tried ? `\n${e.tried}` : ''}`;
 }
