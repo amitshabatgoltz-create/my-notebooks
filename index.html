@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793877517">
+<link rel="stylesheet" href="style.css?v=1793896046">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
@@ -116,6 +116,7 @@
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
       <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
       <button data-tab="chat"><svg><use href="#i-spark"/></svg>עוזר לימודי</button>
+      <button data-tab="admin" class="hidden admin-only"><svg><use href="#i-grades"/></svg>ניהול האתר</button>
     </nav>
     <div class="side-label">המחברות שלי</div>
     <div class="side-list" id="sideList"></div>
@@ -151,7 +152,7 @@
             <h1 id="greet"></h1>
             <p class="hero-sub" id="greetSub"></p>
             <div class="hero-actions">
-              <button class="btn btn-ai" id="homeOcr">📷 צילום לוח</button>
+              <button class="btn btn-ai" id="homeOcr">📷 צילום לוח</button><button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">📊 ניהול</button>
               <button class="btn btn-light" id="homeNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
               <button class="btn btn-glass" id="homeCal"><svg><use href="#i-cal"/></svg>ליומן</button>
             </div>
@@ -279,6 +280,14 @@
         <div id="ttBody"></div>
       </section>
 
+      <section id="adminView" class="view hidden">
+        <div class="lib-head">
+          <div><h2>📊 ניהול האתר</h2><div class="sub">מי משתמש באתר וכמה. רק אתה רואה את העמוד הזה.</div></div>
+          <div class="tt-head-btns"><button class="btn btn-ghost" id="admRefresh" type="button">↻ רענון</button></div>
+        </div>
+        <div id="admBody"></div>
+      </section>
+
       <section id="gradesView" class="view hidden">
         <div class="lib-head">
           <div><h2>ציונים</h2><div class="sub">הממוצע מחושב לפי כמה אחוז שווה כל סוג: מבחנים, בחנים, שיעורי בית</div></div>
@@ -362,6 +371,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793877517"></script>
+<script type="module" src="app.js?v=1793896046"></script>
 </body>
 </html>

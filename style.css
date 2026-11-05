@@ -1411,3 +1411,22 @@ html[data-theme="dark"] .gr-warn{color:#F5B54A}
 html[data-theme="dark"] .cats-sum.ok{color:#6FD9A4}
 .gi-row select{padding:6px 6px;font-size:13px;min-width:0;border-radius:10px}
 #gT{width:100%}
+/* ניהול האתר */
+.adm-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:700px){.adm-kpis{grid-template-columns:repeat(2,1fr)}}
+.adm-kpi{display:flex;flex-direction:column;align-items:center;gap:2px;padding:18px 10px}
+.adm-kpi b{font-size:40px;line-height:1;font-weight:800;color:var(--accent)}
+.adm-kpi span{font-size:13.5px;color:var(--muted);font-weight:600}
+#admBody .card+.card{margin-top:16px}
+.adm-bars{display:flex;align-items:flex-end;gap:3px;height:120px;direction:ltr;margin-top:6px}
+.adm-bar{flex:1;height:100%;display:flex;align-items:flex-end;border-radius:4px}
+.adm-bar:hover{background:var(--bg)}
+.adm-bar i{display:block;width:100%;background:var(--accent);border-radius:4px 4px 0 0}
+.adm-bars-ax{display:flex;justify-content:space-between;direction:ltr;font-size:11.5px;color:var(--muted);margin-top:4px}
+.adm-ai{display:flex;flex-wrap:wrap;gap:10px 22px;margin:4px 0 10px}
+.adm-ai div{display:flex;flex-direction:column}.adm-ai b{font-size:24px;color:var(--accent)}.adm-ai span{font-size:12.5px;color:var(--muted)}
+.adm-scroll{overflow-x:auto}
+.adm-table{min-width:640px}
+.adm-mail{font-size:13px;text-align:right}
+.adm-setup ol{padding-inline-start:20px;line-height:1.8}
+.adm-rules{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12px;overflow-x:auto;white-space:pre;margin:10px 0}

@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
+import { getAnalytics, isSupported as analyticsSupported, logEvent } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js";
 import { getDatabase, ref as dbRef, set as dbSet, onValue, onDisconnect, remove as dbRemove } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
 import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615860";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
@@ -21,6 +22,10 @@ if (firebaseConfig.apiKey === "PASTE_HERE") {
 }
 
 const fb = initializeApp(firebaseConfig);
+// Google Analytics: כמה נכנסים, מאיפה ומאיזה מכשיר (רואים ב-Firebase → Analytics)
+let analytics = null;
+if (firebaseConfig.measurementId) analyticsSupported().then(ok => { if (ok) analytics = getAnalytics(fb); }).catch(() => {});
+const track = (name, params) => { try { if (analytics) logEvent(analytics, name, params || {}); } catch {} };
 // App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
 if (recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE')) {
   try { initializeAppCheck(fb, { provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey), isTokenAutoRefreshEnabled: true }); }
@@ -121,7 +126,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300);
+    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -281,12 +286,12 @@ function renderSide() {
     b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי', adminView: 'ניהול האתר' }[v] || '';
   document.body.dataset.view = v;
   chatPlace(v);
   window.scrollTo(0, 0);
@@ -617,6 +622,7 @@ function textToHtml(text) {
 
 /* ================= ניווט ================= */
 function showTab(t) {
+  track('screen_view', { firebase_screen: t, firebase_screen_class: t });
   flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared');
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
   else if (t === 'notes') showLibrary();
@@ -624,6 +630,7 @@ function showTab(t) {
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
   else if (t === 'chat') { openId = null; setView('chatView'); renderSide(); }
+  else if (t === 'admin') { openId = null; setView('adminView'); renderSide(); renderAdmin(); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -3584,6 +3591,7 @@ async function loadUsage() {
 }
 async function usageLeft(k) { await refreshUnlimited(); if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
 function useOne(k, count = 1) {
+  track('ai_use', { kind: k, count }); statsAi(k, count);
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + count;
@@ -4897,3 +4905,82 @@ $('chatInput').addEventListener('keydown', e => {
   else if (e.key === 'Escape' && !$('chatPanel').classList.contains('full')) chatOpen(false);
 });
 $('chatInput').addEventListener('input', () => { const i = $('chatInput'); i.style.height = ''; i.style.height = Math.min(120, i.scrollHeight) + 'px'; });
+
+
+/* ================= 📊 ניהול האתר: מי משתמש וכמה (רק לבעל האתר) ================= */
+// כל משתמש כותב מסמך קטן אחד על עצמו ב-stats/<uid>: מתי נכנס, כמה מחברות, כמה פעמים השתמש ב-AI.
+// רק בעל האתר יכול לקרוא את כל המסמכים (לפי הכללים ב-Firestore). תוכן המחברות לא נשמר שם.
+const statsDoc = uid => doc(db, 'stats', uid);
+function deviceName() { const u = navigator.userAgent; return /iPhone|iPad/.test(u) ? 'iPhone/iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'אחר'; }
+async function statsPing() {
+  if (!me) return;
+  const tk = todayKey();
+  try { if (localStorage.getItem('statsDay:' + me.uid) === tk) return; } catch {}
+  try {
+    let first = Date.now();
+    try { const sn = await getDoc(statsDoc(me.uid)); if (sn.exists() && sn.data().first) first = sn.data().first; } catch {}
+    await setDoc(statsDoc(me.uid), { name: (me.displayName || '').slice(0, 60), email: (me.email || '').slice(0, 120), first, last: Date.now(), lastDay: tk, nb: notebooks.length, device: deviceName() }, { merge: true });
+    try { localStorage.setItem('statsDay:' + me.uid, tk); } catch {}
+  } catch (e) { console.warn('stats', e && e.message); }
+}
+function statsAi(k, count) {
+  if (!me) return;
+  setDoc(statsDoc(me.uid), { last: Date.now(), lastDay: todayKey(), ai: { [k]: increment(count) } }, { merge: true }).catch(() => {});
+}
+function paintAdmin() { const on = isUnlimited(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
+$('homeAdmin').onclick = () => showTab('admin');
+$('admRefresh').onclick = () => renderAdmin();
+const ADMIN_RULES = uid => `    // 📊 ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם
+    match /stats/{uid} {
+      allow read: if request.auth != null && request.auth.uid == '${uid}';
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai']);
+    }`;
+async function renderAdmin() {
+  const box = $('admBody');
+  await refreshUnlimited().catch(() => {});
+  if (!isUnlimited()) { box.innerHTML = '<p class="noev">העמוד הזה רק לבעל האתר.</p>'; return; }
+  box.innerHTML = '<div class="card"><p class="muted-s">טוען...</p></div>';
+  let list;
+  try { const sn = await getDocs(collection(db, 'stats')); list = []; sn.forEach(d => list.push({ id: d.id, ...d.data() })); }
+  catch (e) {
+    console.warn(e);
+    // עוד לא הודבקו הכללים: מראים בדיוק מה להדביק
+    box.innerHTML = `<div class="card adm-setup"><h3>צריך עוד שלב אחד: להדביק כללים ב-Firebase</h3>
+      <p>כדי שרק אתה תוכל לראות את רשימת המשתמשים, Firebase צריך לדעת מי אתה.</p>
+      <ol><li>נכנסים ל-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/firestore/rules" target="_blank" rel="noopener">Firestore → Rules</a>.</li>
+      <li>מוצאים את השורה <code dir="ltr">match /shares/{shareId} {</code>, ומדביקים <b>לפניה</b> את הקטע שלמטה.</li>
+      <li>לוחצים <b>Publish</b>, מחכים דקה, ולוחצים כאן "↻ רענון".</li></ol>
+      <pre class="adm-rules" dir="ltr"></pre><button type="button" class="btn btn-primary" id="admCopy">📋 העתקת הקטע</button>
+      <p class="muted-s">משתמשים יופיעו ברשימה מהפעם הבאה שהם נכנסים לאתר.</p></div>`;
+    box.querySelector('.adm-rules').textContent = ADMIN_RULES(me.uid);
+    $('admCopy').onclick = async () => { try { await navigator.clipboard.writeText(ADMIN_RULES(me.uid)); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק – סמן והעתק ידנית'); } };
+    return;
+  }
+  const now = Date.now(), day = 864e5, tk = todayKey();
+  const act1 = list.filter(u => u.lastDay === tk).length, act7 = list.filter(u => now - (u.last || 0) < 7 * day).length, act30 = list.filter(u => now - (u.last || 0) < 30 * day).length;
+  const new7 = list.filter(u => now - (u.first || 0) < 7 * day).length;
+  const aiTot = {}; list.forEach(u => Object.entries(u.ai || {}).forEach(([k, v]) => aiTot[k] = (aiTot[k] || 0) + (+v || 0)));
+  // נרשמים חדשים ב-30 הימים האחרונים
+  const days = Array.from({ length: 30 }, (_, i) => { const d = new Date(now - (29 - i) * day); return key(d); });
+  const byDay = Object.fromEntries(days.map(k => [k, 0])); list.forEach(u => { if (u.first) { const k = key(new Date(u.first)); if (k in byDay) byDay[k]++; } });
+  const maxD = Math.max(1, ...Object.values(byDay));
+  const ago = ms => { if (!ms) return '–'; const m = Math.round((now - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
+  const sorted = list.slice().sort((a, b) => (b.last || 0) - (a.last || 0));
+  const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
+  box.innerHTML = `<div class="adm-kpis">
+      <div class="card adm-kpi"><b>${list.length}</b><span>משתמשים</span></div>
+      <div class="card adm-kpi"><b>${act1}</b><span>נכנסו היום</span></div>
+      <div class="card adm-kpi"><b>${act7}</b><span>פעילים השבוע</span></div>
+      <div class="card adm-kpi"><b>${new7}</b><span>חדשים השבוע</span></div>
+    </div>
+    <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
+      <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}"><i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 100) : 0}%"></i></div>`).join('')}</div>
+      <div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days[0]).getTime()))}</span><span>היום</span></div></div>
+    <div class="card"><h3>שימוש ב-AI (מאז שהתחלנו לספור)</h3>${Object.keys(aiTot).length ? `<div class="adm-ai">${Object.entries(aiTot).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><b>${v}</b><span>${esc(USE_NAME[k] || k)}</span></div>`).join('')}</div>` : '<p class="noev">עוד אין שימוש.</p>'}
+      <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
+    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>מכשיר</th></tr></thead><tbody>
+      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
+    </tbody></table></div><p class="muted-s">פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+}
