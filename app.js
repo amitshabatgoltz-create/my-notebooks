@@ -4535,7 +4535,8 @@ async function chatAsk(parts, onText, onWait, short, deep) {
   const models = aiModels(deep);
   const cfg = short ? { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } } : { temperature: 0.4 };
   for (let i = 0; ; i++) {
-    try { return await aiText(models, cfg, parts, onText); }
+    // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
+    try { if (short) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
       if (i >= 2 || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
