@@ -4056,20 +4056,42 @@ function planDialog(e) {
 setInterval(() => { const el = document.querySelector('#nextTest .cd-live'); if (el && el._ev) el.textContent = countdownText(el._ev); }, 60000);
 
 /* ================= 🎯 ציונים ================= */
-let grades = [], unsubGr = null;
+let grades = [], grCats = {}, unsubGr = null;   // grCats: לכל מקצוע – כמה אחוז שווה כל סוג ציון [{n:'מבחנים', p:70}]
 const grDoc = () => doc(db, 'users', me.uid, 'meta', 'grades');
 function subscribeGrades() {
   if (unsubGr) unsubGr();
-  unsubGr = onSnapshot(grDoc(), sn => { grades = (sn.exists() && sn.data().items) || []; if (!$('gradesView').classList.contains('hidden')) renderGrades(); if (!$('home').classList.contains('hidden')) renderGradesMini(); }, () => {});
+  unsubGr = onSnapshot(grDoc(), sn => { grades = (sn.exists() && sn.data().items) || []; grCats = (sn.exists() && sn.data().cats) || {}; if (!$('gradesView').classList.contains('hidden')) renderGrades(); if (!$('home').classList.contains('hidden')) renderGradesMini(); }, () => {});
 }
-const saveGrades = () => setDoc(grDoc(), { items: grades, updatedAt: Date.now() });
-function wAvg(list) {
-  const ws = list.map(g => +g.w > 0 ? +g.w : 1); const sw = ws.reduce((a, b) => a + b, 0);
-  return sw ? list.reduce((a, g, k) => a + g.g * ws[k], 0) / sw : null;
+const saveGrades = () => setDoc(grDoc(), { items: grades, cats: grCats, updatedAt: Date.now() });
+const GR_TYPES = ['מבחנים', 'בחנים', 'עבודות', 'שיעורי בית', 'השתתפות'];
+function guessType(n) {
+  n = String(n || '');
+  if (/מבחן|בחינה|מתכונת|בגרות|test|exam/i.test(n)) return 'מבחנים';   // לפני "בוחן", כי "מבחן" מכיל "בחן"
+  if (/בוחן|בחנים|(^|\s)בחן|quiz/i.test(n)) return 'בחנים';
+  if (/עבוד|פרויקט|פרוייקט|מטלה|מטלת|project|essay/i.test(n)) return 'עבודות';
+  if (/שיעורי.?בית|ש["״]ב|homework/i.test(n)) return 'שיעורי בית';
+  if (/השתתפות|התנהגות|נוכחות/i.test(n)) return 'השתתפות';
+  return '';
 }
+const typeOf = g => g.t || guessType(g.n);
+const typesFor = s => { const c = (grCats[s] || []).map(x => x.n); return c.length ? c : GR_TYPES; };
+const mean = l => l.length ? l.reduce((a, g) => a + g.g, 0) / l.length : null;
+// ממוצע מקצוע: אם קבעת אחוז לכל סוג – ממוצע בכל סוג, ואז לפי האחוזים (מסוגים שיש בהם ציונים). אחרת – כל הציונים שווים
+function subjAvg(s, list) {
+  const cats = (grCats[s] || []).filter(c => +c.p > 0);
+  if (cats.length) {
+    let sum = 0, sp = 0;
+    const parts = cats.map(c => { const gs = list.filter(g => typeOf(g) === c.n); const a = mean(gs); if (a != null) { sum += a * c.p; sp += +c.p; } return { n: c.n, p: +c.p, avg: a, count: gs.length }; });
+    const other = list.filter(g => !cats.some(c => c.n === typeOf(g)));
+    return { avg: sp ? sum / sp : mean(list), parts, other, sp, total: cats.reduce((a, c) => a + +c.p, 0) };
+  }
+  const allW = list.length && list.every(g => +g.w > 0);   // ציונים ישנים עם משקל לכל ציון
+  return { avg: allW ? list.reduce((a, g) => a + g.g * g.w, 0) / list.reduce((a, g) => a + +g.w, 0) : mean(list), parts: null, other: [] };
+}
+function wAvg(list) { return list.length ? subjAvg(list[0].s, list).avg : null; }
 function bySubject() {
   const m = {}; grades.forEach(g => (m[g.s] = m[g.s] || []).push(g));
-  return Object.entries(m).map(([s, list]) => ({ s, list: list.sort((a, b) => (a.d || '').localeCompare(b.d || '')), avg: wAvg(list) })).sort((a, b) => b.list.length - a.list.length || a.s.localeCompare(b.s, 'he'));
+  return Object.entries(m).map(([s, list]) => ({ s, list: list.sort((a, b) => (a.d || '').localeCompare(b.d || '')), avg: subjAvg(s, list).avg })).sort((a, b) => b.list.length - a.list.length || a.s.localeCompare(b.s, 'he'));
 }
 const fmtG = v => v == null ? '–' : (Math.round(v * 10) / 10).toString();
 function overall() { const ss = bySubject().filter(x => x.avg != null); return ss.length ? ss.reduce((a, x) => a + x.avg, 0) / ss.length : null; }
@@ -4094,7 +4116,7 @@ function gradeChart(list, joined = true) {
   const path = pts.map((g, k) => `${k ? 'L' : 'M'}${x(g).toFixed(1)},${y(g.g).toFixed(1)}`).join('');
   const f = k => { const dd = fromKey(k); return `${dd.getDate()}/${dd.getMonth() + 1}`; };
   return `<svg class="gr-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="גרף הציונים לאורך הזמן">${grid.join('')}
-    ${joined ? `<path d="${path}" class="gc-line"/>` : ''}${pts.map(g => `<g class="gc-pt" tabindex="0"><circle cx="${x(g)}" cy="${y(g.g)}" r="14" class="gc-hit"/><circle cx="${x(g)}" cy="${y(g.g)}" r="5" class="gc-dot"/><title>${esc(g.s)} · ${esc(g.n || '')}: ${g.g}${g.w ? ` (משקל ${g.w}%)` : ''} · ${f(g.d)}</title></g>`).join('')}
+    ${joined ? `<path d="${path}" class="gc-line"/>` : ''}${pts.map(g => `<g class="gc-pt" tabindex="0"><circle cx="${x(g)}" cy="${y(g.g)}" r="14" class="gc-hit"/><circle cx="${x(g)}" cy="${y(g.g)}" r="5" class="gc-dot"/><title>${esc(g.s)} · ${esc(g.n || '')}: ${g.g}${typeOf(g) ? ` (${esc(typeOf(g))})` : ''} · ${f(g.d)}</title></g>`).join('')}
     <text x="${L}" y="${H - 6}" class="gc-ax">${f(pts[0].d)}</text><text x="${W - R}" y="${H - 6}" class="gc-ax" text-anchor="end">${f(pts[pts.length - 1].d)}</text></svg>`;
 }
 let grFilter = '';
@@ -4110,12 +4132,55 @@ function renderGrades() {
       <div class="card gr-hero"><small>${grFilter ? 'ממוצע ב' + esc(grFilter) : 'ממוצע כללי'}</small><div class="gr-big ${gradeTone(grFilter ? wAvg(shown) : o)}">${fmtG(grFilter ? wAvg(shown) : o)}</div><span class="muted-s">${shown.length === 1 ? 'ציון אחד' : shown.length + ' ציונים'}${grFilter ? '' : ` ב-${subs.length === 1 ? 'מקצוע אחד' : subs.length + ' מקצועות'}`}</span></div>
       <div class="card gr-bars"><h3>ממוצע לפי מקצוע</h3>${subs.map(x => `<button type="button" class="gb-row${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}" title="${esc(x.s)}: ${fmtG(x.avg)}"><span class="gb-name">${esc(x.s)}</span><span class="gb-track"><i style="width:${Math.max(2, x.avg || 0)}%"></i></span><b class="gb-val">${fmtG(x.avg)}</b></button>`).join('')}</div>
     </div>
+    ${grFilter ? grBreakdown(grFilter, shown) : (() => { const no = subs.filter(x => !(grCats[x.s] || []).length).map(x => x.s); return no.length ? `<div class="card gr-setcats"><p><b>כמה אחוז שווה כל סוג?</b> כרגע בכל מקצוע כל הציונים שווים. קבע למשל מבחנים 70%, בחנים 20%, שיעורי בית 10% – והממוצע יחושב כמו בבית הספר.</p><div class="gr-setcats-btns">${no.map(x => `<button type="button" class="chip-f" data-cats="${esc(x)}">⚙️ ${esc(x)}</button>`).join('')}</div></div>` : ''; })()}
     <div class="gr-filters"><button type="button" class="chip-f${grFilter ? '' : ' on'}" data-s="">הכל</button>${subs.map(x => `<button type="button" class="chip-f${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}">${esc(x.s)}</button>`).join('')}</div>
     ${gradeChart(shown) ? `<div class="card"><h3>הציונים לאורך הזמן${grFilter ? ' ב' + esc(grFilter) : ''}</h3>${gradeChart(shown, !!grFilter || subs.length === 1)}${grFilter || subs.length === 1 ? '' : '<p class="muted-s gr-chart-note">כל נקודה היא ציון. בוחרים מקצוע למעלה כדי לראות את הקו שלו.</p>'}</div>` : ''}
-    <div class="card gr-list"><h3>כל הציונים${grFilter ? ' ב' + esc(grFilter) : ''}</h3><table class="gr-table"><thead><tr><th>מקצוע</th><th>על מה</th><th>תאריך</th><th>משקל</th><th>ציון</th><th></th></tr></thead><tbody>${shown.slice().sort((a, b) => (b.d || '').localeCompare(a.d || '')).map(g => `<tr data-id="${g.id}"><td>${esc(g.s)}</td><td>${esc(g.n || '')}</td><td>${g.d ? esc(fmtDate(fromKey(g.d).getTime())) : ''}</td><td>${g.w ? g.w + '%' : '–'}</td><td><b class="gr-pill ${gradeTone(g.g)}">${g.g}</b></td><td class="gr-act"><button type="button" class="link" data-ed="${g.id}">עריכה</button></td></tr>`).join('')}</tbody></table>
-    <p class="muted-s gr-note">איך מחשבים: בכל מקצוע, כל ציון נספר לפי המשקל שלו (בלי משקל = משקל שווה). הממוצע הכללי הוא הממוצע של המקצועות.</p></div>`;
+    <div class="card gr-list"><h3>כל הציונים${grFilter ? ' ב' + esc(grFilter) : ''}</h3><table class="gr-table"><thead><tr><th>מקצוע</th><th>על מה</th><th>תאריך</th><th>סוג</th><th>ציון</th><th></th></tr></thead><tbody>${shown.slice().sort((a, b) => (b.d || '').localeCompare(a.d || '')).map(g => `<tr data-id="${g.id}"><td>${esc(g.s)}</td><td>${esc(g.n || '')}</td><td>${g.d ? esc(fmtDate(fromKey(g.d).getTime())) : ''}</td><td>${typeOf(g) ? esc(typeOf(g)) : '<span class="muted-s">–</span>'}</td><td><b class="gr-pill ${gradeTone(g.g)}">${g.g}</b></td><td class="gr-act"><button type="button" class="link" data-ed="${g.id}">עריכה</button></td></tr>`).join('')}</tbody></table>
+    <p class="muted-s gr-note">איך מחשבים: בכל מקצוע עושים ממוצע לכל סוג (מבחנים, בחנים...), ואז מחשבים לפי האחוזים שקבעת למקצוע. במקצוע בלי אחוזים – כל הציונים שווים. הממוצע הכללי הוא הממוצע של המקצועות.</p></div>`;
   box.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { grFilter = b.dataset.s === grFilter ? '' : b.dataset.s; renderGrades(); });
   box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => gradeDialog(grades.find(g => g.id === b.dataset.ed)));
+  box.querySelectorAll('[data-cats]').forEach(b => b.onclick = () => catsDialog(b.dataset.cats));
+}
+function grBreakdown(s, list) {
+  const r = subjAvg(s, list);
+  if (!r.parts) return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="btn btn-primary" data-cats="${esc(s)}">⚙️ קביעת אחוזים</button></div><p class="muted-s">עוד לא קבעת כמה אחוז שווה כל סוג ציון, אז כרגע כל הציונים נספרים אותו דבר.</p></div>`;
+  return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="link" data-cats="${esc(s)}">⚙️ עריכת האחוזים</button></div>
+    ${r.parts.map(p => `<div class="gcat"><span class="gcat-n">${esc(p.n)}</span><span class="gcat-p">${p.p}%</span><span class="gb-track"><i style="width:${p.avg == null ? 0 : Math.max(2, p.avg)}%"></i></span><b class="gcat-a ${gradeTone(p.avg)}">${p.avg == null ? '–' : fmtG(p.avg)}</b><small>${p.count ? (p.count === 1 ? 'ציון אחד' : p.count + ' ציונים') : 'אין עדיין ציונים'}</small></div>`).join('')}
+    ${r.total !== 100 ? `<p class="muted-s gr-warn">סך האחוזים הוא ${r.total}% ולא 100%. האתר מחשב לפי היחס ביניהם.</p>` : ''}
+    ${r.parts.some(p => !p.count) && r.sp ? `<p class="muted-s">סוג שאין בו עדיין ציונים לא נכנס לחישוב, אז כרגע הממוצע מחושב מ-${Math.round(r.sp)}% מהציון.</p>` : ''}
+    ${r.other.length ? `<p class="gr-warn">⚠️ ${r.other.length === 1 ? 'ציון אחד לא שייך' : r.other.length + ' ציונים לא שייכים'} לאף סוג, אז ${r.other.length === 1 ? 'הוא לא נכנס' : 'הם לא נכנסים'} לחישוב: ${r.other.map(g => esc(g.n || String(g.g))).join(', ')}. לוחצים "עריכה" בציון ובוחרים סוג.</p>` : ''}</div>`;
+}
+function catsDialog(s) {
+  const used = [...new Set(grades.filter(g => g.s === s).map(typeOf).filter(Boolean))];
+  let rows = (grCats[s] || []).map(c => ({ ...c }));
+  if (!rows.length) rows = (used.length ? used : ['מבחנים', 'בחנים', 'שיעורי בית']).map(n => ({ n, p: '' }));
+  dialog(d => {
+    d.classList.add('cats-dlg');
+    const paint = () => {
+      const tot = rows.reduce((a, r) => a + (+r.p || 0), 0);
+      d.innerHTML = `<h3>⚙️ כמה אחוז שווה כל סוג ב${esc(s)}?</h3><p class="muted-s">למשל: מבחנים 70%, בחנים 20%, שיעורי בית 10%. ככה המורה מחשב את הציון בתעודה.</p>
+        <div class="cats-presets"><button type="button" class="chip-f" data-pre="70,20,10">מבחנים 70 · בחנים 20 · ש״ב 10</button><button type="button" class="chip-f" data-pre="60,20,20">מבחנים 60 · בחנים 20 · עבודות 20</button><button type="button" class="chip-f" data-pre="80,20">מבחנים 80 · עבודות 20</button></div>
+        <div class="cats-rows">${rows.map((r, i) => `<div class="cat-row"><input data-i="${i}" data-f="n" list="catTypes" value="${esc(r.n)}" placeholder="סוג, למשל מבחנים" aria-label="סוג"><span class="w-in"><input data-i="${i}" data-f="p" type="number" inputmode="decimal" min="0" max="100" value="${r.p}" placeholder="0" aria-label="אחוז"><span>%</span></span><button type="button" class="link danger-t" data-del="${i}" aria-label="הסרה">✕</button></div>`).join('')}</div>
+        <datalist id="catTypes">${GR_TYPES.map(t => `<option value="${t}">`).join('')}</datalist>
+        <button type="button" class="link" id="catAdd">＋ עוד סוג</button>
+        <p class="cats-sum ${tot === 100 ? 'ok' : ''}">סה״כ: <b>${tot}%</b>${tot === 100 ? ' ✓' : tot ? ' (כדאי שיצא 100%)' : ''}</p>`;
+      d.querySelectorAll('.cat-row input').forEach(inp => inp.oninput = () => { rows[+inp.dataset.i][inp.dataset.f] = inp.dataset.f === 'p' ? inp.value : inp.value; const t2 = rows.reduce((a, r) => a + (+r.p || 0), 0); const el = d.querySelector('.cats-sum'); el.className = 'cats-sum' + (t2 === 100 ? ' ok' : ''); el.innerHTML = `סה״כ: <b>${t2}%</b>${t2 === 100 ? ' ✓' : t2 ? ' (כדאי שיצא 100%)' : ''}`; });
+      d.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); paint(); });
+      d.querySelector('#catAdd').onclick = () => { rows.push({ n: '', p: '' }); paint(); d.querySelector(`.cat-row:last-child input`).focus(); };
+      d.querySelectorAll('[data-pre]').forEach(b => b.onclick = () => { const ps = b.dataset.pre.split(',').map(Number); const names = b.textContent.split('·').map(x => x.trim().replace(/\s*\d+$/, '').replace('ש״ב', 'שיעורי בית')); rows = names.map((n, k) => ({ n, p: ps[k] })); paint(); });
+      const row = document.createElement('div'); row.className = 'row';
+      const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+      ok.onclick = async () => {
+        const clean2 = rows.map(r => ({ n: normS(r.n).slice(0, 30), p: Math.max(0, Math.min(100, Math.round((+r.p || 0) * 10) / 10)) })).filter(r => r.n);
+        if (new Set(clean2.map(r => r.n)).size !== clean2.length) { toast('יש סוג שמופיע פעמיים'); return; }
+        const prev = grCats; grCats = { ...grCats }; if (clean2.length) grCats[s] = clean2; else delete grCats[s];
+        try { await saveGrades(); closeDialog(); toast('האחוזים נשמרו ✓'); renderGrades(); renderGradesMini(); } catch { grCats = prev; toast('לא נשמר'); }
+      };
+      const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+      row.append(ok, no); d.appendChild(row);
+    };
+    paint();
+  });
 }
 function gradeDialog(g, pre) {
   const editing = !!g; g = g || { s: pre?.s || grFilter || '', n: pre?.n || '', g: '', w: '', d: pre?.d || todayKey() };
@@ -4126,17 +4191,29 @@ function gradeDialog(g, pre) {
       <label class="fl">מקצוע</label><input id="gS" list="gSubs" placeholder="למשל: מתמטיקה"><datalist id="gSubs">${subjList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
       <label class="fl">על מה הציון? <span class="muted-s">(לא חובה)</span></label><input id="gN" placeholder="למשל: מבחן פרק 3, בוחן, עבודה">
       <div class="ed-row"><div><label class="fl">ציון</label><input id="gG" type="number" inputmode="decimal" min="0" max="100" placeholder="0–100"></div>
-      <div><label class="fl">משקל מהציון הסופי</label><div class="w-in"><input id="gW" type="number" inputmode="decimal" min="0" max="100" placeholder="למשל 30"><span>%</span></div></div>
+      <div><label class="fl">סוג</label><select id="gT"></select></div>
       <div><label class="fl">תאריך</label><input id="gD" type="date"></div></div>
-      <p class="muted-s">לא יודע את המשקל? משאירים ריק וכל הציונים נספרים אותו דבר.</p>`;
-    d.querySelector('#gS').value = g.s; d.querySelector('#gN').value = g.n || ''; d.querySelector('#gG').value = g.g ?? ''; d.querySelector('#gW').value = g.w || ''; d.querySelector('#gD').value = g.d || '';
+      <p class="muted-s" id="gTip"></p>`;
+    d.querySelector('#gS').value = g.s; d.querySelector('#gN').value = g.n || ''; d.querySelector('#gG').value = g.g ?? ''; d.querySelector('#gD').value = g.d || '';
+    let typed = !!g.t;
+    const fillTypes = () => {
+      const subj = normS(d.querySelector('#gS').value), sel = d.querySelector('#gT'), cur = sel.value || g.t || guessType(d.querySelector('#gN').value);
+      const opts = typesFor(subj); if (cur && !opts.includes(cur)) opts.push(cur);
+      sel.innerHTML = `<option value="">בלי סוג</option>` + opts.map(t => `<option value="${esc(t)}"${t === cur ? ' selected' : ''}>${esc(t)}${grCats[subj]?.find(c => c.n === t) ? ` (${grCats[subj].find(c => c.n === t).p}%)` : ''}</option>`).join('');
+      d.querySelector('#gTip').innerHTML = subj && (grCats[subj] || []).length ? '' : subj ? `במקצוע הזה עוד לא קבעת כמה אחוז שווה כל סוג. <button type="button" class="link" id="gCats">לקבוע עכשיו</button>` : '';
+      d.querySelector('#gCats')?.addEventListener('click', () => catsDialog(subj));
+    };
+    fillTypes();
+    d.querySelector('#gS').addEventListener('change', fillTypes);
+    d.querySelector('#gT').addEventListener('change', () => typed = true);
+    d.querySelector('#gN').addEventListener('input', () => { if (typed) return; const t = guessType(d.querySelector('#gN').value); if (t) { const sel = d.querySelector('#gT'); if (![...sel.options].some(o => o.value === t)) fillTypes(); sel.value = t; } });
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
     ok.onclick = async () => {
-      const s = normS(d.querySelector('#gS').value).slice(0, 40), sc = parseFloat(d.querySelector('#gG').value), w = parseFloat(d.querySelector('#gW').value);
+      const s = normS(d.querySelector('#gS').value).slice(0, 40), sc = parseFloat(d.querySelector('#gG').value), t = d.querySelector('#gT').value;
       if (!s) { toast('באיזה מקצוע?'); d.querySelector('#gS').focus(); return; }
       if (!(sc >= 0 && sc <= 100)) { toast('ציון צריך להיות בין 0 ל-100'); d.querySelector('#gG').focus(); return; }
-      const item = { id: g.id || Math.random().toString(36).slice(2, 10), s, n: d.querySelector('#gN').value.trim().slice(0, 60), g: Math.round(sc * 10) / 10, w: w > 0 && w <= 100 ? Math.round(w * 10) / 10 : 0, d: d.querySelector('#gD').value || '' };
+      const item = { id: g.id || Math.random().toString(36).slice(2, 10), s, n: d.querySelector('#gN').value.trim().slice(0, 60), g: Math.round(sc * 10) / 10, t, d: d.querySelector('#gD').value || '' };
       const prev = grades; grades = editing ? grades.map(x => x.id === g.id ? item : x) : [...grades, item];
       try { await saveGrades(); closeDialog(); toast(editing ? 'נשמר ✓' : 'הציון נוסף ✓'); if (!$('gradesView').classList.contains('hidden')) renderGrades(); renderGradesMini(); }
       catch { grades = prev; toast('לא נשמר'); }
@@ -4157,18 +4234,18 @@ $('grAdd').onclick = () => gradeDialog();
 const GR_PROMPT = () => { const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
   return `לפניך ציונים של תלמיד בישראל: טקסט שהודבק ו/או צילום מסך (למשל ממשו"ב, וובטופ, תעודה, או רשימה שכתב).
 מצא את כל הציונים והחזר JSON בלבד:
-{"grades":[{"s":"מקצוע","n":"על מה הציון","g":85,"w":30,"d":"2026-10-15"}]}
+{"grades":[{"s":"מקצוע","n":"על מה הציון","g":85,"t":"מבחנים","d":"2026-10-15"}]}
 - s: שם המקצוע בלבד, קצר (בלי שם מורה, קבוצה או קוד). אם המקצוע דומה לאחד מאלה, כתוב בדיוק כך: ${[...new Set([...bySubject().map(x => x.s), ...ttSubjects()])].join(', ') || '(אין רשימה)'}.
 - n: על מה הציון (מבחן, בוחן, עבודה, שם הפרק...). אם לא כתוב – "".
 - g: הציון כמספר בין 0 ל-100. ציון במילים (למשל "טוב מאוד") – המר: מצוין=95, טוב מאוד=85, כמעט טוב מאוד=80, טוב=75, כמעט טוב=70, מספיק=60, מספיק בקושי=55, לא מספיק=45. בלי ציון – אל תכלול.
-- w: משקל באחוזים אם כתוב, אחרת 0.
+- t: סוג הציון, אחד מאלה: ${[...new Set([...GR_TYPES, ...Object.values(grCats).flat().map(c => c.n)])].join(', ')}. "מבחן" → מבחנים, "בוחן" → בחנים, עבודה/פרויקט → עבודות. אם לא ברור – "".
 - d: תאריך בפורמט YYYY-MM-DD אם כתוב, אחרת "". היום ${todayKey()}. שנת הלימודים ${y0}–${y0 + 1}: תאריך בלי שנה בין ספטמבר לדצמבר הוא ב-${y0}, ובין ינואר לאוגוסט ב-${y0 + 1}. 12/11 = 12 בנובמבר.
 - אל תמציא ציונים. אם אותו ציון מופיע פעמיים, כתוב אותו פעם אחת. ממוצעים וציון סופי של תקופה – לא לכלול, רק ציונים בודדים.`; };
 function gradesImportDialog() {
   dialog(d => {
     d.classList.add('gr-imp');
     d.innerHTML = `<h3>📋 הוספת הרבה ציונים בבת אחת</h3>
-      <p class="muted-s">מעתיקים את הציונים מהמשו"ב או מכל מקום ומדביקים כאן, או מעלים צילום מסך. האתר מוצא לבד את המקצוע, הציון, המשקל והתאריך.</p>
+      <p class="muted-s">מעתיקים את הציונים מהמשו"ב או מכל מקום ומדביקים כאן, או מעלים צילום מסך. האתר מוצא לבד את המקצוע, הציון, הסוג (מבחן, בוחן...) והתאריך.</p>
       <textarea id="giText" rows="5" placeholder="למשל:&#10;מתמטיקה – מבחן פרק 3 – 92&#10;אנגלית בוחן 78 (20%)&#10;תנ״ך 15/10 עבודה 88"></textarea>
       <div class="qa-or">או / וגם</div>
       <button type="button" class="tt-up small" id="giUp"><span class="ic">📷</span><b>צילום מסך של הציונים</b><span>תמונה, PDF או קובץ אקסל</span></button>
@@ -4190,14 +4267,14 @@ function gradesImportDialog() {
     const paintList = () => {
       const box = d.querySelector('#giList');
       if (!found.length) { box.innerHTML = ''; return; }
-      box.innerHTML = `<label class="fl">מצאתי ${found.length === 1 ? 'ציון אחד' : found.length + ' ציונים'} – אפשר לתקן לפני ששומרים</label>` + found.map((x, i) => `<div class="gi-row${x.dup ? ' dup' : ''}"><input type="checkbox" data-i="${i}"${x.on ? ' checked' : ''} aria-label="להוסיף"><input data-f="s" data-i="${i}" value="${esc(x.s)}" aria-label="מקצוע"><input data-f="n" data-i="${i}" value="${esc(x.n)}" placeholder="על מה" aria-label="על מה"><input data-f="g" data-i="${i}" type="number" min="0" max="100" value="${x.g}" aria-label="ציון"><span class="gi-w"><input data-f="w" data-i="${i}" type="number" min="0" max="100" value="${x.w || ''}" placeholder="משקל" aria-label="משקל">%</span><input data-f="d" data-i="${i}" type="date" value="${x.d || ''}" aria-label="תאריך">${x.dup ? '<small>כבר קיים</small>' : ''}</div>`).join('');
-      box.querySelectorAll('input').forEach(inp => inp.oninput = inp.onchange = () => { const x = found[+inp.dataset.i]; if (inp.type === 'checkbox') x.on = inp.checked; else x[inp.dataset.f] = inp.type === 'number' ? parseFloat(inp.value) : inp.value; ok(); });
+      box.innerHTML = `<label class="fl">מצאתי ${found.length === 1 ? 'ציון אחד' : found.length + ' ציונים'} – אפשר לתקן לפני ששומרים</label>` + found.map((x, i) => `<div class="gi-row${x.dup ? ' dup' : ''}"><input type="checkbox" data-i="${i}"${x.on ? ' checked' : ''} aria-label="להוסיף"><input data-f="s" data-i="${i}" value="${esc(x.s)}" aria-label="מקצוע"><input data-f="n" data-i="${i}" value="${esc(x.n)}" placeholder="על מה" aria-label="על מה"><input data-f="g" data-i="${i}" type="number" min="0" max="100" value="${x.g}" aria-label="ציון"><select data-f="t" data-i="${i}" aria-label="סוג"><option value="">בלי סוג</option>${[...new Set([...typesFor(normS(x.s)), x.t].filter(Boolean))].map(t => `<option${t === x.t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><input data-f="d" data-i="${i}" type="date" value="${x.d || ''}" aria-label="תאריך">${x.dup ? '<small>כבר קיים</small>' : ''}</div>`).join('');
+      box.querySelectorAll('input,select').forEach(inp => inp.oninput = inp.onchange = () => { const x = found[+inp.dataset.i]; if (inp.type === 'checkbox') x.on = inp.checked; else x[inp.dataset.f] = inp.type === 'number' ? parseFloat(inp.value) : inp.value; ok(); });
       ok();
     };
     const ok = () => { const n = found.filter(x => x.on).length; go.textContent = n ? `הוספת ${n === 1 ? 'ציון אחד' : n + ' ציונים'}` : '✨ למצוא את הציונים'; go.dataset.mode = n ? 'save' : 'find'; };
     go.onclick = async () => {
       if (go.dataset.mode === 'save') {
-        const add = found.filter(x => x.on && normS(x.s) && x.g >= 0 && x.g <= 100).map(x => ({ id: Math.random().toString(36).slice(2, 10), s: normS(x.s).slice(0, 40), n: String(x.n || '').trim().slice(0, 60), g: Math.round(x.g * 10) / 10, w: x.w > 0 && x.w <= 100 ? Math.round(x.w * 10) / 10 : 0, d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
+        const add = found.filter(x => x.on && normS(x.s) && x.g >= 0 && x.g <= 100).map(x => ({ id: Math.random().toString(36).slice(2, 10), s: normS(x.s).slice(0, 40), n: String(x.n || '').trim().slice(0, 60), g: Math.round(x.g * 10) / 10, t: String(x.t || '').slice(0, 30), d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
         if (!add.length) { toast('אין ציונים תקינים להוספה'); return; }
         const prev = grades; grades = [...grades, ...add];
         try { await saveGrades(); closeDialog(); toast(add.length === 1 ? 'נוסף ציון אחד ✓' : `נוספו ${add.length} ציונים ✓`); if (!$('gradesView').classList.contains('hidden')) renderGrades(); renderGradesMini(); }
@@ -4212,7 +4289,7 @@ function gradesImportDialog() {
         for (const f of files) parts.push(await fileToAiPart(f));
         const j = await aiJson(GR_PROMPT(), parts); stop();
         found = (Array.isArray(j.grades) ? j.grades : []).filter(x => x && x.s && Number.isFinite(+x.g) && +x.g >= 0 && +x.g <= 100).slice(0, 80)
-          .map(x => ({ s: normS(String(x.s).split('/').map(cleanSubj).filter(Boolean)[0] || x.s), n: String(x.n || ''), g: +x.g, w: +x.w || 0, d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
+          .map(x => ({ s: normS(String(x.s).split('/').map(cleanSubj).filter(Boolean)[0] || x.s), n: String(x.n || ''), g: +x.g, t: String(x.t || '') || guessType(x.n), d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
         found.forEach(x => { x.dup = grades.some(y => same(x, y)); x.on = !x.dup; });
         st.textContent = found.length ? (found.some(x => x.dup) ? 'ציונים שכבר שמורים אצלך לא מסומנים, כדי שלא ייכנסו פעמיים.' : '') : 'לא מצאתי ציונים. נסה להדביק שוב או צילום ברור יותר.';
         paintList();
