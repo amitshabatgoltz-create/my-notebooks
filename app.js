@@ -14,6 +14,7 @@ import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
 const $ = id => document.getElementById(id);
+const ic = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#1f8fa3','#4b5563'];
 
 if (firebaseConfig.apiKey === "PASTE_HERE") {
@@ -236,10 +237,11 @@ function dialog(build) {
   o.addEventListener('click', e => { if (e.target === o) closeDialog(); });
   const d = document.createElement('div'); d.className = 'dialog'; o.appendChild(d);
   build(d); $('dialogRoot').innerHTML = ''; $('dialogRoot').appendChild(o);
+  window.Motion?.dialog(o, d);
   const fi = d.querySelector('input[type=file]');
   if (fi && fi.id !== 'edInput' && !d.querySelector('.paste-tip')) {
     const tip = document.createElement('p'); tip.className = 'paste-tip';
-    tip.textContent = matchMedia('(pointer: fine)').matches ? '💡 אפשר גם לגרור לכאן קובץ, או להעתיק תמונה ולהדביק עם Ctrl+V' : '💡 אפשר גם להעתיק תמונה ולהדביק אותה כאן';
+    tip.textContent = matchMedia('(pointer: fine)').matches ? 'אפשר גם לגרור לכאן קובץ, או להעתיק תמונה ולהדביק עם Ctrl+V' : 'אפשר גם להעתיק תמונה ולהדביק אותה כאן';
     fi.after(tip);
   }
 }
@@ -289,7 +291,7 @@ function renderSide() {
 const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView'];
 const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin' };
 function setView(v, crumb) {
-  VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); } });
+  VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
   $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי', adminView: 'ניהול האתר' }[v] || '';
   document.body.dataset.view = v;
@@ -716,18 +718,20 @@ function renderCalendar() {
   renderDay(); renderUpcoming();
 }
 
+// כותרות ישנות של תוכנית למידה נשמרו עם סמל בהתחלה
+const plainTitle = t => (t || '').replace(/^\u{1F4DA}\s*/u, '');
 function evRow(e, showDate) {
   const r = document.createElement('div'); r.className = 'ev' + (e.done ? ' done' : '');
   const bar = document.createElement('span'); bar.className = `bar-c t-${e.type || 'other'}`;
   const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!e.done; cb.title = 'סיימתי';
   cb.onchange = () => updateDoc(evDoc(e.id), { done: cb.checked }).catch(() => toast('לא נשמר'));
   const t = document.createElement('div'); t.className = 't';
-  const sp = document.createElement('span'); sp.textContent = e.title;
+  const sp = document.createElement('span'); sp.textContent = plainTitle(e.title);
   const sm = document.createElement('small');
   const d = fromKey(e.date);
   const nf = (e.files || []).length;
-  const cdn = e.type === 'test' && !e.done && e.date >= todayKey() ? '⏳ ' + countdownText(e) : '';
-  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, cdn, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : '', nf ? `📎 ${nf === 1 ? 'קובץ' : nf + ' קבצים'}` : ''].filter(Boolean).join(' · ');
+  const cdn = e.type === 'test' && !e.done && e.date >= todayKey() ? '' + countdownText(e) : '';
+  sm.textContent = [TYPE_NAME[e.type] || 'אחר', e.time, cdn, showDate ? `יום ${HE_DAYS[d.getDay()]}, ${d.getDate()} ב${HE_MONTHS[d.getMonth()]}` : '', nf ? `${nf === 1 ? 'קובץ' : nf + ' קבצים'}` : ''].filter(Boolean).join(' · ');
   t.append(sp, sm);
   if (e.note) { const nt = document.createElement('small'); nt.className = 'ev-note'; nt.textContent = e.note; t.appendChild(nt); }
   t.style.cursor = 'pointer'; t.title = 'פרטים, הערות וקבצים'; t.onclick = () => eventDialog(e.id);
@@ -749,7 +753,7 @@ function renderUpcoming() {
   const box = $('upcoming'); box.innerHTML = '';
   const tk = todayKey();
   const list = events.filter(e => e.date >= tk && !e.done && shown(e)).slice(0, 6);
-  if (!list.length) { const p = document.createElement('div'); p.className = 'noev'; p.textContent = 'אין משימות פתוחות 🎉'; box.appendChild(p); }
+  if (!list.length) { const p = document.createElement('div'); p.className = 'noev'; p.textContent = 'אין משימות פתוחות'; box.appendChild(p); }
   list.forEach(e => box.appendChild(evRow(e, true)));
 }
 
@@ -813,7 +817,7 @@ async function addImages(files) {
   if (!list.length || !openId) return;
   restoreSelection();
   for (const f of list) {
-    const holder = document.createElement('p'); holder.className = 'img-uploading'; holder.textContent = '⏳ מעלה תמונה...';
+    const holder = document.createElement('p'); holder.className = 'img-uploading'; holder.textContent = 'מעלה תמונה...';
     insertBlockAtCaret(holder);
     try {
       const data = await shrink(f);
@@ -916,8 +920,8 @@ function tableDialog() {
     dialog(d => {
       d.innerHTML = '<h3>עריכת טבלה</h3>';
       const grid = document.createElement('div'); grid.className = 'tbl-actions';
-      [['rowBefore','➕ שורה מעל'],['rowAfter','➕ שורה מתחת'],['colBefore','➕ עמודה מימין'],['colAfter','➕ עמודה משמאל'],
-       ['delRow','➖ מחיקת שורה'],['delCol','➖ מחיקת עמודה'],['delTable','🗑 מחיקת הטבלה']].forEach(([a, label]) => {
+      [['rowBefore','שורה מעל'],['rowAfter','שורה מתחת'],['colBefore','עמודה מימין'],['colAfter','עמודה משמאל'],
+       ['delRow','מחיקת שורה'],['delCol','מחיקת עמודה'],['delTable','מחיקת הטבלה']].forEach(([a, label]) => {
         const b = document.createElement('button'); b.className = 'btn ' + (a === 'delTable' ? 'btn-danger' : 'btn-ghost'); b.textContent = label;
         b.onclick = () => { closeDialog(); tableAction(a, cell); }; grid.appendChild(b);
       });
@@ -977,10 +981,10 @@ $('editor').addEventListener('keydown', e => {
 function applyThemeIcon() {
   const dark = document.documentElement.dataset.theme === 'dark';
   document.querySelectorAll('[data-theme-toggle]').forEach(b => {
-    b.textContent = b.classList.contains('menu-item') ? (dark ? '☀️ מצב בהיר' : '🌙 מצב כהה') : (dark ? '☀️' : '🌙');
+    b.innerHTML = b.classList.contains('menu-item') ? (dark ? 'מצב בהיר' : 'מצב כהה') : ic(dark ? 'sun' : 'moon');
     b.title = dark ? 'מעבר למצב בהיר' : 'מעבר למצב כהה';
   });
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#18221F' : '#E9F0F7';
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#0E0E12' : '#F5F5FA';
 }
 document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => {
   const dark = document.documentElement.dataset.theme !== 'dark';
@@ -991,7 +995,7 @@ document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener
 applyThemeIcon();
 
 
-/* ================= ✨ סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */
+/* ================= סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */
 // בינתיים כולם על המודל הקל. המודל החזק שמור למנוי פרו: כשיהיה מנוי, מספיק לשנות את isPro.
 const MODEL_LIGHT = 'gemini-3.5-flash-lite', MODEL_STRONG = 'gemini-3.5-flash';
 const isPro = () => false;
@@ -1027,7 +1031,7 @@ const SUMMARY_PROMPT = `אתה עוזר לתלמיד בחטיבת ביניים �
 5. 5 שאלות לחזרה, ואחרי כל שאלה תשובה קצרה.
 השתמש רק במידע שבמחברת. אם משהו בתמונה לא ברור, אל תמציא אותו.
 החזר HTML בלבד, בלי markdown ובלי \`\`\`. מותר להשתמש רק בתגיות: h2, h3, p, ul, ol, li, b, mark, table, tr, th, td.
-התחל בכותרת <h2>📝 סיכום למבחן</h2>.`;
+התחל בכותרת <h2>סיכום למבחן</h2>.`;
 
 async function notebookParts() {
   const ed = $('editor');
@@ -1053,7 +1057,7 @@ async function makeSummary() {
   const heads = [...new Set([...$('editor').querySelectorAll('h1,h2,h3')].map(h => h.textContent.trim()).filter(t => t && t.length < 70 && !/סיכום למבחן/.test(t)))].slice(0, 16);
   dialog(d => {
     d.classList.add('topics-dlg');
-    d.innerHTML = `<h3>✨ על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p>`;
+    d.innerHTML = `<h3>על מה המבחן?</h3><p>כתוב את הנושאים של המבחן, והסיכום יתמקד רק בהם. אפשר גם להשאיר ריק ולסכם את כל המחברת.</p>`;
     const ta = document.createElement('textarea'); ta.rows = 3; ta.className = 'topics-input';
     ta.placeholder = 'למשל: דוד ובת-שבע; העונשים של דוד; פרק י"ב';
     ta.value = n.testTopics || '';
@@ -1092,14 +1096,14 @@ async function makeSummary() {
 async function runSummary(n, text, images, topics) {
   let cancelled = false;
   dialog(d => {
-    d.innerHTML = '<h3>✨ מכין סיכום למבחן...</h3>';
+    d.innerHTML = '<h3>מכין סיכום למבחן...</h3>';
     const p = document.createElement('p'); p.textContent = topics ? `מתמקד ב: ${topics}` : 'מסכם את כל המחברת. הסיכום יופיע כאן תוך כדי כתיבה.';
     const sp = document.createElement('div'); sp.className = 'ai-spinner';
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול';
     c.onclick = () => { cancelled = true; closeDialog(); }; d.append(p, sp, c);
   });
   const focus = topics
-    ? `\n\nחשוב מאוד: המבחן הוא רק על הנושאים האלה: "${topics}".\nסכם רק את החומר שקשור לנושאים האלה, ודלג לגמרי על כל חומר אחר במחברת (גם בשאלות לחזרה).\nאם אחד הנושאים לא מופיע בכלל במחברת, כתוב את זה בשורה קצרה בסוף.\nהתחל בכותרת <h2>📝 סיכום למבחן: ${topics.replace(/[<>]/g, '')}</h2>.`
+    ? `\n\nחשוב מאוד: המבחן הוא רק על הנושאים האלה: "${topics}".\nסכם רק את החומר שקשור לנושאים האלה, ודלג לגמרי על כל חומר אחר במחברת (גם בשאלות לחזרה).\nאם אחד הנושאים לא מופיע בכלל במחברת, כתוב את זה בשורה קצרה בסוף.\nהתחל בכותרת <h2>סיכום למבחן: ${topics.replace(/[<>]/g, '')}</h2>.`
     : '';
   const parts = [SUMMARY_PROMPT + focus, `שם המחברת: ${n.title || ''}\n\nהטקסט במחברת:\n${text || '(אין טקסט, רק תמונות)'}`, ...images];
   let html = '', lastErr = null;
@@ -1172,12 +1176,52 @@ function greeting() {
 }
 function daysUntil(k) { const a = fromKey(k), t = fromKey(todayKey()); return Math.round((a - t) / 86400000); }
 function countUp(el, to) {
+  if (window.Motion?.on) return window.Motion.count(el, to);
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || to <= 0) { el.textContent = to; return; }
   const start = performance.now(), dur = 700;
   const tick = now => { const p = Math.min(1, (now - start) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
 }
 let homeAnimated = false;
+// השבוע הקרוב: שבעה ימים מהיום, עם המבחנים, שיעורי הבית ותוכנית הלמידה
+function renderWeek() {
+  const box = $('weekCard'); box.innerHTML = '';
+  const tk = todayKey(), base = fromKey(tk);
+  const next = events.find(e => e.type === 'test' && !e.done && e.date >= tk);
+  const hasPlan = !!next && events.some(e => e.planFor === next.id);
+  const head = document.createElement('div'); head.className = 'wk-head';
+  const tx = document.createElement('div');
+  const h = document.createElement('h3'); h.textContent = 'השבוע הקרוב';
+  const sub = document.createElement('p'); sub.className = 'wk-sub';
+  sub.textContent = !next ? 'אין מבחנים קרובים ביומן.' : hasPlan ? `תוכנית הלמידה ל${next.title} מסומנת בקו מקווקו.` : `עדיין אין תוכנית למידה ל${next.title}.`;
+  tx.append(h, sub); head.appendChild(tx);
+  if (next && !hasPlan && daysUntil(next.date) >= 1) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-primary'; b.textContent = 'בנה לי תוכנית למידה'; b.onclick = () => planDialog(next);
+    head.appendChild(b);
+  }
+  const scroll = document.createElement('div'); scroll.className = 'wk-scroll';
+  const grid = document.createElement('div'); grid.className = 'wk-grid';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i), k = key(d);
+    const day = document.createElement('div'); day.className = 'wk-day' + (i === 0 ? ' today' : '');
+    const l = document.createElement('span'); l.className = 'wk-l'; l.textContent = i === 0 ? 'היום' : i === 1 ? 'מחר' : HE_DAYS[d.getDay()];
+    const n = document.createElement('span'); n.className = 'wk-n'; n.textContent = d.getDate();
+    day.append(l, n);
+    const items = events.filter(e => e.date === k).sort((a, b) => (b.type === 'test') - (a.type === 'test') || (a.time || '').localeCompare(b.time || ''));
+    items.slice(0, 4).forEach(e => {
+      const b = document.createElement('button'); b.type = 'button'; b.dir = 'auto';
+      b.className = 'wk-ev ' + (e.type === 'test' ? 'wk-test' : e.planFor ? 'wk-plan' : e.type === 'hw' ? 'wk-hw' : 'wk-other') + (e.done ? ' done' : '');
+      b.textContent = plainTitle(e.title); b.onclick = () => eventDialog(e.id);
+      day.appendChild(b);
+    });
+    if (items.length > 4) {
+      const m = document.createElement('button'); m.type = 'button'; m.className = 'wk-more'; m.textContent = `עוד ${items.length - 4}`; m.onclick = () => showTab('cal');
+      day.appendChild(m);
+    }
+    grid.appendChild(day);
+  }
+  scroll.appendChild(grid); box.append(head, scroll);
+}
 function renderHome() {
   renderStats(); homeAskChips();
   const now = new Date();
@@ -1187,7 +1231,7 @@ function renderHome() {
   const tk = todayKey();
   const today = events.filter(e => e.date === tk);
   const open = today.filter(e => !e.done).length;
-  $('greetSub').textContent = !today.length ? 'אין לך כלום ביומן היום.' : open ? (open === 1 ? 'יש לך דבר אחד ביומן היום.' : `יש לך ${open} דברים ביומן היום.`) : 'סיימת את כל מה שהיה ביומן היום 🎉';
+  $('greetSub').textContent = !today.length ? 'אין לך כלום ביומן היום.' : open ? (open === 1 ? 'יש לך דבר אחד ביומן היום.' : `יש לך ${open} דברים ביומן היום.`) : 'סיימת את כל מה שהיה ביומן היום';
 
   // ספירה לאחור למבחן הבא
   const tests = events.filter(e => e.type === 'test' && !e.done && e.date >= tk);
@@ -1206,18 +1250,19 @@ function renderHome() {
     const when = document.createElement('div'); when.className = 'when'; const dd = fromKey(t.date);
     when.textContent = `יום ${HE_DAYS[dd.getDay()]}, ${dd.getDate()} ב${HE_MONTHS[dd.getMonth()]}` + (t.time ? ` · ${t.time}` : '');
     const cdl = document.createElement('div'); cdl.className = 'cd-live'; cdl._ev = t; cdl.textContent = countdownText(t);
-    const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'btn btn-ghost plan-btn'; pb.textContent = '📚 תוכנית למידה'; pb.onclick = () => planDialog(t);
+    const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'btn btn-ghost plan-btn'; pb.textContent = 'תוכנית למידה'; pb.onclick = () => planDialog(t);
     nt.append(h, big, what, when, cdl); if (d >= 1) nt.appendChild(pb);
     if (d > 1 && !homeAnimated) countUp(num, d);
     nt.classList.toggle('soon', d <= 3);
   } else {
     const big = document.createElement('div'); big.className = 'big'; big.innerHTML = '<span class="num word">אין</span>';
     const what = document.createElement('div'); what.className = 'what'; what.textContent = 'אין מבחנים ביומן כרגע';
-    const add = document.createElement('button'); add.className = 'link'; add.textContent = '📋 העלאת לוח המבחנים'; add.onclick = () => testsDialog();
+    const add = document.createElement('button'); add.className = 'link'; add.textContent = 'העלאת לוח המבחנים'; add.onclick = () => testsDialog();
     nt.append(h, big, what, add); nt.classList.remove('soon');
   }
 
   renderGradesMini();
+  renderWeek();
   // היום
   const tc = $('todayCard'); tc.innerHTML = '';
   const h2 = document.createElement('h3'); h2.textContent = 'היום';
@@ -1282,7 +1327,7 @@ function timelineDialog() {
     dialog(d => {
       d.innerHTML = '<h3>עריכת ציר זמן</h3>';
       const grid = document.createElement('div'); grid.className = 'tbl-actions';
-      [['before','➕ אירוע לפני'],['after','➕ אירוע אחרי'],['up','⬆ הזזה למעלה'],['down','⬇ הזזה למטה'],['del','➖ מחיקת האירוע'],['delAll','🗑 מחיקת ציר הזמן']].forEach(([a, label]) => {
+      [['before','אירוע לפני'],['after','אירוע אחרי'],['up','הזזה למעלה'],['down','הזזה למטה'],['del','מחיקת האירוע'],['delAll','מחיקת ציר הזמן']].forEach(([a, label]) => {
         const b = document.createElement('button'); b.className = 'btn ' + (a === 'delAll' ? 'btn-danger' : 'btn-ghost'); b.textContent = label;
         b.onclick = () => { closeDialog(); tlAction(a, li); }; grid.appendChild(b);
       });
@@ -1409,7 +1454,7 @@ function posLineHandles(g, it) {
 // סרגל קטן ליד הפריט, כמו בקנבה: מחיקה, שכפול, נעילה
 function placeMini(el, it) {
   const m = document.createElement('div'); m.className = 'cv-mini';
-  m.innerHTML = `<button data-a="del" title="מחיקה">🗑</button><button data-a="dup" title="שכפול">⧉</button><button data-a="lock" class="${it.lk ? 'on' : ''}" title="${it.lk ? 'ביטול נעילה' : 'נעילה'}">${it.lk ? '🔒' : '🔓'}</button>`;
+  m.innerHTML = `<button data-a="del" title="מחיקה"><svg aria-hidden="true"><use href="#i-trash"/></svg></button><button data-a="dup" title="שכפול">⧉</button><button data-a="lock" class="${it.lk ? 'on' : ''}" title="${it.lk ? 'ביטול נעילה' : 'נעילה'}">${it.lk ? '<svg aria-hidden="true"><use href="#i-lock"/></svg>' : '<svg aria-hidden="true"><use href="#i-unlock"/></svg>'}</button>`;
   el.appendChild(m);
   const k = cvScale(el); let cx, top;
   if (it.t === 'l') { cx = (it.x1 + it.x2) / 2 * k; top = Math.min(it.y1, it.y2) * k; }
@@ -1444,8 +1489,8 @@ function cvBar(o) {
   const btn = (a, label, on, title) => `<button data-a="${a}" class="${on ? 'on' : ''}" title="${title || ''}">${label}</button>`;
   const dots = (a, list, cur) => list.map(c => `<button data-a="${a}" data-v="${c}" class="dot${c === cur ? ' on' : ''}" style="${c === 'none' ? '' : 'background:' + c}" title="${c === 'none' ? 'בלי רקע' : ''}">${c === 'none' ? '⌀' : ''}</button>`).join('');
   let h = '';
-  if (!it) h = btn('addH1', '<b>הוסף כותרת</b>') + btn('addH2', 'הוסף כותרת משנה') + btn('addBody', '<small>הוסף גוף טקסט</small>') + '<i></i>' + btn('addLine', '＋ קו') + '<i></i>' + btn('delCv', '🗑 מחיקת הלוח');
-  else if (it.lk) h = '<span class="lbl">🔒 הפריט נעול. לחץ על המנעול כדי לערוך אותו.</span>';
+  if (!it) h = btn('addH1', '<b>הוסף כותרת</b>') + btn('addH2', 'הוסף כותרת משנה') + btn('addBody', '<small>הוסף גוף טקסט</small>') + '<i></i>' + btn('addLine', '＋ קו') + '<i></i>' + btn('delCv', 'מחיקת הלוח');
+  else if (it.lk) h = '<span class="lbl">הפריט נעול. לחץ על המנעול כדי לערוך אותו.</span>';
   else if (it.t === 'x') h = `<select data-a="font" title="גופן">${Object.entries(FONTS).map(([k, v]) => `<option value="${k}"${k === it.f ? ' selected' : ''} style="font-family:${v[0]}">${v[1]}</option>`).join('')}</select>` + '<i></i>'
     + btn('sDown', '−', 0, 'הקטנת גופן') + `<input data-a="size" type="number" min="8" max="120" value="${Math.round(it.s)}" title="גודל גופן">` + btn('sUp', '+', 0, 'הגדלת גופן') + '<i></i>'
     + btn('bold', '<b>B</b>', it.b, 'מודגש') + btn('align', `<svg><use href="#i-al-${{ right: 'r', center: 'c', left: 'l' }[it.a]}"/></svg>`, 0, 'יישור (ימין / שמאל / מרכז)') + '<i></i>'
@@ -1710,7 +1755,7 @@ $('boxBtn').addEventListener('click', () => {
   dialog(d => {
     d.innerHTML = '<h3>תיבת טקסט</h3><p>מה להוסיף?</p>';
     const g = document.createElement('div'); g.className = 'kind-pick';
-    g.innerHTML = '<button data-k="h1"><b style="font-size:22px">הוסף כותרת</b></button><button data-k="h2"><b style="font-size:17px">הוסף כותרת משנה</b></button><button data-k="body"><b style="font-weight:500">הוסף גוף טקסט</b><span>טקסט חופשי שמזיזים לכל מקום, מגדילים ומסובבים</span></button><button data-k="box"><b>🟨 מסגרת צבעונית חדשה</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>' + (inBox ? '<button data-k="edit"><b>🎨 עריכת המסגרת שאתה נמצא בה</b><span>צבע אחר, הוצאת הטקסט או מחיקה</span></button>' : '');
+    g.innerHTML = '<button data-k="h1"><b style="font-size:22px">הוסף כותרת</b></button><button data-k="h2"><b style="font-size:17px">הוסף כותרת משנה</b></button><button data-k="body"><b style="font-weight:500">הוסף גוף טקסט</b><span>טקסט חופשי שמזיזים לכל מקום, מגדילים ומסובבים</span></button><button data-k="box"><b>מסגרת צבעונית חדשה</b><span>מסגרת בתוך הטקסט להדגשת משהו חשוב</span></button>' + (inBox ? '<button data-k="edit"><b>עריכת המסגרת שאתה נמצא בה</b><span>צבע אחר, הוצאת הטקסט או מחיקה</span></button>' : '');
     g.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; closeDialog(); if (b.dataset.k === 'edit') boxDialog(); else if (b.dataset.k === 'box') boxDialog(inBox || undefined); else { if (inBox) { const s2 = getSelection(); const q = document.createElement('p'); q.appendChild(document.createElement('br')); inBox.after(q); const r2 = document.createRange(); r2.setStart(q, 0); s2.removeAllRanges(); s2.addRange(r2); savedRange = r2.cloneRange(); } addItem('x', b.dataset.k); } };
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'ביטול'; c.onclick = closeDialog;
     d.append(g, c);
@@ -1926,7 +1971,7 @@ function bellState() {
   const b = $('bellBtn'); if (!b) return;
   if (!canNotify) { b.classList.add('hidden'); return; }
   const on = Notification.permission === 'granted';
-  b.classList.toggle('on', on); b.innerHTML = on ? '🔔<span> תזכורות פועלות</span>' : '🔔<span> הפעלת תזכורות</span>';
+  b.classList.toggle('on', on); b.innerHTML = on ? '<svg aria-hidden="true"><use href="#i-bell"/></svg><span> תזכורות פועלות</span>' : '<svg aria-hidden="true"><use href="#i-bell"/></svg><span> הפעלת תזכורות</span>';
   b.title = on ? 'כשהאתר נפתח תקבל התראה על מבחנים ומשימות של היום ומחר' : 'קבל התראה על מבחנים ומשימות קרובים';
 }
 async function remind(force) {
@@ -1939,7 +1984,7 @@ async function remind(force) {
   try { localStorage.setItem(flag, '1'); } catch {}
   const line = e => `${e.date === tk ? 'היום' : 'מחר'}: ${TYPE_NAME[e.type] || 'אחר'} – ${e.title}${e.time ? ' (' + e.time + ')' : ''}`;
   const tests = soon.filter(e => e.type === 'test');
-  const title = tests.length ? (tests.length === 1 ? 'יש לך מבחן קרוב 📚' : `יש לך ${tests.length} מבחנים קרובים 📚`) : 'תזכורת מהמחברות שלי';
+  const title = tests.length ? (tests.length === 1 ? 'יש לך מבחן קרוב' : `יש לך ${tests.length} מבחנים קרובים`) : 'תזכורת מהמחברות שלי';
   const opts = { body: soon.slice(0, 4).map(line).join('\n'), icon: 'icon-192.png', badge: 'icon-192.png', tag: 'daily-' + tk, lang: 'he', dir: 'rtl' };
   try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) reg.showNotification(title, opts); else new Notification(title, opts); }
   catch { try { new Notification(title, opts); } catch {} }
@@ -2028,7 +2073,7 @@ if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
 const shareDoc = id => doc(db, 'shares', id);
 const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
 
-const SHARE_MODES = { view: ['👁️ צפייה בלבד', 'החבר רק קורא. אי אפשר לשנות כלום ואי אפשר לשמור עותק.'], edit: ['✏️ עריכה משותפת – כותבים ביחד', 'החבר כותב איתך באותה מחברת, ושניכם רואים את השינויים בלייב. (צריך להיות מחובר)'], copy: ['📥 צפייה + עותק נפרד', 'החבר קורא, ויכול לשמור אצלו עותק נפרד משלו. הוא לא כותב במחברת שלך.'] };
+const SHARE_MODES = { view: ['צפייה בלבד', 'החבר רק קורא. אי אפשר לשנות כלום ואי אפשר לשמור עותק.'], edit: ['עריכה משותפת – כותבים ביחד', 'החבר כותב איתך באותה מחברת, ושניכם רואים את השינויים בלייב. (צריך להיות מחובר)'], copy: ['צפייה + עותק נפרד', 'החבר קורא, ויכול לשמור אצלו עותק נפרד משלו. הוא לא כותב במחברת שלך.'] };
 function modePicker(cur, onPick) {
   const g = document.createElement('div'); g.className = 'mode-pick'; g.setAttribute('role', 'radiogroup');
   Object.entries(SHARE_MODES).forEach(([k, [t, d]]) => {
@@ -2084,7 +2129,7 @@ async function shareDialog() {
         cp.onclick = async () => { try { await navigator.clipboard.writeText(url); cp.textContent = 'הועתק ✓'; } catch { inp.select(); document.execCommand('copy'); cp.textContent = 'הועתק ✓'; } };
         box.append(inp, cp); d.appendChild(box);
         const row = document.createElement('div'); row.className = 'row';
-        if (navigator.share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = '📤 שליחה...'; sh.onclick = () => navigator.share({ title: cur.title || 'מחברת', text: `המחברת "${$('title').value || cur.title}" שלי`, url }).catch(() => {}); row.appendChild(sh); }
+        if (navigator.share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = 'שליחה...'; sh.onclick = () => navigator.share({ title: cur.title || 'מחברת', text: `המחברת "${$('title').value || cur.title}" שלי`, url }).catch(() => {}); row.appendChild(sh); }
         const wa = document.createElement('a'); wa.className = 'btn btn-ghost'; wa.target = '_blank'; wa.rel = 'noopener'; wa.textContent = 'וואטסאפ'; wa.href = 'https://wa.me/?text=' + encodeURIComponent(`המחברת "${$('title').value || cur.title}" שלי: ${url}`); row.appendChild(wa);
         const stop = document.createElement('button'); stop.className = 'btn btn-ghost danger-t'; stop.textContent = 'הפסקת שיתוף';
         stop.onclick = async () => {
@@ -2117,7 +2162,7 @@ function openShare(id) {
     document.title = (s.title || 'מחברת') + ' · המחברות שלי';
     $('shTitle').textContent = s.title || 'מחברת';
     const hint = $('shHint');
-    if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? '🔒 שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>✏️ עריכה משותפת</b>.' : '📥 אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>✏️ עריכה משותפת</b>.'; }
+    if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
     const b = $('shBody'); b.innerHTML = clean(s.html || '');
@@ -2125,7 +2170,7 @@ function openShare(id) {
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     const editMode = s.mode === 'edit';
     if (editMode && me && !mine && !shareEditOpened) { shareEditOpened = true; if (me) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now(), mode: 'edit' }).catch(() => {}); closeShare(true); openSharedEdit(id, s); return; }
-    cp.textContent = mine ? 'פתיחה לעריכה' : editMode ? (me ? '✏️ לערוך יחד' : 'התחברות כדי לערוך') : (me ? '📥 שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
+    cp.textContent = mine ? 'פתיחה לעריכה' : editMode ? (me ? 'לערוך יחד' : 'התחברות כדי לערוך') : (me ? 'שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
     cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : editMode ? (me ? (closeShare(true), openSharedEdit(id, s)) : (pendingShare(id), closeShare())) : (me ? copyShare(id, s) : (pendingShare(id), closeShare()));
     if (me && !mine) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now() }).catch(() => {});
   }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; $('shCopy').classList.add('hidden'); });
@@ -2172,7 +2217,7 @@ function renderShared() {
   sharedList.forEach(x => {
     const b = document.createElement('button'); b.className = 'sh-item'; b.style.setProperty('--c', x.color || COLORS[0]);
     const t = document.createElement('b'); t.textContent = x.title || 'מחברת';
-    const o = document.createElement('small'); o.textContent = (x.ownerName ? 'מאת ' + x.ownerName : '') + (x.mode === 'edit' ? ' · ✏️ עריכה משותפת' : '');
+    const o = document.createElement('small'); o.textContent = (x.ownerName ? 'מאת ' + x.ownerName : '') + (x.mode === 'edit' ? ' · עריכה משותפת' : '');
     const rm = document.createElement('span'); rm.className = 'rm'; rm.textContent = '✕'; rm.title = 'הסרה מהרשימה';
     rm.onclick = ev => { ev.stopPropagation(); deleteDoc(doc(db, 'users', me.uid, 'shared', x.id)).catch(() => {}); };
     b.append(t, o, rm); b.onclick = () => openShare(x.id); list.appendChild(b);
@@ -2255,12 +2300,12 @@ function renderStats() {
   const st = streak();
   c.innerHTML = `<h3>השבוע שלך</h3>
     <div class="stats">
-      <div class="stat"><span class="n">${st}${st ? ' 🔥' : ''}</span><span class="l">${st === 1 ? 'יום ברצף' : 'ימים ברצף'}</span></div>
+      <div class="stat"><span class="n">${st}${st ? '' : ''}</span><span class="l">${st === 1 ? 'יום ברצף' : 'ימים ברצף'}</span></div>
       <div class="stat"><span class="n">${week.toLocaleString('he-IL')}</span><span class="l">מילים כתבת השבוע</span></div>
       <button type="button" class="stat stat-link" data-go="cal" title="המשימות הן מה שיש לך ביומן: מבחנים, שיעורי בית ואירועים. מסמנים ✓ כשמסיימים"><span class="n">${doneWeek}</span><span class="l">משימות ביומן שסימנת ✓</span></button>
     </div>
     <div class="bars" role="img" aria-label="מילים בכל יום בשבוע האחרון">${days.map((d, i) => `<div class="bar${key(d) === tk ? ' today' : ''}" title="${vals[i]} מילים"><i style="height:${Math.max(vals[i] ? 6 : 2, Math.round(vals[i] / max * 100))}%"></i><span>${'אבגדהוש'[d.getDay()]}'</span></div>`).join('')}</div>
-    <p class="muted-s">${st >= 2 ? `כל הכבוד! ${st} ימים ברצף שאתה כותב. אל תשבור את הרצף 💪` : st === 1 ? 'התחלת רצף. תכתוב משהו גם מחר כדי להמשיך אותו.' : 'תכתוב משהו במחברת היום כדי להתחיל רצף.'}</p>`;
+    <p class="muted-s">${st >= 2 ? `כל הכבוד! ${st} ימים ברצף שאתה כותב. אל תשבור את הרצף` : st === 1 ? 'התחלת רצף. תכתוב משהו גם מחר כדי להמשיך אותו.' : 'תכתוב משהו במחברת היום כדי להתחיל רצף.'}</p>`;
 }
 
 /* ===== שרבוט: ציור חופשי שנשמר כתמונה במחברת ===== */
@@ -2273,7 +2318,7 @@ function sketchDialog() {
       <div class="sk-tools">
         <div class="sk-group" data-g="color">${['#1D1D1F', '#E5484D', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'].map((c, i) => `<button type="button" class="sk-c${i ? '' : ' on'}" data-c="${c}" style="--c:${c}" aria-label="צבע"></button>`).join('')}</div>
         <div class="sk-group" data-g="size">${[2, 4, 8, 14].map((w, i) => `<button type="button" class="sk-w${i === 1 ? ' on' : ''}" data-w="${w}" aria-label="עובי ${w}"><i style="width:${w + 2}px;height:${w + 2}px"></i></button>`).join('')}</div>
-        <div class="sk-group"><button type="button" class="sk-tool" data-t="eraser" title="מחק">🧽 מחק</button><button type="button" class="sk-tool" data-t="undo" title="ביטול">↶</button><button type="button" class="sk-tool" data-t="clear" title="ניקוי">🗑</button></div>
+        <div class="sk-group"><button type="button" class="sk-tool" data-t="eraser" title="מחק">מחק</button><button type="button" class="sk-tool" data-t="undo" title="ביטול">↶</button><button type="button" class="sk-tool" data-t="clear" title="ניקוי"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></div>
       </div>
       <div class="sk-wrap"><canvas id="skCv" width="1200" height="720"></canvas></div>`;
     const cv = d.querySelector('#skCv'), ctx = cv.getContext('2d');
@@ -2417,7 +2462,7 @@ quickPreview();
 const FILE_MAX = 15 * 1024 * 1024, CHUNK = 700000;
 const fileBlobs = new Map();
 const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
-const fileIcon = n => { const e = (n.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? '📕' : /^(docx?|odt|rtf)$/.test(e) ? '📘' : /^(xlsx?|csv|ods)$/.test(e) ? '📗' : /^(pptx?|odp|key)$/.test(e) ? '📙' : /^(png|jpe?g|gif|webp|heic)$/.test(e) ? '🖼️' : /^(mp3|m4a|wav|ogg)$/.test(e) ? '🎧' : /^(mp4|mov|webm)$/.test(e) ? '🎬' : /^(zip|rar|7z)$/.test(e) ? '🗜️' : '📄'; };
+const fileIcon = n => { const e = (n.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? 'PDF' : /^(docx?|odt|rtf)$/.test(e) ? 'DOC' : /^(xlsx?|csv|ods)$/.test(e) ? 'XLS' : /^(pptx?|odp|key)$/.test(e) ? 'PPT' : /^(png|jpe?g|gif|webp|heic)$/.test(e) ? 'IMG' : /^(mp3|m4a|wav|ogg)$/.test(e) ? 'AUD' : /^(mp4|mov|webm)$/.test(e) ? 'VID' : /^(zip|rar|7z)$/.test(e) ? 'ZIP' : 'FILE'; };
 async function uploadFile(f, onProgress) {
   if (f.size > FILE_MAX) throw Object.assign(new Error('big'), { code: 'too-big' });
   const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
@@ -2427,7 +2472,7 @@ async function uploadFile(f, onProgress) {
   await setDoc(ref, { ...meta, chunks: n, createdAt: Date.now() });
   return { id: ref.id, name: meta.name, size: meta.size };
 }
-const fileChipHtml = (fl, removable) => `<div class="file-chip" data-file="${fl.id}" data-name="${String(fl.name).replace(/[<>"&]/g, '')}" data-size="${fl.size || 0}"><span class="fi">${fileIcon(fl.name)}</span><span class="fn"><b>${String(fl.name).replace(/[<>&]/g, '')}</b><small>${fl.size ? fmtSize(fl.size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה">⬇</button>${removable ? '<button type="button" class="fx" data-fa="rm" title="הסרה">✕</button>' : ''}</div>`;
+const fileChipHtml = (fl, removable) => `<div class="file-chip" data-file="${fl.id}" data-name="${String(fl.name).replace(/[<>"&]/g, '')}" data-size="${fl.size || 0}"><span class="fi">${fileIcon(fl.name)}</span><span class="fn"><b>${String(fl.name).replace(/[<>&]/g, '')}</b><small>${fl.size ? fmtSize(fl.size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה" aria-label="הורדה"><svg aria-hidden="true"><use href="#i-download"/></svg></button>${removable ? '<button type="button" class="fx" data-fa="rm" title="הסרה">✕</button>' : ''}</div>`;
 const fileDoc = (id, uid) => doc(db, 'users', uid || me.uid, 'files', id);
 const chunkDoc = (id, i, uid) => doc(db, 'users', uid || me.uid, 'files', id, 'chunks', String(i));
 
@@ -2435,7 +2480,7 @@ function renderFiles(root, uid, readOnly) {
   root.querySelectorAll('div[data-file]').forEach(el => {
     const name = el.getAttribute('data-name') || 'קובץ', size = +el.getAttribute('data-size') || 0;
     el.contentEditable = 'false'; el.className = 'file-chip';
-    el.innerHTML = `<span class="fi">${fileIcon(name)}</span><span class="fn"><b></b><small>${size ? fmtSize(size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה">⬇</button>${readOnly ? '' : '<button type="button" class="fx" data-fa="rm" title="הסרה מהמחברת">✕</button>'}`;
+    el.innerHTML = `<span class="fi">${fileIcon(name)}</span><span class="fn"><b></b><small>${size ? fmtSize(size) : ''}</small></span><button type="button" class="fo" data-fa="open">פתיחה</button><button type="button" class="fo" data-fa="dl" title="הורדה" aria-label="הורדה"><svg aria-hidden="true"><use href="#i-download"/></svg></button>${readOnly ? '' : '<button type="button" class="fx" data-fa="rm" title="הסרה מהמחברת">✕</button>'}`;
     el.querySelector('b').textContent = name;
     el.dataset.uid = el.getAttribute('data-u') || uid || '';
   });
@@ -2518,7 +2563,7 @@ function dropHint(on) {
   if (!on) { if (o) o.remove(); return; }
   if (!o) { o = document.createElement('div'); o.id = 'dropHint'; o.className = 'drop-hint'; document.body.appendChild(o); }
   const t = dropTarget();
-  o.innerHTML = `<div><b>📎 שחרר כדי לצרף</b><span>${t === 'dialog' ? 'הקובץ ייכנס לחלון הפתוח' : t === 'notebook' ? 'הקובץ ייכנס למחברת, איפה שאתה משחרר' : t === 'event' ? 'הקובץ יצורף למשימה' : t === 'chat' ? 'הקובץ יישלח לעוזר הלימודי' : t === 'quick' ? 'הקובץ יישלח לעוזר הלימודי' : 'פתח מחברת או את מסך הבית כדי לצרף קובץ'}</span></div>`;
+  o.innerHTML = `<div><b>שחרר כדי לצרף</b><span>${t === 'dialog' ? 'הקובץ ייכנס לחלון הפתוח' : t === 'notebook' ? 'הקובץ ייכנס למחברת, איפה שאתה משחרר' : t === 'event' ? 'הקובץ יצורף למשימה' : t === 'chat' ? 'הקובץ יישלח לעוזר הלימודי' : t === 'quick' ? 'הקובץ יישלח לעוזר הלימודי' : 'פתח מחברת או את מסך הבית כדי לצרף קובץ'}</span></div>`;
   o.classList.toggle('no', !t);
 }
 document.addEventListener('dragenter', e => { if (!hasFiles(e) || !me) return; e.preventDefault(); dragDepth++; dropHint(true); });
@@ -2573,24 +2618,24 @@ function eventDialog(id) {
       <label class="fl">הערות</label><textarea id="edNote" rows="3" placeholder="למשל: שאלות 1–5 ו־8, עמוד 45. לא לשכוח להראות דרך."></textarea>
       <label class="fl">קבצים</label>
       <div class="ev-files" id="edFiles">${(e.files || []).map(f => fileChipHtml(f, true)).join('')}</div>
-      <button type="button" class="btn btn-ghost add-file" id="edAdd">📎 צירוף קובץ</button>
+      <button type="button" class="btn btn-ghost add-file" id="edAdd">צירוף קובץ</button>
       <input type="file" id="edInput" multiple hidden>`;
     d.querySelector('#edTitle').value = e.title || '';
     d.querySelector('#edNote').value = e.note || '';
     const nl = nextLesson(e.title);
     if (nl && key(nl.date) !== e.date) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost next-lesson';
-      b.textContent = `📅 להעביר לשיעור הבא ב${nl.subj}: ${dayLabel(key(nl.date))}`;
+      b.textContent = `להעביר לשיעור הבא ב${nl.subj}: ${dayLabel(key(nl.date))}`;
       b.onclick = () => { d.querySelector('#edDate').value = key(nl.date); b.remove(); toast('התאריך עודכן. לחץ "שמירה"'); };
       d.querySelector('#edNext').appendChild(b);
     }
     if (e.type === 'test') {
       const box = d.querySelector('#edTest'); box.className = 'ed-test';
       const future = e.date >= todayKey() && testAt(e) > Date.now();
-      if (future) { const c = document.createElement('div'); c.className = 'cd-live big'; c.textContent = '⏳ ' + countdownText(e); box.appendChild(c); const iv = setInterval(() => { if (!c.isConnected) return clearInterval(iv); c.textContent = '⏳ ' + countdownText(e); }, 30000); }
+      if (future) { const c = document.createElement('div'); c.className = 'cd-live big'; c.textContent = '' + countdownText(e); box.appendChild(c); const iv = setInterval(() => { if (!c.isConnected) return clearInterval(iv); c.textContent = '' + countdownText(e); }, 30000); }
       const bt = document.createElement('div'); bt.className = 'ed-test-btns';
-      if (future && daysUntil(e.date) >= 1) { const p = document.createElement('button'); p.type = 'button'; p.className = 'btn btn-ghost'; p.textContent = '📚 בנה לי תוכנית למידה'; p.onclick = () => planDialog(e); bt.appendChild(p); }
-      const gb = document.createElement('button'); gb.type = 'button'; gb.className = 'btn btn-ghost'; gb.textContent = '🎯 הוספת ציון';
+      if (future && daysUntil(e.date) >= 1) { const p = document.createElement('button'); p.type = 'button'; p.className = 'btn btn-ghost'; p.textContent = 'בנה לי תוכנית למידה'; p.onclick = () => planDialog(e); bt.appendChild(p); }
+      const gb = document.createElement('button'); gb.type = 'button'; gb.className = 'btn btn-ghost'; gb.textContent = 'הוספת ציון';
       gb.onclick = () => { const subj = [...ttSubjects(), ...SUBJ_GROUPS.map(g => g[0])].find(s => subjMatches(e.title, s)) || ''; gradeDialog(null, { s: subj, n: e.title, d: e.date }); };
       bt.appendChild(gb); box.appendChild(bt);
     }
@@ -2623,7 +2668,7 @@ function eventDialog(id) {
   });
 }
 
-// 📎 גם בהוספה המהירה: הקבצים נצמדים למשימה שנוספת
+// גם בהוספה המהירה: הקבצים נצמדים למשימה שנוספת
 let qaFiles = [];
 function paintQaFiles() {
   const box = $('qaFiles'); box.innerHTML = qaFiles.map((f, i) => `<span class="qa-file${f.up ? '' : ' up'}"><span>${fileIcon(f.name)}</span><span class="nm"></span>${f.up ? `<button type="button" data-i="${i}" title="הסרה">✕</button>` : `<small>${f.pc || 0}%</small>`}</span>`).join('');
@@ -2718,9 +2763,9 @@ async function timetableDialog() {
   dialog(d => {
     d.classList.add('tt-dlg');
     const has = ttSubjects().length > 0; let start = timetable.start === 0 ? 0 : 1;
-    d.innerHTML = `<h3>🗓 מערכת שעות</h3>
+    d.innerHTML = `<h3>מערכת שעות</h3>
       <p class="muted-s">כשתכתוב "ש״ב במתמטיקה" בלי תאריך, האתר ישים את זה ליום של השיעור הבא במתמטיקה.</p>
-      <button type="button" class="tt-up${has ? ' small' : ''}" id="ttPhoto"><span class="ic">📷</span><b>${has ? 'להעלות תמונה חדשה של המערכת' : 'העלאת תמונה של המערכת'}</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
+      <button type="button" class="tt-up${has ? ' small' : ''}" id="ttPhoto"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>${has ? 'להעלות תמונה חדשה של המערכת' : 'העלאת תמונה של המערכת'}</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
       <p class="tt-status" id="ttStatus"></p>
       <input type="file" id="ttFile" accept="image/*,application/pdf" hidden>
       ${has ? '' : '<button type="button" class="link tt-manual" id="ttManual">או להקליד את המערכת ידנית</button>'}
@@ -2745,7 +2790,7 @@ async function timetableDialog() {
     if (d.querySelector('#ttManual')) d.querySelector('#ttManual').onclick = () => { showTable(); d.querySelector('.tt input').focus(); };
     d.querySelector('#ttFile').onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
-      const st = d.querySelector('#ttStatus'); const stop = ticking(st, '✨ קורא את המערכת...'); d.querySelector('#ttPhoto').disabled = true;
+      const st = d.querySelector('#ttStatus'); const stop = ticking(st, 'קורא את המערכת...'); d.querySelector('#ttPhoto').disabled = true;
       try {
         let data, mime = f.type || 'image/jpeg';
         if (/^image\//.test(mime)) { data = (await shrink(f, 1280)); mime = (data.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg'; data = data.split(',')[1]; }
@@ -2799,7 +2844,7 @@ function renderTT() {
   const box = $('ttBody'); const has = ttSubjects().length > 0;
   $('ttEdit').classList.toggle('hidden', !has);
   if (!has) {
-    box.innerHTML = `<button type="button" class="tt-up big" id="ttEmptyUp"><span class="ic">📷</span><b>העלאת תמונה של המערכת</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
+    box.innerHTML = `<button type="button" class="tt-up big" id="ttEmptyUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>העלאת תמונה של המערכת</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
       <button type="button" class="link tt-manual" id="ttEmptyManual">או להקליד את המערכת ידנית</button>
       <p class="muted-s tt-why">אחרי שתעלה את המערכת, שיעורי בית שתכתוב בלי תאריך ייכנסו ליום של השיעור הבא באותו מקצוע.</p>`;
     $('ttEmptyUp').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
@@ -2816,7 +2861,7 @@ function renderTT() {
   // מה מחר
   const tm = new Date(); tm.setDate(tm.getDate() + 1); const list = (timetable.days[tm.getDay()] || []).filter(Boolean);
   const open = events.filter(e => !e.done && e.date === key(tm));
-  box.insertAdjacentHTML('beforeend', `<div class="card tt-tomorrow"><h3>מחר (${HE_DAYS[tm.getDay()]})</h3>${list.length ? `<p>${list.map(esc).join(' · ')}</p>` : '<p class="muted-s">אין לימודים מחר 🎉</p>'}${open.length ? `<p class="muted-s">להכין למחר: ${open.map(e => esc(e.title)).join(', ')}</p>` : ''}</div>`);
+  box.insertAdjacentHTML('beforeend', `<div class="card tt-tomorrow"><h3>מחר (${HE_DAYS[tm.getDay()]})</h3>${list.length ? `<p>${list.map(esc).join(' · ')}</p>` : '<p class="muted-s">אין לימודים מחר</p>'}${open.length ? `<p class="muted-s">להכין למחר: ${open.map(e => esc(e.title)).join(', ')}</p>` : ''}</div>`);
 }
 $('ttEdit').onclick = timetableDialog;
 $('ttUpload').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
@@ -2997,9 +3042,9 @@ async function testsDialog() {
   if (!(await introOnce('tests'))) return;
   dialog(d => {
     d.classList.add('tests-dlg');
-    d.innerHTML = `<h3>📋 לוח מבחנים</h3>
+    d.innerHTML = `<h3>לוח מבחנים</h3>
       <p class="muted-s">מעלים את לוח המבחנים מבית הספר, והמבחנים נכנסים ליומן לבד.</p>
-      <button type="button" class="tt-up" id="tsUp"><span class="ic">📋</span><b>העלאת לוח המבחנים</b><span>תמונה, צילום מסך, PDF, Word או Excel</span></button>
+      <button type="button" class="tt-up" id="tsUp"><span class="ic"><svg aria-hidden="true"><use href="#i-clipboard"/></svg></span><b>העלאת לוח המבחנים</b><span>תמונה, צילום מסך, PDF, Word או Excel</span></button>
       <input type="file" id="tsFile" accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xls,.csv,.txt" hidden>
       <p class="tt-status" id="tsStatus"></p>
       <div id="tsClasses"></div>
@@ -3027,7 +3072,7 @@ async function testsDialog() {
     d.querySelector('#tsUp').onclick = () => d.querySelector('#tsFile').click();
     d.querySelector('#tsFile').onchange = async ev => {
       const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
-      const up = d.querySelector('#tsUp'); up.disabled = true; const stop = ticking(st, '✨ קורא את לוח המבחנים...'); list.innerHTML = ''; ok.classList.add('hidden');
+      const up = d.querySelector('#tsUp'); up.disabled = true; const stop = ticking(st, 'קורא את לוח המבחנים...'); list.innerHTML = ''; ok.classList.add('hidden');
       try {
         const part = await fileToAiPart(f);
         const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
@@ -3192,8 +3237,8 @@ function renderHW() {
   $('hwHero').innerHTML = `
     <div class="hw-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="bg"/><circle cx="50" cy="50" r="42" class="fg" style="stroke-dasharray:${C};stroke-dashoffset:${C * (1 - pct / 100)}"/></svg><div><b>${pct}%</b><small>השבוע</small></div></div>
     <div class="hw-hero-t">
-      <h2>${!open.length ? 'אין שיעורי בית פתוחים 🎉' : late.length ? `${late.length === 1 ? 'משימה אחת באיחור' : late.length + ' משימות באיחור'} 😬` : open.length === 1 ? 'נשארה משימה אחת' : `נשארו ${open.length} משימות`}</h2>
-      <p>${week.length ? `השבוע סיימת ${wDone} מתוך ${week.length}.` : 'עוד אין שיעורי בית לשבוע הזה.'} ${pct === 100 && week.length ? 'שבוע מושלם! 🏆' : ''}</p>
+      <h2>${!open.length ? 'אין שיעורי בית פתוחים' : late.length ? `${late.length === 1 ? 'משימה אחת באיחור' : late.length + ' משימות באיחור'}` : open.length === 1 ? 'נשארה משימה אחת' : `נשארו ${open.length} משימות`}</h2>
+      <p>${week.length ? `השבוע סיימת ${wDone} מתוך ${week.length}.` : 'עוד אין שיעורי בית לשבוע הזה.'} ${pct === 100 && week.length ? 'שבוע מושלם!' : ''}</p>
     </div>`;
   // סינון לפי מקצוע
   const subs = [...new Set(open.map(e => e.sub).filter(Boolean))];
@@ -3201,11 +3246,11 @@ function renderHW() {
   $('hwFilters').innerHTML = subs.length > 1 ? `<button type="button" class="hw-f${hwFilter ? '' : ' on'}" data-f="">הכל <span>${open.length}</span></button>` + subs.map(x => `<button type="button" class="hw-f${hwFilter === x ? ' on' : ''}" data-f="${x.replace(/"/g, '&quot;')}" style="--c:${subjColor(x)}"><i></i>${x.replace(/</g, '&lt;')} <span>${open.filter(e => e.sub === x).length}</span></button>`).join('') : '';
   const vis = open.filter(e => !hwFilter || e.sub === hwFilter);
   const groups = [
-    ['late', '🔥 באיחור', vis.filter(e => e.date < tk)],
-    ['today', '📌 להיום', vis.filter(e => e.date === tk)],
-    ['tomorrow', '⏭️ למחר', vis.filter(e => daysUntil(e.date) === 1)],
-    ['week', '🗓 השבוע', vis.filter(e => daysUntil(e.date) >= 2 && daysUntil(e.date) <= 6)],
-    ['later', '🌤 בהמשך', vis.filter(e => daysUntil(e.date) > 6)],
+    ['late', 'באיחור', vis.filter(e => e.date < tk)],
+    ['today', 'להיום', vis.filter(e => e.date === tk)],
+    ['tomorrow', 'למחר', vis.filter(e => daysUntil(e.date) === 1)],
+    ['week', 'השבוע', vis.filter(e => daysUntil(e.date) >= 2 && daysUntil(e.date) <= 6)],
+    ['later', 'בהמשך', vis.filter(e => daysUntil(e.date) > 6)],
   ];
   const box = $('hwList'); box.innerHTML = '';
   groups.forEach(([k, label, list]) => {
@@ -3216,10 +3261,10 @@ function renderHW() {
     list.forEach((e, i) => grid.appendChild(hwCard(e, i)));
     g.appendChild(grid); box.appendChild(g);
   });
-  if (!vis.length) box.innerHTML = `<div class="hw-empty"><div class="big">🏖️</div><b>${open.length ? 'אין משימות במקצוע הזה' : 'הכל גמור!'}</b><p>${open.length ? '' : 'אין שיעורי בית פתוחים. מגיע לך הפסקה.'}</p></div>`;
+  if (!vis.length) box.innerHTML = `<div class="hw-empty"><div class="big"><svg aria-hidden="true"><use href="#i-hw"/></svg></div><b>${open.length ? 'אין משימות במקצוע הזה' : 'הכל גמור!'}</b><p>${open.length ? '' : 'אין שיעורי בית פתוחים. מגיע לך הפסקה.'}</p></div>`;
   // הושלמו
   const done = all.filter(e => e.done && (!hwFilter || e.sub === hwFilter)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
-  $('hwDone').innerHTML = done.length ? `<button type="button" class="hw-done-t" id="hwDoneT">✅ הושלמו (${done.length}) <span>${hwShowDone ? '▲' : '▼'}</span></button>` : '';
+  $('hwDone').innerHTML = done.length ? `<button type="button" class="hw-done-t" id="hwDoneT">הושלמו (${done.length}) <span>${hwShowDone ? '▲' : '▼'}</span></button>` : '';
   if (done.length && hwShowDone) { const grid = document.createElement('div'); grid.className = 'hw-grid'; done.forEach((e, i) => grid.appendChild(hwCard(e, i))); $('hwDone').appendChild(grid); }
   if ($('hwDoneT')) $('hwDoneT').onclick = () => { hwShowDone = !hwShowDone; renderHW(); };
 }
@@ -3230,8 +3275,8 @@ function hwCard(e, i) {
   c.innerHTML = `<button type="button" class="hw-check" title="${e.done ? 'לא סיימתי' : 'סיימתי!'}" aria-label="סיימתי"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
     <div class="hw-body"><div class="hw-sub">${e.sub ? e.sub.replace(/</g, '&lt;') : 'שיעורי בית'}</div><div class="hw-title"></div>
     ${e.note ? '<div class="hw-note"></div>' : ''}
-    <div class="hw-meta"><span class="due">${dueText(e.date)}${per !== null ? ` · שיעור ${per}` : ''}</span>${nf ? `<span>📎 ${nf}</span>` : ''}</div></div>
-    ${e.done ? '' : '<button type="button" class="hw-focus" title="להתחיל לעבוד: טיימר ריכוז של 25 דקות">▶</button>'}`;
+    <div class="hw-meta"><span class="due">${dueText(e.date)}${per !== null ? ` · שיעור ${per}` : ''}</span>${nf ? `<span>${nf}</span>` : ''}</div></div>
+    ${e.done ? '' : '<button type="button" class="hw-focus" title="להתחיל לעבוד: טיימר ריכוז של 25 דקות" aria-label="טיימר ריכוז"><svg aria-hidden="true"><use href="#i-play"/></svg></button>'}`;
   c.querySelector('.hw-title').textContent = e.title; if (e.note) c.querySelector('.hw-note').textContent = e.note;
   c.querySelector('.hw-check').onclick = ev => { ev.stopPropagation(); const d2 = !e.done; if (d2) { confetti(ev.currentTarget); c.classList.add('pop'); } setTimeout(() => updateDoc(evDoc(e.id), { done: d2 }).catch(() => toast('לא נשמר')), d2 ? 450 : 0); };
   const f = c.querySelector('.hw-focus'); if (f) f.onclick = ev => { ev.stopPropagation(); prepSound(); focusTimer(e); };
@@ -3239,6 +3284,7 @@ function hwCard(e, i) {
   return c;
 }
 function confetti(el) {
+  if (window.Motion?.confetti(el)) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const r = el.getBoundingClientRect(); const cols = ['#5E5CE6', '#FF5E8A', '#2EC4B6', '#F59E0B', '#10B981'];
   for (let k = 0; k < 26; k++) {
@@ -3263,8 +3309,8 @@ function focusTimer(e, saved) {
   o.innerHTML = `<div class="focus-in"><small>מתרכזים ב:</small><b class="ft"></b>
     <div class="focus-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" class="bg"/><circle cx="50" cy="50" r="45" class="fg"/></svg><span class="tm">25:00</span></div>
     <div class="focus-btns">${[5, 15, 25, 45].map(m => `<button type="button" class="btn btn-ghost${m * 60 === total ? ' on' : ''}" data-m="${m}">${m === 5 ? '5 דק׳' : m}</button>`).join('')}</div>
-    <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">${pausedLeft !== null ? 'המשך' : 'הפסקה'}</button><button type="button" class="btn btn-ghost" id="fDone">✅ סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div>
-    <label class="focus-wake"><input type="checkbox" id="fWake"> 📱 להשאיר את המסך דלוק (ואז יהיה צלצול בסוף)</label>
+    <div class="focus-btns"><button type="button" class="btn btn-primary" id="fPause">${pausedLeft !== null ? 'המשך' : 'הפסקה'}</button><button type="button" class="btn btn-ghost" id="fDone">סיימתי</button><button type="button" class="btn btn-ghost" id="fStop">יציאה</button></div>
+    <label class="focus-wake"><input type="checkbox" id="fWake"> להשאיר את המסך דלוק (ואז יהיה צלצול בסוף)</label>
     <small class="focus-note">הטיימר ממשיך לרוץ גם אם עוברים מסך או נועלים את הטלפון</small></div>`;
   o.querySelector('.ft').textContent = e.title; document.body.appendChild(o);
   const fg = o.querySelector('.fg'), C = 2 * Math.PI * 45; fg.style.strokeDasharray = C;
@@ -3273,11 +3319,11 @@ function focusTimer(e, saved) {
   const forget = () => { try { localStorage.removeItem(FOCUS_KEY); } catch {} };
   const finish = () => {
     if (finished) return; finished = true; clearInterval(focusT); forget();
-    o.querySelector('.tm').textContent = '🎉'; fg.style.strokeDashoffset = C; document.title = 'הזמן נגמר! ⏰';
+    o.querySelector('.tm').textContent = '0:00'; fg.style.strokeDashoffset = C; document.title = 'הזמן נגמר!';
     toast('הזמן נגמר! סיימת?');
     try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch {}
     ding();
-    try { if (Notification.permission === 'granted') navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png', tag: 'focus' }) : new Notification('הזמן נגמר ⏰', { body: e.title, icon: 'icon-192.png' })); } catch {}
+    try { if (Notification.permission === 'granted') navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification('הזמן נגמר', { body: e.title, icon: 'icon-192.png', tag: 'focus' }) : new Notification('הזמן נגמר', { body: e.title, icon: 'icon-192.png' })); } catch {}
   };
   const paint = () => {
     const left = leftNow();
@@ -3306,7 +3352,7 @@ function focusTimer(e, saved) {
     store(); paint();
   };
   o.querySelector('#fStop').onclick = end;
-  o.querySelector('#fDone').onclick = ev => { confetti(ev.target); if (e.id && !e.nb) updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד! 💪'); };
+  o.querySelector('#fDone').onclick = ev => { confetti(ev.target); if (e.id && !e.nb) updateDoc(evDoc(e.id), { done: true }).catch(() => {}); setTimeout(end, 500); toast('כל הכבוד!'); };
   store(); paint();
 }
 // צלצול קצר בסוף (צריך "לפתוח" את הקול בלחיצה לפני כן, בגלל חוקי הדפדפן)
@@ -3417,18 +3463,18 @@ async function ocrDialog() {
   dialog(d => {
     d.classList.add('ocr-dlg');
     const recent = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    d.innerHTML = `<h3>📷 תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך.${left === Infinity ? ' אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים והם נקראים יחד.' : ` נשארו לך היום <b>${left === 1 ? 'תמונה אחת' : left + ' תמונות'}</b>.`}</p>
-      ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">➕ מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
+    d.innerHTML = `<h3>תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך.${left === Infinity ? ' אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים והם נקראים יחד.' : ` נשארו לך היום <b>${left === 1 ? 'תמונה אחת' : left + ' תמונות'}</b>.`}</p>
+      ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
-        <button type="button" class="oc-mode" data-m="fast" role="radio"><b>⚡ מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
-        <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ ⭐</em><b>🎯 מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
+        <button type="button" class="oc-mode" data-m="fast" role="radio"><b>מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
+        <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ</em><b>מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
       </div>
-      <button type="button" class="tt-up" id="ocUp"><span class="ic">📷</span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
+      <button type="button" class="tt-up" id="ocUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
       <p class="tt-status" id="ocStatus"></p>`;
     const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-primary hidden'; go.textContent = '✨ להקליד את זה';
+    const go = document.createElement('button'); go.className = 'btn btn-primary hidden'; go.textContent = 'להקליד את זה';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     let files = [];
@@ -3437,8 +3483,8 @@ async function ocrDialog() {
     d.querySelector('.oc-modes').onclick = e => { const b = e.target.closest('.oc-mode'); if (!b || go.disabled) return; ocMode = b.dataset.m; try { localStorage.setItem('ocMode', ocMode); } catch {} paintMode(); };
     paintMode();
     const paint = () => {
-      d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>📕</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
-      go.classList.toggle('hidden', !files.length); go.textContent = files.length > 1 ? `✨ להקליד ${files.length} תמונות` : '✨ להקליד את זה';
+      d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>PDF</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
+      go.classList.toggle('hidden', !files.length); go.textContent = files.length > 1 ? `להקליד ${files.length} תמונות` : 'להקליד את זה';
     };
     d.querySelector('#ocThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
     d.querySelector('#ocUp').onclick = () => d.querySelector('#ocFile').click();
@@ -3450,7 +3496,7 @@ async function ocrDialog() {
       if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
       go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
       const exact = ocMode === 'exact';
-      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? '🎯 קורא בעיון ובודק את עצמו... (בערך 25 שניות)' : '⚡ מקליד מהר... (בערך 5 שניות)');
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? 'קורא בעיון ובודק את עצמו... (בערך 25 שניות)' : 'מקליד מהר... (בערך 5 שניות)');
       try {
         const parts = [];
         for (const f of files) {
@@ -3479,7 +3525,7 @@ async function ocrDialog() {
         try { txt = await aiText(aiModels(true), { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
-        if (txt) { st.textContent = '🔎 בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
+        if (txt) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
         let hw = []; const hm = txt.match(/<!--\s*hw:\s*(\[[\s\S]*?\])\s*-->/);
@@ -3497,7 +3543,7 @@ async function ocrDialog() {
 function ocrResult(n, html, title, hw = [], mode = '') {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = '<h3>✍️ הנה מה שכתוב</h3><p class="muted-s">קראתי את התמונה פעמיים. מילים שיצאו אחרת בכל קריאה מסומנות בצהוב, ולידן מה שקראתי בפעם השנייה – לחיצה על "אולי" מחליפה. אפשר לתקן כאן לפני שמוסיפים.</p>';
+    d.innerHTML = '<h3>הנה מה שכתוב</h3><p class="muted-s">קראתי את התמונה פעמיים. מילים שיצאו אחרת בכל קריאה מסומנות בצהוב, ולידן מה שקראתי בפעם השנייה – לחיצה על "אולי" מחליפה. אפשר לתקן כאן לפני שמוסיפים.</p>';
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true';
     // מילה מסופקת: "מילה [?|חלופה]" → מילה מסומנת + כפתור "אולי: חלופה" שמחליף בלחיצה
     box.innerHTML = html.replace(/⁅([^⁆]+)⁆\[\?\|([^\]]+)\]/g, (m, w, a) => `<mark class="doubt">${w}</mark><button type="button" class="alt-chip" contenteditable="false" data-alt="${a.replace(/"/g, '&quot;')}">אולי: ${a}</button>`).replace(/⁅([^⁆]+)⁆\[\?\]/g, '<mark class="doubt">$1</mark>').replace(/[⁅⁆]/g, '').replace(/\[\?\]/g, '<mark>[?]</mark>');
@@ -3508,7 +3554,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
     let hwBox = null;
     if (hw.length) {
       hwBox = document.createElement('div'); hwBox.className = 'oc-hw';
-      hwBox.innerHTML = `<b>📌 מצאתי ${hw.length === 1 ? 'משימה' : hw.length + ' משימות'} – להוסיף ליומן ולשיעורי הבית?</b>` + hw.map((x, i) => `<label class="ts-item"><input type="checkbox" data-i="${i}" checked><i class="dot t-${x.type}"></i><input type="text" class="ts-t" data-i="${i}"><input type="date" class="ts-d" data-i="${i}" value="${x.date}"><small>${x.why}</small></label>`).join('');
+      hwBox.innerHTML = `<b>מצאתי ${hw.length === 1 ? 'משימה' : hw.length + ' משימות'} – להוסיף ליומן ולשיעורי הבית?</b>` + hw.map((x, i) => `<label class="ts-item"><input type="checkbox" data-i="${i}" checked><i class="dot t-${x.type}"></i><input type="text" class="ts-t" data-i="${i}"><input type="date" class="ts-d" data-i="${i}" value="${x.date}"><small>${x.why}</small></label>`).join('');
       hwBox.querySelectorAll('.ts-t').forEach(inp => inp.value = hw[+inp.dataset.i].title);
       hwBox.addEventListener('change', e => { const it = hw[+e.target.dataset.i]; if (!it) return; if (e.target.type === 'checkbox') it.on = e.target.checked; if (e.target.classList.contains('ts-d') && e.target.value) { it.date = e.target.value; it.auto = false; } if (e.target.classList.contains('ts-t')) it.title = e.target.value.trim() || it.title; });
     }
@@ -3600,13 +3646,13 @@ function useOne(k, count = 1) {
   setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0, kit: usage.kit || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
-  if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה ♾️';
+  if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה';
   const dots = Array.from({ length: DAILY[k] }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
   return `<span class="q-dots">${dots}</span> ${left === DAILY[k] ? `יש לך ${DAILY[k]} שימושים היום` : left === 1 ? 'נשאר לך שימוש אחד היום' : `נשארו לך ${left} שימושים היום`}`;
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big">⏳</div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big"><svg aria-hidden="true"><use href="#i-timer"/></svg></div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3703,10 +3749,10 @@ function markDoubts(mainHtml, otherHtml) {
 /* ================= הסבר בפעם הראשונה: שלבים עם איורים ================= */
 const ILL = {
   board: `<svg viewBox="0 0 220 130"><rect x="20" y="14" width="180" height="96" rx="8" fill="#fff" stroke="#C9CCD6" stroke-width="3"/><path d="M150 34h34M60 34h70M40 54h144M70 70h114M100 86h84" stroke="#3B3F4A" stroke-width="4" stroke-linecap="round"/><path d="M120 30q10-8 30 0" stroke="#E5484D" stroke-width="3" fill="none"/><rect x="62" y="56" width="96" height="70" rx="12" fill="#1D1D1F"/><rect x="68" y="62" width="84" height="54" rx="6" fill="#5E5CE6" opacity=".25"/><circle cx="110" cy="89" r="14" fill="none" stroke="#fff" stroke-width="3"/><circle cx="110" cy="89" r="5" fill="#fff"/></svg>`,
-  typing: `<svg viewBox="0 0 220 130"><rect x="30" y="10" width="160" height="110" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="104" y="24" width="72" height="10" rx="5" fill="#1D1D1F"/><rect x="56" y="44" width="120" height="7" rx="3.5" fill="#9AA0AE"/><rect x="76" y="58" width="100" height="7" rx="3.5" fill="#9AA0AE"/><rect x="96" y="72" width="80" height="7" rx="3.5" fill="#9AA0AE" class="ill-grow"/><rect x="92" y="86" width="2.5" height="12" fill="#5E5CE6" class="ill-blink"/><text x="44" y="106" font-size="22">✨</text></svg>`,
+  typing: `<svg viewBox="0 0 220 130"><rect x="30" y="10" width="160" height="110" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="104" y="24" width="72" height="10" rx="5" fill="#1D1D1F"/><rect x="56" y="44" width="120" height="7" rx="3.5" fill="#9AA0AE"/><rect x="76" y="58" width="100" height="7" rx="3.5" fill="#9AA0AE"/><rect x="96" y="72" width="80" height="7" rx="3.5" fill="#9AA0AE" class="ill-grow"/><rect x="92" y="86" width="2.5" height="12" fill="#5E5CE6" class="ill-blink"/><text x="44" y="106" font-size="22">✦</text></svg>`,
   check: `<svg viewBox="0 0 220 130"><rect x="20" y="20" width="180" height="90" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="120" y="40" width="58" height="9" rx="4.5" fill="#9AA0AE"/><rect x="62" y="36" width="50" height="17" rx="5" fill="#FFE58A" stroke="#F5C400" stroke-width="1.5"/><rect x="66" y="42" width="42" height="6" rx="3" fill="#8A6D00"/><rect x="40" y="62" width="76" height="20" rx="10" fill="#EEEEFD" stroke="#5E5CE6" stroke-width="1.5"/><text x="78" y="76" font-size="11" text-anchor="middle" fill="#5E5CE6" font-weight="700">אולי: …</text><path d="M96 56l-8 8" stroke="#5E5CE6" stroke-width="2"/><rect x="128" y="92" width="50" height="7" rx="3.5" fill="#C9CCD6"/></svg>`,
-  cal: `<svg viewBox="0 0 220 130"><rect x="40" y="14" width="140" height="104" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="40" y="14" width="140" height="24" rx="12" fill="#5E5CE6"/><g fill="#E8E9EF">${[0,1,2,3,4].map(c=>[0,1,2].map(r=>`<rect x="${52+c*25}" y="${48+r*22}" width="18" height="16" rx="4"/>`).join('')).join('')}</g><rect x="102" y="70" width="18" height="16" rx="4" fill="#3B82F6"/><text x="111" y="82" font-size="10" text-anchor="middle" fill="#fff">📌</text></svg>`,
-  sum: `<svg viewBox="0 0 220 130"><rect x="24" y="24" width="70" height="86" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3,4,5].map(i=>`<rect x="34" y="${36+i*11}" width="${50-i%3*8}" height="5" rx="2.5" fill="#C9CCD6"/>`).join('')}<path d="M104 67h22m-8-8 8 8-8 8" stroke="#8B5CF6" stroke-width="3.5" fill="none" stroke-linecap="round"/><rect x="134" y="30" width="64" height="74" rx="10" fill="#fff" stroke="#8B5CF6" stroke-width="2"/><rect x="146" y="42" width="40" height="7" rx="3.5" fill="#8B5CF6"/><circle cx="150" cy="62" r="3" fill="#FF5E8A"/><rect x="158" y="59" width="28" height="5" rx="2.5" fill="#C9CCD6"/><circle cx="150" cy="76" r="3" fill="#FF5E8A"/><rect x="158" y="73" width="22" height="5" rx="2.5" fill="#C9CCD6"/><text x="146" y="98" font-size="12">❓❓</text></svg>`,
+  cal: `<svg viewBox="0 0 220 130"><rect x="40" y="14" width="140" height="104" rx="12" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="40" y="14" width="140" height="24" rx="12" fill="#5E5CE6"/><g fill="#E8E9EF">${[0,1,2,3,4].map(c=>[0,1,2].map(r=>`<rect x="${52+c*25}" y="${48+r*22}" width="18" height="16" rx="4"/>`).join('')).join('')}</g><rect x="102" y="70" width="18" height="16" rx="4" fill="#3B82F6"/><text x="111" y="82" font-size="10" text-anchor="middle" fill="#fff">!</text></svg>`,
+  sum: `<svg viewBox="0 0 220 130"><rect x="24" y="24" width="70" height="86" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3,4,5].map(i=>`<rect x="34" y="${36+i*11}" width="${50-i%3*8}" height="5" rx="2.5" fill="#C9CCD6"/>`).join('')}<path d="M104 67h22m-8-8 8 8-8 8" stroke="#8B5CF6" stroke-width="3.5" fill="none" stroke-linecap="round"/><rect x="134" y="30" width="64" height="74" rx="10" fill="#fff" stroke="#8B5CF6" stroke-width="2"/><rect x="146" y="42" width="40" height="7" rx="3.5" fill="#8B5CF6"/><circle cx="150" cy="62" r="3" fill="#FF5E8A"/><rect x="158" y="59" width="28" height="5" rx="2.5" fill="#C9CCD6"/><circle cx="150" cy="76" r="3" fill="#FF5E8A"/><rect x="158" y="73" width="22" height="5" rx="2.5" fill="#C9CCD6"/><text x="146" y="98" font-size="12">??</text></svg>`,
   topics: `<svg viewBox="0 0 220 130"><rect x="30" y="20" width="160" height="40" rx="10" fill="#fff" stroke="#5E5CE6" stroke-width="2"/><rect x="110" y="36" width="66" height="8" rx="4" fill="#9AA0AE"/><g font-size="11" font-weight="600">${[['פרק א׳',150],['דוד ושאול',88],['אדוניהו',30]].map(([t,x])=>`<rect x="${x}" y="76" width="56" height="24" rx="12" fill="#EEEEFD"/><text x="${x+28}" y="92" text-anchor="middle" fill="#5E5CE6">${t}</text>`).join('')}</g></svg>`,
   tt: `<svg viewBox="0 0 220 130"><rect x="20" y="16" width="180" height="100" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3,4].map(c=>[0,1,2,3].map(r=>`<rect x="${32+c*34}" y="${28+r*21}" width="28" height="15" rx="4" fill="${['#5E5CE6','#E5484D','#10B981','#F59E0B','#3B82F6'][(c+r*2)%5]}" opacity=".35"/>`).join('')).join('')}<rect x="134" y="49" width="28" height="15" rx="4" fill="#5E5CE6"/></svg>`,
   hw: `<svg viewBox="0 0 220 130"><circle cx="60" cy="64" r="34" fill="none" stroke="#E8E9EF" stroke-width="10"/><circle cx="60" cy="64" r="34" fill="none" stroke="#5E5CE6" stroke-width="10" stroke-dasharray="214" stroke-dashoffset="80" stroke-linecap="round" transform="rotate(-90 60 64)"/><text x="60" y="70" text-anchor="middle" font-size="16" font-weight="800" fill="#1D1D1F">60%</text>${[0,1,2].map(i=>`<rect x="110" y="${24+i*30}" width="92" height="24" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="1.5"/><rect x="110" y="${24+i*30}" width="92" height="3" rx="1.5" fill="${['#E5484D','#10B981','#3B82F6'][i]}"/><circle cx="190" cy="${37+i*30}" r="6" fill="none" stroke="#C9CCD6" stroke-width="2"/><rect x="124" y="${34+i*30}" width="${50-i*8}" height="6" rx="3" fill="#9AA0AE"/>`).join('')}</svg>`,
@@ -3716,7 +3762,7 @@ const ILL = {
 };
 const INTROS = {
   ocr: [
-    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. אפשר להעלות 3 תמונות ביום.<br><br><b>📸 טיפ: ככל שהתמונה ברורה יותר, כך הקריאה מדויקת יותר.</b> לצלם קרוב, ישר מול הלוח, בלי ברק של אור. לוח ארוך – כמה תמונות קרובות עדיף על אחת רחוקה.'],
+    ['board', 'מצלמים את הלוח', 'בסוף השיעור מצלמים את הלוח, דף ממחברת או דף מודפס. אפשר להעלות 3 תמונות ביום.<br><br><b>טיפ: ככל שהתמונה ברורה יותר, כך הקריאה מדויקת יותר.</b> לצלם קרוב, ישר מול הלוח, בלי ברק של אור. לוח ארוך – כמה תמונות קרובות עדיף על אחת רחוקה.'],
     ['typing', 'ה-AI מקליד בשבילך', 'תוך כמה שניות רואים את הטקסט נכתב: כותרות, רשימות וטבלאות, בדיוק לפי הלוח. בלי רשימת תורנים ובלי דברים שלא שייכים לשיעור.'],
     ['check', 'בודקים מילים מסומנות', 'האתר קורא את התמונה פעמיים. מילה שלא היה בטוח בה מסומנת בצהוב, ולידה "אולי:" עם התיקון – לחיצה אחת מחליפה.'],
     ['cal', 'שיעורי בית נכנסים לבד', 'אם כתוב על הלוח שיעורי בית, הם נכנסים ליומן ולשיעורי הבית – עד התאריך שכתוב, או לשיעור הבא במקצוע.'],
@@ -3735,7 +3781,7 @@ const INTROS = {
   ],
   hw: [
     ['hw', 'כל שיעורי הבית במקום אחד', 'מסודרים לפי מתי צריך להגיש: באיחור, להיום, למחר, השבוע. כל מקצוע בצבע משלו.'],
-    ['timer', 'מסמנים ✓ ומתרכזים', 'לוחצים על העיגול כשמסיימים (יש קונפטי 🎉), ועל ▶ כדי להתחיל טיימר ריכוז.'],
+    ['timer', 'מסמנים ✓ ומתרכזים', 'לוחצים על העיגול כשמסיימים (יש קונפטי), ועל כפתור ההפעלה כדי להתחיל טיימר ריכוז.'],
   ],
   share: [
     ['share', 'משתפים עם חברים', 'יוצרים קישור ושולחים. בוחרים אם החבר רק צופה, יכול לשמור עותק, או כותב איתך ביחד בלייב.'],
@@ -3754,7 +3800,7 @@ function introOnce(k, force) {
         d.innerHTML = `<div class="intro-ill">${ILL[ill] || ''}</div>
           <div class="intro-step">שלב ${i + 1} מתוך ${steps.length}</div><h3>${t}</h3><p>${x}</p>
           <div class="intro-dots">${steps.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
-          <div class="row"><button type="button" class="btn btn-primary" data-a="next">${i === steps.length - 1 ? 'בואו נתחיל 🚀' : 'הבא'}</button>${i > 0 ? '<button type="button" class="btn btn-ghost" data-a="back">חזרה</button>' : ''}<button type="button" class="btn btn-ghost skip" data-a="skip">דילוג</button></div>`;
+          <div class="row"><button type="button" class="btn btn-primary" data-a="next">${i === steps.length - 1 ? 'בואו נתחיל' : 'הבא'}</button>${i > 0 ? '<button type="button" class="btn btn-ghost" data-a="back">חזרה</button>' : ''}<button type="button" class="btn btn-ghost skip" data-a="skip">דילוג</button></div>`;
       };
       d.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a; if (a === 'next') { if (i === steps.length - 1) finish(true); else { i++; paint(); } } else if (a === 'back') { i--; paint(); } else finish(true); };
       paint();
@@ -3774,9 +3820,9 @@ const QA_PROMPT = `אתה עוזר לימוד. קיבלת את המחברת של
 החזר HTML נקי בלבד (בלי \`\`\`), במבנה הזה לכל שאלה:
 <h3>1. השאלה (בקיצור)</h3>
 <p>התשובה – מלאה אבל ממוקדת. אם יש כמה חלקים לשאלה, ענה על כל אחד.</p>
-<p class="src">📍 מהמחברת: "ציטוט קצר מהמחברת שעליו מבוססת התשובה"</p>
+<p class="src">מהמחברת: "ציטוט קצר מהמחברת שעליו מבוססת התשובה"</p>
 כללים:
-- אם התשובה לא כתובה במחברת: כתוב <p class="nf">⚠️ זה לא כתוב במחברת.</p> ואחר כך תשובה קצרה מהידע הכללי שלך, שמתחילה ב"מהידע הכללי:".
+- אם התשובה לא כתובה במחברת: כתוב <p class="nf">זה לא כתוב במחברת.</p> ואחר כך תשובה קצרה מהידע הכללי שלך, שמתחילה ב"מהידע הכללי:".
 - אל תמציא ציטוטים. הציטוט חייב להופיע במחברת כמו שהוא.
 - שאלות אמריקאיות: כתוב את האות/המספר של התשובה הנכונה ואת התשובה עצמה, ומשפט קצר למה.
 - שמור על הסדר והמספור של השאלות כמו בדף.
@@ -3788,19 +3834,19 @@ async function qaDialog() {
   if (!(await introOnce('qa'))) return;
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg');
-    d.innerHTML = `<h3>📝 עבודה מהמורה</h3><p class="muted-s">מדביקים את השאלות מהעבודה או מצלמים את הדף, והאתר עונה לפי מה שכתוב במחברת "${(n ? n.title : $('title').value || 'הזו').replace(/</g, '&lt;')}" – עם ציטוט מאיפה זה.</p>
+    d.innerHTML = `<h3>עבודה מהמורה</h3><p class="muted-s">מדביקים את השאלות מהעבודה או מצלמים את הדף, והאתר עונה לפי מה שכתוב במחברת "${(n ? n.title : $('title').value || 'הזו').replace(/</g, '&lt;')}" – עם ציטוט מאיפה זה.</p>
       <textarea id="qaText" rows="4" placeholder="מדביקים או כותבים כאן את השאלות. למשל:&#10;1. למה אדוניהו לא הזמין את שלמה?&#10;2. מי היו התומכים של אדוניהו?"></textarea>
       <div class="qa-or">או / וגם</div>
-      <button type="button" class="tt-up small" id="qaUp"><span class="ic">📷</span><b>תמונה של דף העבודה</b><span>עד 3 תמונות</span></button>
+      <button type="button" class="tt-up small" id="qaUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>תמונה של דף העבודה</b><span>עד 3 תמונות</span></button>
       <input type="file" id="qaFile" accept="image/*,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="qaThumbs"></div>
       <p class="tt-status" id="qaStatus"></p>`;
     const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ לפתור את העבודה';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'לפתור את העבודה';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     let files = [];
-    const paint = () => { d.querySelector('#qaThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>📕</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
+    const paint = () => { d.querySelector('#qaThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>PDF</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
     d.querySelector('#qaThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
     d.querySelector('#qaUp').onclick = () => d.querySelector('#qaFile').click();
     d.querySelector('#qaFile').onchange = ev => { [...ev.target.files].slice(0, 3 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
@@ -3811,7 +3857,7 @@ async function qaDialog() {
       const { text, images } = await notebookParts();
       if (!text && !images.length) { toast('המחברת ריקה – אין ממה לענות'); return; }
       go.disabled = true; d.querySelector('#qaUp').disabled = true;
-      const st = d.querySelector('#qaStatus'); const stop = ticking(st, '✨ מחפש במחברת ועונה...');
+      const st = d.querySelector('#qaStatus'); const stop = ticking(st, 'מחפש במחברת ועונה...');
       try {
         const qParts = [];
         for (const f of files) {
@@ -3838,7 +3884,7 @@ function qaForNotebook(html) {
   const w = document.createElement('div'); w.innerHTML = html;
   w.querySelectorAll('p, div, li').forEach(el => {
     const t = el.textContent.trim();
-    if (/^📍/.test(t) || /^⚠️?\s*זה לא כתוב במחברת\.?$/.test(t) || /^(⚠️)?\s*לא כתוב במחברת\.?$/.test(t)) el.remove();
+    if (/^(\u{1F4CD}\s*)?מהמחברת:/u.test(t) || /^\u{1F4CD}/u.test(t) || /^(\u26A0\uFE0F?)?\s*(זה )?לא כתוב במחברת\.?$/u.test(t)) el.remove();
   });
   w.querySelectorAll('mark').forEach(m => { if (/לא כתוב במחברת/.test(m.textContent)) m.remove(); });
   const walk = document.createTreeWalker(w, NodeFilter.SHOW_TEXT);
@@ -3849,14 +3895,14 @@ function qaForNotebook(html) {
 function qaResult(n, html) {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = '<h3>✅ התשובות</h3><p class="muted-s">כל תשובה מבוססת על המחברת, עם ציטוט מאיפה זה. מה שמסומן בצהוב לא כתוב במחברת – כדאי לבדוק. אפשר לתקן כאן.<br>כשמוסיפים למחברת או מעתיקים – נשארות רק התשובות, בלי הציטוטים וההערות.</p>';
+    d.innerHTML = '<h3>התשובות</h3><p class="muted-s">כל תשובה מבוססת על המחברת, עם ציטוט מאיפה זה. מה שמסומן בצהוב לא כתוב במחברת – כדאי לבדוק. אפשר לתקן כאן.<br>כשמוסיפים למחברת או מעתיקים – נשארות רק התשובות, בלי הציטוטים וההערות.</p>';
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
     const row = document.createElement('div'); row.className = 'row';
     const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = 'הוספה לסוף המחברת';
-    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>📝 עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות לעבודה נוספו למחברת ✓'); };
+    add.onclick = () => { const wrap = document.createElement('div'); wrap.innerHTML = '<h2>עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML); if (n && openId !== n.id) openNotebook(n.id); const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('התשובות לעבודה נוספו למחברת ✓'); };
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
-    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>📝 עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
-    const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = '📋 העתקה';
+    sep.onclick = async () => { try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: `עבודה – ${n ? n.title : 'מחברת'}`, color: '#10B981', html: '<h2>עבודה מהמורה – תשובות</h2>' + qaForNotebook(box.innerHTML), createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם התשובות ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); } };
+    const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = 'העתקה';
     cp.onclick = async () => { try { const t = document.createElement('div'); t.innerHTML = qaForNotebook(box.innerHTML); t.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(t); const txt = t.innerText; t.remove(); await navigator.clipboard.writeText(txt); toast('הועתק ✓ (בלי הציטוטים)'); } catch { toast('לא הצלחתי להעתיק'); } };
     const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
     row.append(add, sep, cp, close); d.append(box, row);
@@ -3868,9 +3914,9 @@ INTROS.qa = [
   ['qa2', 'מקבלים תשובות מהמחברת', 'לכל שאלה יש תשובה, ומתחתיה ציטוט מהמחברת שמראה מאיפה זה. אם משהו לא כתוב במחברת – זה מסומן בצהוב.'],
 ];
 ILL.qa1 = `<svg viewBox="0 0 220 130"><rect x="40" y="12" width="140" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<text x="166" y="${40+i*28}" font-size="13" font-weight="700" fill="#5E5CE6" text-anchor="end">${i+1}.</text><rect x="62" y="${31+i*28}" width="${88-i*12}" height="7" rx="3.5" fill="#9AA0AE"/><text x="54" y="${40+i*28}" font-size="14" fill="#F59E0B" text-anchor="middle">?</text>`).join('')}</svg>`;
-ILL.qa2 = `<svg viewBox="0 0 220 130"><rect x="30" y="12" width="160" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="96" y="24" width="78" height="9" rx="4.5" fill="#1D1D1F"/><rect x="58" y="42" width="116" height="7" rx="3.5" fill="#9AA0AE"/><rect x="78" y="55" width="96" height="7" rx="3.5" fill="#9AA0AE"/><rect x="62" y="70" width="112" height="16" rx="6" fill="#EEEEFD"/><text x="168" y="82" font-size="10" fill="#5E5CE6" text-anchor="end" font-weight="700">📍 מהמחברת: "..."</text><rect x="92" y="94" width="82" height="14" rx="5" fill="#FFE58A"/><text x="168" y="104" font-size="9" fill="#8A6D00" text-anchor="end">⚠️ לא כתוב במחברת</text></svg>`;
+ILL.qa2 = `<svg viewBox="0 0 220 130"><rect x="30" y="12" width="160" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="96" y="24" width="78" height="9" rx="4.5" fill="#1D1D1F"/><rect x="58" y="42" width="116" height="7" rx="3.5" fill="#9AA0AE"/><rect x="78" y="55" width="96" height="7" rx="3.5" fill="#9AA0AE"/><rect x="62" y="70" width="112" height="16" rx="6" fill="#EEEEFD"/><text x="168" y="82" font-size="10" fill="#5E5CE6" text-anchor="end" font-weight="700">מהמחברת: "..."</text><rect x="92" y="94" width="82" height="14" rx="5" fill="#FFE58A"/><text x="168" y="104" font-size="9" fill="#8A6D00" text-anchor="end">לא כתוב במחברת</text></svg>`;
 
-/* ================= 🃏 כרטיסיות שינון ================= */
+/* ================= כרטיסיות שינון ================= */
 // נשמרות לכל מחברת ב-users/<uid>/cards/<מחברת>, כדי שאפשר לחזור אליהן בלי עוד AI
 const fcDoc = id => doc(db, 'users', me.uid, 'cards', id);
 const FC_PROMPT = `אתה עוזר לתלמיד להתכונן למבחן. מהחומר במחברת שלו, הכן כרטיסיות שינון.
@@ -3905,9 +3951,9 @@ async function fcMake(n) {
   if (!(await introOnce('fc'))) return;
   dialog(d => {
     d.classList.add('fc-dlg');
-    d.innerHTML = `<h3>🃏 כרטיסיות שינון</h3><p class="muted-s">מכין כרטיסיות מהמחברת "${esc(n.title)}"...</p><div class="fc-loading"><div class="fc-ghost"></div><div class="fc-ghost"></div><div class="fc-ghost"></div></div><p class="tt-status" id="fcSt"></p>`;
+    d.innerHTML = `<h3>כרטיסיות שינון</h3><p class="muted-s">מכין כרטיסיות מהמחברת "${esc(n.title)}"...</p><div class="fc-loading"><div class="fc-ghost"></div><div class="fc-ghost"></div><div class="fc-ghost"></div></div><p class="tt-status" id="fcSt"></p>`;
   });
-  const st = document.querySelector('#fcSt'); const stop = ticking(st, '✨ קורא את המחברת');
+  const st = document.querySelector('#fcSt'); const stop = ticking(st, 'קורא את המחברת');
   try {
     const j = await aiJson(FC_PROMPT, [`=== המחברת: "${n.title}" ===\n${text.slice(0, 60000)}`, ...images.slice(0, 6)]);
     stop();
@@ -3940,7 +3986,7 @@ function fcView(n, items, updatedAt) {
       const known = items.filter(c => c.k === 1).length;
       if (i >= deck.length) {
         const hard = items.filter(c => c.k !== 1).length;
-        d.innerHTML = `<h3>🃏 סיימת סבב!</h3><div class="fc-end"><div class="fc-score"><b>${known}</b><span>מתוך ${items.length}</span></div><p>${hard ? `נשארו ${hard === 1 ? 'כרטיסייה אחת שעוד לא ידעת' : hard + ' כרטיסיות שעוד לא ידעת'}. כדאי לעבור עליהן שוב.` : 'ידעת הכל 🎉 אתה מוכן.'}</p></div>`;
+        d.innerHTML = `<h3>סיימת סבב!</h3><div class="fc-end"><div class="fc-score"><b>${known}</b><span>מתוך ${items.length}</span></div><p>${hard ? `נשארו ${hard === 1 ? 'כרטיסייה אחת שעוד לא ידעת' : hard + ' כרטיסיות שעוד לא ידעת'}. כדאי לעבור עליהן שוב.` : 'ידעת הכל אתה מוכן.'}</p></div>`;
         const row = document.createElement('div'); row.className = 'row';
         if (hard) { const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = `לחזור על מה שקשה לי (${hard})`; a.onclick = () => { build(true); paint(); }; row.appendChild(a); }
         const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = 'מההתחלה'; b.onclick = () => { items.forEach(c => delete c.k); save(); build(false); paint(); }; row.appendChild(b);
@@ -3949,14 +3995,14 @@ function fcView(n, items, updatedAt) {
         d.appendChild(row); return;
       }
       const c = items[deck[i]];
-      d.innerHTML = `<div class="fc-top"><h3>🃏 ${esc(n.title)}</h3><span class="fc-count">${i + 1} / ${deck.length}${onlyHard ? ' · מה שקשה לי' : ''}</span></div>
+      d.innerHTML = `<div class="fc-top"><h3>${esc(n.title)}</h3><span class="fc-count">${i + 1} / ${deck.length}${onlyHard ? ' · מה שקשה לי' : ''}</span></div>
         <div class="fc-prog"><i style="width:${Math.round(i / deck.length * 100)}%"></i></div>
         <button type="button" class="fc-card" aria-label="כרטיסייה: לחצו כדי להפוך">
           <span class="fc-in"><span class="fc-face fc-front"><small>שאלה</small><b></b><em>לוחצים כדי לראות את התשובה</em></span>
           <span class="fc-face fc-back"><small>תשובה</small><b></b></span></span>
         </button>
-        <div class="fc-ans hidden"><button type="button" class="btn fc-no" data-k="0">😕 לא ידעתי</button><button type="button" class="btn fc-yes" data-k="1">😎 ידעתי</button></div>
-        <div class="fc-foot"><span class="muted-s">ידעת ${known} מתוך ${items.length}</span><span class="fc-links"><button type="button" class="link" id="fcRe">✨ ליצור מחדש</button><button type="button" class="link" id="fcClose">סגירה</button></span></div>`;
+        <div class="fc-ans hidden"><button type="button" class="btn fc-no" data-k="0">לא ידעתי</button><button type="button" class="btn fc-yes" data-k="1">ידעתי</button></div>
+        <div class="fc-foot"><span class="muted-s">ידעת ${known} מתוך ${items.length}</span><span class="fc-links"><button type="button" class="link" id="fcRe">ליצור מחדש</button><button type="button" class="link" id="fcClose">סגירה</button></span></div>`;
       d.querySelector('.fc-front b').textContent = c.q; d.querySelector('.fc-back b').textContent = c.a;
       const card = d.querySelector('.fc-card');
       card.onclick = () => { card.classList.toggle('flip'); d.querySelector('.fc-ans').classList.toggle('hidden', !card.classList.contains('flip')); };
@@ -3975,7 +4021,7 @@ INTROS.fc = [
 ILL.fc1 = `<svg viewBox="0 0 220 130"><rect x="58" y="22" width="110" height="80" rx="12" fill="#EEEEFD" transform="rotate(-8 113 62)"/><rect x="56" y="24" width="110" height="80" rx="12" fill="#fff" stroke="#5E5CE6" stroke-width="2"/><text x="111" y="58" font-size="26" text-anchor="middle" fill="#5E5CE6" font-weight="800">?</text><rect x="78" y="74" width="66" height="7" rx="3.5" fill="#9AA0AE"/></svg>`;
 ILL.fc2 = `<svg viewBox="0 0 220 130"><rect x="60" y="14" width="100" height="64" rx="12" fill="#5E5CE6"/><rect x="78" y="36" width="64" height="8" rx="4" fill="#fff" opacity=".9"/><rect x="88" y="50" width="44" height="7" rx="3.5" fill="#fff" opacity=".6"/><rect x="40" y="90" width="64" height="26" rx="13" fill="#FDECEC"/><text x="72" y="107" font-size="11" text-anchor="middle" fill="#C2343A" font-weight="700">לא ידעתי</text><rect x="116" y="90" width="64" height="26" rx="13" fill="#E3F7EE"/><text x="148" y="107" font-size="11" text-anchor="middle" fill="#1F8A5B" font-weight="700">ידעתי</text></svg>`;
 
-/* ================= ⏳ ספירה לאחור למבחן + תוכנית למידה ================= */
+/* ================= ספירה לאחור למבחן + תוכנית למידה ================= */
 function testAt(e) { const d = fromKey(e.date); const [h, m] = (e.time || '08:00').split(':').map(Number); d.setHours(h || 8, m || 0, 0, 0); return d; }
 function countdownText(e) {
   const ms = testAt(e) - Date.now(); if (ms <= 0) return 'המבחן כבר התחיל';
@@ -4013,14 +4059,14 @@ function buildPlan(e, nbs) {
   if (!units.length) days.forEach((k, j) => plan.push({ date: k, task: j === 0 ? 'לקרוא את כל החומר פעם אחת' : 'חזרה על החומר וכתיבת שאלות לעצמך' }));
   else if (units.length <= days.length) {
     units.forEach((u, j) => plan.push({ date: days[j], task: `לקרוא ולסכם: ${u.nb}${u.label ? ' – ' + u.label : ''}` }));
-    days.slice(units.length).forEach(k => plan.push({ date: k, task: '🃏 כרטיסיות שינון + חזרה על מה שקשה' }));
+    days.slice(units.length).forEach(k => plan.push({ date: k, task: 'כרטיסיות שינון + חזרה על מה שקשה' }));
   } else {
     const per = units.length / days.length;
     days.forEach((k, j) => { const part = units.slice(Math.round(j * per), Math.round((j + 1) * per)); if (!part.length) return;
       const byNb = {}; part.forEach(u => (byNb[u.nb] = byNb[u.nb] || []).push(u.label));
       plan.push({ date: k, task: 'לקרוא ולסכם: ' + Object.entries(byNb).map(([nb, ls]) => nb + (ls.filter(Boolean).length ? ' – ' + ls.filter(Boolean).join(', ') : '')).join(' | ') }); });
   }
-  if (review) plan.push({ date: review, task: 'חזרה כללית על הכל + 🃏 כרטיסיות שינון' });
+  if (review) plan.push({ date: review, task: 'חזרה כללית על הכל + כרטיסיות שינון' });
   else if (days.length === 1 && units.length) plan[0].task = 'חזרה על כל החומר: ' + [...new Set(units.map(u => u.nb))].join(', ');
   return plan.map(p => ({ ...p, task: p.task.slice(0, 180) }));
 }
@@ -4030,7 +4076,7 @@ function planDialog(e) {
   const old = events.filter(x => x.planFor === e.id);
   dialog(d => {
     d.classList.add('plan-dlg');
-    d.innerHTML = `<h3>📚 תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
+    d.innerHTML = `<h3>תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
       <label class="fl">מאיזה מחברות לומדים?</label>
       <div class="plan-nbs">${all.length ? all.map(n => `<label class="plan-nb" style="--c:${n.color || '#5E5CE6'}"><input type="checkbox" value="${n.id}"${pre.has(n.id) ? ' checked' : ''}><span>${esc(n.title)}</span></label>`).join('') : '<p class="noev">אין מחברות עדיין.</p>'}</div>
       <label class="fl">התוכנית</label><div class="plan-list"></div>
@@ -4041,7 +4087,7 @@ function planDialog(e) {
       const chosen = all.filter(n => d.querySelector(`.plan-nb input[value="${n.id}"]`)?.checked);
       plan = buildPlan(e, chosen);
       const box = d.querySelector('.plan-list');
-      box.innerHTML = plan.length ? plan.map(p => `<div class="plan-day"><span class="pd">${esc(dayLabel(p.date))}</span><span class="pt">${esc(p.task)}</span></div>`).join('') : '<p class="noev">המבחן כבר מחר או היום – אין ימים לחלק. בהצלחה! 🍀</p>';
+      box.innerHTML = plan.length ? plan.map(p => `<div class="plan-day"><span class="pd">${esc(dayLabel(p.date))}</span><span class="pt">${esc(p.task)}</span></div>`).join('') : '<p class="noev">המבחן כבר מחר או היום – אין ימים לחלק. בהצלחה!</p>';
       ok.disabled = !plan.length;
       if (!chosen.length && plan.length) box.insertAdjacentHTML('afterbegin', '<p class="muted-s">לא בחרת מחברות, אז זו תוכנית כללית. סמן מחברות למעלה כדי לחלק את החומר.</p>');
     };
@@ -4052,7 +4098,7 @@ function planDialog(e) {
       try {
         for (const x of old) await deleteDoc(evDoc(x.id)).catch(() => {});
         const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
-        for (const p of plan) await addDoc(evCol(), { title: `📚 ${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() });
+        for (const p of plan) await addDoc(evCol(), { title: `${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() });
         closeDialog(); toast(`התוכנית נוספה ליומן: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ✓`);
       } catch (err) { console.error(err); ok.disabled = false; toast('לא הצלחתי להוסיף'); }
     };
@@ -4065,7 +4111,7 @@ function planDialog(e) {
 // הספירה לאחור בכרטיס "המבחן הבא" מתעדכנת כל דקה
 setInterval(() => { const el = document.querySelector('#nextTest .cd-live'); if (el && el._ev) el.textContent = countdownText(el._ev); }, 60000);
 
-/* ================= 🎯 ציונים ================= */
+/* ================= ציונים ================= */
 let grades = [], grCats = {}, unsubGr = null;   // grCats: לכל מקצוע – כמה אחוז שווה כל סוג ציון [{n:'מבחנים', p:70}]
 const grDoc = () => doc(db, 'users', me.uid, 'meta', 'grades');
 function subscribeGrades() {
@@ -4109,7 +4155,7 @@ function gradeTone(v) { return v == null ? '' : v >= 90 ? 'g-top' : v >= 75 ? 'g
 function renderGradesMini() {
   const c = $('gradesCard'); if (!c) return;
   const o = overall();
-  c.innerHTML = `<h3>הממוצע שלי</h3>${o == null ? `<p class="noev">עוד לא הכנסת ציונים. <button type="button" class="link" id="grMiniAdd">📋 להדביק או לצלם את הציונים</button></p>` : `<div class="gm-row"><div class="gm-big ${gradeTone(o)}">${fmtG(o)}</div><div class="gm-subs">${bySubject().slice(0, 4).map(x => `<span><b>${fmtG(x.avg)}</b> ${esc(x.s)}</span>`).join('')}</div><button type="button" class="link" id="grMiniGo">לכל הציונים</button></div>`}`;
+  c.innerHTML = `<h3>הממוצע שלי</h3>${o == null ? `<p class="noev">עוד לא הכנסת ציונים. <button type="button" class="link" id="grMiniAdd">להדביק או לצלם את הציונים</button></p>` : `<div class="gm-row"><div class="gm-big ${gradeTone(o)}">${fmtG(o)}</div><div class="gm-subs">${bySubject().slice(0, 4).map(x => `<span><b>${fmtG(x.avg)}</b> ${esc(x.s)}</span>`).join('')}</div><button type="button" class="link" id="grMiniGo">לכל הציונים</button></div>`}`;
   c.querySelector('#grMiniAdd')?.addEventListener('click', () => gradesImportDialog());
   c.querySelector('#grMiniGo')?.addEventListener('click', () => showTab('gr'));
 }
@@ -4133,7 +4179,7 @@ let grFilter = '';
 function renderGrades() {
   const box = $('grBody'); const subs = bySubject(); const o = overall();
   if (!grades.length) {
-    box.innerHTML = `<div class="card gr-empty"><div class="big">🎯</div><h3>עוד אין ציונים</h3><p class="muted-s">מכניסים כל ציון שמקבלים – מבחן, בוחן או עבודה – ואיזה חלק הוא מהציון הסופי. האתר מחשב את הממוצע בכל מקצוע ואת הממוצע הכללי.</p><div class="gr-empty-btns"><button type="button" class="btn btn-primary" id="grFirst">📋 להדביק או לצלם את הציונים</button><button type="button" class="btn btn-ghost" id="grOne">＋ ציון אחד</button></div></div>`;
+    box.innerHTML = `<div class="card gr-empty"><div class="big"><svg aria-hidden="true"><use href="#i-target"/></svg></div><h3>עוד אין ציונים</h3><p class="muted-s">מכניסים כל ציון שמקבלים – מבחן, בוחן או עבודה – ואיזה חלק הוא מהציון הסופי. האתר מחשב את הממוצע בכל מקצוע ואת הממוצע הכללי.</p><div class="gr-empty-btns"><button type="button" class="btn btn-primary" id="grFirst">להדביק או לצלם את הציונים</button><button type="button" class="btn btn-ghost" id="grOne">＋ ציון אחד</button></div></div>`;
     $('grFirst').onclick = gradesImportDialog; $('grOne').onclick = () => gradeDialog(); return;
   }
   if (grFilter && !subs.some(x => x.s === grFilter)) grFilter = '';
@@ -4142,7 +4188,7 @@ function renderGrades() {
       <div class="card gr-hero"><small>${grFilter ? 'ממוצע ב' + esc(grFilter) : 'ממוצע כללי'}</small><div class="gr-big ${gradeTone(grFilter ? wAvg(shown) : o)}">${fmtG(grFilter ? wAvg(shown) : o)}</div><span class="muted-s">${shown.length === 1 ? 'ציון אחד' : shown.length + ' ציונים'}${grFilter ? '' : ` ב-${subs.length === 1 ? 'מקצוע אחד' : subs.length + ' מקצועות'}`}</span></div>
       <div class="card gr-bars"><h3>ממוצע לפי מקצוע</h3>${subs.map(x => `<button type="button" class="gb-row${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}" title="${esc(x.s)}: ${fmtG(x.avg)}"><span class="gb-name">${esc(x.s)}</span><span class="gb-track"><i style="width:${Math.max(2, x.avg || 0)}%"></i></span><b class="gb-val">${fmtG(x.avg)}</b></button>`).join('')}</div>
     </div>
-    ${grFilter ? grBreakdown(grFilter, shown) : (() => { const no = subs.filter(x => !(grCats[x.s] || []).length).map(x => x.s); return no.length ? `<div class="card gr-setcats"><p><b>כמה אחוז שווה כל סוג?</b> כרגע בכל מקצוע כל הציונים שווים. קבע למשל מבחנים 70%, בחנים 20%, שיעורי בית 10% – והממוצע יחושב כמו בבית הספר.</p><div class="gr-setcats-btns">${no.map(x => `<button type="button" class="chip-f" data-cats="${esc(x)}">⚙️ ${esc(x)}</button>`).join('')}</div></div>` : ''; })()}
+    ${grFilter ? grBreakdown(grFilter, shown) : (() => { const no = subs.filter(x => !(grCats[x.s] || []).length).map(x => x.s); return no.length ? `<div class="card gr-setcats"><p><b>כמה אחוז שווה כל סוג?</b> כרגע בכל מקצוע כל הציונים שווים. קבע למשל מבחנים 70%, בחנים 20%, שיעורי בית 10% – והממוצע יחושב כמו בבית הספר.</p><div class="gr-setcats-btns">${no.map(x => `<button type="button" class="chip-f" data-cats="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''; })()}
     <div class="gr-filters"><button type="button" class="chip-f${grFilter ? '' : ' on'}" data-s="">הכל</button>${subs.map(x => `<button type="button" class="chip-f${grFilter === x.s ? ' on' : ''}" data-s="${esc(x.s)}">${esc(x.s)}</button>`).join('')}</div>
     ${gradeChart(shown) ? `<div class="card"><h3>הציונים לאורך הזמן${grFilter ? ' ב' + esc(grFilter) : ''}</h3>${gradeChart(shown, !!grFilter || subs.length === 1)}${grFilter || subs.length === 1 ? '' : '<p class="muted-s gr-chart-note">כל נקודה היא ציון. בוחרים מקצוע למעלה כדי לראות את הקו שלו.</p>'}</div>` : ''}
     <div class="card gr-list"><h3>כל הציונים${grFilter ? ' ב' + esc(grFilter) : ''}</h3><table class="gr-table"><thead><tr><th>מקצוע</th><th>על מה</th><th>תאריך</th><th>סוג</th><th>ציון</th><th></th></tr></thead><tbody>${shown.slice().sort((a, b) => (b.d || '').localeCompare(a.d || '')).map(g => `<tr data-id="${g.id}"><td>${esc(g.s)}</td><td>${esc(g.n || '')}</td><td>${g.d ? esc(fmtDate(fromKey(g.d).getTime())) : ''}</td><td>${typeOf(g) ? esc(typeOf(g)) : '<span class="muted-s">–</span>'}</td><td><b class="gr-pill ${gradeTone(g.g)}">${g.g}</b></td><td class="gr-act"><button type="button" class="link" data-ed="${g.id}">עריכה</button></td></tr>`).join('')}</tbody></table>
@@ -4153,12 +4199,12 @@ function renderGrades() {
 }
 function grBreakdown(s, list) {
   const r = subjAvg(s, list);
-  if (!r.parts) return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="btn btn-primary" data-cats="${esc(s)}">⚙️ קביעת אחוזים</button></div><p class="muted-s">עוד לא קבעת כמה אחוז שווה כל סוג ציון, אז כרגע כל הציונים נספרים אותו דבר.</p></div>`;
-  return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="link" data-cats="${esc(s)}">⚙️ עריכת האחוזים</button></div>
+  if (!r.parts) return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="btn btn-primary" data-cats="${esc(s)}">קביעת אחוזים</button></div><p class="muted-s">עוד לא קבעת כמה אחוז שווה כל סוג ציון, אז כרגע כל הציונים נספרים אותו דבר.</p></div>`;
+  return `<div class="card gr-cats"><div class="gc-head"><h3>איך מחושב הציון ב${esc(s)}</h3><button type="button" class="link" data-cats="${esc(s)}">עריכת האחוזים</button></div>
     ${r.parts.map(p => `<div class="gcat"><span class="gcat-n">${esc(p.n)}</span><span class="gcat-p">${p.p}%</span><span class="gb-track"><i style="width:${p.avg == null ? 0 : Math.max(2, p.avg)}%"></i></span><b class="gcat-a ${gradeTone(p.avg)}">${p.avg == null ? '–' : fmtG(p.avg)}</b><small>${p.count ? (p.count === 1 ? 'ציון אחד' : p.count + ' ציונים') : 'אין עדיין ציונים'}</small></div>`).join('')}
     ${r.total !== 100 ? `<p class="muted-s gr-warn">סך האחוזים הוא ${r.total}% ולא 100%. האתר מחשב לפי היחס ביניהם.</p>` : ''}
     ${r.parts.some(p => !p.count) && r.sp ? `<p class="muted-s">סוג שאין בו עדיין ציונים לא נכנס לחישוב, אז כרגע הממוצע מחושב מ-${Math.round(r.sp)}% מהציון.</p>` : ''}
-    ${r.other.length ? `<p class="gr-warn">⚠️ ${r.other.length === 1 ? 'ציון אחד לא שייך' : r.other.length + ' ציונים לא שייכים'} לאף סוג, אז ${r.other.length === 1 ? 'הוא לא נכנס' : 'הם לא נכנסים'} לחישוב: ${r.other.map(g => esc(g.n || String(g.g))).join(', ')}. לוחצים "עריכה" בציון ובוחרים סוג.</p>` : ''}</div>`;
+    ${r.other.length ? `<p class="gr-warn">${r.other.length === 1 ? 'ציון אחד לא שייך' : r.other.length + ' ציונים לא שייכים'} לאף סוג, אז ${r.other.length === 1 ? 'הוא לא נכנס' : 'הם לא נכנסים'} לחישוב: ${r.other.map(g => esc(g.n || String(g.g))).join(', ')}. לוחצים "עריכה" בציון ובוחרים סוג.</p>` : ''}</div>`;
 }
 function catsDialog(s) {
   const used = [...new Set(grades.filter(g => g.s === s).map(typeOf).filter(Boolean))];
@@ -4168,7 +4214,7 @@ function catsDialog(s) {
     d.classList.add('cats-dlg');
     const paint = () => {
       const tot = rows.reduce((a, r) => a + (+r.p || 0), 0);
-      d.innerHTML = `<h3>⚙️ כמה אחוז שווה כל סוג ב${esc(s)}?</h3><p class="muted-s">למשל: מבחנים 70%, בחנים 20%, שיעורי בית 10%. ככה המורה מחשב את הציון בתעודה.</p>
+      d.innerHTML = `<h3>כמה אחוז שווה כל סוג ב${esc(s)}?</h3><p class="muted-s">למשל: מבחנים 70%, בחנים 20%, שיעורי בית 10%. ככה המורה מחשב את הציון בתעודה.</p>
         <div class="cats-presets"><button type="button" class="chip-f" data-pre="70,20,10">מבחנים 70 · בחנים 20 · ש״ב 10</button><button type="button" class="chip-f" data-pre="60,20,20">מבחנים 60 · בחנים 20 · עבודות 20</button><button type="button" class="chip-f" data-pre="80,20">מבחנים 80 · עבודות 20</button></div>
         <div class="cats-rows">${rows.map((r, i) => `<div class="cat-row"><input data-i="${i}" data-f="n" list="catTypes" value="${esc(r.n)}" placeholder="סוג, למשל מבחנים" aria-label="סוג"><span class="w-in"><input data-i="${i}" data-f="p" type="number" inputmode="decimal" min="0" max="100" value="${r.p}" placeholder="0" aria-label="אחוז"><span>%</span></span><button type="button" class="link danger-t" data-del="${i}" aria-label="הסרה">✕</button></div>`).join('')}</div>
         <datalist id="catTypes">${GR_TYPES.map(t => `<option value="${t}">`).join('')}</datalist>
@@ -4197,7 +4243,7 @@ function gradeDialog(g, pre) {
   const subjList = [...new Set([...bySubject().map(x => x.s), ...ttSubjects()])];
   dialog(d => {
     d.classList.add('gr-dlg');
-    d.innerHTML = `<h3>${editing ? 'עריכת ציון' : '🎯 ציון חדש'}</h3>
+    d.innerHTML = `<h3>${editing ? 'עריכת ציון' : 'ציון חדש'}</h3>
       <label class="fl">מקצוע</label><input id="gS" list="gSubs" placeholder="למשל: מתמטיקה"><datalist id="gSubs">${subjList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
       <label class="fl">על מה הציון? <span class="muted-s">(לא חובה)</span></label><input id="gN" placeholder="למשל: מבחן פרק 3, בוחן, עבודה">
       <div class="ed-row"><div><label class="fl">ציון</label><input id="gG" type="number" inputmode="decimal" min="0" max="100" placeholder="0–100"></div>
@@ -4254,11 +4300,11 @@ const GR_PROMPT = () => { const now = new Date(), y0 = now.getMonth() >= 7 ? now
 function gradesImportDialog() {
   dialog(d => {
     d.classList.add('gr-imp');
-    d.innerHTML = `<h3>📋 הוספת הרבה ציונים בבת אחת</h3>
+    d.innerHTML = `<h3>הוספת הרבה ציונים בבת אחת</h3>
       <p class="muted-s">מעתיקים את הציונים מהמשו"ב או מכל מקום ומדביקים כאן, או מעלים צילום מסך. האתר מוצא לבד את המקצוע, הציון, הסוג (מבחן, בוחן...) והתאריך.</p>
       <textarea id="giText" rows="5" placeholder="למשל:&#10;מתמטיקה – מבחן פרק 3 – 92&#10;אנגלית בוחן 78 (20%)&#10;תנ״ך 15/10 עבודה 88"></textarea>
       <div class="qa-or">או / וגם</div>
-      <button type="button" class="tt-up small" id="giUp"><span class="ic">📷</span><b>צילום מסך של הציונים</b><span>תמונה, PDF או קובץ אקסל</span></button>
+      <button type="button" class="tt-up small" id="giUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום מסך של הציונים</b><span>תמונה, PDF או קובץ אקסל</span></button>
       <input type="file" id="giFile" accept="image/*,application/pdf,.pdf,.xlsx,.xls,.csv,.txt" multiple>
       <div class="oc-thumbs" id="giThumbs"></div>
       <p class="tt-status" id="giSt"></p>
@@ -4268,9 +4314,9 @@ function gradesImportDialog() {
     const paintThumbs = () => { d.querySelector('#giThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : `<span>${fileIcon(f.name)}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
     d.querySelector('#giThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paintThumbs(); };
     d.querySelector('#giUp').onclick = () => d.querySelector('#giFile').click();
-    d.querySelector('#giFile').onchange = ev => { [...ev.target.files].slice(0, 4 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paintThumbs(); if (files.length) go.textContent = '✨ למצוא את הציונים'; };
+    d.querySelector('#giFile').onchange = ev => { [...ev.target.files].slice(0, 4 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paintThumbs(); if (files.length) go.textContent = 'למצוא את הציונים'; };
     const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = '✨ למצוא את הציונים';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'למצוא את הציונים';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     const same = (a, b) => a.s === b.s && a.g === b.g && (a.d || '') === (b.d || '') && (a.n || '') === (b.n || '');
@@ -4281,7 +4327,7 @@ function gradesImportDialog() {
       box.querySelectorAll('input,select').forEach(inp => inp.oninput = inp.onchange = () => { const x = found[+inp.dataset.i]; if (inp.type === 'checkbox') x.on = inp.checked; else x[inp.dataset.f] = inp.type === 'number' ? parseFloat(inp.value) : inp.value; ok(); });
       ok();
     };
-    const ok = () => { const n = found.filter(x => x.on).length; go.textContent = n ? `הוספת ${n === 1 ? 'ציון אחד' : n + ' ציונים'}` : '✨ למצוא את הציונים'; go.dataset.mode = n ? 'save' : 'find'; };
+    const ok = () => { const n = found.filter(x => x.on).length; go.textContent = n ? `הוספת ${n === 1 ? 'ציון אחד' : n + ' ציונים'}` : 'למצוא את הציונים'; go.dataset.mode = n ? 'save' : 'find'; };
     go.onclick = async () => {
       if (go.dataset.mode === 'save') {
         const add = found.filter(x => x.on && normS(x.s) && x.g >= 0 && x.g <= 100).map(x => ({ id: Math.random().toString(36).slice(2, 10), s: normS(x.s).slice(0, 40), n: String(x.n || '').trim().slice(0, 60), g: Math.round(x.g * 10) / 10, t: String(x.t || '').slice(0, 30), d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
@@ -4293,7 +4339,7 @@ function gradesImportDialog() {
       }
       const txt = d.querySelector('#giText').value.trim();
       if (!txt && !files.length) { toast('הדבק את הציונים או העלה צילום מסך'); return; }
-      go.disabled = true; const st = d.querySelector('#giSt'); const stop = ticking(st, '✨ מחפש ציונים...');
+      go.disabled = true; const st = d.querySelector('#giSt'); const stop = ticking(st, 'מחפש ציונים...');
       try {
         const parts = []; if (txt) parts.push('=== טקסט שהודבק ===\n' + txt.slice(0, 30000));
         for (const f of files) parts.push(await fileToAiPart(f));
@@ -4311,7 +4357,7 @@ function gradesImportDialog() {
 }
 $('grImport').onclick = gradesImportDialog;
 
-/* ================= 💬 עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
+/* ================= עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
 const CHAT_SHORT = 80;
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
 const CHAT_KIT = /שאלון|תבחן|תבחני|בוחן|לתרגל|תרגול|דף חזרה|דף למידה/;
@@ -4351,7 +4397,7 @@ function chatRender() {
   const grid = document.createElement('div'); grid.className = 'chat-sugs';
   chatSuggestions().forEach(s => {
     const c = document.createElement('button'); c.type = 'button'; c.className = 'chat-sug';
-    const i = document.createElement('span'); i.className = 'ic'; i.textContent = s.icon;
+    const i = document.createElement('span'); i.className = 'ic'; i.innerHTML = ic(s.icon);
     const t = document.createElement('span'); t.dir = 'auto'; t.textContent = s.text;
     c.append(i, t); c.onclick = () => chatUse(s); grid.appendChild(c);
   });
@@ -4360,18 +4406,18 @@ function chatRender() {
 // הצעות לפי מה שקורה עכשיו: מחברת פתוחה, או המבחן הקרוב ביומן
 function chatSuggestions() {
   if (openId) return [
-    { icon: '📄', text: 'דף חזרה מהמחברת', send: 'תכין לי דף חזרה מסודר מהמחברת הזאת' },
-    { icon: '🎯', text: 'שאלון על החומר', send: 'תכין לי שאלון על החומר שבמחברת' },
-    { icon: '💡', text: 'מה הכי קשה כאן?', send: 'מה הנושא הכי קשה במחברת? תסביר לי אותו בפשטות' },
-    { icon: '📎', text: 'להעלות דף או צילום', file: true },
+    { icon: 'doc', text: 'דף חזרה מהמחברת', send: 'תכין לי דף חזרה מסודר מהמחברת הזאת' },
+    { icon: 'target', text: 'שאלון על החומר', send: 'תכין לי שאלון על החומר שבמחברת' },
+    { icon: 'bulb', text: 'מה הכי קשה כאן?', send: 'מה הנושא הכי קשה במחברת? תסביר לי אותו בפשטות' },
+    { icon: 'clip', text: 'להעלות דף או צילום', file: true },
   ];
   const test = events.find(e => e.type === 'test' && !e.done && e.date >= todayKey());
   const title = test ? String(test.title || '').slice(0, 40) : '';
   return [
-    test ? { icon: '🎯', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תכין לי שאלון תרגול למבחן` } : { icon: '🎯', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תגיד לי איזה חומר אתה צריך ממני כדי להכין לי שאלון ודף חזרה' },
-    { icon: '📄', text: 'להכין דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
-    { icon: '📅', text: 'מה יש לי השבוע?', send: 'מה יש לי השבוע ביומן? במה כדאי להתחיל?' },
-    { icon: '📎', text: 'להעלות דף או צילום', file: true },
+    test ? { icon: 'target', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תכין לי שאלון תרגול למבחן` } : { icon: 'target', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תגיד לי איזה חומר אתה צריך ממני כדי להכין לי שאלון ודף חזרה' },
+    { icon: 'doc', text: 'להכין דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
+    { icon: 'cal', text: 'מה יש לי השבוע?', send: 'מה יש לי השבוע ביומן? במה כדאי להתחיל?' },
+    { icon: 'clip', text: 'להעלות דף או צילום', file: true },
   ];
 }
 function chatUse(s) {
@@ -4384,7 +4430,7 @@ function chatUse(s) {
 function homeAskChips() {
   const box = $('haChips'); box.innerHTML = '';
   chatSuggestions().slice(0, 3).forEach(s => {
-    const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.dir = 'auto'; c.textContent = `${s.icon} ${s.text}`;
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.dir = 'auto'; c.textContent = s.text;
     c.onclick = () => { showTab('chat'); chatUse(s); };
     box.appendChild(c);
   });
@@ -4525,14 +4571,14 @@ ${upcoming || '(אין)'}
 
 {"action": "ADD_TO_CALENDAR", "taskType": "שיעורי בית", "subject": "מתמטיקה", "content": "עמודים 12 ו-13"}
 
-הערך של taskType הוא אחד מאלה: "שיעורי בית", "מבחן", "אירוע". ההסבר שאחרי ה-JSON הוא משפט קצר, למשל: הוספתי לך ליומן שיעורי בית במתמטיקה (עמודים 12 ו-13)! בהצלחה בהכנה 👍
+הערך של taskType הוא אחד מאלה: "שיעורי בית", "מבחן", "אירוע". ההסבר שאחרי ה-JSON הוא משפט קצר, למשל: הוספתי לך ליומן שיעורי בית במתמטיקה (עמודים 12 ו-13)! בהצלחה בהכנה
 3. בדוק בעצמך מה חסר לך, בלי לחכות שהמשתמש ישאל. כשהוא שולח חומר או מבקש עזרה למבחן, בדוק מה החומר מזכיר אבל לא נמצא אצלך במחברת, בקבצים או בשיחה: למשל מילים מעמודים בספר, טקסט או דף עבודה. אמור לו מיד ובמפורש מה בדיוק חסר ובקש שישלח את זה, ואמור גם במה אפשר להתחיל כבר עכשיו. נושאים כלליים כמו דקדוק אפשר ללמד מהידע שלך. אל תמציא תוכן שאין לך, ואל תעמיד פנים שיש לך אותו.
 
 4. שאלון: אם המשתמש מבקש שתבחן אותו, לתרגל או שאלון, אל תשאל שאלה אחת בטקסט. החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר ומעודד:
 {"action":"QUIZ","title":"שם השאלון","questions":[{"type":"mc","q":"השאלה","options":["א","ב","ג","ד"],"answer":0,"explain":"הסבר קצר למה זו התשובה"},{"type":"text","q":"שאלה לכתיבה","answer":"התשובה","accept":["תשובה נכונה נוספת"],"explain":"הסבר קצר"}]}
 answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ-0. כתוב 8 עד 10 שאלות מגוונות, שמתאימות למבנה המבחן אם הוא ידוע: תרגום, כתיבה, דקדוק והבנה. השתמש במילים המדויקות מהחומר, עם הניקוד שלהן, וערבב את מיקום התשובה הנכונה.
 5. דף חזרה: אם המשתמש מבקש דף חזרה, סיכום או דף למידה, החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר:
-{"action":"SHEET","title":"שם הדף","sections":[{"icon":"📚","heading":"כותרת","table":[["מילה","פירוש"]],"items":["נקודה חשובה"]}],"tips":["טיפ לזכירה"]}
+{"action":"SHEET","title":"שם הדף","sections":[{"heading":"כותרת","table":[["מילה","פירוש"]],"items":["נקודה חשובה"]}],"tips":["טיפ לזכירה"]}
 כל חלק יכול לכלול table או items או את שניהם. סדר את כל החומר לפי נושאים, בלי לדלג על מילים.
 אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
 לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
@@ -4585,7 +4631,7 @@ function chatPaintFiles() {
   const box = $('chatFiles'); box.innerHTML = ''; box.classList.toggle('hidden', !chatPending.length);
   chatPending.forEach(it => {
     const c = document.createElement('span'); c.className = 'chat-file' + (it.part ? '' : ' loading');
-    const n = document.createElement('span'); n.dir = 'auto'; n.textContent = '📎 ' + it.name;
+    const n = document.createElement('span'); n.dir = 'auto'; n.textContent = '' + it.name;
     const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'הסרה');
     x.onclick = () => { chatPending = chatPending.filter(o => o !== it); chatPaintFiles(); };
     c.append(n, x); box.appendChild(c);
@@ -4665,8 +4711,8 @@ async function chatSend() {
     input.value = ''; input.style.height = '';
     chatPending = []; chatPaintFiles();
     chatContext();
-    const shown = long ? `📋 חומר שהדבקת (${msg.trim().split(/\s+/).length} מילים)\n${msg.slice(0, 280)}…` : msg;
-    chatBubble('me', [...files.map(f => '📎 ' + f.name), shown].filter(Boolean).join('\n'));
+    const shown = long ? `חומר שהדבקת (${msg.trim().split(/\s+/).length} מילים)\n${msg.slice(0, 280)}…` : msg;
+    chatBubble('me', [...files.map(f => '' + f.name), shown].filter(Boolean).join('\n'));
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
@@ -4703,7 +4749,7 @@ async function chatSend() {
       if (card) useOne('kit');
       if (s.action && kitLeft <= 0) text = 'נגמרו השאלונים ודפי החזרה להיום. מחר אפשר שוב.';
       else if (s.action && !card) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
-      else if (card && !text) text = card.kind === 'quiz' ? 'הכנתי לך שאלון. בהצלחה! 💪' : 'הכנתי לך דף חזרה.';
+      else if (card && !text) text = card.kind === 'quiz' ? 'הכנתי לך שאלון. בהצלחה!' : 'הכנתי לך דף חזרה.';
       b.classList.remove('typing', 'making'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.';
     }
     const botItem = { role: 'bot', text, ...(card ? { card } : {}) };
@@ -4733,13 +4779,13 @@ $('chatListBtn').onclick = chatListDialog;
 
 /* ---- כרטיסים בתוך הצ'אט: שאלון אינטראקטיבי ודף חזרה ---- */
 const CHAT_ACTIONS = [
-  { icon: '🎯', text: 'שאלון', send: 'תכין לי שאלון תרגול על החומר' },
-  { icon: '📄', text: 'דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
-  { icon: '🧭', text: 'במה להתחיל?', send: 'במה כדאי לי להתחיל ללמוד עכשיו, ולמה?' },
-  { icon: '✏️', text: 'הוספה ליומן', fill: 'יש לי ' },
+  { icon: 'target', text: 'שאלון', send: 'תכין לי שאלון תרגול על החומר' },
+  { icon: 'doc', text: 'דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
+  { icon: 'compass', text: 'במה להתחיל?', send: 'במה כדאי לי להתחיל ללמוד עכשיו, ולמה?' },
+  { icon: 'mark', text: 'הוספה ליומן', fill: 'יש לי ' },
 ];
 CHAT_ACTIONS.forEach(s => {
-  const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.textContent = `${s.icon} ${s.text}`;
+  const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.textContent = s.text;
   c.onclick = () => chatUse(s); $('chatActions').appendChild(c);
 });
 const chatStr = (v, n) => String(v ?? '').trim().slice(0, n);
@@ -4782,7 +4828,7 @@ function chatQuizEl(item) {
   const next = () => { i++; if (i < c.questions.length) showQ(); else finish(); };
   function resultRow(q, ok, undoable) {
     const fb = chatNode('div', 'qz-fb ' + (ok ? 'ok' : 'no'));
-    fb.appendChild(chatNode('b', '', ok ? 'נכון! 🎉' : q.type === 'mc' ? 'לא מדויק' : `התשובה: ${q.answer}`));
+    fb.appendChild(chatNode('b', '', ok ? 'נכון!' : q.type === 'mc' ? 'לא מדויק' : `התשובה: ${q.answer}`));
     if (q.explain) fb.appendChild(chatNode('p', '', q.explain));
     const row = chatNode('div', 'qz-row');
     if (undoable) { const fix = chatNode('button', 'qz-link', 'בעצם צדקתי'); fix.type = 'button'; fix.onclick = () => { score++; wrong = wrong.filter(x => x !== q); next(); }; row.appendChild(fix); }
@@ -4827,7 +4873,7 @@ function chatQuizEl(item) {
     const total = c.questions.length, pct = Math.round((res.score / total) * 100);
     fill.style.width = '100%'; count.textContent = 'סיימת!'; body.innerHTML = '';
     const ring = chatNode('div', 'qz-ring'); ring.style.setProperty('--p', pct); ring.appendChild(chatNode('b', '', `${pct}%`));
-    const msg = pct >= 90 ? 'מדהים! אתה מוכן למבחן 🏆' : pct >= 70 ? 'יפה מאוד! עוד קצת וזה שם 💪' : pct >= 50 ? 'התחלה טובה. נחזק את מה שטעית בו 🌱' : 'לא נורא, בשביל זה מתרגלים. נעבור על זה יחד 🤝';
+    const msg = pct >= 90 ? 'מדהים! אתה מוכן למבחן' : pct >= 70 ? 'יפה מאוד! עוד קצת וזה שם' : pct >= 50 ? 'התחלה טובה. נחזק את מה שטעית בו' : 'לא נורא, בשביל זה מתרגלים. נעבור על זה יחד';
     body.append(ring, chatNode('p', 'qz-msg', msg), chatNode('p', 'qz-sum', `${res.score} נכונות מתוך ${total}`));
     if (res.wrong.length) {
       const list = chatNode('div', 'qz-wrongs'); list.appendChild(chatNode('b', '', 'כדאי לחזור על:'));
@@ -4835,13 +4881,13 @@ function chatQuizEl(item) {
       body.appendChild(list);
     }
     const row = chatNode('div', 'qz-row wrap');
-    const again = chatNode('button', 'btn btn-ghost', '🔁 שוב'); again.type = 'button'; again.onclick = () => { i = 0; score = 0; wrong = []; delete c.done; showQ(); };
+    const again = chatNode('button', 'btn btn-ghost', 'שוב'); again.type = 'button'; again.onclick = () => { i = 0; score = 0; wrong = []; delete c.done; showQ(); };
     row.appendChild(again);
     if (res.wrong.length) {
-      const more = chatNode('button', 'btn ai-go', '🎯 שאלון על מה שטעיתי'); more.type = 'button';
+      const more = chatNode('button', 'btn ai-go', 'שאלון על מה שטעיתי'); more.type = 'button';
       more.onclick = () => chatUse({ send: `תכין לי שאלון חדש שמתמקד במה שטעיתי בו: ${res.wrong.map(w => w.q).join('; ')}`.slice(0, 590) });
       row.appendChild(more);
-    } else { const sh = chatNode('button', 'btn ai-go', '📄 דף חזרה'); sh.type = 'button'; sh.onclick = () => chatUse({ send: 'תכין לי דף חזרה מסודר על החומר' }); row.appendChild(sh); }
+    } else { const sh = chatNode('button', 'btn ai-go', 'דף חזרה'); sh.type = 'button'; sh.onclick = () => chatUse({ send: 'תכין לי דף חזרה מסודר על החומר' }); row.appendChild(sh); }
     body.appendChild(row); if (el.isConnected) el.scrollIntoView({ block: 'start' });
   }
   function finish() {
@@ -4860,7 +4906,7 @@ function chatSheetEl(item) {
   const body = chatNode('div', 'sh-body');
   c.sections.forEach(s => {
     const box = chatNode('div', 'sh-sec');
-    box.appendChild(chatNode('h4', '', `${s.icon ? s.icon + ' ' : ''}${s.heading}`));
+    box.appendChild(chatNode('h4', '', s.heading));
     if (s.table && s.table.length) {
       const t = chatNode('div', 'sh-table');
       s.table.forEach(r => { const row = chatNode('div', 'sh-tr'); r.c.forEach(v => row.appendChild(chatNode('span', '', v))); t.appendChild(row); });
@@ -4869,21 +4915,21 @@ function chatSheetEl(item) {
     if (s.items && s.items.length) { const ul = chatNode('ul'); s.items.forEach(v => ul.appendChild(chatNode('li', '', v))); box.appendChild(ul); }
     body.appendChild(box);
   });
-  if (c.tips && c.tips.length) { const tip = chatNode('div', 'sh-tips'); tip.appendChild(chatNode('b', '', '💡 טיפים לזכירה')); c.tips.forEach(v => tip.appendChild(chatNode('p', '', v))); body.appendChild(tip); }
+  if (c.tips && c.tips.length) { const tip = chatNode('div', 'sh-tips'); tip.appendChild(chatNode('b', '', 'טיפים לזכירה')); c.tips.forEach(v => tip.appendChild(chatNode('p', '', v))); body.appendChild(tip); }
   const row = chatNode('div', 'qz-row wrap');
-  const save = chatNode('button', 'btn btn-ghost', '📓 שמירה כמחברת'); save.type = 'button'; save.onclick = () => chatSheetSave(c, save);
-  const quiz = chatNode('button', 'btn ai-go', '🎯 שאלון על זה'); quiz.type = 'button'; quiz.onclick = () => chatUse({ send: `תכין לי שאלון על דף החזרה "${c.title}"` });
+  const save = chatNode('button', 'btn btn-ghost', 'שמירה כמחברת'); save.type = 'button'; save.onclick = () => chatSheetSave(c, save);
+  const quiz = chatNode('button', 'btn ai-go', 'שאלון על זה'); quiz.type = 'button'; quiz.onclick = () => chatUse({ send: `תכין לי שאלון על דף החזרה "${c.title}"` });
   row.append(save, quiz); body.appendChild(row); el.appendChild(body);
   return el;
 }
 async function chatSheetSave(c, btn) {
   const t = document.createElement('div'); t.appendChild(chatNode('h2', '', c.title));
   c.sections.forEach(s => {
-    t.appendChild(chatNode('h3', '', `${s.icon ? s.icon + ' ' : ''}${s.heading}`));
+    t.appendChild(chatNode('h3', '', s.heading));
     if (s.table && s.table.length) { const tb = document.createElement('table'); s.table.forEach(r => { const tr = document.createElement('tr'); r.c.forEach(v => tr.appendChild(chatNode('td', '', v))); tb.appendChild(tr); }); t.appendChild(tb); }
     if (s.items && s.items.length) { const ul = document.createElement('ul'); s.items.forEach(v => ul.appendChild(chatNode('li', '', v))); t.appendChild(ul); }
   });
-  if (c.tips && c.tips.length) { t.appendChild(chatNode('h3', '', '💡 טיפים לזכירה')); const ul = document.createElement('ul'); c.tips.forEach(v => ul.appendChild(chatNode('li', '', v))); t.appendChild(ul); }
+  if (c.tips && c.tips.length) { t.appendChild(chatNode('h3', '', 'טיפים לזכירה')); const ul = document.createElement('ul'); c.tips.forEach(v => ul.appendChild(chatNode('li', '', v))); t.appendChild(ul); }
   btn.disabled = true;
   try { const now = Date.now(); await setDoc(doc(nbCol()), { title: c.title, color: '#7a4fd1', html: clean(t.innerHTML), createdAt: now, updatedAt: now }); btn.textContent = '✓ נשמר במחברות'; toast('נוצרה מחברת חדשה'); }
   catch (e) { console.warn(e); btn.disabled = false; toast('לא הצלחתי לשמור'); }
@@ -4909,7 +4955,7 @@ $('chatInput').addEventListener('keydown', e => {
 $('chatInput').addEventListener('input', () => { const i = $('chatInput'); i.style.height = ''; i.style.height = Math.min(120, i.scrollHeight) + 'px'; });
 
 
-/* ================= 📊 ניהול האתר: מי משתמש וכמה (רק לבעל האתר) ================= */
+/* ================= ניהול האתר: מי משתמש וכמה (רק לבעל האתר) ================= */
 // כל משתמש כותב מסמך קטן אחד על עצמו ב-stats/<uid>: מתי נכנס, כמה מחברות, כמה פעמים השתמש ב-AI.
 // רק בעל האתר יכול לקרוא את כל המסמכים (לפי הכללים ב-Firestore). תוכן המחברות לא נשמר שם.
 const statsDoc = uid => doc(db, 'stats', uid);
@@ -4932,7 +4978,7 @@ function statsAi(k, count) {
 function paintAdmin() { const on = isUnlimited(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
-const ADMIN_RULES = uid => `    // 📊 ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם
+const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם
     match /stats/{uid} {
       allow read: if request.auth != null && request.auth.uid == '${uid}';
       allow get: if request.auth != null && request.auth.uid == uid;
@@ -4954,7 +5000,7 @@ async function renderAdmin() {
       <ol><li>נכנסים ל-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/firestore/rules" target="_blank" rel="noopener">Firestore → Rules</a>.</li>
       <li>מוצאים את השורה <code dir="ltr">match /shares/{shareId} {</code>, ומדביקים <b>לפניה</b> את הקטע שלמטה.</li>
       <li>לוחצים <b>Publish</b>, מחכים דקה, ולוחצים כאן "↻ רענון".</li></ol>
-      <pre class="adm-rules" dir="ltr"></pre><button type="button" class="btn btn-primary" id="admCopy">📋 העתקת הקטע</button>
+      <pre class="adm-rules" dir="ltr"></pre><button type="button" class="btn btn-primary" id="admCopy">העתקת הקטע</button>
       <p class="muted-s">משתמשים יופיעו ברשימה מהפעם הבאה שהם נכנסים לאתר.</p></div>`;
     box.querySelector('.adm-rules').textContent = ADMIN_RULES(me.uid);
     $('admCopy').onclick = async () => { try { await navigator.clipboard.writeText(ADMIN_RULES(me.uid)); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק – סמן והעתק ידנית'); } };

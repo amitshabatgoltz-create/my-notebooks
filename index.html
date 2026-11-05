@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#FBFBFD">
+<meta name="theme-color" content="#F5F5FA">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -12,13 +12,29 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793903224">
+<link rel="stylesheet" href="style.css?v=1793905477">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
+<script src="gsap.min.js"></script>
+<script src="motion.js"></script>
 </head>
 <body>
 
 <!-- סמלים (אייקונים) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2 6 6M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 4.5V3h6v1.5M9 11h6M9 15.5h4"/></symbol>
+  <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2.5"/><path d="M7 3.5h11.5A2.5 2.5 0 0 1 21 6v11.5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 10a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10zM10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 7.5-2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h7M9 17h5"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 17.5h6M10 21h4M12 3a6.5 6.5 0 0 0-4 11.6c.7.6 1 1.3 1 2.1V17.5h6v-.8c0-.8.3-1.5 1-2.1A6.5 6.5 0 0 0 12 3z"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
   <symbol id="i-grades" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
@@ -58,8 +74,7 @@
 
 <!-- ===== מסך כניסה ===== -->
 <section id="login">
-  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
-  <button class="theme-btn login-theme" data-theme-toggle title="מצב כהה">🌙</button>
+  <button class="theme-btn login-theme" data-theme-toggle title="מצב כהה"><svg aria-hidden="true"><use href="#i-moon"/></svg></button>
   <div class="login-card">
     <div class="app-icon" aria-hidden="true"><svg><use href="#i-book"/></svg></div>
     <h1>המחברות שלי</h1>
@@ -85,7 +100,18 @@
     </button>
     <div class="status" id="loginStatus"></div>
   </div>
+  <div class="login-aside" aria-hidden="true">
+    <h2>כל השבוע שלך במקום אחד.</h2>
+    <div class="la-week">
+      <div><b>א׳</b><i class="plan">חזרה</i></div>
+      <div><b>ב׳</b><i class="plan">חזרה</i></div>
+      <div><b>ג׳</b><i class="plan">שינון</i></div>
+      <div><b>ד׳</b><i class="test">מבחן</i></div>
+      <div><b>ה׳</b></div>
+    </div>
+  </div>
 </section>
+<script>if(window.Motion)Motion.login()</script>
 
 <!-- ===== האפליקציה ===== -->
 <div id="shareView" class="share-view hidden">
@@ -131,9 +157,9 @@
         <button class="avatar" id="userBtn" aria-haspopup="menu" aria-expanded="false" title="החשבון שלי"></button>
         <div class="menu hidden" id="userMenu" role="menu">
           <div class="who" id="who"></div>
-          <button class="menu-item theme-btn" data-theme-toggle role="menuitem">🌙 מצב כהה</button>
-          <button class="menu-item" id="backupBtn" role="menuitem">⬇️ הורדת גיבוי</button>
-          <button class="menu-item" id="restoreBtn" role="menuitem">⬆️ שחזור מגיבוי</button>
+          <button class="menu-item theme-btn" data-theme-toggle role="menuitem">מצב כהה</button>
+          <button class="menu-item" id="backupBtn" role="menuitem">הורדת גיבוי</button>
+          <button class="menu-item" id="restoreBtn" role="menuitem">שחזור מגיבוי</button>
           <button class="menu-item" id="logoutBtn" role="menuitem">יציאה</button>
         </div>
       </div>
@@ -152,12 +178,13 @@
             <h1 id="greet"></h1>
             <p class="hero-sub" id="greetSub"></p>
             <div class="hero-actions">
-              <button class="btn btn-ai" id="homeOcr">📷 צילום לוח</button><button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">📊 ניהול</button>
+              <button class="btn btn-ai" id="homeOcr"><svg aria-hidden="true"><use href="#i-camera"/></svg>צילום לוח</button><button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">ניהול</button>
               <button class="btn btn-light" id="homeNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
               <button class="btn btn-glass" id="homeCal"><svg><use href="#i-cal"/></svg>ליומן</button>
             </div>
           </div>
         </div>
+        <section class="card week" id="weekCard" aria-label="השבוע הקרוב"></section>
         <div class="quick-add home-ask">
           <div class="ha-row">
             <span class="ai-orb sm" aria-hidden="true"><svg><use href="#i-spark"/></svg></span>
@@ -220,10 +247,10 @@
           <div class="doc-color" id="docColor"></div>
           <input class="ed-title" id="title" aria-label="שם המחברת" placeholder="שם המחברת">
           <div class="ai-strip">
-            <button type="button" class="ai-card ocr" id="aiOcr"><span class="ic">📷</span><span class="tx"><b>תמונה לטקסט</b><small>מצלמים את הלוח והוא מקליד</small></span></button>
-            <button type="button" class="ai-card sum" id="aiSum"><span class="ic">✨</span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
-            <button type="button" class="ai-card qa" id="aiQa"><span class="ic">📝</span><span class="tx"><b>עבודה מהמורה</b><small>מעלים את העבודה והוא עונה לפי המחברת</small></span></button>
-            <button type="button" class="ai-card fc" id="aiFc"><span class="ic">🃏</span><span class="tx"><b>כרטיסיות שינון</b><small>שאלה מקדימה, תשובה מאחורה</small></span></button>
+            <button type="button" class="ai-card ocr" id="aiOcr"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><span class="tx"><b>תמונה לטקסט</b><small>מצלמים את הלוח והוא מקליד</small></span></button>
+            <button type="button" class="ai-card sum" id="aiSum"><span class="ic"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
+            <button type="button" class="ai-card qa" id="aiQa"><span class="ic"><svg aria-hidden="true"><use href="#i-hw"/></svg></span><span class="tx"><b>עבודה מהמורה</b><small>מעלים את העבודה והוא עונה לפי המחברת</small></span></button>
+            <button type="button" class="ai-card fc" id="aiFc"><span class="ic"><svg aria-hidden="true"><use href="#i-cards"/></svg></span><span class="tx"><b>כרטיסיות שינון</b><small>שאלה מקדימה, תשובה מאחורה</small></span></button>
           </div>
           <div class="toolbar" id="toolbar">
             <div class="seg">
@@ -275,14 +302,14 @@
       <section id="ttView" class="view hidden">
         <div class="lib-head">
           <div><h2>מערכת שעות</h2><div class="sub">לפיה האתר יודע עד מתי צריך להכין כל שיעורי בית</div></div>
-          <div class="tt-head-btns"><button class="btn btn-ghost" id="ttUpload" type="button">📷 העלאת תמונה</button><button class="btn btn-primary hidden" id="ttEdit" type="button">עריכה</button></div>
+          <div class="tt-head-btns"><button class="btn btn-ghost" id="ttUpload" type="button">העלאת תמונה</button><button class="btn btn-primary hidden" id="ttEdit" type="button">עריכה</button></div>
         </div>
         <div id="ttBody"></div>
       </section>
 
       <section id="adminView" class="view hidden">
         <div class="lib-head">
-          <div><h2>📊 ניהול האתר</h2><div class="sub">מי משתמש באתר וכמה. רק אתה רואה את העמוד הזה.</div></div>
+          <div><h2>ניהול האתר</h2><div class="sub">מי משתמש באתר וכמה. רק אתה רואה את העמוד הזה.</div></div>
           <div class="tt-head-btns"><button class="btn btn-ghost" id="admRefresh" type="button">↻ רענון</button></div>
         </div>
         <div id="admBody"></div>
@@ -291,7 +318,7 @@
       <section id="gradesView" class="view hidden">
         <div class="lib-head">
           <div><h2>ציונים</h2><div class="sub">הממוצע מחושב לפי כמה אחוז שווה כל סוג: מבחנים, בחנים, שיעורי בית</div></div>
-          <div class="tt-head-btns"><button class="btn btn-ghost" id="grImport" type="button">📋 הדבקה או צילום</button><button class="btn btn-primary" id="grAdd" type="button">＋ ציון חדש</button></div>
+          <div class="tt-head-btns"><button class="btn btn-ghost" id="grImport" type="button">הדבקה או צילום</button><button class="btn btn-primary" id="grAdd" type="button">＋ ציון חדש</button></div>
         </div>
         <div id="grBody"></div>
       </section>
@@ -301,9 +328,9 @@
           <h2 id="monthTitle"></h2>
           <div class="cal-nav">
             <button class="btn btn-ghost icon-btn" id="prevMonth" title="חודש קודם" aria-label="חודש קודם"><svg><use href="#i-back"/></svg></button>
-            <button class="btn btn-ghost tests-btn" id="testsBtn" type="button" title="העלאת לוח מבחנים">📋<span> לוח מבחנים</span></button>
-            <button class="btn btn-ghost tt-btn" id="ttBtn" type="button" title="מערכת שעות">🗓<span> מערכת שעות</span></button>
-            <button class="btn btn-ghost bell" id="bellBtn" type="button">🔔<span> הפעלת תזכורות</span></button>
+            <button class="btn btn-ghost tests-btn" id="testsBtn" type="button" title="העלאת לוח מבחנים"><svg aria-hidden="true"><use href="#i-clipboard"/></svg><span> לוח מבחנים</span></button>
+            <button class="btn btn-ghost tt-btn" id="ttBtn" type="button" title="מערכת שעות"><svg aria-hidden="true"><use href="#i-cal"/></svg><span> מערכת שעות</span></button>
+            <button class="btn btn-ghost bell" id="bellBtn" type="button"><svg aria-hidden="true"><use href="#i-bell"/></svg><span> הפעלת תזכורות</span></button>
             <button class="btn btn-ghost" id="todayBtn">היום</button>
             <button class="btn btn-ghost icon-btn flip" id="nextMonth" title="חודש הבא" aria-label="חודש הבא"><svg><use href="#i-back"/></svg></button>
           </div>
@@ -371,6 +398,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793903224"></script>
+<script type="module" src="app.js?v=1793905477"></script>
 </body>
 </html>
