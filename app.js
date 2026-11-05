@@ -209,7 +209,9 @@ function clean(html) {
       if (isTl) ch.className = 'tl';
       if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
       walk(ch);
-    } else if (ch.nodeType !== 3) ch.remove();
+    } else if (ch.nodeType === 3) {                  // טקסט עם "&#39;" כתוב כמו שהוא (מהעתקה מ-PDF/אתר) – מציגים את התו האמיתי
+      if (/&(#\d{2,6}|#x[\da-f]{2,5}|quot|apos|amp|lt|gt|nbsp);/i.test(ch.nodeValue)) ch.nodeValue = decodeEnt(ch.nodeValue);
+    } else ch.remove();
   });
   const root = d.body.firstChild; walk(root); return root.innerHTML;
 }
