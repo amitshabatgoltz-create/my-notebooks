@@ -4,14 +4,15 @@
       "$share": {
         ".read": "auth != null",
         "$uid": {
-          ".write": "auth != null && auth.uid === $uid"
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "!newData.exists() || newData.hasChildren(['at'])"
         }
       }
     },
     "livetext": {
       "$share": {
         ".read": "auth != null",
-        ".write": "auth != null"
+        ".write": "auth != null && (!newData.exists() || (newData.child('by').val() === auth.uid && newData.child('html').isString() && newData.child('html').val().length < 900000 && (!newData.child('title').exists() || newData.child('title').val().length < 2000)))"
       }
     }
   }

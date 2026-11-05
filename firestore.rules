@@ -22,7 +22,12 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == 'ADMIN_UID';
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai']);
+        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai'])
+        && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100))
+        && (!('email' in request.resource.data) || (request.resource.data.email is string && request.resource.data.email.size() < 200))
+        && (!('device' in request.resource.data) || (request.resource.data.device is string && request.resource.data.device.size() < 40))
+        && (!('nb' in request.resource.data) || request.resource.data.nb is int)
+        && (!('ai' in request.resource.data) || request.resource.data.ai is map);
     }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
     // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)

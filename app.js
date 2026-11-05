@@ -2894,7 +2894,9 @@ function caretRestore(pos) {
 function applyRemoteHtml(html) {
   const ed = $('editor'); let pos = document.activeElement === ed ? caretMark() : null;
   const y = window.scrollY, oldText = ed.textContent;
-  ed.innerHTML = html; loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
+  // אבטחה: תוכן שמגיע מעורך אחר (או מישהו שכותב ישירות ל-Firestore/RTDB) חייב לעבור ניקוי לפני הצגה,
+  // אחרת אפשר להזריק <img onerror=...> שירוץ אצל מי שעורך ביחד. clean() מסיר כל סקריפט ומאזין אירועים.
+  ed.innerHTML = clean(html); loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
   if (pos !== null) {
     // הסמן שלך זז יחד עם הטקסט: אם החבר הוסיף לפניך, הסמן מתקדם בהתאם
     const nt = ed.textContent, r = editRegion(oldText, nt), delta = nt.length - oldText.length;
@@ -2943,7 +2945,7 @@ function paintPresence(others) {
   if (others === null) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   el.innerHTML = others.length
-    ? `<span class="dot-live"></span>${others.slice(0, 3).map(p => `<span class="pav" title="${String(p.name || 'חבר').replace(/"/g, '')}">${String(p.name || '?').trim().charAt(0)}</span>`).join('')}<span class="ptxt">${others.length === 1 ? `${String(others[0].name || 'חבר').replace(/</g, '')} כאן עכשיו` : `${others.length} אנשים כאן עכשיו`}</span>`
+    ? `<span class="dot-live"></span>${others.slice(0, 3).map(p => `<span class="pav" title="${esc(String(p.name || 'חבר'))}">${esc(String(p.name || '?').trim().charAt(0))}</span>`).join('')}<span class="ptxt">${others.length === 1 ? `${esc(String(others[0].name || 'חבר'))} כאן עכשיו` : `${others.length} אנשים כאן עכשיו`}</span>`
     : '<span class="dot-live"></span><span class="ptxt">עריכה משותפת</span>';
 }
 let byTimer = null;
