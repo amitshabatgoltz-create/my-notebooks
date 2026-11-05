@@ -568,10 +568,49 @@ $('editor').addEventListener('paste', e => {
   e.preventDefault();
   const files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
   if (files.length) { addImages(files); return; }
-  const html = e.clipboardData.getData('text/html');
+  const html = e.clipboardData.getData('text/html'), plain = e.clipboardData.getData('text/plain');
+  // טקסט שהועתק מ-PDF: כל שורה נשברת באמצע משפט. מחברים שורות לפסקאות אמיתיות
+  if (plain && (!html || looksLikeLines(html)) && plain.split(/\r?\n/).filter(l => l.trim()).length >= 3) { document.execCommand('insertHTML', false, clean(textToHtml(plain))); return; }
   if (html) document.execCommand('insertHTML', false, clean(html));
-  else document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  else document.execCommand('insertText', false, decodeEnt(plain));
 });
+function decodeEnt(t) { return String(t).replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16))).replace(/&(quot|apos|amp|lt|gt|nbsp);/g, (_, k) => ({ quot: '"', apos: "'", amp: '&', lt: '<', gt: '>', nbsp: ' ' })[k]); }
+// HTML שהוא בעצם שורות (מ-PDF): בלי פסקאות, רשימות או טבלאות אמיתיות
+function looksLikeLines(html) { return !/<(p|li|table|h[1-6]|ul|ol)\b/i.test(html) || /<meta[^>]+pdf|pdf\.js|class="?textLayer/i.test(html); }
+function textToHtml(text) {
+  const esc = v => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const BUL = /^\s*[\uF0B7\u2022\u25CF\u25AA\u25E6\u2023\u2043\u2219·▪●◦\-–*]\s+/;
+  const NEWITEM = /^\s*(\d{1,3}[.)]|\(\d{1,3}\)\s*[A-Z]|[א-ת][.)]\s|[a-z][.)]\s|Exercise\b|Answer Key\b|Example\b|Note\b|תרגיל\b|שאלה\b)/;
+  const lines = decodeEnt(text).replace(/\r/g, '').split('\n').map(l => l.replace(/[ \t\u00A0]+/g, ' ').trim());
+  // רוחב השורה ב-PDF: שורה כמעט ברוחב מלא כנראה נשברה באמצע משפט
+  const lens = lines.filter(Boolean).map(l => l.length).sort((a, b) => a - b); const W = Math.min(160, lens[Math.floor(lens.length * 0.95)] || 80);
+  const out = []; let cur = null;
+  const push = () => { if (cur && cur.t) out.push(cur); cur = null; };
+  for (let k = 0; k < lines.length; k++) {
+    const l = lines[k];
+    if (!l || /^[.·•_\-–—=]{1,3}$/.test(l)) { push(); continue; }
+    const bul = BUL.test(l);
+    if (cur && !bul && !NEWITEM.test(l)) {
+      const prev = cur.t, last = cur.lastLen, endsSentence = /[.!?:;]["”'’)\]]?$/.test(prev);
+      const cont = /^[a-z_(“"'‘]/.test(l) || /^_{3,}/.test(l);
+      // שורה כמעט ברוחב מלא בלי סוף משפט – המשפט ממשיך בשורה הבאה. שורות קצרות (כמו טבלה) נשארות נפרדות
+      const upperOk = !/\)$/.test(prev) && (/[.!?:;]["”'’)]?$/.test(l) || l.length >= W * 0.85);   // המשך באות גדולה: רק אם גם השורה הבאה נראית כמו המשך של משפט
+      if (!endsSentence && ((cont && last >= W * 0.5) || (!cont && last >= W * 0.85 && upperOk))) { cur.t += ' ' + l; cur.lastLen = l.length; continue; }
+    }
+    push(); cur = { t: bul ? l.replace(BUL, '') : l, bul, lastLen: l.length };
+  }
+  push();
+  // פסקה באנגלית (בלי עברית) – משמאל לימין, כדי שהנקודות והמספרים לא יתהפכו
+  const ltr = t => /[A-Za-z]/.test(t) && !/[\u0590-\u05FF\u0600-\u06FF]/.test(t) ? ' dir="ltr"' : '';
+  let html = '', inList = false;
+  out.forEach(b => {
+    if (b.bul && !inList) { html += `<ul${ltr(b.t)}>`; inList = true; }
+    if (!b.bul && inList) { html += '</ul>'; inList = false; }
+    html += b.bul ? `<li${ltr(b.t)}>${esc(b.t)}</li>` : `<p${ltr(b.t)}>${esc(b.t)}</p>`;
+  });
+  if (inList) html += '</ul>';
+  return html;
+}
 
 
 /* ================= ניווט ================= */
@@ -1834,7 +1873,7 @@ function alignBlocks(dir) {
 }
 function updateAlignButtons() {
   const s = window.getSelection(); let cur = 'right';
-  if (s.rangeCount && $('editor').contains(s.anchorNode)) { const B = blockOf(s.anchorNode); if (B && B.getAttribute('data-a')) cur = B.getAttribute('data-a'); }
+  if (s.rangeCount && $('editor').contains(s.anchorNode)) { const B = blockOf(s.anchorNode); if (B && B.getAttribute('data-a')) cur = B.getAttribute('data-a'); else if (B && B.getAttribute('dir') === 'ltr') cur = 'left'; }
   document.querySelectorAll('[data-align]').forEach(b => b.classList.toggle('on', b.dataset.align === cur));
 }
 document.querySelectorAll('[data-align]').forEach(b => b.addEventListener('click', () => alignBlocks(b.dataset.align)));
