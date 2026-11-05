@@ -1436,8 +1436,22 @@ html[data-theme="dark"] .cats-sum.ok{color:#6FD9A4}
 .adm-dev-row b{text-align:left}
 .adm-dev-row small{color:var(--muted);font-size:12.5px}
 /* אנימציות GSAP: כשהן פעילות (html.gs, נקבע ב-motion.js) הן מחליפות את אנימציות ה-CSS המקבילות */
-html.gs .login-card,html.gs .view.enter,html.gs .view.enter .hero-in>*,html.gs .view.enter .card,html.gs .view.enter .nb,html.gs .hw-card,html.gs .overlay,html.gs .dialog,html.gs .confetti{animation:none}
+html.gs .login-card,html.gs .view.enter,html.gs .view.enter .hero-in>*,html.gs .view.enter .card,html.gs .view.enter .nb,html.gs .hw-card,html.gs .overlay,html.gs .dialog,html.gs .confetti,html.gs .toast{animation:none}
 .gs-run{transition:none !important}
+.gs-wait{opacity:0}
+@media print{.gs-wait{opacity:1 !important}}
+.gs-word{display:inline-block;margin-inline-end:.26em}
+.gs-ghost{z-index:49}
+/* GSAP שולט בתזוזה של כפתורים וכרטיסים, אז ה-CSS לא מתערב */
+html.gs .btn{transition:background .15s,box-shadow .15s,color .15s}
+html.gs .btn:active{transform:none}
+.nb.gs-tilt{transition:box-shadow .25s var(--ease);will-change:transform}
+/* הסימון שמחליק בתפריט */
+.nav-pill{position:absolute;top:0;left:0;z-index:0;pointer-events:none;visibility:hidden;border-radius:10px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.06);will-change:transform}
+.side-nav{position:relative}
+.side-nav button,.tabbar button{position:relative;z-index:1}
+.tabbar .nav-pill{border-radius:12px;background:var(--accent-soft);box-shadow:none}
+.side-nav.has-pill button.on,.side-nav.has-pill button[data-tab="chat"].on{background:none;box-shadow:none}
 
 /* =========================================================
    עיצוב "מסלול שבועי": צבעים אחידים, בלי מעברי צבע, והשבוע במרכז מסך הבית

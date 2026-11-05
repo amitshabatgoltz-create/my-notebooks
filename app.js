@@ -227,11 +227,12 @@ function toastAction(msg, label, fn, ms = 7000) {
   const sp = document.createElement('span'); sp.textContent = msg;
   const b = document.createElement('button'); b.type = 'button'; b.className = 't-act'; b.textContent = label;
   b.onclick = () => { t.remove(); fn(); };
-  t.append(sp, b); document.body.appendChild(t); setTimeout(() => t.remove(), ms);
+  t.append(sp, b); document.body.appendChild(t); window.Motion?.toast(t); setTimeout(() => toastGone(t), ms);
 }
-function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function toastGone(t) { if (window.Motion) window.Motion.toastOut(t); else t.remove(); }
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); window.Motion?.toast(t); setTimeout(() => toastGone(t), 2600); }
 function fmtDate(ms) { try { return ms ? new Date(ms).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' }) : ''; } catch { return ''; } }
-function closeDialog() { $('dialogRoot').innerHTML = ''; }
+function closeDialog() { window.Motion?.dialogOut($('dialogRoot')); $('dialogRoot').innerHTML = ''; }
 function dialog(build) {
   const o = document.createElement('div'); o.className = 'overlay';
   o.addEventListener('click', e => { if (e.target === o) closeDialog(); });
@@ -293,6 +294,7 @@ const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'c
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
+  window.Motion?.tab();
   $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי', adminView: 'ניהול האתר' }[v] || '';
   document.body.dataset.view = v;
   chatPlace(v);
@@ -767,8 +769,8 @@ $('evForm').addEventListener('submit', async e => {
     $('evTitle').value = ''; $('evTime').value = '';
   } catch (err) { toast('לא הצלחתי להוסיף'); }
 });
-$('prevMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); };
-$('nextMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); };
+$('prevMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); renderCalendar(); window.Motion?.month($('calGrid'), -1); };
+$('nextMonth').onclick = () => { viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); renderCalendar(); window.Motion?.month($('calGrid'), 1); };
 $('todayBtn').onclick = () => { const n = new Date(); viewMonth = new Date(n.getFullYear(), n.getMonth(), 1); selDay = todayKey(); renderCalendar(); };
 
 
