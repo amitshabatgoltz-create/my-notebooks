@@ -19,7 +19,7 @@ service cloud.firestore {
     // 📊 ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם.
     // את הקטע עם הקוד של בעל האתר מעתיקים מהעמוד "ניהול האתר" באתר (ADMIN_UID מוחלף שם בקוד האמיתי)
     match /stats/{uid} {
-      allow read: if request.auth != null && request.auth.uid == 'ADMIN_UID';
+      allow read: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com';
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai'])
