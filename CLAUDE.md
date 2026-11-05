@@ -16,7 +16,7 @@
 
 ## איפה הנתונים (Firestore)
 - `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון), `/chats/{id}` (שיחות עם העוזר הלימודי: title, history, mem, createdAt, updatedAt).
-- `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `grades` {items: [{id, s, n, g, w, d}]}, `activity`.
+- `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `grades` {items: [{id, s, n, g, t (סוג), d}], cats: {מקצוע: [{n, p}]} – אחוז לכל סוג; ממוצע לפי `subjAvg`}, `activity`.
 - `shares/{id}` – מחברות משותפות (mode: view | copy | edit), עם `presence`.
 
 ## מכסה יומית ל-AI
