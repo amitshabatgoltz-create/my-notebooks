@@ -4964,6 +4964,15 @@ async function renderAdmin() {
   const act1 = list.filter(u => u.lastDay === tk).length, act7 = list.filter(u => now - (u.last || 0) < 7 * day).length, act30 = list.filter(u => now - (u.last || 0) < 30 * day).length;
   const new7 = list.filter(u => now - (u.first || 0) < 7 * day).length;
   const aiTot = {}; list.forEach(u => Object.entries(u.ai || {}).forEach(([k, v]) => aiTot[k] = (aiTot[k] || 0) + (+v || 0)));
+  // פילוח לפי מכשיר (מהנתונים שהאתר אוסף בעצמו – חי, בלי Google Analytics)
+  const devTot = {}; list.forEach(u => { const d = u.device || 'אחר'; devTot[d] = (devTot[d] || 0) + 1; });
+  const devRows = Object.entries(devTot).sort((a, b) => b[1] - a[1]);
+  const devMax = Math.max(1, ...devRows.map(r => r[1]));
+  // משתמשים פעילים לפי יום ב-14 הימים האחרונים (מי שנכנס באותו יום)
+  const days14 = Array.from({ length: 14 }, (_, i) => key(new Date(now - (13 - i) * day)));
+  const actByDay = Object.fromEntries(days14.map(k => [k, 0]));
+  list.forEach(u => { if (u.lastDay && u.lastDay in actByDay) actByDay[u.lastDay]++; });
+  const actMax = Math.max(1, ...Object.values(actByDay));
   // נרשמים חדשים ב-30 הימים האחרונים
   const days = Array.from({ length: 30 }, (_, i) => { const d = new Date(now - (29 - i) * day); return key(d); });
   const byDay = Object.fromEntries(days.map(k => [k, 0])); list.forEach(u => { if (u.first) { const k = key(new Date(u.first)); if (k in byDay) byDay[k]++; } });
@@ -4982,6 +4991,8 @@ async function renderAdmin() {
       <div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days[0]).getTime()))}</span><span>היום</span></div></div>
     <div class="card"><h3>שימוש ב-AI (מאז שהתחלנו לספור)</h3>${Object.keys(aiTot).length ? `<div class="adm-ai">${Object.entries(aiTot).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><b>${v}</b><span>${esc(USE_NAME[k] || k)}</span></div>`).join('')}</div>` : '<p class="noev">עוד אין שימוש.</p>'}
       <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
+    <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
+    <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}"><i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 100) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>מכשיר</th></tr></thead><tbody>
       ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;

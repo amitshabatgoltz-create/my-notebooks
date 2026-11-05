@@ -1430,3 +1430,8 @@ html[data-theme="dark"] .cats-sum.ok{color:#6FD9A4}
 .adm-mail{font-size:13px;text-align:right}
 .adm-setup ol{padding-inline-start:20px;line-height:1.8}
 .adm-rules{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12px;overflow-x:auto;white-space:pre;margin:10px 0}
+.adm-dev{display:flex;flex-direction:column;gap:8px}
+.adm-dev-row{display:grid;grid-template-columns:minmax(90px,140px) 1fr 36px 44px;align-items:center;gap:10px}
+.adm-dev-n{font-weight:600;font-size:14px}
+.adm-dev-row b{text-align:left}
+.adm-dev-row small{color:var(--muted);font-size:12.5px}
