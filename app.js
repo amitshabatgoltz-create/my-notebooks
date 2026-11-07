@@ -4572,7 +4572,7 @@ function chatTitle(history) {
   const t = first.replace(/^\(צירף: [^)]*\) ?/, '').replace(/^\(הדביק חומר ארוך שמתחיל ב: (.*)\)$/s, '$1').trim();
   return (t || (files && files[1]) || 'שיחה').replace(/\s+/g, ' ').slice(0, 60);
 }
-// פותחים את השיחה האחרונה. שיחה ששמורה בפורמט הישן עוברת לרשימה.
+// שיחה ששמורה בפורמט הישן עוברת לרשימה. לא פותחים שיחה ישנה לבד: כל פתיחה של העוזר מתחילה שיחה חדשה (ישנות ב"השיחות שלי").
 async function chatLoad() {
   const uid = me && me.uid; if (!uid) return;
   try {
@@ -4582,8 +4582,6 @@ async function chatLoad() {
       await setDoc(doc(chatCol()), { title: chatTitle(d.history || []), history: d.history || [], mem: d.mem || [], createdAt: now, updatedAt: now });
       await deleteDoc(chatOldDoc());
     }
-    const list = await chatFetchList();
-    if (me && me.uid === uid && list.length) chatApply(list[0].id, list[0]);
   } catch (e) { console.warn('chat load', e); }
 }
 function chatSave() {
@@ -4646,8 +4644,14 @@ async function chatLeftHint() {
   const n = await usageLeft('chat');
   $('chatInput').placeholder = n > 5 ? 'כתוב לי כאן…' : n <= 0 ? 'נגמרו ההודעות להיום, מחר אפשר שוב' : n === 1 ? 'נשארה לך הודעה אחת היום' : `נשארו לך ${n} הודעות היום`;
 }
+// כל פעם שפותחים את העוזר (מכל מקום) – שיחה חדשה. אם העוזר עוד עונה, משאירים את השיחה כדי לא לאבד את התשובה.
+function chatFresh() {
+  if (chatBusy || (!chatHistory.length && !chatPending.length)) return;
+  chatClearState(); chatRender();
+}
 function chatOpen(on) {
   if (on && (!chatUid || chatUid !== (me && me.uid))) chatReset();
+  else if (on && $('chatPanel').classList.contains('hidden')) chatFresh();
   $('chatPanel').classList.toggle('hidden', !on); $('chatFab').classList.toggle('hidden', on);
   if (on) {
     chatContext(); chatScroll(); chatLeftHint();
@@ -4658,7 +4662,7 @@ function chatOpen(on) {
 // אותה שיחה בשני מקומות: מסך מלא בכרטיסייה, וחלון קטן מעל מחברת (שם הוא קורא את המחברת)
 function chatPlace(v) {
   const p = $('chatPanel'), full = p.classList.contains('full');
-  if (v === 'chatView') { $('chatView').appendChild(p); p.classList.add('full'); chatOpen(true); return; }
+  if (v === 'chatView') { if (!full) chatFresh(); $('chatView').appendChild(p); p.classList.add('full'); chatOpen(true); return; }
   if (full) { p.classList.remove('full'); $('app').appendChild(p); }
   if (full || v !== 'notebook') chatOpen(false);
   chatContext();
