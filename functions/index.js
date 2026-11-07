@@ -13,7 +13,9 @@ const GEMINI_KEY = defineSecret('GEMINI_API_KEY');
 
 // כמה בקריאות ל-AI מותר ביום לכל סוג. זה קצת יותר מהמכסה שרואים באתר,
 // כי פעולה אחת לפעמים צריכה כמה קריאות (ניסיון חוזר, בדיקה כפולה של תמונה).
-const LIMIT = { chat: 45, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30 };
+const LIMIT = { chat: 45, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30, img: 4 };
+// יצירת תמונות: מנסים לפי הסדר עד שאחד עובד (שמות של מודלים משתנים מדי פעם)
+const IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.0-flash-preview-image-generation'];
 const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יחד
 const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
@@ -82,15 +84,31 @@ exports.ai = onCall({
   timeoutSeconds: 300, memory: '512MiB', maxInstances: 10, concurrency: 40,
 }, async (req, res) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'login');
-  const { kind, model, cfg, parts, search } = req.data || {};
+  const { kind, model, cfg, parts, search, image } = req.data || {};
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
-  if (!MODELS.includes(model)) throw new HttpsError('invalid-argument', 'bad-model');
+  if (image === true ? kind !== 'img' : (kind === 'img' || !MODELS.includes(model))) throw new HttpsError('invalid-argument', 'bad-model');
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
 
   const ai = await gemini();
+  if (image === true) {
+    let lastErr = null;
+    for (const m of IMAGE_MODELS) {
+      try {
+        const r = await ai.models.generateContent({ model: m, contents, config: { responseModalities: ['TEXT', 'IMAGE'] } });
+        const ps = r.candidates?.[0]?.content?.parts || [];
+        const img = ps.filter(p => p.inlineData && /^image\//.test(p.inlineData.mimeType || '')).map(p => ({ m: p.inlineData.mimeType, d: p.inlineData.data })).slice(0, 2);
+        const t = ps.filter(p => typeof p.text === 'string').map(p => p.text).join('').slice(0, 2000);
+        if (img.length) return { t, img };
+        lastErr = new Error('no-image');
+      } catch (e) { lastErr = e; console.warn('image', m, String(e && e.message).slice(0, 200)); if (!/404|not.?found|not supported|NOT_FOUND|INVALID_ARGUMENT/i.test(String(e && e.message))) break; }
+    }
+    const msg = String(lastErr && lastErr.message || 'no-image').slice(0, 300);
+    if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-quota: ' + msg);
+    throw new HttpsError('not-found', 'image-off: ' + msg);
+  }
   // חיפוש ב-Google: התשובה מבוססת על אתרים אמיתיים, והם חוזרים כמקורות (src)
   const sources = r => (r.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ title: String(w.title || '').slice(0, 200), uri: String(w.uri || '').slice(0, 500) }));
   let sent = false;

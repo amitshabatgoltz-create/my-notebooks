@@ -4642,6 +4642,28 @@ $('grImport').onclick = gradesImportDialog;
 
 /* ================= עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
 const CHAT_SHORT = 80;
+// "תצייר לי חתול", "תיצור תמונה של...". תרשים, גרף או צורה – ה-AI מצייר בעצמו (SVG), בלי יצירת תמונה
+const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
+const CHAT_DIAGRAM = /גרף|תרשים|דיאגרמ|משולש|ריבוע|מלבן|מעגל|עיגול|זווית|ציר|מצולע|טבלה|מפה של|פונקצי|שבר|סכמה|מבנה של|graph|chart|diagram|triangle/i;
+async function chatMakeImage(msg, files, b) {
+  b.classList.remove('typing'); b.classList.add('making'); b.textContent = '🎨 מצייר לך…';
+  if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
+  try {
+    const parts = [{ text: `צור תמונה לפי הבקשה של תלמיד. תמונה ברורה, צבעונית ומתאימה לגיל. אם יש בה טקסט – מעט טקסט, באותה שפה של הבקשה.\nהבקשה: ${msg}` }, ...files.map(f => typeof f.part === 'string' ? { text: f.part } : f.part)];
+    const r = await aiCall({ kind: 'img', image: true, model: 'auto', cfg: {}, parts });
+    const img = (r.data && r.data.img) || [];
+    b.classList.remove('making'); chatFill(b, (r.data && r.data.t) || '');
+    if (!img.length) { chatFill(b, 'לא הצלחתי ליצור תמונה הפעם. נסה לתאר אחרת.'); return { text: 'לא הצלחתי ליצור תמונה.' }; }
+    img.slice(0, 2).forEach(x => chatImage(b.appendChild(Object.assign(document.createElement('div'), { className: 'cm-imgbox' })), `data:${x.m};base64,${x.d}`, 'תמונה.png'));
+    useOne('chat');
+    return { text: `🖼️ יצרתי תמונה: ${msg.slice(0, 80)}${(r.data && r.data.t) ? '\n' + r.data.t : ''}\n(התמונה עצמה לא נשמרת בשיחה – אפשר להוריד אותה או להוסיף למחברת)` };
+  } catch (e) {
+    const m = String(e && e.message || '');
+    const why = /daily-limit/.test(m) ? 'נגמרו התמונות להיום (אפשר 4 ביום). מחר אפשר שוב.' : /bad-kind|bad-model|not-found|404|image-off/.test(m) ? 'יצירת תמונות עוד לא הופעלה בשרת. בינתיים אני יכול לצייר תרשימים, גרפים וצורות – פשוט תבקש.' : /quota|429|RESOURCE/.test(m) ? 'יצירת תמונות לא זמינה כרגע בתוכנית החינמית של Google. אני יכול לצייר תרשים או איור פשוט במקום – תבקש "תצייר תרשים של...".' : 'לא הצלחתי ליצור תמונה. נסה שוב בעוד רגע.';
+    b.classList.remove('making'); b.classList.add('err'); b.textContent = why;
+    return { text: why };
+  }
+}
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
 const CHAT_KIT = /שאלון|תבחן|תבחני|בוחן|לתרגל|תרגול|דף חזרה|דף למידה/;
 const CHAT_DEEP = /תבחן|תבחני|שאלון|בוחן|מבחן|תרגול|לתרגל|דף חזרה|דף למידה|תסכם|סיכום/;
@@ -4662,31 +4684,189 @@ function chatContext() {
   if ($('chatLog').querySelector('.chat-empty')) chatRender();
 }
 function chatScroll() { const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
-// תשובה של העוזר: שורות עם "|" (טבלה בטקסט) הופכות לטבלה אמיתית. הכול נבנה עם textContent, אז אין סכנה מ-HTML
-function chatFill(el, text) {
-  const lines = String(text || '').split('\n');
-  const cells = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(x => x.trim().replace(/\*\*(.+?)\*\*/g, '$1')); };
-  const isRow = l => l.includes('|') && cells(l).filter(Boolean).length >= 2;
-  const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
-  el.textContent = '';
-  let buf = [];
-  const flushText = () => { if (buf.length) { el.appendChild(document.createTextNode(buf.join('\n').replace(/\*\*(.+?)\*\*/g, '$1'))); buf = []; } };
-  for (let i = 0; i < lines.length;) {
-    let j = i; while (j < lines.length && (isRow(lines[j]) || (j > i && isSep(lines[j])))) j++;
-    const block = lines.slice(i, j).filter(l => !isSep(l));
-    if (block.length >= 2) {
-      flushText();
-      const hasHead = i + 1 < j && isSep(lines[i + 1]);
-      const wrap = document.createElement('div'); wrap.className = 'chat-tbl-wrap';
-      const tb = document.createElement('table'); tb.className = 'chat-tbl';
-      const n = Math.max(...block.map(l => cells(l).length));
-      block.forEach((l, k) => { const tr = document.createElement('tr'); const c = cells(l); for (let x = 0; x < n; x++) { const td = document.createElement(hasHead && k === 0 ? 'th' : 'td'); td.dir = 'auto'; td.textContent = c[x] || ''; tr.appendChild(td); } tb.appendChild(tr); });
-      wrap.appendChild(tb); el.appendChild(wrap); i = j;
-      if (lines[i] === '') i++;
-    } else { buf.push(lines[i]); i++; }
-  }
-  flushText();
+/* ---- תשובה של העוזר בעיצוב מלא: כותרות, הדגשות, רשימות, טבלאות, קוד ונוסחאות (KaTeX).
+   הכול נבנה עם createElement / textContent, אז שום HTML מה-AI לא נכנס לדף ---- */
+const KATEX = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/';
+let katexP = null;
+function katexLoad() {
+  if (!katexP) katexP = new Promise((res, rej) => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = KATEX + 'katex.min.css'; document.head.appendChild(l);
+    loadScript(KATEX + 'katex.min.js').then(res, rej);
+  }).catch(() => { katexP = null; });
+  return katexP;
 }
+function chatMath(root) {
+  const els = root.querySelectorAll('.cm-math:not(.done)'); if (!els.length) return;
+  const draw = () => els.forEach(el => { try { window.katex.render(el.dataset.tex, el, { displayMode: el.classList.contains('blk'), throwOnError: false, strict: false }); el.classList.add('done'); } catch {} });
+  if (window.katex) draw(); else katexLoad()?.then(draw);
+}
+// נוסחה כטקסט רגיל (להעתקה ולמחברת)
+function texPlain(t) {
+  let x = String(t);
+  for (let k = 0; k < 4; k++) x = x.replace(/\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1)/($2)').replace(/\\sqrt\{([^{}]*)\}/g, '√($1)');
+  const sup = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', n: 'ⁿ', '-': '⁻' };
+  return x.replace(/\^\{?([0-9n-])\}?/g, (m, d) => sup[d] || m).replace(/\\times/g, '×').replace(/\\cdot/g, '·').replace(/\\div/g, '÷').replace(/\\le(q)?/g, '≤').replace(/\\ge(q)?/g, '≥')
+    .replace(/\\neq/g, '≠').replace(/\\pi/g, 'π').replace(/\\approx/g, '≈').replace(/\\pm/g, '±').replace(/\\degree|\^\\circ/g, '°').replace(/\\%/g, '%').replace(/\\text\{([^{}]*)\}/g, '$1')
+    .replace(/\\left|\\right/g, '').replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+}
+function chatInline(parent, text) {
+  // סדר: קוד, נוסחה, קישור, מודגש, נטוי
+  const re = /`([^`\n]+)`|\$\$([^$]+?)\$\$|\$(?![\s\d.,]*\$)(?!\s)([^$\n]+?)(?<!\s)\$|\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*\n]+?)\*\*|__([^_\n]+?)__|(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\w)/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+    let el;
+    if (m[1] != null) { el = document.createElement('code'); el.textContent = m[1]; }
+    else if (m[2] != null || m[3] != null) { el = document.createElement('span'); el.className = 'cm-math'; el.dir = 'ltr'; el.dataset.tex = (m[2] ?? m[3]).trim(); el.textContent = texPlain(el.dataset.tex); }
+    else if (m[4] != null) { el = document.createElement('a'); el.href = m[5]; el.target = '_blank'; el.rel = 'noopener noreferrer'; el.textContent = m[4]; }
+    else if (m[6] != null || m[7] != null) { el = document.createElement('b'); chatInline(el, m[6] ?? m[7]); }
+    else { el = document.createElement('i'); chatInline(el, m[8]); }
+    parent.appendChild(el); last = re.lastIndex;
+  }
+  if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+}
+function chatFill(el, text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n').filter(l => !/^\s*>>/.test(l));
+  const cells = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(x => x.trim()); };
+  const isRow = l => l.includes('|') && cells(l).filter(Boolean).length >= 2;
+  const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && l.includes('-');
+  el.textContent = '';
+  const add = (tag, cls) => { const x = document.createElement(tag); if (cls) x.className = cls; el.appendChild(x); return x; };
+  let para = null, list = null;
+  const endBlocks = () => { para = null; list = null; };
+  for (let i = 0; i < lines.length;) {
+    const l = lines[i];
+    // קוד
+    if (/^\s*```/.test(l)) {
+      let j = i + 1; const code = []; while (j < lines.length && !/^\s*```/.test(lines[j])) code.push(lines[j++]);
+      endBlocks();
+      const svg = code.join('\n').trim();
+      if (/^\s*```\s*(svg|xml|html)?\s*$/i.test(l) && /^<svg[\s>]/i.test(svg)) {
+        // ציור (SVG) מוצג כתמונה: בתוך <img> שום קוד לא רץ
+        if (j < lines.length) chatImage(add('div', 'cm-imgbox'), 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), 'ציור.svg');
+        else add('p').textContent = '✏️ מצייר…';
+      } else { const pre = add('pre', 'cm-code'); pre.dir = 'ltr'; pre.textContent = code.join('\n'); }
+      i = j + 1; continue;
+    }
+    // נוסחה בשורה משלה
+    const blk = l.trim().match(/^\$\$(.+)\$\$$|^\\\[(.+)\\\]$/);
+    if (blk) { endBlocks(); const d = add('div', 'cm-math blk'); d.dir = 'ltr'; d.dataset.tex = (blk[1] ?? blk[2]).trim(); d.textContent = texPlain(d.dataset.tex); i++; continue; }
+    // טבלה
+    let j = i; while (j < lines.length && (isRow(lines[j]) || (j > i && isSep(lines[j])))) j++;
+    const block = lines.slice(i, j).filter(x => !isSep(x));
+    if (block.length >= 2) {
+      endBlocks();
+      const hasHead = i + 1 < j && isSep(lines[i + 1]);
+      const wrap = add('div', 'chat-tbl-wrap'); const tb = document.createElement('table'); tb.className = 'chat-tbl';
+      const n = Math.max(...block.map(x => cells(x).length));
+      block.forEach((x, k) => { const tr = document.createElement('tr'); const c = cells(x); for (let q = 0; q < n; q++) { const td = document.createElement(hasHead && k === 0 ? 'th' : 'td'); td.dir = 'auto'; chatInline(td, c[q] || ''); tr.appendChild(td); } tb.appendChild(tr); });
+      wrap.appendChild(tb); i = j; continue;
+    }
+    const t = l.trim();
+    if (!t) { endBlocks(); i++; continue; }
+    let mm;
+    if ((mm = t.match(/^#{1,6}\s+(.*)$/))) { endBlocks(); chatInline(add('div', 'cm-h'), mm[1].replace(/\*\*/g, '')); i++; continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)) { endBlocks(); add('hr'); i++; continue; }
+    if ((mm = t.match(/^>\s?(.*)$/))) { endBlocks(); chatInline(add('div', 'cm-quote'), mm[1]); i++; continue; }
+    const ul = t.match(/^[-*•·]\s+(.*)$/), ol = t.match(/^(\d{1,3})[.)]\s+(.*)$/);
+    if (ul || ol) {
+      const tag = ul ? 'UL' : 'OL';
+      if (!list || list.tagName !== tag) { para = null; list = add(tag.toLowerCase()); if (ol && +ol[1] !== 1) list.start = +ol[1]; }
+      const li = document.createElement('li'); li.dir = 'auto'; chatInline(li, ul ? ul[1] : ol[2]); list.appendChild(li); i++; continue;
+    }
+    // שורה שמתחילה ברווחים אחרי פריט ברשימה – המשך של אותו פריט
+    if (list && /^\s{2,}/.test(l) && list.lastElementChild) { list.lastElementChild.appendChild(document.createElement('br')); chatInline(list.lastElementChild, t); i++; continue; }
+    list = null;
+    if (!para) { para = add('p'); para.dir = 'auto'; } else para.appendChild(document.createElement('br'));
+    chatInline(para, t); i++;
+  }
+  chatMath(el);
+}
+// תמונה בתשובה (ציור SVG או תמונה שנוצרה), עם הורדה והוספה למחברת
+function chatImage(box, url, name) {
+  const img = document.createElement('img'); img.className = 'cm-img'; img.alt = 'ציור מהעוזר'; img.src = url; box.appendChild(img);
+  const bar = document.createElement('div'); bar.className = 'cm-imgbar';
+  const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'ai-chip'; dl.textContent = '⬇️ הורדה';
+  dl.onclick = async () => { const png = await chatPng(url).catch(() => null); const a = document.createElement('a'); a.href = png || url; a.download = (png ? name.replace(/\.svg$/, '.png') : name); document.body.appendChild(a); a.click(); a.remove(); };
+  const nb = document.createElement('button'); nb.type = 'button'; nb.className = 'ai-chip'; nb.textContent = '📝 למחברת';
+  nb.onclick = async () => {
+    if (!openId) { toast('פתח מחברת, ואז לחץ שוב כדי להוסיף לה את התמונה'); return; }
+    try { const png = await chatPng(url); const blob = await (await fetch(png)).blob(); await addImages([new File([blob], 'ai.png', { type: 'image/png' })]); toast('התמונה נוספה למחברת ✓'); } catch { toast('לא הצלחתי להוסיף את התמונה'); }
+  };
+  bar.append(dl, nb); box.appendChild(bar);
+}
+// ממירים לתמונת PNG (בשביל הורדה ומחברת)
+function chatPng(url) {
+  return new Promise((res, rej) => {
+    const im = new Image(); im.onload = () => { const w = Math.min(1600, im.naturalWidth || 800), h = Math.round(w * ((im.naturalHeight || 600) / (im.naturalWidth || 800))); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); res(c.toDataURL('image/png')); };
+    im.onerror = rej; im.src = url;
+  });
+}
+// הצעות להמשך: שורה אחרונה שמתחילה ב-">>"
+function chatNextIdeas(text) {
+  const m = String(text || '').match(/^\s*>>\s*(.+)\s*$/m);
+  return m ? m[1].split('|').map(x => x.trim().replace(/^["'״]|["'״]$/g, '')).filter(x => x && x.length <= 70).slice(0, 3) : [];
+}
+// המרה של בועה ל-HTML בשביל המחברת (נוסחאות כטקסט, כותרות כ-h3)
+function chatToNotebookHtml(b) {
+  const c = b.cloneNode(true);
+  c.querySelectorAll('.cm-tools,.cm-next,.cm-src').forEach(x => x.remove());
+  c.querySelectorAll('.cm-math').forEach(x => x.replaceWith(document.createTextNode(texPlain(x.dataset.tex || x.textContent))));
+  c.querySelectorAll('.cm-h').forEach(x => { const h = document.createElement('h3'); h.innerHTML = x.innerHTML; x.replaceWith(h); });
+  c.querySelectorAll('pre').forEach(x => { const p = document.createElement('p'); p.textContent = x.textContent; x.replaceWith(p); });
+  c.querySelectorAll('.cm-quote').forEach(x => { const p = document.createElement('p'); p.innerHTML = x.innerHTML; x.replaceWith(p); });
+  c.querySelectorAll('hr').forEach(x => x.remove());
+  return clean(c.innerHTML);
+}
+function chatPlainText(b) {
+  const c = b.cloneNode(true);
+  c.querySelectorAll('.cm-tools,.cm-next,.cm-src').forEach(x => x.remove());
+  c.querySelectorAll('.cm-math').forEach(x => x.replaceWith(document.createTextNode(texPlain(x.dataset.tex || ''))));
+  c.querySelectorAll('tr').forEach(tr => { [...tr.children].forEach((td, k) => { if (k) td.prepend(' | '); }); });
+  c.style.cssText = 'position:fixed;left:-9999px;white-space:pre-wrap'; document.body.appendChild(c); const t = c.innerText.trim(); c.remove(); return t;
+}
+// כפתורים מתחת לתשובה: העתקה, הקראה, הוספה למחברת, תשובה אחרת
+let chatSpeaking = null;
+function chatTools(b, item, isLast) {
+  b.querySelector('.cm-tools')?.remove();
+  const bar = document.createElement('div'); bar.className = 'cm-tools';
+  const mk = (icon, label, fn) => { const x = document.createElement('button'); x.type = 'button'; x.title = label; x.setAttribute('aria-label', label); x.innerHTML = icon; x.onclick = e => { e.stopPropagation(); fn(x); }; bar.appendChild(x); return x; };
+  mk('📋', 'העתקה', async () => { try { await navigator.clipboard.writeText(chatPlainText(b)); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } });
+  if ('speechSynthesis' in window) mk('🔊', 'הקראה', x => {
+    if (chatSpeaking === b) { speechSynthesis.cancel(); chatSpeaking = null; x.textContent = '🔊'; return; }
+    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(chatPlainText(b).replace(/\|/g, ', ')); u.lang = /[א-ת]/.test(item.text) ? 'he-IL' : 'en-US'; u.rate = 1;
+    u.onend = u.onerror = () => { if (chatSpeaking === b) { chatSpeaking = null; x.textContent = '🔊'; } };
+    chatSpeaking = b; x.textContent = '⏹'; speechSynthesis.speak(u);
+  });
+  mk('📝', openId ? 'הוספה למחברת הפתוחה' : 'שמירה כמחברת חדשה', async () => {
+    const h = chatToNotebookHtml(b); if (!h.replace(/<[^>]*>/g, '').trim()) return;
+    if (openId) { const w = document.createElement('div'); w.innerHTML = h; $('editor').append(...w.childNodes); markDirty(); toast('נוסף לסוף המחברת ✓'); return; }
+    try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: chatTitle(chatHistory).slice(0, 60) || 'מהעוזר', color: '#5E5CE6', html: h, createdAt: now, updatedAt: now }); toast('נשמר כמחברת חדשה ✓'); } catch { toast('לא הצלחתי לשמור'); }
+  });
+  if (isLast) mk('🔁', 'תשובה אחרת', () => chatRegenerate());
+  b.appendChild(bar);
+}
+function chatSources(b, src) {
+  if (!src || !src.length) return;
+  const box = document.createElement('div'); box.className = 'cm-src';
+  const t = document.createElement('span'); t.textContent = 'מקורות:'; box.appendChild(t);
+  src.slice(0, 5).forEach(x => { const a = document.createElement('a'); a.href = x.u || x.uri; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '🔗 ' + (x.t || x.title || 'מקור'); box.appendChild(a); });
+  b.appendChild(box);
+}
+function chatNextChips(b, ideas) {
+  if (!ideas.length) return;
+  const box = document.createElement('div'); box.className = 'cm-next';
+  ideas.forEach(q => { const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.dir = 'auto'; c.textContent = q; c.onclick = () => { if (chatBusy) return; $('chatInput').value = q; chatSend(); }; box.appendChild(c); });
+  b.after(box);
+}
+function chatRegenerate() {
+  if (chatBusy) return;
+  const k = chatHistory.length - 2; if (k < 0 || chatHistory[k].role !== 'me') return;
+  const me0 = chatHistory[k].text.replace(/^\(צירף: [^)]*\) ?/, '').replace(/^\(הדביק חומר ארוך שמתחיל ב: (.*)\)$/s, 'תמשיך עם החומר שהדבקתי');
+  chatHistory.splice(k, 2); chatRender();
+  $('chatInput').value = me0 + (me0 ? '' : 'תענה שוב'); chatRegen = true; chatSend();
+}
+let chatRegen = false;
 function chatBubble(role, text) {
   $('chatLog').querySelector('.chat-empty')?.remove();
   const b = document.createElement('div'); b.className = 'chat-msg ' + role; b.dir = 'auto';
@@ -4696,7 +4876,11 @@ function chatBubble(role, text) {
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
 function chatRender() {
   $('chatLog').innerHTML = '';
-  if (chatHistory.length) { chatHistory.forEach(m => { if (m.hidden) return; chatBubble(m.role, m.text); if (m.card) chatCardEl(m); }); return; }
+  if (chatHistory.length) {
+    const lastBot = chatHistory.map(m => m.role).lastIndexOf('bot');
+    chatHistory.forEach((m, k) => { if (m.hidden) return; const b = chatBubble(m.role, m.text); if (m.role === 'bot') { chatSources(b, m.src); chatTools(b, m, k === lastBot && !m.card); } if (m.card) chatCardEl(m); });
+    return;
+  }
   // שיחה ריקה: ברכה והצעות במקום בועה רגילה
   const box = document.createElement('div'); box.className = 'chat-empty';
   const name = ((me && me.displayName) || '').trim().split(/\s+/)[0];
@@ -4755,7 +4939,7 @@ const chatRef = id => doc(db, 'users', me.uid, 'chats', id);
 const chatOldDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
 function chatApply(id, d) {
   chatId = id; chatSavedTitle = d.title || ''; chatCreated = d.createdAt || d.updatedAt || Date.now();
-  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || ''), ...(m.card ? { card: m.card } : {}), ...(m.hidden ? { hidden: true } : {}) }));
+  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || ''), ...(m.card ? { card: m.card } : {}), ...(m.hidden ? { hidden: true } : {}), ...(Array.isArray(m.src) && m.src.length ? { src: m.src.slice(0, 5).map(x => ({ t: String(x.t || ''), u: String(x.u || '') })) } : {}) }));
   chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
   chatPending = []; chatPaintFiles(); chatRender();
 }
@@ -4902,14 +5086,34 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 | תא | תא |
 בלי ** בתוך הטבלה.
 
-${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ענה תמיד בעברית, בטקסט פשוט: בלי markdown ובלי HTML.`;
+${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ציורים ותרשימים: כשמבקשים לצייר או להראות תרשים, גרף, צורה גאומטרית, ציר מספרים, מחזור (מים, מזון), מבנה (תא, אטום) או כל איור שעוזר להבין – צייר בעצמך: כתוב קוד SVG שלם בתוך בלוק \`\`\`svg ... \`\`\`. השתמש ב-viewBox (למשל 0 0 400 300), רקע לבן, צבעים ברורים, קווים עבים, וטקסט קצר בעברית עם font-family="Arial" ו-direction="rtl". ודא שהציור נכון מתמטית או מדעית (מידות, זוויות, צירים). אחרי הציור – הסבר קצר במשפט או שניים.
+
+איך לענות (חשוב מאוד):
+- קודם התשובה עצמה, ישר ולעניין. בלי "בטח!", "שאלה מצוינת" ובלי לחזור על השאלה.
+- שאלה פשוטה = תשובה קצרה (משפט עד שלושה). הסבר של חומר = מסודר ומלא, אבל בלי מילים מיותרות.
+- עיצוב (Markdown): **מודגש** למושגים חשובים, רשימות עם "- " או "1. ", כותרות קצרות עם "### " רק בתשובות ארוכות, ושורה ריקה בין פסקאות.
+- תרגיל או חישוב: פתור שלב אחרי שלב, כל שלב בשורה משלו, תבדוק את התוצאה בעצמך לפני שאתה כותב אותה, וכתוב את התשובה הסופית ב-**מודגש**.
+- נוסחאות: אפשר LaTeX בין סימני $ (למשל $\frac{34}{136} \times 100 = 25\%$). לסכומי כסף כתוב ₪ ולא $.
+- כשמסבירים מושג: הסבר פשוט, ואז דוגמה אחת מהחיים או מהחומר.
+- אם המשתמש טועה – תגיד לו בעדינות מה הטעות ולמה.
+- אם אתה לא בטוח – תגיד שאתה לא בטוח. אל תמציא עובדות, ציטוטים או מקורות.
+- בסוף תשובה רגילה (לא כשיש JSON), הוסף שורה אחרונה שמתחילה ב->> ובה 2–3 הצעות קצרות מאוד להמשך מנקודת המבט של המשתמש, מופרדות ב- | . למשל:
+>> תן לי תרגיל דומה | תסביר שוב בפשטות | מה יכול להופיע במבחן?
+
+ענה תמיד בעברית (אלא אם המשתמש כותב באנגלית או מתרגל אנגלית). בלי HTML.`;
 }
 
 // מפריד בין ה-JSON שבתחילת התשובה לטקסט. JSON שמופיע באמצע התשובה לא נחשב פקודה.
 function chatSplit(raw) {
-  let t = raw.trimStart();
-  const fence = t.match(/^```(?:json)?\s*/i); if (fence) t = t.slice(fence[0].length);
-  if (!t.startsWith('{')) return { text: raw.trim(), action: null };
+  const src = String(raw || '');
+  // מוצאים JSON של פעולה בכל מקום בתשובה (לפעמים ה-AI כותב משפט לפניו)
+  const m = src.match(/(?:```(?:json)?\s*)?\{\s*"action"\s*:/);
+  if (!m) {
+    // בזמן זרם: אולי ה-JSON רק מתחיל ("{" בסוף) – לא מציגים אותו
+    const tail = src.match(/(?:```(?:json)?\s*)?\{\s*("a?c?t?i?o?n?"?)?\s*$/);
+    return tail && tail.index > src.length - 20 ? { text: src.slice(0, tail.index).trim(), action: null, pending: true } : { text: src.trim(), action: null };
+  }
+  const start = m.index, t = src.slice(start + m[0].length - (m[0].length - m[0].indexOf('{')));
   let depth = 0, inStr = false, slash = false, end = -1;
   for (let i = 0; i < t.length && end < 0; i++) {
     const c = t[i];
@@ -4918,10 +5122,12 @@ function chatSplit(raw) {
     else if (c === '{') depth++;
     else if (c === '}' && --depth === 0) end = i;
   }
-  if (end < 0) return { text: '', action: null, partial: true };
+  const before = src.slice(0, start).trim();
+  if (end < 0) return { text: before, action: null, partial: true };
   const rest = t.slice(end + 1).replace(/^\s*```/, '').trim();
-  try { const o = JSON.parse(t.slice(0, end + 1)); return { text: rest, action: o && ['ADD_TO_CALENDAR', 'QUIZ', 'SHEET'].includes(o.action) ? o : null }; }
-  catch { return { text: raw.trim(), action: null, broken: true }; }
+  const text = [before, rest].filter(Boolean).join('\n\n');
+  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'QUIZ', 'SHEET'].includes(o.action) ? o : null }; }
+  catch { return { text, action: null, broken: true }; }
 }
 
 // התאריך מגיע מההודעה של המשתמש, באותה דרך של "הוספה מהירה": תאריך שכתוב, אחרת השיעור הבא במקצוע, אחרת מחר
@@ -4985,12 +5191,14 @@ const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e));
 // כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
 async function chatAsk(parts, onText, onWait, short, deep) {
   const models = aiModels(deep);
-  const cfg = short ? { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } } : { temperature: 0.4 };
+  const cfg = short ? { temperature: 0.5, thinkingConfig: { thinkingBudget: 0 } } : deep ? { temperature: 0.3, thinkingConfig: { thinkingBudget: 2048 } } : { temperature: 0.5, thinkingConfig: { thinkingBudget: 512 } };
   for (let i = 0; ; i++) {
     // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
     aiKindNow = 'chat';
-    try { if (short) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
+    aiSearchNow = chatWeb;
+    try { if (short || AI_VIA_SERVER) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
+      aiSearchNow = false;
       if (i >= 2 || /daily-limit|minute-limit/.test(String(e && e.message)) || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
       await new Promise(r => setTimeout(r, [5000, 15000][i]));
@@ -5022,7 +5230,10 @@ async function chatSend() {
   if (files.some(f => !f.part)) { toast('רגע, הקובץ עוד נטען'); return; }
   if (msg.length > CHAT_MAX_TEXT) { toast('הטקסט ארוך מדי. הדבק חלק ממנו, או העלה אותו כקובץ'); return; }
   const long = msg.length > CHAT_LONG;
-  chatBusy = true; $('chatGo').disabled = true;
+  chatBusy = true; chatGoMode(true);
+  let stopped = false, lastRaw = '';
+  const stopP = new Promise(res => { chatStopper = () => { stopped = true; res(lastRaw); }; });
+  chatRegen = false;
   const uid = me.uid; let memBefore = chatMem;
   let b = null;
   try {
@@ -5038,6 +5249,15 @@ async function chatSend() {
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
+    // בקשה לתמונה אמיתית (לא תרשים): יוצרים תמונה בשרת
+    if (AI_VIA_SERVER && !long && CHAT_IMG.test(msg) && !CHAT_DIAGRAM.test(msg)) {
+      const res = await chatMakeImage(msg, files, b);
+      if (!me || me.uid !== uid) return;
+      const botItem = { role: 'bot', text: res.text };
+      const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
+      chatHistory.push({ role: 'me', text: note + msg }, botItem);
+      chatTools(b, botItem, false); chatSave(); return;
+    }
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
     const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
     const parts = [
@@ -5045,18 +5265,22 @@ async function chatSend() {
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
       `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : msg || 'עזור לי עם מה שהעליתי.'}`,
     ];
-    const raw = await chatAsk(parts, t => {
+    const raw = await Promise.race([chatAsk(parts, t => {
+      if (stopped) return; lastRaw = t;
       const s = chatSplit(t);
       if (s.text && !s.broken) { b.classList.remove('typing'); chatFill(b, s.text); chatScroll(); }
       else if (s.partial && !b.classList.contains('making')) {
         const what = /"QUIZ"/.test(t) ? 'מכין לך שאלון…' : /"SHEET"/.test(t) ? 'מכין לך דף חזרה…' : '';
         if (what) { b.classList.remove('typing'); b.classList.add('making'); b.textContent = what; chatScroll(); }
       }
-    }, () => { b.classList.remove('typing'); b.textContent = 'העוזר עמוס, מנסה שוב…'; }, short, deep);
+    }, () => { b.classList.remove('typing'); b.textContent = 'העוזר עמוס, מנסה שוב…'; }, short, deep), stopP]);
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
-    let text = s.partial ? raw.trim() : s.text, card = null;
+    const src = (aiLastSrc || []).filter(x => x && x.uri).slice(0, 5).map(x => ({ t: x.title || '', u: x.uri }));
+    const next = stopped ? [] : chatNextIdeas(s.text);
+    let text = (s.partial ? s.text || raw.trim() : s.text).replace(/^\s*>>.*$/gm, '').trim(), card = null;
+    if (stopped && !text) text = '(עצרת את התשובה)';
     // JSON שבור או חתוך של שאלון לא מוצג למשתמש
     if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
     if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
@@ -5072,9 +5296,14 @@ async function chatSend() {
       if (s.action && kitLeft <= 0) text = 'נגמרו השאלונים ודפי החזרה להיום. מחר אפשר שוב.';
       else if (s.action && !card) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
       else if (card && !text) text = card.kind === 'quiz' ? 'הכנתי לך שאלון. בהצלחה!' : 'הכנתי לך דף חזרה.';
-      b.classList.remove('typing', 'making'); b.textContent = text || 'לא הצלחתי לענות. נסה שוב.';
+      b.classList.remove('typing', 'making'); chatFill(b, text || 'לא הצלחתי לענות. נסה שוב.');
     }
-    const botItem = { role: 'bot', text, ...(card ? { card } : {}) };
+    const botItem = { role: 'bot', text, ...(card ? { card } : {}), ...(src.length ? { src } : {}) };
+    chatSources(b, src);
+    document.querySelectorAll('#chatLog .cm-tools button[title="תשובה אחרת"]').forEach(x => x.remove());
+    document.querySelectorAll('#chatLog .cm-next').forEach(x => x.remove());
+    chatTools(b, botItem, !card);
+    if (!card) chatNextChips(b, next);
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
     chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, botItem);
     if (card) chatCardEl(botItem);
@@ -5088,7 +5317,7 @@ async function chatSend() {
       if (!input.value) input.value = msg;
     }
   } finally {
-    chatBusy = false; $('chatGo').disabled = false; if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
+    chatBusy = false; chatStopper = null; aiSearchNow = false; chatGoMode(false); if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
   }
 }
 
@@ -5269,7 +5498,14 @@ $('haGo').onclick = homeAsk;
 $('haFile').onclick = () => { showTab('chat'); $('chatFile').click(); };
 $('haInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); homeAsk(); } });
 $('haInput').addEventListener('input', () => { const i = $('haInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; });
-$('chatGo').onclick = chatSend;
+let chatStopper = null, chatWeb = false;
+function chatGoMode(busy) {
+  const g = $('chatGo'); g.disabled = false; g.classList.toggle('stop', busy);
+  g.innerHTML = busy ? '<span class="sq"></span>' : '<svg><use href="#i-send"/></svg>';
+  g.title = busy ? 'עצירה' : 'שליחה'; g.setAttribute('aria-label', g.title);
+}
+$('chatGo').onclick = () => { if (chatBusy) { chatStopper && chatStopper(); return; } chatSend(); };
+$('chatWeb').onclick = () => { chatWeb = !chatWeb; $('chatWeb').classList.toggle('on', chatWeb); $('chatWeb').setAttribute('aria-pressed', chatWeb); toast(chatWeb ? '🔎 חיפוש באינטרנט פועל: התשובות יבואו עם מקורות' : 'חיפוש באינטרנט כבוי'); };
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }
   else if (e.key === 'Escape' && !$('chatPanel').classList.contains('full')) chatOpen(false);
