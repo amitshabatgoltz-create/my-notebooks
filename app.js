@@ -3632,20 +3632,27 @@ const OCR_MAX_IMGS = 4;
 const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה', pr: 'דף תרגול דומה' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
+// היום לפי שעון ישראל, באותה נוסחה שהשרת בודק בכללים (firestore.rules → meta/usage)
+const usageDay = () => Math.floor((Date.now() + 10800000) / 864e5);
+const USE_KEYS = ['ocr', 'sum', 'qa', 'fc', 'chat', 'cf', 'kit', 'pr'];
 async function loadUsage() {
-  const tk = todayKey();
-  if (usage && usage.date === tk) return usage;
-  try { const sn = await getDoc(usageDoc()); const u = sn.exists() ? sn.data() : null; usage = u && u.date === tk ? u : { date: tk, ocr: 0, sum: 0 }; }
-  catch { usage = usage && usage.date === tk ? usage : { date: tk, ocr: 0, sum: 0 }; }
+  const tk = usageDay();
+  if (usage && usage.day === tk) return usage;
+  try { const sn = await getDoc(usageDoc()); const u = sn.exists() ? sn.data() : null; usage = u && u.day === tk ? { ...u, saved: true } : { day: tk }; }
+  catch { usage = usage && usage.day === tk ? usage : { day: tk }; }
   return usage;
 }
 async function usageLeft(k) { await refreshUnlimited(); if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
+// המונה בשרת יכול רק לעלות: באותו יום מוסיפים (increment), ביום חדש כותבים מסמך חדש
 function useOne(k, count = 1) {
   track('ai_use', { kind: k, count }); statsAi(k, count);
   if (isUnlimited()) return;
-  const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
+  const tk = usageDay(); if (!usage || usage.day !== tk) usage = { day: tk };
   usage[k] = (usage[k] || 0) + count;
-  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0, kit: usage.kit || 0, pr: usage.pr || 0 }).catch(() => {});
+  const inc = () => updateDoc(usageDoc(), { [k]: increment(count) });
+  if (usage.saved) { inc().catch(e => console.warn('usage', e)); return; }
+  const full = { date: todayKey(), day: tk }; USE_KEYS.forEach(x => { full[x] = usage[x] || 0; });
+  setDoc(usageDoc(), full).then(() => { usage.saved = true; }).catch(() => inc().then(() => { usage.saved = true; }).catch(e => console.warn('usage', e)));
 }
 function quotaText(k, left) {
   if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה';

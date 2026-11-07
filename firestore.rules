@@ -3,7 +3,36 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // כל משתמש יכול לקרוא ולכתוב רק את המחברות והיומן של עצמו
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // הכול חוץ מהמונה של ה-AI (שלו יש כללים משלו למטה)
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.path != /databases/$(database)/documents/users/$(userId)/meta/usage;
+    }
+    // 🔒 המכסה היומית של ה-AI: המונה יכול רק לעלות. אי אפשר לאפס, למחוק או לקפוץ ליום אחר כדי לקבל עוד.
+    // day = מספר הימים מ-1970 לפי שעון ישראל. השרת בודק שהוא לא אחרי היום של היום.
+    match /users/{userId}/meta/usage {
+      function counters() { return ['ocr', 'sum', 'qa', 'fc', 'chat', 'cf', 'kit', 'pr']; }
+      function today() { return math.floor((request.time.toMillis() + 10800000) / 86400000); }
+      function n(d, k) { return d.get(k, 0); }
+      function validNew() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['date', 'day'].concat(counters()))
+          && d.day is int && d.day <= today() && d.day >= today() - 1
+          && d.date is string && d.date.size() <= 10
+          && n(d, 'ocr') is int && n(d, 'sum') is int && n(d, 'qa') is int && n(d, 'fc') is int
+          && n(d, 'chat') is int && n(d, 'cf') is int && n(d, 'kit') is int && n(d, 'pr') is int;
+      }
+      function noneDown() {
+        let a = request.resource.data; let b = resource.data;
+        return n(a, 'ocr') >= n(b, 'ocr') && n(a, 'sum') >= n(b, 'sum') && n(a, 'qa') >= n(b, 'qa') && n(a, 'fc') >= n(b, 'fc')
+          && n(a, 'chat') >= n(b, 'chat') && n(a, 'cf') >= n(b, 'cf') && n(a, 'kit') >= n(b, 'kit') && n(a, 'pr') >= n(b, 'pr');
+      }
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId && validNew();
+      allow update: if request.auth != null && request.auth.uid == userId && validNew()
+        && (!('day' in resource.data) || request.resource.data.day > resource.data.day
+            || (request.resource.data.day == resource.data.day && noneDown()));
+      allow delete: if false;
     }
     // תמונה אחת לפי הקוד שלה: כדי שחברים יראו תמונות במחברת ששיתפת (אי אפשר לקבל רשימה של כל התמונות)
     match /users/{userId}/images/{imageId} {
