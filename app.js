@@ -9,6 +9,7 @@ import {
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
 import { getAnalytics, isSupported as analyticsSupported, logEvent } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
 import { getDatabase, ref as dbRef, set as dbSet, onValue, onDisconnect, remove as dbRemove } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
 import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615860";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
@@ -1003,9 +1004,29 @@ const MODEL_LIGHT = 'gemini-3.5-flash-lite', MODEL_STRONG = 'gemini-3.5-flash';
 const isPro = () => false;
 const aiModels = strongFirst => !isPro() ? [MODEL_LIGHT] : strongFirst ? [MODEL_STRONG, MODEL_LIGHT] : [MODEL_LIGHT, MODEL_STRONG];
 let aiService = null;
+// 🔒 AI דרך השרת (functions/index.js): השרת סופר כל בקשה ואי אפשר לעקוף אותו.
+// false = הדרך הישנה (ישר מהדפדפן). מעבירים ל-true רק אחרי שהשרת עלה (firebase deploy --only functions).
+const AI_VIA_SERVER = false;
+// איזה סוג פעולה עכשיו – לפי זה השרת סופר (chat, sum, qa, pr, fc, ocr, imp)
+let aiKindNow = 'chat';
+let aiCall = null;
 function aiModel(name, generationConfig) {
+  if (AI_VIA_SERVER) return aiServerModel(name, generationConfig);
   if (!aiService) aiService = getAI(fb, { backend: new GoogleAIBackend() });
   return getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name });
+}
+// מתנהג כמו המודל של Firebase AI (generateContent / generateContentStream), אבל דרך השרת
+function aiServerModel(name, cfg) {
+  if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
+  const body = parts => ({ kind: aiKindNow, model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
+  const chunk = c => ({ text: () => c.t || '', candidates: c.f ? [{ finishReason: c.f }] : [], promptFeedback: c.b ? { blockReason: c.b } : undefined });
+  return {
+    async generateContent(parts) { const r = await aiCall(body(parts)); return { response: chunk(r.data || {}) }; },
+    async generateContentStream(parts) {
+      const { stream } = await aiCall.stream(body(parts));
+      return { stream: (async function* () { for await (const c of stream) yield chunk(c || {}); })() };
+    },
+  };
 }
 // קריאה מהירה של קובץ (מערכת שעות / לוח מבחנים): מודל קל, בלי "חשיבה", ותשובה ישר כ-JSON
 async function aiExtract(prompt, part) {
@@ -1111,6 +1132,7 @@ async function runSummary(n, text, images, topics) {
   let html = '', lastErr = null;
   const box = document.createElement('div'); box.className = 'ai-box live-read';
   const dl = document.querySelector('#dialogRoot .dialog'); if (dl) { dl.classList.add('ai-result'); dl.insertBefore(box, dl.querySelector('.btn')); }
+  aiKindNow = 'sum';
   try { html = await aiText(aiModels(true), { temperature: 0.3, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { if (cancelled) return; const sp = document.querySelector('#dialogRoot .ai-spinner'); if (sp) sp.remove(); box.innerHTML = clean(t.replace(/^```(?:html)?\s*/i, '')); box.scrollTop = box.scrollHeight; }); }
   catch (e) { lastErr = e; }
   if (cancelled) return;
@@ -1125,6 +1147,8 @@ function showAiError(e) {
   let why = 'לא הצלחתי ליצור סיכום. נסה שוב בעוד דקה.';
   if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
   else if (/app.?check|appcheck|attestation/i.test(msg)) why = recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE') ? 'Firebase עדיין לא מזהה את האתר (App Check). בדוק שמפתח ה-reCAPTCHA נשמר ב-App Check ← Apps, וחכה כמה דקות.' : 'צריך להגדיר App Check עם reCAPTCHA כדי שהסיכום יעבוד (ראה README, שלב 7).';
+  else if (/daily-limit/.test(msg)) why = 'הגעת למקסימום השימושים ב-AI להיום. מחר אפשר שוב.';
+  else if (/minute-limit/.test(msg)) why = 'יותר מדי בקשות בבת אחת. חכה דקה ונסה שוב.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(msg)) why = 'הגעת למגבלת השימוש החינמית לרגע. נסה שוב בעוד כמה דקות.';
   dialog(d => {
     d.innerHTML = '<h3>לא הצלחתי ליצור סיכום</h3>';
@@ -2805,7 +2829,7 @@ async function timetableDialog() {
 - אם יש שני שיעורים באותה שעה באותו יום, שים אותם באותו פריט עם " / " ביניהם.
 - כלול רק משבצות שיש בהן שיעור. אם אותו מקצוע מופיע כמה פעמים, כתוב אותו באותו שם בדיוק.
 - אם כתובות במערכת השעות של כל שיעור (מתי מתחיל ומתי נגמר), הוסף גם "times": {"1":"08:00-08:45","2":"08:45-09:30"} לפי מספר השעה. אם לא כתוב – אל תמציא, פשוט אל תכלול times.`;
-        const txt = await aiExtract(prompt, { inlineData: { mimeType: mime, data } }); stop();
+        aiKindNow = 'imp'; const txt = await aiExtract(prompt, { inlineData: { mimeType: mime, data } }); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const days = {}; for (let i = 0; i < 6; i++) days[i] = [];
         if (j.times && typeof j.times === 'object') { const nt = {}; Object.entries(j.times).forEach(([k, v]) => { if (/^\d{1,2}$/.test(k) && /\d/.test(String(v))) nt[+k] = String(v).replace(/\s+/g, '').replace(/[–—]/g, '-').slice(0, 15); }); if (Object.keys(nt).length) times = nt; }
@@ -3087,7 +3111,7 @@ async function testsDialog() {
 - time: שעה בפורמט HH:MM אם כתובה, אחרת "".
 - class: אם הלוח מחולק לכיתות או לקבוצות (למשל ח1, ח2, הקבצה א), כתוב לאיזו. אחרת "".
 - אל תמציא. אם אין תאריך ברור לשורה, דלג עליה.`;
-        const txt = await aiExtract(prompt, part); stop();
+        aiKindNow = 'imp'; const txt = await aiExtract(prompt, part); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const tk = todayKey();
         items = (Array.isArray(j.items) ? j.items : []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x && x.date || '')).slice(0, 150).map((x, i) => {
@@ -3519,6 +3543,7 @@ async function ocrDialog() {
 - טקסט בצד הלוח שכן קשור לשיעור (למשל הגדרה, מילה חשובה, שיעורי בית) – שים בסוף, תחת <h3>בצד הלוח</h3>.`;
         const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
         // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
+        aiKindNow = 'ocr';
         const second = exact
           ? aiText(aiModels(true), { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
           : aiText(aiModels(false), { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
@@ -3875,7 +3900,7 @@ async function qaDialog() {
         }
         const parts = [QA_PROMPT, `=== המחברת: "${n ? n.title : $('title').value}" ===\n${text || '(רק תמונות)'}`, ...images.slice(0, 6), `=== השאלות ===\n${q || '(השאלות בתמונה המצורפת)'}`, ...qParts];
         const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
-        const html0 = await aiText(aiModels(true), { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
+        aiKindNow = 'qa'; const html0 = await aiText(aiModels(true), { temperature: 0.2, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = qaHtml(t); live.scrollTop = live.scrollHeight; });
         stop(); useOne('qa');
         closeDialog(); qaResult(n, qaHtml(html0));
       } catch (e) { stop(); console.error(e); showAiError(e); }
@@ -3989,7 +4014,7 @@ async function prDialog() {
         }
         if (q) parts.push('=== הטקסט של הדף ===\n' + q.slice(0, 60000));
         const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
-        const html0 = await aiText(aiModels(true), { temperature: 0.7, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = prHtml(t); live.scrollTop = live.scrollHeight; });
+        aiKindNow = 'pr'; const html0 = await aiText(aiModels(true), { temperature: 0.7, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = prHtml(t); live.scrollTop = live.scrollHeight; });
         const html = prHtml(html0);
         if (!html.replace(/<[^>]*>/g, '').trim()) throw new Error('empty');
         stop(); useOne('pr');
@@ -4074,7 +4099,7 @@ async function fcMake(n) {
   });
   const st = document.querySelector('#fcSt'); const stop = ticking(st, 'קורא את המחברת');
   try {
-    const j = await aiJson(FC_PROMPT, [`=== המחברת: "${n.title}" ===\n${text.slice(0, 60000)}`, ...images.slice(0, 6)]);
+    aiKindNow = 'fc'; const j = await aiJson(FC_PROMPT, [`=== המחברת: "${n.title}" ===\n${text.slice(0, 60000)}`, ...images.slice(0, 6)]);
     stop();
     const items = (Array.isArray(j.cards) ? j.cards : []).filter(c => c && c.q && c.a).slice(0, 30).map(c => ({ q: String(c.q).slice(0, 300), a: String(c.a).slice(0, 600) }));
     if (!items.length) throw new Error('no cards');
@@ -4462,7 +4487,7 @@ function gradesImportDialog() {
       try {
         const parts = []; if (txt) parts.push('=== טקסט שהודבק ===\n' + txt.slice(0, 30000));
         for (const f of files) parts.push(await fileToAiPart(f));
-        const j = await aiJson(GR_PROMPT(), parts); stop();
+        aiKindNow = 'imp'; const j = await aiJson(GR_PROMPT(), parts); stop();
         found = (Array.isArray(j.grades) ? j.grades : []).filter(x => x && x.s && Number.isFinite(+x.g) && +x.g >= 0 && +x.g <= 100).slice(0, 80)
           .map(x => ({ s: normS(String(x.s).split('/').map(cleanSubj).filter(Boolean)[0] || x.s), n: String(x.n || ''), g: +x.g, t: String(x.t || '') || guessType(x.n), d: /^\d{4}-\d{2}-\d{2}$/.test(x.d || '') ? x.d : '' }));
         found.forEach(x => { x.dup = grades.some(y => same(x, y)); x.on = !x.dup; });
@@ -4792,9 +4817,10 @@ async function chatAsk(parts, onText, onWait, short, deep) {
   const cfg = short ? { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } } : { temperature: 0.4 };
   for (let i = 0; ; i++) {
     // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
+    aiKindNow = 'chat';
     try { if (short) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
-      if (i >= 2 || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
+      if (i >= 2 || /daily-limit|minute-limit/.test(String(e && e.message)) || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
       await new Promise(r => setTimeout(r, [5000, 15000][i]));
     }
@@ -4808,6 +4834,8 @@ function chatWhy(e) {
   else if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
   else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
+  else if (/daily-limit/.test(m)) why = 'נגמרו ההודעות לעוזר להיום. מחר אפשר שוב.';
+  else if (/minute-limit/.test(m)) why = 'יותר מדי הודעות בבת אחת. חכה דקה ונסה שוב.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) why = 'העוזר הגיע למגבלת השימוש של כל האתר. נסה שוב בעוד דקה. אם זה לא עובר, המכסה נגמרה להיום והיא מתחדשת בבוקר.';
   else if (/too large|exceeds|token count|\b413\b/i.test(m)) why = 'הטקסט ארוך מדי בשביל Gemini. נסה להדביק חלק קטן יותר.';
   else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';
