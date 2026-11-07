@@ -4064,13 +4064,40 @@ function prResult(n, html, sol) {
 }
 $('aiPr').addEventListener('click', prDialog);
 /* ===== כתיבה עם AI: כותבים מה צריך (העשרה, השערה, מסקנות...), וה-AI כותב ישר לתוך המחברת, במקום של הסמן ===== */
-const WR_IDEAS = [
-  ['העשרה ממקור מוסמך', 'כתוב העשרה לפי מקור מידע מוסמך על הגורמים בניסוי (עד 5 גורמים). לכל גורם: מה ידוע עליו מהמדע, ואיך הוא יכול להשפיע על התוצאות. בסוף ציין את המקורות.'],
-  ['השערה והסבר', 'כתוב השערה לשאלת החקר, ואחריה הסבר מדעי קצר למה זה צפוי לקרות.'],
-  ['מבוא', 'כתוב מבוא קצר לעבודה: על מה העבודה, למה הנושא חשוב, ומה שאלת החקר.'],
-  ['מסקנות', 'כתוב מסקנות לעבודה לפי מה שכתוב במחברת: האם ההשערה אוששה, ומה למדנו.'],
-  ['להמשיך מכאן', 'המשך לכתוב מהמקום שבו המחברת נגמרת, באותו סגנון ובאותו נושא.'],
+// רעיונות מוכנים לפי המקצוע של המחברת (לפי השם והתוכן שלה). תמיד יש גם "לפי ההוראות של המורה" ו"להמשיך מכאן"
+const WR_TEACHER = ['לפי ההוראות של המורה', 'קרא את ההוראות של המורה (בתמונה או בטקסט למטה) ובצע את המשימה בדיוק לפי מה שהיא מבקשת, באותו מבנה ובאותו סדר.'];
+const WR_GO_ON = ['להמשיך מכאן', 'המשך לכתוב מהמקום שבו המחברת נגמרת, באותו סגנון ובאותו נושא.'];
+const WR_SUBJ = [
+  [/מתמטיק|חשבון|גאומטר|גיאומטר|אלגבר|משווא|פונקצי|שבר|אחוז|math/i, [
+    ['דרך פתרון מפורטת', 'פתור את התרגילים במחברת שלב אחרי שלב, עם הסבר קצר לכל שלב, ותשובה סופית מודגשת.'],
+    ['עוד תרגילים להתאמן', 'כתוב 5 תרגילים חדשים באותו נושא ובאותה רמה כמו במחברת, ובסוף מפתח תשובות.'],
+    ['הסבר לנושא', 'הסבר בפשטות את הנושא שבמחברת: הכלל או הנוסחה, ודוגמה פתורה אחת.'],
+    ['טעויות נפוצות', 'כתוב את הטעויות הנפוצות בנושא הזה ואיך להימנע מהן, עם דוגמה קצרה לכל אחת.'],
+  ]],
+  [/מדע|ביולוג|כימי|פיזיק|ניסוי|חקר|תא|אנרגי|science/i, [
+    ['העשרה ממקור מוסמך', 'כתוב העשרה לפי מקור מידע מוסמך על הגורמים או המושגים בעבודה (עד 5). לכל אחד: מה ידוע עליו מהמדע ואיך הוא קשור לנושא. בסוף ציין את המקורות.'],
+    ['השערה והסבר', 'כתוב השערה לשאלת החקר, ואחריה הסבר מדעי קצר למה זה צפוי לקרות.'],
+    ['מבוא', 'כתוב מבוא קצר לעבודה: על מה העבודה, למה הנושא חשוב, ומה שאלת החקר.'],
+    ['מסקנות', 'כתוב מסקנות לפי מה שכתוב במחברת: האם ההשערה אוששה, ומה למדנו.'],
+  ]],
+  [/אנגלית|english/i, [
+    ['הסבר דקדוק', 'Explain the grammar topic in the notebook simply, in Hebrew, with 3 example sentences in English.'],
+    ['תרגול', 'Write 8 practice sentences on the topic in the notebook (fill in the blank), with an answer key at the end.'],
+    ['אוצר מילים', 'Make a vocabulary list from the notebook: English word – Hebrew translation – example sentence.'],
+  ]],
+  [/היסטור|תנ"?ך|ספרות|לשון|אזרחות|גאוגרפ|גיאוגרפ|חיבור|שירה|סיפור/i, [
+    ['תשובה פתוחה', 'כתוב תשובה מלאה ומנומקת לשאלה, עם טענה, הסבר ודוגמה מהחומר.'],
+    ['חיבור / עבודה', 'כתוב חיבור קצר בנושא: פתיחה, 2–3 פסקאות גוף וסיום.'],
+    ['השוואה', 'כתוב השוואה בטבלה בין המושגים או הדמויות שבמחברת: מה דומה ומה שונה.'],
+    ['ציר זמן / עיקרים', 'סדר את העיקר מהמחברת: אירועים או רעיונות לפי הסדר, כל אחד בשורה קצרה.'],
+  ]],
 ];
+const WR_GENERAL = [
+  ['העשרה ממקור מוסמך', 'כתוב העשרה על הנושא לפי מקור מידע מוסמך, ובסוף ציין את המקורות.'],
+  ['הסבר פשוט', 'הסבר את הנושא שבמחברת בפשטות, עם דוגמה.'],
+  ['סיכום קצר', 'כתוב סיכום קצר של העיקר בנקודות.'],
+];
+const wrIdeas = n => { const t = (n.title || '') + ' ' + $('editor').innerText.slice(0, 2000); const m = WR_SUBJ.find(([re]) => re.test(t)); return [WR_TEACHER, ...(m ? m[1] : WR_GENERAL), WR_GO_ON]; };
 const WR_PROMPT = `אתה עוזר לתלמיד לכתוב חלק בעבודה או במחברת שלו.
 כתוב בעברית, כמו תלמיד טוב: ברור, מדויק ופשוט, בלי מילים מפוצצות.
 החזר HTML נקי בלבד (בלי \`\`\`): <h3> לכותרות משנה, <p>, <ul>/<ol>/<li>, <b>, ו-<table> רק אם באמת צריך טבלה.
@@ -4079,29 +4106,41 @@ const WR_PROMPT = `אתה עוזר לתלמיד לכתוב חלק בעבודה �
 - אם ביקשו מספר פריטים (למשל "עד 5 גורמים") – עמוד בזה, וכל פריט עם כותרת <h3> משלו.
 - היעזר במה שכתוב במחברת כדי להבין את הנושא (שאלת החקר, הגורמים, הניסוי), אבל אל תעתיק ממנה.
 - עובדות: רק דברים נכונים ומקובלים במדע. אם אתה לא בטוח במשהו – אל תכתוב אותו.
+- מתמטיקה: כל שלב בשורה משלו, תשובה סופית ב-<b>. נוסחאות בטקסט רגיל עם סימנים (x², √, ×, ÷, ≤, π, שברים כ-3/4) ו-<sup>/<sub>. בלי LaTeX ובלי $.
+- אם יש הוראות של המורה (בתמונה או בטקסט) – הן הכי חשובות. עשה בדיוק מה שהן מבקשות.
+- כתוב באותה שפה של המשימה (אם המשימה באנגלית – באנגלית).
 - אם ביקשו מקורות: בסוף כתוב <h3>מקורות</h3> עם מקורות אמיתיים ומוכרים בלבד (למשל מכון דוידסון לחינוך מדעי, האנציקלופדיה העברית, אתר משרד החינוך, ספר לימוד). אל תמציא שמות של מאמרים, ספרים או קישורים.`;
 async function wrDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   const left = await usageLeft('wr'); if (left <= 0) { limitDialog('wr'); return; }
   const sel = (() => { const s = getSelection(); return s.rangeCount && $('editor').contains(s.anchorNode) ? s.toString().trim() : ''; })();
   const at = savedRange && $('editor').contains(savedRange.startContainer) ? savedRange.cloneRange() : null;
+  const ideas = wrIdeas(n);
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg', 'wr-dlg');
     d.innerHTML = `<h3>✍️ כתיבה עם AI</h3><p class="muted-s">כותבים מה צריך, וה-AI כותב את זה ישר לתוך המחברת${at ? ', במקום שבו עמד הסמן' : ''}. הוא קורא את מה שכבר כתוב במחברת, אז הוא מכיר את הנושא.</p>
-      <div class="wr-ideas">${WR_IDEAS.map((x, i) => `<button type="button" class="ai-chip" data-i="${i}">${x[0]}</button>`).join('')}</div>
-      <textarea id="wrText" rows="4" placeholder="מה לכתוב? למשל: כתוב העשרה לפי מקור מידע מוסמך על 5 הגורמים בניסוי"></textarea>
+      <div class="wr-ideas">${ideas.map((x, i) => `<button type="button" class="ai-chip" data-i="${i}">${x[0]}</button>`).join('')}</div>
+      <textarea id="wrText" rows="4" placeholder="מה לכתוב? אפשר להעתיק לכאן את המשימה של המורה, או לכתוב במילים שלך"></textarea>
+      <button type="button" class="tt-up small" id="wrUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום של המשימה</b><span>לא חובה · תמונה או PDF, עד 2</span></button>
+      <input type="file" id="wrFile" accept="image/*,application/pdf,.pdf,.docx,.txt" multiple hidden>
+      <div class="oc-thumbs" id="wrThumbs"></div>
       ${sel ? `<p class="muted-s wr-sel">✓ ה-AI יתמקד בטקסט שסימנת: "${esc(sel.slice(0, 80))}${sel.length > 80 ? '…' : ''}"</p>` : ''}
       <p class="muted-s" style="margin:6px 0 0">${quotaText('wr', left)}</p>
       <p class="tt-status" id="wrStatus"></p>`;
     const ta = d.querySelector('#wrText');
-    d.querySelector('.wr-ideas').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; ta.value = WR_IDEAS[+b.dataset.i][1]; ta.focus(); };
+    d.querySelector('.wr-ideas').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; ta.value = ideas[+b.dataset.i][1]; ta.focus(); };
+    let files = [];
+    const paint = () => { d.querySelector('#wrThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : `<span>${esc((f.name.split('.').pop() || 'קובץ').toUpperCase())}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
+    d.querySelector('#wrThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
+    d.querySelector('#wrUp').onclick = () => d.querySelector('#wrFile').click();
+    d.querySelector('#wrFile').onchange = ev => { [...ev.target.files].slice(0, 2 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     const row = document.createElement('div'); row.className = 'row';
     const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'לכתוב';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
     setTimeout(() => ta.focus(), 50);
     go.onclick = async () => {
-      const q = ta.value.trim(); if (!q) { toast('כתוב מה לכתוב, או בחר אחד מהרעיונות'); return; }
+      const q = ta.value.trim() || (files.length ? WR_TEACHER[1] : ''); if (!q) { toast('כתוב מה לכתוב, צלם את המשימה, או בחר אחד מהרעיונות'); return; }
       go.disabled = true;
       const st = d.querySelector('#wrStatus'); const stop = ticking(st, 'כותב...');
       try {
@@ -4109,9 +4148,10 @@ async function wrDialog() {
         const { text, images } = await notebookParts();
         const parts = [WR_PROMPT, `=== המחברת: "${n.title}" ===\n${text.slice(0, 40000) || '(ריקה)'}`, ...images.slice(0, 4)];
         if (sel) parts.push(`=== הטקסט שהתלמיד סימן (התמקד בו) ===\n${sel.slice(0, 4000)}`);
+        for (const f of files) { try { parts.push('=== המשימה של המורה (קובץ) ==='); parts.push(await fileToAiPart(f)); } catch (e) { if (!(e && e.code === 'type')) throw e; } }
         parts.push(`=== מה לכתוב ===\n${q}`);
         const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
-        aiKindNow = 'chat'; aiSearchNow = /מקור|העשרה|מחקר|נתונים|לפי/.test(q);
+        aiKindNow = 'chat'; aiSearchNow = /מקור|העשרה|מחקר|נתונים/.test(q);
         let html0;
         try { html0 = await aiText(aiModels(true), { temperature: 0.5, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { live.innerHTML = prHtml(t); live.scrollTop = live.scrollHeight; }); }
         finally { aiSearchNow = false; }
