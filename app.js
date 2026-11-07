@@ -128,6 +128,7 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
+    setTimeout(welcomeMaybe, 1600);
     showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     notebooks = []; events = []; openId = null;
@@ -5629,3 +5630,109 @@ function coachTour(d, steps) {
   bub.onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; e.stopPropagation(); const c = b.dataset.c; if (c === 'next') { if (i === steps.length - 1) off(); else { i++; show(); } } else if (c === 'back') { i--; show(); } else off(); };
   show();
 }
+
+
+/* ===== סיור ראשון באתר: פעם ראשונה שמתחברים מראים כל דבר, עם זרקור על הדבר האמיתי במסך ===== */
+const TOUR = [
+  { sel: '#homeNotes', e: '📚', t: 'המחברות שלך', x: 'מחברת לכל מקצוע. כותבים, מוסיפים תמונות וטבלאות, והכול נשמר לבד.' },
+  { sel: '#homeOcr', e: '📷', t: 'צילום לוח', x: 'מצלמים את הלוח בסוף השיעור, וה-AI מקליד את זה למחברת במקומך.' },
+  { sel: '#homePr', e: '📝', t: 'דף תרגול דומה', x: 'מעלים דף חזרה מהמורה ומקבלים דף חדש באותו סגנון להתאמן, עם פתרונות.' },
+  { sel: '#weekCard', e: '📅', t: 'השבוע שלך', x: 'מבחנים ושיעורי בית במבט אחד. לפני מבחן – לחיצה אחת בונה לך תוכנית למידה.' },
+  { sel: '.home-ask', e: '✨', t: 'העוזר הלימודי', x: 'שואלים כל דבר: להסביר, לפתור תרגיל, לבחון אותך. כותבים "יש לי מבחן ביום שני" – והוא מוסיף ליומן.' },
+  { sel: '[data-tab="tt"]', e: '🗓️', t: 'מערכת שעות', x: 'מצלמים את המערכת מבית הספר, והיא נבנית לבד.' },
+  { sel: '[data-tab="gr"]', e: '📊', t: 'ציונים', x: 'מצלמים את הציונים ורואים ממוצע בכל מקצוע.' },
+];
+const tourSeen = () => { try { return localStorage.getItem('tour:app:' + (me && me.uid)) === '1'; } catch { return true; } };
+const tourDone = () => { try { localStorage.setItem('tour:app:' + (me && me.uid), '1'); } catch {} $('tourChip')?.remove(); };
+const visibleEl = sel => [...document.querySelectorAll(sel)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; });
+// משתמש חדש (נרשם בשבוע האחרון) שעוד לא ראה – מקבל הזמנה לסיור
+function welcomeMaybe() {
+  if (!me || tourSeen() || shareParam) return;
+  const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
+  if (Date.now() - born > 7 * 864e5) return;
+  if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay')) { setTimeout(welcomeMaybe, 2500); return; }
+  welcomeCard();
+}
+function welcomeCard() {
+  const name = firstName ? firstName() : '';
+  dialog(d => {
+    d.classList.add('welcome-dlg');
+    d.innerHTML = `<div class="wl-wave">👋</div><h3>היי${name ? ' ' + esc(name) : ''}, ברוך הבא!</h3>
+      <p>בוא נראה לך את האתר ב-<b>30 שניות</b>. 7 דברים קטנים שיחסכו לך המון זמן בלימודים.</p>
+      <div class="wl-peek">${TOUR.map(s => `<span title="${esc(s.t)}">${s.e}</span>`).join('')}</div>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'יאללה, תראה לי 🚀';
+    go.onclick = () => { closeDialog(); setTimeout(() => runTour(), 250); };
+    const later = document.createElement('button'); later.className = 'btn btn-ghost'; later.textContent = 'אחר כך';
+    later.onclick = () => { closeDialog(); tourChip(); };
+    row.append(go, later); d.appendChild(row);
+  });
+}
+// מי שבחר "אחר כך" – כפתור קטן נשאר במסך הבית עד שעושים את הסיור
+function tourChip() {
+  if ($('tourChip') || tourSeen()) return;
+  const c = document.createElement('button'); c.id = 'tourChip'; c.type = 'button'; c.className = 'tour-chip'; c.innerHTML = '🧭 סיור של 30 שניות';
+  c.onclick = () => runTour(); document.body.appendChild(c);
+}
+function runTour() {
+  $('tourChip')?.remove(); closeDialog();
+  if ($('home').classList.contains('hidden')) showTab('home');
+  const steps = TOUR;
+  let i = 0, alive = true;
+  const ov = document.createElement('div'); ov.className = 'tour-ov';
+  const spot = document.createElement('div'); spot.className = 'tour-spot';
+  const bub = document.createElement('div'); bub.className = 'tour-bub'; bub.setAttribute('role', 'dialog'); bub.setAttribute('aria-live', 'polite');
+  document.body.append(ov, spot, bub);
+  const end = finished => {
+    if (!alive) return; alive = false; tourDone();
+    removeEventListener('resize', place); removeEventListener('scroll', place, true); removeEventListener('keydown', key);
+    ov.remove(); spot.remove(); bub.remove();
+    if (finished) tourFinish();
+  };
+  let el = null;
+  function place() {
+    if (!alive || !el) return;
+    const r = el.getBoundingClientRect(), pad = 8;
+    Object.assign(spot.style, { top: r.top - pad + 'px', left: r.left - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+    const bw = Math.min(330, innerWidth - 24), bh = bub.offsetHeight;
+    const below = r.bottom + pad + 14 + bh < innerHeight - 8 || r.top - pad - 14 - bh < 8;
+    let top = below ? r.bottom + pad + 14 : r.top - pad - 14 - bh; top = Math.max(8, Math.min(top, innerHeight - bh - 8));
+    let left = r.left + r.width / 2 - bw / 2; left = Math.max(12, Math.min(left, innerWidth - bw - 12));
+    Object.assign(bub.style, { top: top + 'px', left: left + 'px', width: bw + 'px' });
+    bub.classList.toggle('up', !below);
+    bub.style.setProperty('--ax', Math.max(20, Math.min(r.left + r.width / 2 - left, bw - 20)) + 'px');
+  }
+  function show() {
+    const s = steps[i]; el = visibleEl(s.sel);
+    if (!el) { if (i < steps.length - 1) { i++; return show(); } return end(true); }
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    bub.innerHTML = `<div class="tour-prog"><i style="width:${((i + 1) / steps.length) * 100}%"></i></div>
+      <div class="tour-e">${s.e}</div><b>${s.t}</b><p>${s.x}</p>
+      <div class="tour-nav"><span>${i + 1} מתוך ${steps.length}</span>${i ? '<button type="button" class="btn btn-ghost" data-t="back">חזרה</button>' : ''}<button type="button" class="btn btn-primary" data-t="next">${i === steps.length - 1 ? 'סיימתי! 🎉' : 'הבא ←'}</button></div>
+      <button type="button" class="tour-x" data-t="x" aria-label="סגירת הסיור">✕</button>`;
+    bub.classList.remove('pop'); void bub.offsetWidth; bub.classList.add('pop');
+    place(); setTimeout(place, 380);
+    bub.querySelector('[data-t="next"]').focus({ preventScroll: true });
+  }
+  const step = d => { const n = i + d; if (n < 0) return; if (n >= steps.length) return end(true); i = n; show(); };
+  bub.onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; const t = b.dataset.t; if (t === 'next') step(1); else if (t === 'back') step(-1); else end(false); };
+  ov.onclick = () => step(1);
+  const key = e => { if (e.key === 'Escape') end(false); else if (e.key === 'ArrowLeft' || e.key === 'Enter') { e.preventDefault(); step(1); } else if (e.key === 'ArrowRight') step(-1); };
+  addEventListener('resize', place); addEventListener('scroll', place, true); addEventListener('keydown', key);
+  track('tour_start', {});
+  show();
+}
+function tourFinish() {
+  track('tour_done', {});
+  dialog(d => {
+    d.classList.add('welcome-dlg');
+    d.innerHTML = `<div class="wl-wave">🎉</div><h3>זהו, אתה מוכן!</h3><p>רוצה להתחיל עכשיו?</p>`;
+    const row = document.createElement('div'); row.className = 'row wl-end';
+    const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = '📚 מחברת ראשונה'; a.onclick = () => { closeDialog(); newNotebook(); };
+    const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = '✨ לשאול את העוזר'; b.onclick = () => { closeDialog(); showTab('chat'); };
+    const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog;
+    row.append(a, b, c); d.appendChild(row);
+    setTimeout(() => confetti(d.querySelector('.wl-wave')), 200);
+  });
+}
+$('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });
