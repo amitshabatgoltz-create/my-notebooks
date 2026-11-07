@@ -1655,3 +1655,13 @@ body.editing-shared .ai-card.wr{display:none}
 .wr-ideas{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
 .wr-ideas .ai-chip{min-height:36px}
 .wr-sel{margin:6px 0 0;color:var(--accent)}
+
+/* "כתיבה עם AI" – הכלי הראשי: ראשון, גדול ומלא בצבע */
+.ai-strip .ai-card.wr{background:linear-gradient(135deg,#5E5CE6,#0891B2)!important;color:#fff;border:0;padding:8px 18px 8px 8px!important;box-shadow:0 8px 20px -10px #5E5CE6}
+.ai-strip .ai-card.wr:hover{background:linear-gradient(135deg,#4F4DD9,#0E7490)!important;box-shadow:0 10px 24px -10px #5E5CE6}
+.ai-strip .ai-card.wr .ic{width:36px!important;height:36px!important;background:rgba(255,255,255,.22);color:#fff}
+.ai-strip .ai-card.wr b{font-size:15.5px!important}
+.ai-strip .ai-card.wr small{display:block!important;font-size:12px;opacity:.9;white-space:nowrap}
+html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
+.ai-strip .ai-card.wr::after{display:block;animation-delay:.5s}
+@media (min-width:701px){.ai-strip .ai-card.wr{margin-inline-end:6px}}
