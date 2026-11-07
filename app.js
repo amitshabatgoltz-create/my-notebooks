@@ -1010,6 +1010,8 @@ let aiService = null;
 const AI_VIA_SERVER = true;
 // איזה סוג פעולה עכשיו – לפי זה השרת סופר (chat, sum, qa, pr, fc, ocr, imp)
 let aiKindNow = 'chat';
+// לבקש מהשרת חיפוש ב-Google (מקורות אמיתיים). המקורות שחזרו נשמרים ב-aiLastSrc
+let aiSearchNow = false, aiLastSrc = [];
 let aiCall = null;
 function aiModel(name, generationConfig) {
   if (AI_VIA_SERVER) return aiServerModel(name, generationConfig);
@@ -1019,13 +1021,14 @@ function aiModel(name, generationConfig) {
 // מתנהג כמו המודל של Firebase AI (generateContent / generateContentStream), אבל דרך השרת
 function aiServerModel(name, cfg) {
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
-  const body = parts => ({ kind: aiKindNow, model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
+  const body = parts => ({ kind: aiKindNow, search: aiSearchNow, model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
   const chunk = c => ({ text: () => c.t || '', candidates: c.f ? [{ finishReason: c.f }] : [], promptFeedback: c.b ? { blockReason: c.b } : undefined });
   return {
-    async generateContent(parts) { const r = await aiCall(body(parts)); return { response: chunk(r.data || {}) }; },
+    async generateContent(parts) { aiLastSrc = []; const r = await aiCall(body(parts)); aiLastSrc = (r.data && r.data.src) || []; return { response: chunk(r.data || {}) }; },
     async generateContentStream(parts) {
-      const { stream } = await aiCall.stream(body(parts));
-      return { stream: (async function* () { for await (const c of stream) yield chunk(c || {}); })() };
+      aiLastSrc = [];
+      const { stream, data } = await aiCall.stream(body(parts));
+      return { stream: (async function* () { for await (const c of stream) yield chunk(c || {}); try { const d = await data; aiLastSrc = (d && d.src) || []; } catch {} })() };
     },
   };
 }
@@ -3643,7 +3646,7 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3, pr: 3 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3, pr: 3, wr: 5 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
 let unlimitedEmail = null, unlimitedYes = false;
@@ -3656,12 +3659,12 @@ async function refreshUnlimited() {
 }
 const isUnlimited = () => unlimitedYes && unlimitedEmail === ((me && me.email) || '').toLowerCase();
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה', pr: 'דף תרגול דומה' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה', pr: 'דף תרגול דומה', wr: 'כתיבה עם AI' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 // היום לפי שעון ישראל, באותה נוסחה שהשרת בודק בכללים (firestore.rules → meta/usage)
 const usageDay = () => Math.floor((Date.now() + 10800000) / 864e5);
-const USE_KEYS = ['ocr', 'sum', 'qa', 'fc', 'chat', 'cf', 'kit', 'pr'];
+const USE_KEYS = ['ocr', 'sum', 'qa', 'fc', 'chat', 'cf', 'kit', 'pr', 'wr'];
 async function loadUsage() {
   const tk = usageDay();
   if (usage && usage.day === tk) return usage;
@@ -3678,7 +3681,7 @@ function useOne(k, count = 1) {
   usage[k] = (usage[k] || 0) + count;
   const inc = () => updateDoc(usageDoc(), { [k]: increment(count) });
   if (usage.saved) { inc().catch(e => console.warn('usage', e)); return; }
-  const full = { date: todayKey(), day: tk }; USE_KEYS.forEach(x => { full[x] = usage[x] || 0; });
+  const full = { date: todayKey(), day: tk }; USE_KEYS.forEach(x => { if (usage[x]) full[x] = usage[x]; });
   setDoc(usageDoc(), full).then(() => { usage.saved = true; }).catch(() => inc().then(() => { usage.saved = true; }).catch(e => console.warn('usage', e)));
 }
 function quotaText(k, left) {
@@ -3688,7 +3691,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big"><svg aria-hidden="true"><use href="#i-timer"/></svg></div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'pr' ? `אפשר ליצור ${DAILY.pr} דפי תרגול דומים ביום. דפים שכבר יצרת נשארים במחברת.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big"><svg aria-hidden="true"><use href="#i-timer"/></svg></div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'wr' ? `אפשר לבקש מה-AI לכתוב במחברת ${DAILY.wr} פעמים ביום.` : k === 'pr' ? `אפשר ליצור ${DAILY.pr} דפי תרגול דומים ביום. דפים שכבר יצרת נשארים במחברת.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -4060,6 +4063,100 @@ function prResult(n, html, sol) {
   });
 }
 $('aiPr').addEventListener('click', prDialog);
+/* ===== כתיבה עם AI: כותבים מה צריך (העשרה, השערה, מסקנות...), וה-AI כותב ישר לתוך המחברת, במקום של הסמן ===== */
+const WR_IDEAS = [
+  ['העשרה ממקור מוסמך', 'כתוב העשרה לפי מקור מידע מוסמך על הגורמים בניסוי (עד 5 גורמים). לכל גורם: מה ידוע עליו מהמדע, ואיך הוא יכול להשפיע על התוצאות. בסוף ציין את המקורות.'],
+  ['השערה והסבר', 'כתוב השערה לשאלת החקר, ואחריה הסבר מדעי קצר למה זה צפוי לקרות.'],
+  ['מבוא', 'כתוב מבוא קצר לעבודה: על מה העבודה, למה הנושא חשוב, ומה שאלת החקר.'],
+  ['מסקנות', 'כתוב מסקנות לעבודה לפי מה שכתוב במחברת: האם ההשערה אוששה, ומה למדנו.'],
+  ['להמשיך מכאן', 'המשך לכתוב מהמקום שבו המחברת נגמרת, באותו סגנון ובאותו נושא.'],
+];
+const WR_PROMPT = `אתה עוזר לתלמיד לכתוב חלק בעבודה או במחברת שלו.
+כתוב בעברית, כמו תלמיד טוב: ברור, מדויק ופשוט, בלי מילים מפוצצות.
+החזר HTML נקי בלבד (בלי \`\`\`): <h3> לכותרות משנה, <p>, <ul>/<ol>/<li>, <b>, ו-<table> רק אם באמת צריך טבלה.
+כללים:
+- כתוב בדיוק את מה שביקשו, לא יותר. בלי הקדמה ("בטח", "הנה") ובלי הערות בסוף.
+- אם ביקשו מספר פריטים (למשל "עד 5 גורמים") – עמוד בזה, וכל פריט עם כותרת <h3> משלו.
+- היעזר במה שכתוב במחברת כדי להבין את הנושא (שאלת החקר, הגורמים, הניסוי), אבל אל תעתיק ממנה.
+- עובדות: רק דברים נכונים ומקובלים במדע. אם אתה לא בטוח במשהו – אל תכתוב אותו.
+- אם ביקשו מקורות: בסוף כתוב <h3>מקורות</h3> עם מקורות אמיתיים ומוכרים בלבד (למשל מכון דוידסון לחינוך מדעי, האנציקלופדיה העברית, אתר משרד החינוך, ספר לימוד). אל תמציא שמות של מאמרים, ספרים או קישורים.`;
+async function wrDialog() {
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  const left = await usageLeft('wr'); if (left <= 0) { limitDialog('wr'); return; }
+  const sel = (() => { const s = getSelection(); return s.rangeCount && $('editor').contains(s.anchorNode) ? s.toString().trim() : ''; })();
+  const at = savedRange && $('editor').contains(savedRange.startContainer) ? savedRange.cloneRange() : null;
+  dialog(d => {
+    d.classList.add('ocr-dlg', 'qa-dlg', 'wr-dlg');
+    d.innerHTML = `<h3>✍️ כתיבה עם AI</h3><p class="muted-s">כותבים מה צריך, וה-AI כותב את זה ישר לתוך המחברת${at ? ', במקום שבו עמד הסמן' : ''}. הוא קורא את מה שכבר כתוב במחברת, אז הוא מכיר את הנושא.</p>
+      <div class="wr-ideas">${WR_IDEAS.map((x, i) => `<button type="button" class="ai-chip" data-i="${i}">${x[0]}</button>`).join('')}</div>
+      <textarea id="wrText" rows="4" placeholder="מה לכתוב? למשל: כתוב העשרה לפי מקור מידע מוסמך על 5 הגורמים בניסוי"></textarea>
+      ${sel ? `<p class="muted-s wr-sel">✓ ה-AI יתמקד בטקסט שסימנת: "${esc(sel.slice(0, 80))}${sel.length > 80 ? '…' : ''}"</p>` : ''}
+      <p class="muted-s" style="margin:6px 0 0">${quotaText('wr', left)}</p>
+      <p class="tt-status" id="wrStatus"></p>`;
+    const ta = d.querySelector('#wrText');
+    d.querySelector('.wr-ideas').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; ta.value = WR_IDEAS[+b.dataset.i][1]; ta.focus(); };
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'לכתוב';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.appendChild(row);
+    setTimeout(() => ta.focus(), 50);
+    go.onclick = async () => {
+      const q = ta.value.trim(); if (!q) { toast('כתוב מה לכתוב, או בחר אחד מהרעיונות'); return; }
+      go.disabled = true;
+      const st = d.querySelector('#wrStatus'); const stop = ticking(st, 'כותב...');
+      try {
+        await flush();
+        const { text, images } = await notebookParts();
+        const parts = [WR_PROMPT, `=== המחברת: "${n.title}" ===\n${text.slice(0, 40000) || '(ריקה)'}`, ...images.slice(0, 4)];
+        if (sel) parts.push(`=== הטקסט שהתלמיד סימן (התמקד בו) ===\n${sel.slice(0, 4000)}`);
+        parts.push(`=== מה לכתוב ===\n${q}`);
+        const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
+        aiKindNow = 'chat'; aiSearchNow = /מקור|העשרה|מחקר|נתונים|לפי/.test(q);
+        let html0;
+        try { html0 = await aiText(aiModels(true), { temperature: 0.5, thinkingConfig: { thinkingBudget: 1024 } }, parts, t => { live.innerHTML = prHtml(t); live.scrollTop = live.scrollHeight; }); }
+        finally { aiSearchNow = false; }
+        let html = prHtml(html0);
+        if (!html.replace(/<[^>]*>/g, '').trim()) throw new Error('empty');
+        // מקורות אמיתיים מהחיפוש (אם השרת חיפש): מחליפים את הרשימה שה-AI כתב בעצמו
+        const src = (aiLastSrc || []).filter(x => x && (x.title || x.uri)).slice(0, 6);
+        if (src.length) {
+          const w = document.createElement('div'); w.innerHTML = html;
+          const h = [...w.querySelectorAll('h2,h3')].find(x => /מקורות/.test(x.textContent));
+          if (h) { let x = h; while (x) { const nx = x.nextElementSibling; x.remove(); x = nx; } }
+          html = w.innerHTML + '<h3>מקורות</h3><ul>' + src.map(x => `<li>${esc(x.title || '')}${x.uri && !/vertexaisearch/.test(x.uri) ? ' – ' + esc(x.uri) : ''}</li>`).join('') + '</ul>';
+        }
+        stop(); useOne('wr');
+        closeDialog(); wrResult(n, clean(html), at);
+      } catch (e) { stop(); console.error(e); go.disabled = false; showAiError(e); }
+    };
+  });
+}
+function wrResult(n, html, at) {
+  dialog(d => {
+    d.classList.add('ai-result');
+    d.innerHTML = `<h3>✍️ מה שה-AI כתב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. כדאי לקרוא ולבדוק – זו העבודה שלך 🙂</p>`;
+    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
+    const row = document.createElement('div'); row.className = 'row';
+    const put = where => {
+      const h = qaForNotebook(box.innerHTML); closeDialog();
+      if (openId !== n.id) openNotebook(n.id);
+      const ed = $('editor');
+      if (where === 'here' && at && ed.contains(at.startContainer)) { ed.focus({ preventScroll: true }); const s = getSelection(); s.removeAllRanges(); s.addRange(at); document.execCommand('insertHTML', false, h); }
+      else { const w = document.createElement('div'); w.innerHTML = h; const first = w.firstElementChild; ed.append(...w.childNodes); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      markDirty(); toast('נוסף למחברת ✓');
+    };
+    const here = document.createElement('button'); here.className = 'btn btn-primary'; here.textContent = at ? 'הוספה במקום של הסמן' : 'הוספה למחברת';
+    here.onclick = () => put(at ? 'here' : 'end');
+    const btns = [here];
+    if (at) { const end = document.createElement('button'); end.className = 'btn btn-ghost'; end.textContent = 'לסוף המחברת'; end.onclick = () => put('end'); btns.push(end); }
+    const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = 'העתקה';
+    cp.onclick = async () => { try { await navigator.clipboard.writeText(box.innerText); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(...btns, cp, close); d.append(box, row);
+  });
+}
+$('aiWr').addEventListener('click', wrDialog);
+
 $('homePr').addEventListener('click', () => { openId = null; prDialog(); });
 
 /* ================= כרטיסיות שינון ================= */

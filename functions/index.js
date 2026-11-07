@@ -82,7 +82,7 @@ exports.ai = onCall({
   timeoutSeconds: 300, memory: '512MiB', maxInstances: 10, concurrency: 40,
 }, async (req, res) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'login');
-  const { kind, model, cfg, parts } = req.data || {};
+  const { kind, model, cfg, parts, search } = req.data || {};
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
   if (!MODELS.includes(model)) throw new HttpsError('invalid-argument', 'bad-model');
@@ -91,19 +91,26 @@ exports.ai = onCall({
   if (!owner) await takeOne(req.auth.uid, kind);
 
   const ai = await gemini();
-  try {
+  // חיפוש ב-Google: התשובה מבוססת על אתרים אמיתיים, והם חוזרים כמקורות (src)
+  const sources = r => (r.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ title: String(w.title || '').slice(0, 200), uri: String(w.uri || '').slice(0, 500) }));
+  let sent = false;
+  const run = async cfg2 => {
     if (req.acceptsStreaming) {
-      const stream = await ai.models.generateContentStream({ model, contents, config });
-      let all = '';
+      const stream = await ai.models.generateContentStream({ model, contents, config: cfg2 });
+      let all = '', src = [];
       for await (const ch of stream) {
         const t = ch.text || '';
-        all += t;
+        all += t; src = src.concat(sources(ch)); if (t) sent = true;
         await res.sendChunk({ t, f: ch.candidates?.[0]?.finishReason || '', b: ch.promptFeedback?.blockReason || '' });
       }
-      return { t: all };
+      return { t: all, src };
     }
-    const r = await ai.models.generateContent({ model, contents, config });
-    return { t: r.text || '', f: r.candidates?.[0]?.finishReason || '', b: r.promptFeedback?.blockReason || '' };
+    const r = await ai.models.generateContent({ model, contents, config: cfg2 });
+    return { t: r.text || '', f: r.candidates?.[0]?.finishReason || '', b: r.promptFeedback?.blockReason || '', src: sources(r) };
+  };
+  try {
+    if (search === true) { try { return await run({ ...config, tools: [{ googleSearch: {} }] }); } catch (e) { if (sent) throw e; console.warn('search failed, trying without', String(e && e.message).slice(0, 200)); } }
+    return await run(config);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     const msg = String(e && e.message || e).slice(0, 300);
