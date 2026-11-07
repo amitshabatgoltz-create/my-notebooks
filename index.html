@@ -12,16 +12,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794085577">
+<link rel="stylesheet" href="style.css?v=1794086050">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794085577"></script>
+<script src="motion.js?v=1794086050"></script>
 </head>
 <body>
 
 <!-- סמלים (אייקונים) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-7A2.5 2.5 0 0 0 4 5.5v9A2.5 2.5 0 0 0 6.5 17H8"/></symbol>
+  <symbol id="i-speak" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M4.2 4.2 6 6M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 4.5V3h6v1.5M9 11h6M9 15.5h4"/></symbol>
@@ -147,7 +155,7 @@
     <div class="side-label">המחברות שלי</div>
     <div class="side-list" id="sideList"></div>
     <button class="side-new" id="sideNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
-    <div class="side-label hidden" id="sideShLabel">👥 שותפו איתי</div>
+    <div class="side-label hidden" id="sideShLabel">שותפו איתי</div>
     <div class="side-list" id="sideShared"></div>
   </aside>
 
@@ -160,7 +168,7 @@
         <div class="menu hidden" id="userMenu" role="menu">
           <div class="who" id="who"></div>
           <button class="menu-item theme-btn" data-theme-toggle role="menuitem">מצב כהה</button>
-          <button class="menu-item" id="tourBtn" role="menuitem">🧭 סיור באתר</button>
+          <button class="menu-item" id="tourBtn" role="menuitem">סיור באתר</button>
           <button class="menu-item" id="backupBtn" role="menuitem">הורדת גיבוי</button>
           <button class="menu-item" id="restoreBtn" role="menuitem">שחזור מגיבוי</button>
           <button class="menu-item" id="logoutBtn" role="menuitem">יציאה</button>
@@ -230,7 +238,7 @@
         </div>
         <div class="grid" id="grid"></div>
         <div class="empty hidden" id="loading">טוען את המחברות...</div>
-        <div class="shared-me hidden" id="sharedWithMe"><h3>👥 שותפו איתי</h3><div class="grid sh-grid" id="sharedList"></div></div>
+        <div class="shared-me hidden" id="sharedWithMe"><h3>שותפו איתי</h3><div class="grid sh-grid" id="sharedList"></div></div>
         <button class="trash-btn hidden" id="trashBtn" type="button"><svg><use href="#i-trash"/></svg><span>פח מחזור</span></button>
         <div class="empty hidden" id="sample">
           אין לך עדיין מחברות.
@@ -244,6 +252,7 @@
           <button class="btn btn-ghost back" id="backBtn" title="חזרה למחברות"><svg><use href="#i-back"/></svg><span>מחברות</span></button>
           <span class="save" id="save"></span>
           <span class="presence hidden" id="presence"></span><span class="shared-by" id="sharedBy"></span>
+          <button class="btn btn-ghost nb-color" id="nbColor" type="button" title="שינוי הצבע של המחברת"><i class="nbc-dot" id="nbColorDot"></i><span>צבע</span></button>
           <button class="btn btn-ghost nb-timer" id="nbTimer" type="button" title="טיימר לימוד"><svg><use href="#i-timer"/></svg><span>טיימר</span></button>
           <button class="btn btn-ghost share-btn" id="shareBtn" title="שיתוף עם חברים"><svg><use href="#i-share"/></svg><span>שיתוף</span></button>
           <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
@@ -253,7 +262,7 @@
           <div class="doc-color" id="docColor"></div>
           <input class="ed-title" id="title" aria-label="שם המחברת" placeholder="שם המחברת">
           <div class="ai-strip">
-            <button type="button" class="ai-card wr" id="aiWr"><span class="ic"><svg aria-hidden="true"><use href="#i-pen"/></svg></span><span class="tx"><b>✍️ כתיבה עם AI</b><small>כותב לך כל משימה, בכל מקצוע</small></span></button>
+            <button type="button" class="ai-card wr" id="aiWr"><span class="ic"><svg aria-hidden="true"><use href="#i-pen"/></svg></span><span class="tx"><b>כתיבה עם AI</b><small>כותב לך כל משימה, בכל מקצוע</small></span></button>
             <button type="button" class="ai-card ocr" id="aiOcr"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><span class="tx"><b>תמונה לטקסט</b><small>מצלמים את הלוח והוא מקליד</small></span></button>
             <button type="button" class="ai-card sum" id="aiSum"><span class="ic"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
             <button type="button" class="ai-card qa" id="aiQa"><span class="ic"><svg aria-hidden="true"><use href="#i-hw"/></svg></span><span class="tx"><b>עבודה מהמורה</b><small>מעלים את העבודה והוא עונה לפי המחברת</small></span></button>
@@ -398,7 +407,7 @@
     <div class="chat-form">
       <input type="file" id="chatFile" accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xls,.csv,.txt" multiple hidden>
       <button id="chatAttach" class="chat-attach" type="button" aria-label="צירוף תמונה או קובץ" title="צירוף תמונה או קובץ"><svg><use href="#i-clip"/></svg></button>
-      <button id="chatWeb" class="chat-attach chat-web" type="button" aria-pressed="false" aria-label="חיפוש באינטרנט" title="חיפוש באינטרנט (תשובות עם מקורות)">🔎</button>
+      <button id="chatWeb" class="chat-attach chat-web" type="button" aria-pressed="false" aria-label="חיפוש באינטרנט" title="חיפוש באינטרנט (תשובות עם מקורות)"><svg aria-hidden="true"><use href="#i-search"/></svg></button>
       <textarea id="chatInput" rows="1" dir="auto" placeholder="כתוב לי כאן…" aria-label="הודעה לעוזר"></textarea>
       <button id="chatGo" class="chat-send" type="button" aria-label="שליחה" title="שליחה"><svg><use href="#i-send"/></svg></button>
     </div>
@@ -407,6 +416,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794085577"></script>
+<script type="module" src="app.js?v=1794086050"></script>
 </body>
 </html>

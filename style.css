@@ -1758,3 +1758,23 @@ html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .sh-card:hover .sh-rm,.sh-card:focus-within .sh-rm{opacity:1}
 @media (hover:none){.sh-card .sh-rm{opacity:.85}}
 .side-nb .side-sh{margin-inline-start:auto;font-size:11.5px;color:var(--muted);flex:none;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* בלי אימוג'ים: אייקונים בקו, כמו בשאר האתר */
+.nb .nb-share{display:inline-flex;align-items:center;gap:5px}
+.nb .nb-share svg{width:14px;height:14px}
+.side-nb .side-sh svg{width:14px;height:14px;vertical-align:-2px}
+.pr-help{display:inline-flex;align-items:center;gap:5px}.pr-help svg{width:16px;height:16px}
+.cm-tools button svg{width:17px;height:17px}
+.cm-tools button.on{color:var(--accent);background:var(--accent-soft)}
+.chat-web{filter:none;opacity:.55;display:grid;place-items:center}
+.chat-web.on{opacity:1;color:var(--accent)}
+.cm-src a{display:inline-flex;align-items:center;gap:4px}.cm-src a svg{width:13px;height:13px;flex:none}
+.welcome-dlg .wl-icon{width:72px;height:72px;margin:4px auto 12px;border-radius:22px;display:grid;place-items:center;background:var(--accent);color:#fff;box-shadow:0 14px 30px -12px var(--accent);animation:rise .5s var(--ease) both}
+.welcome-dlg .wl-icon svg{width:36px;height:36px}
+.wl-peek span{color:var(--accent)}.wl-peek svg{width:21px;height:21px}
+.tour-e{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);margin-bottom:8px}
+.tour-e svg{width:23px;height:23px}
+.nbc-dot{width:14px;height:14px;border-radius:50%;display:inline-block;flex:none;box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--line)}
+.nb-color{display:inline-flex;align-items:center;gap:7px}
+.doc-color{cursor:pointer}
+@media (max-width:600px){.nb-color span{display:none}}

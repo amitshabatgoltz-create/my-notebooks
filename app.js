@@ -270,7 +270,7 @@ function nbCard(n, i) {
   const pv = document.createElement('div'); pv.className = 'nb-pv'; pv.textContent = preview(n.html) || 'מחברת ריקה';
   const m = document.createElement('div'); m.className = 'meta'; m.textContent = n.updatedAt ? 'עודכן ' + timeAgo(n.updatedAt) : '';
   body.append(l, pv, m); b.append(cover, body);
-  if (n.shareId) { const sb = document.createElement('span'); sb.className = 'nb-share'; sb.textContent = n.shareMode === 'edit' ? '👥 עריכה משותפת' : '👥 משותפת'; cover.appendChild(sb); }
+  if (n.shareId) { const sb = document.createElement('span'); sb.className = 'nb-share'; sb.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg><span>${n.shareMode === 'edit' ? 'עריכה משותפת' : 'משותפת'}</span>`; cover.appendChild(sb); }
   b.onclick = () => openNotebook(n.id);
   return b;
 }
@@ -290,7 +290,7 @@ function renderSide() {
     const dot = document.createElement('i'); dot.style.background = n.color || COLORS[0];
     const t = document.createElement('span'); t.textContent = n.title || 'מחברת ללא שם';
     b.append(dot, t);
-    if (n.shareId) { const s2 = document.createElement('small'); s2.className = 'side-sh'; s2.textContent = '👥'; s2.title = 'שיתפת את המחברת הזו'; b.appendChild(s2); }
+    if (n.shareId) { const s2 = document.createElement('small'); s2.className = 'side-sh'; s2.innerHTML = '<svg aria-hidden="true"><use href="#i-users"/></svg>'; s2.title = 'שיתפת את המחברת הזו'; b.appendChild(s2); }
     b.onclick = () => openNotebook(n.id); box.appendChild(b);
   });
   // מחברות שאחרים שיתפו איתי – גם בצד
@@ -300,7 +300,7 @@ function renderSide() {
     const b = document.createElement('button'); b.className = 'side-nb';
     const dot = document.createElement('i'); dot.style.background = x.color || COLORS[0];
     const t = document.createElement('span'); t.textContent = x.title || 'מחברת';
-    const o = document.createElement('small'); o.className = 'side-sh'; o.textContent = x.ownerName ? String(x.ownerName).split(/\s+/)[0] : '👥';
+    const o = document.createElement('small'); o.className = 'side-sh'; o.textContent = x.ownerName ? String(x.ownerName).split(/\s+/)[0] : '';
     b.append(dot, t, o); b.onclick = () => openShare(x.id); sh.appendChild(b);
   });
 }
@@ -323,7 +323,7 @@ function openNotebook(id) {
   if (openId && openId !== id) flush();
   openId = id; dirty = false;
   $('title').value = n.title || '';
-  $('docColor').style.setProperty('--c', n.color || COLORS[0]);
+  $('docColor').style.setProperty('--c', n.color || COLORS[0]); $('nbColorDot').style.background = n.color || COLORS[0];
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
   renderFiles($('editor'));
@@ -338,6 +338,27 @@ function openNotebook(id) {
 }
 $('backBtn').onclick = async () => { await flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared'); showLibrary(); };
 $('newBtn').onclick = () => newNotebook();
+// שינוי הצבע של מחברת פתוחה
+function nbColorDialog() {
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  dialog(d => {
+    d.innerHTML = '<h3>הצבע של המחברת</h3><p>בוחרים צבע, והוא משתנה מיד: בכרטיס, ברשימה בצד ובראש המחברת.</p>';
+    const pick = document.createElement('div'); pick.className = 'picker';
+    COLORS.forEach(c => {
+      const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === (n.color || COLORS[0])) s.classList.add('on');
+      s.onclick = async () => {
+        n.color = c; [...pick.children].forEach(x => x.classList.remove('on')); s.classList.add('on');
+        $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
+        try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
+      };
+      pick.appendChild(s);
+    });
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
+    d.append(pick, ok);
+  });
+}
+$('nbColor').onclick = nbColorDialog;
+$('docColor').onclick = nbColorDialog;
 
 function newNotebook() {
   let color = COLORS[notebooks.length % COLORS.length];
@@ -2265,7 +2286,7 @@ function renderShared() {
     const b = document.createElement('button'); b.className = 'nb sh-card'; b.style.setProperty('--c', x.color || COLORS[0]); b.style.setProperty('--i', i);
     const cover = document.createElement('div'); cover.className = 'nb-cover';
     const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (x.title || '?').trim()[0] || '?';
-    const badge = document.createElement('span'); badge.className = 'nb-share'; badge.textContent = x.mode === 'edit' ? '👥 עריכה משותפת' : '👥 שותפה איתך';
+    const badge = document.createElement('span'); badge.className = 'nb-share'; badge.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg><span>${x.mode === 'edit' ? 'עריכה משותפת' : 'שותפה איתך'}</span>`;
     cover.append(letter, badge);
     const body = document.createElement('div'); body.className = 'nb-body';
     const l = document.createElement('div'); l.className = 'label'; l.textContent = x.title || 'מחברת';
@@ -3990,13 +4011,13 @@ ${sol ? 'בסוף הדף הוסף <h2>מפתח תשובות</h2> ובו לכל �
 - שאלות אמריקאיות: כל אפשרות בשורה משלה (<p>א. ...</p>).
 - טבלה למילוי: טבלת HTML אמיתית עם תאים ריקים.
 - כתוב באותה שפה של הדף המקורי (בדרך כלל עברית; אם הדף באנגלית – באנגלית).`;
-function prHtml(t) { return clean(String(t).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')); }
+function prHtml(t) { return clean(noEmoji(t).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')); }
 async function prDialog() {
   const n = notebooks.find(x => x.id === openId) || null;
   const left = await usageLeft('pr'); if (left <= 0) { limitDialog('pr'); return; }
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg', 'pr-dlg');
-    d.innerHTML = `<div class="pr-head"><h3>📝 דף תרגול דומה</h3><button type="button" class="pr-help" id="prHelp">❔ איך זה עובד?</button></div>
+    d.innerHTML = `<div class="pr-head"><h3>דף תרגול דומה</h3><button type="button" class="pr-help" id="prHelp"><svg aria-hidden="true"><use href="#i-help"/></svg>איך זה עובד?</button></div>
       <p class="muted-s">נותנים לי את הדף של המורה ← מקבלים דף חדש כמוהו, עם שאלות אחרות, כדי להתאמן למבחן.</p>
       <div class="pr-step" id="prS1"><span class="pr-n">1</span><b>מה הדף של המורה?</b></div>
       <button type="button" class="tt-up small" id="prUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום או קובץ של הדף</b><span>תמונה, PDF או Word</span></button>
@@ -4063,7 +4084,7 @@ function prSplit(html) {
 function prResult(n, html, sol) {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = `<h3>📝 דף התרגול שלך</h3><p class="muted-s">אותו מבנה כמו הדף של המורה, עם שאלות חדשות. ${sol ? 'הפתרונות בסוף – כדאי לפתור קודם לבד ורק אז לבדוק.' : ''} אפשר לתקן כאן לפני שמוסיפים.</p>`;
+    d.innerHTML = `<h3>דף התרגול שלך</h3><p class="muted-s">אותו מבנה כמו הדף של המורה, עם שאלות חדשות. ${sol ? 'הפתרונות בסוף – כדאי לפתור קודם לבד ורק אז לבדוק.' : ''} אפשר לתקן כאן לפני שמוסיפים.</p>`;
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
     const final = () => qaForNotebook(box.innerHTML);
     const row = document.createElement('div'); row.className = 'row';
@@ -4141,7 +4162,7 @@ async function wrDialog() {
   const ideas = wrIdeas(n);
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg', 'wr-dlg');
-    d.innerHTML = `<h3>✍️ כתיבה עם AI</h3><p class="muted-s">כותבים מה צריך, וה-AI כותב את זה ישר לתוך המחברת${at ? ', במקום שבו עמד הסמן' : ''}. הוא קורא את מה שכבר כתוב במחברת, אז הוא מכיר את הנושא.</p>
+    d.innerHTML = `<h3>כתיבה עם AI</h3><p class="muted-s">כותבים מה צריך, וה-AI כותב את זה ישר לתוך המחברת${at ? ', במקום שבו עמד הסמן' : ''}. הוא קורא את מה שכבר כתוב במחברת, אז הוא מכיר את הנושא.</p>
       <div class="wr-ideas">${ideas.map((x, i) => `<button type="button" class="ai-chip" data-i="${i}">${x[0]}</button>`).join('')}</div>
       <textarea id="wrText" rows="4" placeholder="מה לכתוב? אפשר להעתיק לכאן את המשימה של המורה, או לכתוב במילים שלך"></textarea>
       <button type="button" class="tt-up small" id="wrUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום של המשימה</b><span>לא חובה · תמונה או PDF, עד 2</span></button>
@@ -4197,7 +4218,7 @@ async function wrDialog() {
 function wrResult(n, html, at) {
   dialog(d => {
     d.classList.add('ai-result');
-    d.innerHTML = `<h3>✍️ מה שה-AI כתב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. כדאי לקרוא ולבדוק – זו העבודה שלך 🙂</p>`;
+    d.innerHTML = `<h3>מה שה-AI כתב</h3><p class="muted-s">אפשר לתקן כאן לפני שמוסיפים. כדאי לקרוא ולבדוק – זו העבודה שלך.</p>`;
     const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
     const row = document.createElement('div'); row.className = 'row';
     const put = where => {
@@ -4669,7 +4690,7 @@ const CHAT_SHORT = 80;
 const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
 const CHAT_DIAGRAM = /גרף|תרשים|דיאגרמ|משולש|ריבוע|מלבן|מעגל|עיגול|זווית|ציר|מצולע|טבלה|מפה של|פונקצי|שבר|סכמה|מבנה של|graph|chart|diagram|triangle/i;
 async function chatMakeImage(msg, files, b) {
-  b.classList.remove('typing'); b.classList.add('making'); b.textContent = '🎨 מצייר לך…';
+  b.classList.remove('typing'); b.classList.add('making'); b.textContent = 'מצייר לך…';
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
   try {
     const parts = [{ text: `צור תמונה לפי הבקשה של תלמיד. תמונה ברורה, צבעונית ומתאימה לגיל. אם יש בה טקסט – מעט טקסט, באותה שפה של הבקשה.\nהבקשה: ${msg}` }, ...files.map(f => typeof f.part === 'string' ? { text: f.part } : f.part)];
@@ -4679,7 +4700,7 @@ async function chatMakeImage(msg, files, b) {
     if (!img.length) { chatFill(b, 'לא הצלחתי ליצור תמונה הפעם. נסה לתאר אחרת.'); return { text: 'לא הצלחתי ליצור תמונה.' }; }
     img.slice(0, 2).forEach(x => chatImage(b.appendChild(Object.assign(document.createElement('div'), { className: 'cm-imgbox' })), `data:${x.m};base64,${x.d}`, 'תמונה.png'));
     useOne('chat');
-    return { text: `🖼️ יצרתי תמונה: ${msg.slice(0, 80)}${(r.data && r.data.t) ? '\n' + r.data.t : ''}\n(התמונה עצמה לא נשמרת בשיחה – אפשר להוריד אותה או להוסיף למחברת)` };
+    return { text: `יצרתי תמונה: ${msg.slice(0, 80)}${(r.data && r.data.t) ? '\n' + r.data.t : ''}\n(התמונה עצמה לא נשמרת בשיחה – אפשר להוריד אותה או להוסיף למחברת)` };
   } catch (e) {
     const m = String(e && e.message || '');
     const why = /daily-limit/.test(m) ? 'נגמרו התמונות להיום (אפשר 4 ביום). מחר אפשר שוב.' : /bad-kind|bad-model|not-found|404|image-off/.test(m) ? 'יצירת תמונות עוד לא הופעלה בשרת. בינתיים אני יכול לצייר תרשימים, גרפים וצורות – פשוט תבקש.' : /quota|429|RESOURCE/.test(m) ? 'יצירת תמונות לא זמינה כרגע בתוכנית החינמית של Google. אני יכול לצייר תרשים או איור פשוט במקום – תבקש "תצייר תרשים של...".' : 'לא הצלחתי ליצור תמונה. נסה שוב בעוד רגע.';
@@ -4748,8 +4769,10 @@ function chatInline(parent, text) {
   }
   if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
 }
+const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F1E6}-\u{1F1FF}]/gu;
+const noEmoji = t => String(t || '').replace(/[\u2705\u2714]/g, '✓').replace(/\u274C/g, '✕').replace(EMOJI_RE, '').replace(/[ \t]{2,}/g, ' ');
 function chatFill(el, text) {
-  const lines = String(text || '').replace(/\r/g, '').split('\n').filter(l => !/^\s*>>/.test(l));
+  const lines = noEmoji(text).replace(/\r/g, '').split('\n').filter(l => !/^\s*>>/.test(l));
   const cells = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(x => x.trim()); };
   const isRow = l => l.includes('|') && cells(l).filter(Boolean).length >= 2;
   const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && l.includes('-');
@@ -4767,7 +4790,7 @@ function chatFill(el, text) {
       if (/^\s*```\s*(svg|xml|html)?\s*$/i.test(l) && /^<svg[\s>]/i.test(svg)) {
         // ציור (SVG) מוצג כתמונה: בתוך <img> שום קוד לא רץ
         if (j < lines.length) chatImage(add('div', 'cm-imgbox'), 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), 'ציור.svg');
-        else add('p').textContent = '✏️ מצייר…';
+        else add('p').textContent = 'מצייר…';
       } else { const pre = add('pre', 'cm-code'); pre.dir = 'ltr'; pre.textContent = code.join('\n'); }
       i = j + 1; continue;
     }
@@ -4809,9 +4832,9 @@ function chatFill(el, text) {
 function chatImage(box, url, name) {
   const img = document.createElement('img'); img.className = 'cm-img'; img.alt = 'ציור מהעוזר'; img.src = url; box.appendChild(img);
   const bar = document.createElement('div'); bar.className = 'cm-imgbar';
-  const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'ai-chip'; dl.textContent = '⬇️ הורדה';
+  const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'ai-chip'; dl.textContent = 'הורדה';
   dl.onclick = async () => { const png = await chatPng(url).catch(() => null); const a = document.createElement('a'); a.href = png || url; a.download = (png ? name.replace(/\.svg$/, '.png') : name); document.body.appendChild(a); a.click(); a.remove(); };
-  const nb = document.createElement('button'); nb.type = 'button'; nb.className = 'ai-chip'; nb.textContent = '📝 למחברת';
+  const nb = document.createElement('button'); nb.type = 'button'; nb.className = 'ai-chip'; nb.textContent = 'למחברת';
   nb.onclick = async () => {
     if (!openId) { toast('פתח מחברת, ואז לחץ שוב כדי להוסיף לה את התמונה'); return; }
     try { const png = await chatPng(url); const blob = await (await fetch(png)).blob(); await addImages([new File([blob], 'ai.png', { type: 'image/png' })]); toast('התמונה נוספה למחברת ✓'); } catch { toast('לא הצלחתי להוסיף את התמונה'); }
@@ -4850,30 +4873,79 @@ function chatPlainText(b) {
 }
 // כפתורים מתחת לתשובה: העתקה, הקראה, הוספה למחברת, תשובה אחרת
 let chatSpeaking = null;
+/* הקראה: בטלפון צריך לבחור קול בעברית בעצמנו (באנדרואיד הוא נקרא לפעמים iw), לחלק לחתיכות קצרות
+   (בטלפון הקראה ארוכה נעצרת באמצע), ולהתחיל מיד בתוך הלחיצה (אחרת iPhone חוסם) */
+let ttsVoices = [];
+const ttsLoad = () => { try { ttsVoices = speechSynthesis.getVoices() || []; } catch {} };
+if ('speechSynthesis' in window) { ttsLoad(); try { speechSynthesis.addEventListener('voiceschanged', ttsLoad); } catch {} }
+function ttsVoice(he) {
+  if (!ttsVoices.length) ttsLoad();
+  const ok = v => he ? /^(he|iw)([-_]|$)/i.test(v.lang) : /^en([-_]|$)/i.test(v.lang);
+  const list = ttsVoices.filter(ok);
+  return list.find(v => /google|enhanced|premium|natural/i.test(v.name)) || list.find(v => v.localService) || list[0] || null;
+}
+function ttsChunks(t) {
+  const out = []; let cur = '';
+  String(t).replace(/\s+/g, ' ').split(/(?<=[.!?:;])\s+|\s*\|\s*/).forEach(p => {
+    if (!p) return;
+    while (p.length > 180) { const k = p.lastIndexOf(' ', 180) > 60 ? p.lastIndexOf(' ', 180) : 180; out.push(p.slice(0, k)); p = p.slice(k).trim(); }
+    if ((cur + ' ' + p).length > 180) { if (cur) out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+  });
+  if (cur) out.push(cur);
+  return out;
+}
+function ttsSpeak(text, onDone) {
+  const synth = window.speechSynthesis;
+  const he = /[א-ת]/.test(text), voice = ttsVoice(he);
+  if (he && !voice && ttsVoices.length) {
+    onDone();
+    dialog(d => { d.innerHTML = '<h3>אין בטלפון קול בעברית</h3><p>כדי שהעוזר יקריא בעברית, צריך להוסיף קול בעברית בהגדרות של הטלפון (פעם אחת):</p><p><b>אנדרואיד:</b> הגדרות ← חפש "המרת טקסט לדיבור" ← מנוע Google ← התקנת נתוני קול ← עברית.<br><b>iPhone:</b> הגדרות ← נגישות ← תוכן מדובר ← קולות ← עברית.</p><p>ואז לנסות שוב. כדאי גם לוודא שהטלפון לא על שקט.</p>'; const c = document.createElement('button'); c.className = 'btn btn-primary'; c.textContent = 'הבנתי'; c.onclick = closeDialog; d.appendChild(c); });
+    return () => {};
+  }
+  const parts = ttsChunks(text); let k = 0, stopped = false, keep = null;
+  const next = () => {
+    if (stopped) return;
+    if (k >= parts.length) { clearInterval(keep); onDone(); return; }
+    const u = new SpeechSynthesisUtterance(parts[k++]);
+    u.lang = voice ? voice.lang : he ? 'he-IL' : 'en-US'; if (voice) u.voice = voice; u.rate = 1;
+    u.onend = next; u.onerror = e => { if (e && e.error === 'interrupted') return; next(); };
+    synth.speak(u);
+  };
+  if (synth.speaking || synth.pending) synth.cancel();
+  synth.resume();
+  next();
+  // כרום בטלפון לפעמים "נרדם" באמצע – דוחפים אותו להמשיך
+  keep = setInterval(() => { if (!synth.speaking) return; synth.pause(); synth.resume(); }, 12000);
+  return () => { stopped = true; clearInterval(keep); synth.cancel(); };
+}
+let ttsStop = null;
 function chatTools(b, item, isLast) {
   b.querySelector('.cm-tools')?.remove();
   const bar = document.createElement('div'); bar.className = 'cm-tools';
-  const mk = (icon, label, fn) => { const x = document.createElement('button'); x.type = 'button'; x.title = label; x.setAttribute('aria-label', label); x.innerHTML = icon; x.onclick = e => { e.stopPropagation(); fn(x); }; bar.appendChild(x); return x; };
-  mk('📋', 'העתקה', async () => { try { await navigator.clipboard.writeText(chatPlainText(b)); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } });
-  if ('speechSynthesis' in window) mk('🔊', 'הקראה', x => {
-    if (chatSpeaking === b) { speechSynthesis.cancel(); chatSpeaking = null; x.textContent = '🔊'; return; }
-    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(chatPlainText(b).replace(/\|/g, ', ')); u.lang = /[א-ת]/.test(item.text) ? 'he-IL' : 'en-US'; u.rate = 1;
-    u.onend = u.onerror = () => { if (chatSpeaking === b) { chatSpeaking = null; x.textContent = '🔊'; } };
-    chatSpeaking = b; x.textContent = '⏹'; speechSynthesis.speak(u);
+  const ico = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
+  const mk = (icon, label, fn) => { const x = document.createElement('button'); x.type = 'button'; x.title = label; x.setAttribute('aria-label', label); x.innerHTML = ico(icon); x.onclick = e => { e.stopPropagation(); fn(x); }; bar.appendChild(x); return x; };
+  mk('copy', 'העתקה', async () => { try { await navigator.clipboard.writeText(chatPlainText(b)); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } });
+  if ('speechSynthesis' in window) mk('speak', 'הקראה', x => {
+    const reset = () => { if (chatSpeaking === b) chatSpeaking = null; x.innerHTML = ico('speak'); x.classList.remove('on'); x.title = 'הקראה'; };
+    if (chatSpeaking === b) { ttsStop && ttsStop(); reset(); return; }
+    if (ttsStop) ttsStop();
+    document.querySelectorAll('.cm-tools button.on').forEach(o => { o.classList.remove('on'); o.innerHTML = ico('speak'); });
+    chatSpeaking = b; x.innerHTML = ico('stop'); x.classList.add('on'); x.title = 'עצירת ההקראה';
+    ttsStop = ttsSpeak(chatPlainText(b), reset);
   });
-  mk('📝', openId ? 'הוספה למחברת הפתוחה' : 'שמירה כמחברת חדשה', async () => {
+  mk('book', openId ? 'הוספה למחברת הפתוחה' : 'שמירה כמחברת חדשה', async () => {
     const h = chatToNotebookHtml(b); if (!h.replace(/<[^>]*>/g, '').trim()) return;
     if (openId) { const w = document.createElement('div'); w.innerHTML = h; $('editor').append(...w.childNodes); markDirty(); toast('נוסף לסוף המחברת ✓'); return; }
     try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: chatTitle(chatHistory).slice(0, 60) || 'מהעוזר', color: '#5E5CE6', html: h, createdAt: now, updatedAt: now }); toast('נשמר כמחברת חדשה ✓'); } catch { toast('לא הצלחתי לשמור'); }
   });
-  if (isLast) mk('🔁', 'תשובה אחרת', () => chatRegenerate());
+  if (isLast) mk('refresh', 'תשובה אחרת', () => chatRegenerate());
   b.appendChild(bar);
 }
 function chatSources(b, src) {
   if (!src || !src.length) return;
   const box = document.createElement('div'); box.className = 'cm-src';
   const t = document.createElement('span'); t.textContent = 'מקורות:'; box.appendChild(t);
-  src.slice(0, 5).forEach(x => { const a = document.createElement('a'); a.href = x.u || x.uri; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '🔗 ' + (x.t || x.title || 'מקור'); box.appendChild(a); });
+  src.slice(0, 5).forEach(x => { const a = document.createElement('a'); a.href = x.u || x.uri; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.innerHTML = '<svg aria-hidden="true"><use href="#i-link"/></svg>'; a.append(x.t || x.title || 'מקור'); box.appendChild(a); });
   b.appendChild(box);
 }
 function chatNextChips(b, ideas) {
@@ -5123,6 +5195,7 @@ ${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיו
 - בסוף תשובה רגילה (לא כשיש JSON), הוסף שורה אחרונה שמתחילה ב->> ובה 2–3 הצעות קצרות מאוד להמשך מנקודת המבט של המשתמש, מופרדות ב- | . למשל:
 >> תן לי תרגיל דומה | תסביר שוב בפשטות | מה יכול להופיע במבחן?
 
+בלי אימוג'ים בכלל.
 ענה תמיד בעברית (אלא אם המשתמש כותב באנגלית או מתרגל אנגלית). בלי HTML.`;
 }
 
@@ -5552,7 +5625,7 @@ function chatGoMode(busy) {
   g.title = busy ? 'עצירה' : 'שליחה'; g.setAttribute('aria-label', g.title);
 }
 $('chatGo').onclick = () => { if (chatBusy) { chatStopper && chatStopper(); return; } chatSend(); };
-$('chatWeb').onclick = () => { chatWeb = !chatWeb; $('chatWeb').classList.toggle('on', chatWeb); $('chatWeb').setAttribute('aria-pressed', chatWeb); toast(chatWeb ? '🔎 חיפוש באינטרנט פועל: התשובות יבואו עם מקורות' : 'חיפוש באינטרנט כבוי'); };
+$('chatWeb').onclick = () => { chatWeb = !chatWeb; $('chatWeb').classList.toggle('on', chatWeb); $('chatWeb').setAttribute('aria-pressed', chatWeb); toast(chatWeb ? 'חיפוש באינטרנט פועל: התשובות יבואו עם מקורות' : 'חיפוש באינטרנט כבוי'); };
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }
   else if (e.key === 'Escape' && !$('chatPanel').classList.contains('full')) chatOpen(false);
@@ -5680,13 +5753,13 @@ function coachTour(d, steps) {
 
 /* ===== סיור ראשון באתר: פעם ראשונה שמתחברים מראים כל דבר, עם זרקור על הדבר האמיתי במסך ===== */
 const TOUR = [
-  { sel: '#homeNotes', e: '📚', t: 'המחברות שלך', x: 'מחברת לכל מקצוע. כותבים, מוסיפים תמונות וטבלאות, והכול נשמר לבד.' },
-  { sel: '#homeOcr', e: '📷', t: 'צילום לוח', x: 'מצלמים את הלוח בסוף השיעור, וה-AI מקליד את זה למחברת במקומך.' },
-  { sel: '#homePr', e: '📝', t: 'דף תרגול דומה', x: 'מעלים דף חזרה מהמורה ומקבלים דף חדש באותו סגנון להתאמן, עם פתרונות.' },
-  { sel: '#weekCard', e: '📅', t: 'השבוע שלך', x: 'מבחנים ושיעורי בית במבט אחד. לפני מבחן – לחיצה אחת בונה לך תוכנית למידה.' },
-  { sel: '.home-ask', e: '✨', t: 'העוזר הלימודי', x: 'שואלים כל דבר: להסביר, לפתור תרגיל, לבחון אותך. כותבים "יש לי מבחן ביום שני" – והוא מוסיף ליומן.' },
-  { sel: '[data-tab="tt"]', e: '🗓️', t: 'מערכת שעות', x: 'מצלמים את המערכת מבית הספר, והיא נבנית לבד.' },
-  { sel: '[data-tab="gr"]', e: '📊', t: 'ציונים', x: 'מצלמים את הציונים ורואים ממוצע בכל מקצוע.' },
+  { sel: '#homeNotes', e: 'book', t: 'המחברות שלך', x: 'מחברת לכל מקצוע. כותבים, מוסיפים תמונות וטבלאות, והכול נשמר לבד.' },
+  { sel: '#homeOcr', e: 'camera', t: 'צילום לוח', x: 'מצלמים את הלוח בסוף השיעור, וה-AI מקליד את זה למחברת במקומך.' },
+  { sel: '#homePr', e: 'doc', t: 'דף תרגול דומה', x: 'מעלים דף חזרה מהמורה ומקבלים דף חדש באותו סגנון להתאמן, עם פתרונות.' },
+  { sel: '#weekCard', e: 'cal', t: 'השבוע שלך', x: 'מבחנים ושיעורי בית במבט אחד. לפני מבחן – לחיצה אחת בונה לך תוכנית למידה.' },
+  { sel: '.home-ask', e: 'spark', t: 'העוזר הלימודי', x: 'שואלים כל דבר: להסביר, לפתור תרגיל, לבחון אותך. כותבים "יש לי מבחן ביום שני" – והוא מוסיף ליומן.' },
+  { sel: '[data-tab="tt"]', e: 'tt', t: 'מערכת שעות', x: 'מצלמים את המערכת מבית הספר, והיא נבנית לבד.' },
+  { sel: '[data-tab="gr"]', e: 'grades', t: 'ציונים', x: 'מצלמים את הציונים ורואים ממוצע בכל מקצוע.' },
 ];
 const tourSeen = () => { try { return localStorage.getItem('tour:app:' + (me && me.uid)) === '1'; } catch { return true; } };
 const tourDone = () => { try { localStorage.setItem('tour:app:' + (me && me.uid), '1'); } catch {} $('tourChip')?.remove(); };
@@ -5703,11 +5776,11 @@ function welcomeCard() {
   const name = firstName ? firstName() : '';
   dialog(d => {
     d.classList.add('welcome-dlg');
-    d.innerHTML = `<div class="wl-wave">👋</div><h3>היי${name ? ' ' + esc(name) : ''}, ברוך הבא!</h3>
+    d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-spark"/></svg></div><h3>היי${name ? ' ' + esc(name) : ''}, ברוך הבא!</h3>
       <p>בוא נראה לך את האתר ב-<b>30 שניות</b>. 7 דברים קטנים שיחסכו לך המון זמן בלימודים.</p>
-      <div class="wl-peek">${TOUR.map(s => `<span title="${esc(s.t)}">${s.e}</span>`).join('')}</div>`;
+      <div class="wl-peek">${TOUR.map(s => `<span title="${esc(s.t)}"><svg aria-hidden="true"><use href="#i-${s.e}"/></svg></span>`).join('')}</div>`;
     const row = document.createElement('div'); row.className = 'row';
-    const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'יאללה, תראה לי 🚀';
+    const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'יאללה, תראה לי';
     go.onclick = () => { closeDialog(); setTimeout(() => runTour(), 250); };
     const later = document.createElement('button'); later.className = 'btn btn-ghost'; later.textContent = 'אחר כך';
     later.onclick = () => { closeDialog(); tourChip(); };
@@ -5717,7 +5790,7 @@ function welcomeCard() {
 // מי שבחר "אחר כך" – כפתור קטן נשאר במסך הבית עד שעושים את הסיור
 function tourChip() {
   if ($('tourChip') || tourSeen()) return;
-  const c = document.createElement('button'); c.id = 'tourChip'; c.type = 'button'; c.className = 'tour-chip'; c.innerHTML = '🧭 סיור של 30 שניות';
+  const c = document.createElement('button'); c.id = 'tourChip'; c.type = 'button'; c.className = 'tour-chip'; c.textContent = 'סיור של 30 שניות';
   c.onclick = () => runTour(); document.body.appendChild(c);
 }
 function runTour() {
@@ -5753,8 +5826,8 @@ function runTour() {
     if (!el) { if (i < steps.length - 1) { i++; return show(); } return end(true); }
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     bub.innerHTML = `<div class="tour-prog"><i style="width:${((i + 1) / steps.length) * 100}%"></i></div>
-      <div class="tour-e">${s.e}</div><b>${s.t}</b><p>${s.x}</p>
-      <div class="tour-nav"><span>${i + 1} מתוך ${steps.length}</span>${i ? '<button type="button" class="btn btn-ghost" data-t="back">חזרה</button>' : ''}<button type="button" class="btn btn-primary" data-t="next">${i === steps.length - 1 ? 'סיימתי! 🎉' : 'הבא ←'}</button></div>
+      <div class="tour-e"><svg aria-hidden="true"><use href="#i-${s.e}"/></svg></div><b>${s.t}</b><p>${s.x}</p>
+      <div class="tour-nav"><span>${i + 1} מתוך ${steps.length}</span>${i ? '<button type="button" class="btn btn-ghost" data-t="back">חזרה</button>' : ''}<button type="button" class="btn btn-primary" data-t="next">${i === steps.length - 1 ? 'סיימתי!' : 'הבא ←'}</button></div>
       <button type="button" class="tour-x" data-t="x" aria-label="סגירת הסיור">✕</button>`;
     bub.classList.remove('pop'); void bub.offsetWidth; bub.classList.add('pop');
     place(); setTimeout(place, 380);
@@ -5772,13 +5845,13 @@ function tourFinish() {
   track('tour_done', {});
   dialog(d => {
     d.classList.add('welcome-dlg');
-    d.innerHTML = `<div class="wl-wave">🎉</div><h3>זהו, אתה מוכן!</h3><p>רוצה להתחיל עכשיו?</p>`;
+    d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-spark"/></svg></div><h3>זהו, אתה מוכן!</h3><p>רוצה להתחיל עכשיו?</p>`;
     const row = document.createElement('div'); row.className = 'row wl-end';
-    const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = '📚 מחברת ראשונה'; a.onclick = () => { closeDialog(); newNotebook(); };
-    const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = '✨ לשאול את העוזר'; b.onclick = () => { closeDialog(); showTab('chat'); };
+    const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = 'מחברת ראשונה'; a.onclick = () => { closeDialog(); newNotebook(); };
+    const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = 'לשאול את העוזר'; b.onclick = () => { closeDialog(); showTab('chat'); };
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog;
     row.append(a, b, c); d.appendChild(row);
-    setTimeout(() => confetti(d.querySelector('.wl-wave')), 200);
+    setTimeout(() => confetti(d.querySelector('.wl-icon')), 200);
   });
 }
 $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });
