@@ -1641,3 +1641,9 @@ html[data-theme="dark"] .ai-strip .ai-card .ic{color:#111}
 .wk-hw{background:color-mix(in srgb,var(--c-hw) 11%,var(--surface));color:var(--ink);border-inline-start-color:var(--c-hw)}
 .wk-other{background:color-mix(in srgb,var(--ink) 6%,var(--surface));border-inline-start-color:color-mix(in srgb,var(--ink) 30%,transparent)}
 .wk-day{min-height:150px}
+
+/* חמישה אריחים: "המחברות שלי" ראשון */
+.hero-actions.tiles{grid-template-columns:repeat(5,minmax(0,1fr))}
+.t-nb{--c:var(--accent)}
+@media (max-width:1100px) and (min-width:701px){.hero-actions.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.hero-actions.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tiles .t-nb{grid-column:1/-1;flex-direction:row;align-items:center;gap:12px}.tiles .t-nb .t-ic{margin:0}.tiles .t-nb small{margin-inline-start:auto}}

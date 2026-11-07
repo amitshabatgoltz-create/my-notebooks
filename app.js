@@ -641,6 +641,7 @@ function showTab(t) {
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 $('sideNew').onclick = () => newNotebook();
 $('homeNew').onclick = () => newNotebook();
+$('homeNotes').onclick = () => showTab('notes');
 $('homeCal').onclick = () => showTab('cal');
 
 /* ================= יומן ================= */
@@ -1250,6 +1251,7 @@ function renderWeek() {
 }
 function renderHome() {
   renderStats(); homeAskChips();
+  $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
   const name = firstName();
