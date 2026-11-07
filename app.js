@@ -3934,23 +3934,35 @@ function prHtml(t) { return clean(String(t).replace(/^```(?:html)?\s*/i, '').rep
 async function prDialog() {
   const n = notebooks.find(x => x.id === openId) || null;
   const left = await usageLeft('pr'); if (left <= 0) { limitDialog('pr'); return; }
-  if (!(await introOnce('pr'))) return;
   dialog(d => {
     d.classList.add('ocr-dlg', 'qa-dlg', 'pr-dlg');
-    d.innerHTML = `<h3>📝 דף תרגול דומה</h3><p class="muted-s">מעלים דף חזרה או תרגול שהמורה נתנה, ומקבלים דף חדש באותו מבנה בדיוק – אותם חלקים, אותם נושאים ואותה רמה – אבל עם מספרים ושאלות אחרים. מושלם להתאמן למבחן.</p>
-      <button type="button" class="tt-up small" id="prUp"><span class="ic"><svg aria-hidden="true"><use href="#i-doc"/></svg></span><b>העלאת הדף מהמורה</b><span>תמונה, PDF או Word – עד 3 קבצים</span></button>
+    d.innerHTML = `<div class="pr-head"><h3>📝 דף תרגול דומה</h3><button type="button" class="pr-help" id="prHelp">❔ איך זה עובד?</button></div>
+      <p class="muted-s">נותנים לי את הדף של המורה ← מקבלים דף חדש כמוהו, עם שאלות אחרות, כדי להתאמן למבחן.</p>
+      <div class="pr-step" id="prS1"><span class="pr-n">1</span><b>מה הדף של המורה?</b></div>
+      <button type="button" class="tt-up small" id="prUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום או קובץ של הדף</b><span>תמונה, PDF או Word</span></button>
       <input type="file" id="prFile" accept="image/*,application/pdf,.pdf,.docx,.txt" multiple hidden>
       <div class="oc-thumbs" id="prThumbs"></div>
-      <div class="qa-or">או / וגם</div>
-      <textarea id="prText" rows="4" placeholder="מדביקים כאן את הטקסט של הדף"></textarea>
-      <label class="pr-opt"><input type="checkbox" id="prSol" checked> כולל פתרונות בסוף</label>
-      <div class="oc-pick"><span>כמות שאלות</span><select id="prMore"><option value="0">כמו בדף המקורי</option><option value="1">יותר שאלות</option></select></div>
+      <div class="qa-or">או</div>
+      <textarea id="prText" rows="3" placeholder="להדביק כאן את הטקסט של הדף"></textarea>
+      <div class="pr-step"><span class="pr-n">2</span><b>איך הדף החדש יהיה?</b></div>
+      <label class="pr-opt" id="prSolL"><input type="checkbox" id="prSol" checked> עם פתרונות בסוף, לבדוק את עצמי</label>
+      <div class="oc-pick" id="prMoreL"><span>כמה שאלות?</span><select id="prMore"><option value="0">כמו בדף של המורה</option><option value="1">יותר, להתאמן עוד</option></select></div>
+      <div class="pr-step"><span class="pr-n">3</span><b>לוחצים ומחכים כחצי דקה</b></div>
       <p class="muted-s" style="margin:6px 0 0">${quotaText('pr', left)}</p>
       <p class="tt-status" id="prStatus"></p>`;
     const row = document.createElement('div'); row.className = 'row';
     const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'ליצור דף תרגול';
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
     row.append(go, no); d.appendChild(row);
+    const tour = () => coachTour(d, [
+      [d.querySelector('#prUp'), 'כאן מעלים את הדף שהמורה נתנה. אפשר לצלם אותו בטלפון.'],
+      [d.querySelector('#prText'), 'אין תמונה? אפשר להדביק כאן את הטקסט של הדף במקום.'],
+      [d.querySelector('#prSolL'), 'מסומן = בסוף הדף יהיו תשובות ודרך פתרון, כדי שתוכל לבדוק את עצמך.'],
+      [d.querySelector('#prMoreL'), 'כמה שאלות לקבל: כמו בדף המקורי, או יותר בשביל עוד תרגול.'],
+      [go, 'וזהו! לוחצים כאן, ותוך חצי דקה מקבלים דף חדש להתאמן.'],
+    ]);
+    d.querySelector('#prHelp').onclick = tour;
+    if (!introSeen('prtour')) { try { localStorage.setItem('intro:prtour', '1'); } catch {} setTimeout(tour, 450); }
     let files = [];
     const paint = () => { d.querySelector('#prThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : `<span>${esc((f.name.split('.').pop() || 'קובץ').toUpperCase())}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
     d.querySelector('#prThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
@@ -4015,12 +4027,6 @@ function prResult(n, html, sol) {
 }
 $('aiPr').addEventListener('click', prDialog);
 $('homePr').addEventListener('click', () => { openId = null; prDialog(); });
-INTROS.pr = [
-  ['pr1', 'מעלים דף חזרה מהמורה', 'מצלמים או מעלים את דף החזרה או התרגול שקיבלת לפני המבחן.'],
-  ['pr2', 'מקבלים דף חדש להתאמן', 'אותם חלקים, אותם נושאים ואותה רמה – אבל שאלות ומספרים חדשים. ובסוף יש פתרונות לבדיקה.'],
-];
-ILL.pr1 = `<svg viewBox="0 0 220 130"><rect x="70" y="12" width="80" height="106" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3].map(i=>`<rect x="${82+i%2*10}" y="${28+i*22}" width="${56-i%2*10}" height="7" rx="3.5" fill="#9AA0AE"/>`).join('')}<circle cx="150" cy="108" r="16" fill="#F97316"/><path d="M150 100v16M143 107l7-7 7 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
-ILL.pr2 = `<svg viewBox="0 0 220 130"><rect x="22" y="16" width="72" height="98" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="126" y="16" width="72" height="98" rx="8" fill="#fff" stroke="#F97316" stroke-width="2"/>${[0,1,2].map(i=>`<rect x="34" y="${32+i*26}" width="48" height="7" rx="3.5" fill="#9AA0AE"/><rect x="138" y="${32+i*26}" width="48" height="7" rx="3.5" fill="#F97316" opacity=".7"/>`).join('')}<path d="M100 65h20M114 58l7 7-7 7" stroke="#5E5CE6" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 
 /* ================= כרטיסיות שינון ================= */
 // נשמרות לכל מחברת ב-users/<uid>/cards/<מחברת>, כדי שאפשר לחזור אליהן בלי עוד AI
@@ -5148,4 +5154,32 @@ async function renderAdmin() {
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>מכשיר</th></tr></thead><tbody>
       ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+}
+
+/* ---- הסבר עם חצים בתוך חלון: מדגישים כל חלק בתורו, ובועה עם חץ מסבירה מה הוא עושה ---- */
+function coachTour(d, steps) {
+  steps = steps.filter(x => x[0]); if (!steps.length) return;
+  d.querySelector('.coach-bub')?.remove();
+  let i = 0;
+  const bub = document.createElement('div'); bub.className = 'coach-bub';
+  const off = () => { d.classList.remove('coaching'); d.querySelectorAll('.coach-on').forEach(x => x.classList.remove('coach-on')); bub.remove(); };
+  const show = () => {
+    const [el, txt] = steps[i];
+    d.querySelectorAll('.coach-on').forEach(x => x.classList.remove('coach-on'));
+    d.classList.add('coaching'); el.classList.add('coach-on');
+    bub.innerHTML = `<p>${txt}</p><div class="coach-nav"><span>שלב ${i + 1} מתוך ${steps.length}</span>${i > 0 ? '<button type="button" class="btn btn-ghost" data-c="back">חזרה</button>' : ''}<button type="button" class="btn btn-primary" data-c="next">${i === steps.length - 1 ? 'הבנתי!' : 'הבא ←'}</button></div><button type="button" class="coach-x" data-c="x" aria-label="סגירה">✕</button>`;
+    if (!bub.isConnected) d.appendChild(bub);
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const place = () => {
+      const dr = d.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const top = r.top - dr.top + d.scrollTop, below = top + r.height + bub.offsetHeight + 24 <= d.scrollHeight || i < steps.length - 1;
+      bub.classList.toggle('up', !below);
+      bub.style.top = (below ? top + r.height + 14 : top - bub.offsetHeight - 14) + 'px';
+      const cx = r.left - dr.left + r.width / 2, bl = Math.min(Math.max(cx - bub.offsetWidth / 2, 10), d.clientWidth - bub.offsetWidth - 10);
+      bub.style.left = bl + 'px'; bub.style.setProperty('--ax', Math.min(Math.max(cx - bl, 22), bub.offsetWidth - 22) + 'px');
+    };
+    place(); setTimeout(() => { place(); bub.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 400);
+  };
+  bub.onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; e.stopPropagation(); const c = b.dataset.c; if (c === 'next') { if (i === steps.length - 1) off(); else { i++; show(); } } else if (c === 'back') { i--; show(); } else off(); };
+  show();
 }

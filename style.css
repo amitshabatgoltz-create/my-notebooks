@@ -1580,3 +1580,23 @@ body.editing-shared .ai-card.pr{display:none}
 .pr-opt{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:14px;font-weight:600;cursor:pointer}
 .pr-opt input{width:18px;height:18px;accent-color:var(--accent)}
 .ai-box sup,.ai-box sub,#editor sup,#editor sub{font-size:.75em}
+.pr-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pr-help{font:inherit;font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:6px 12px;white-space:nowrap}
+.pr-step{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:15px}
+.pr-n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+/* הסבר עם חצים */
+.dialog.pr-dlg{position:relative}
+.dialog.coaching>*:not(.coach-bub):not(.row){opacity:.25;transition:opacity .2s}
+.dialog.coaching>.row>*{opacity:.25}
+.dialog.coaching .coach-on{opacity:1!important;position:relative;z-index:2;outline:3px solid var(--accent);outline-offset:4px;border-radius:12px;animation:coachpulse 1.4s ease-in-out infinite}
+@keyframes coachpulse{50%{outline-offset:8px}}
+.coach-bub{position:absolute;z-index:5;width:min(290px,calc(100% - 20px));background:var(--ink,#1D1D1F);color:var(--surface,#fff);border-radius:16px;padding:14px 14px 10px;box-shadow:0 14px 34px -10px rgba(0,0,0,.45);animation:fade .2s ease}
+.coach-bub::before{content:"";position:absolute;top:-9px;left:calc(var(--ax,50%) - 9px);border:9px solid transparent;border-top:0;border-bottom-color:var(--ink,#1D1D1F)}
+.coach-bub.up::before{top:auto;bottom:-9px;border-bottom:0;border-top:9px solid var(--ink,#1D1D1F)}
+.coach-bub p{margin:0 0 10px;color:inherit;font-size:15px;line-height:1.5;padding-left:18px}
+.coach-nav{display:flex;align-items:center;gap:6px}
+.coach-nav span{flex:1;font-size:12px;opacity:.7}
+.coach-nav .btn{padding:7px 14px;font-size:14px;min-height:0}
+.coach-nav .btn-ghost{color:inherit;background:rgba(255,255,255,.12)}
+.coach-x{position:absolute;top:8px;left:8px;color:inherit;opacity:.7;font-size:14px;background:none}
+@media (prefers-reduced-motion:reduce){.dialog.coaching .coach-on{animation:none}}

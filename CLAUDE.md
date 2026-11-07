@@ -42,7 +42,7 @@
    ```
 3. העלאה = `git push` ל-main. GitHub Pages מתעדכן תוך כדקה. לפעמים GitHub מחזיר שגיאת 500 – פשוט לנסות שוב.
 4. כל HTML שנכנס למחברת עובר דרך `clean()` – רשימה סגורה של תגיות ותכונות (`ALLOWED`). תכונה חדשה שצריכה להישמר (כמו `dir`, `data-a`) – להוסיף שם.
-5. חלונות: `dialog(build)` / `closeDialog()`. הודעות: `toast(msg)`, `toastAction(msg, label, fn)`. הסבר בפעם הראשונה: `introOnce(key)` עם `INTROS` ו-`ILL` (איורי SVG).
+5. חלונות: `dialog(build)` / `closeDialog()`. הודעות: `toast(msg)`, `toastAction(msg, label, fn)`. הסבר בפעם הראשונה: `introOnce(key)` עם `INTROS` ו-`ILL` (איורי SVG). הסבר עם חצים על חלקים בתוך חלון: `coachTour(d, [[אלמנט, טקסט], ...])` (בשימוש ב-`prDialog`).
 6. AI: `aiText` (זרם HTML), `aiExtract` / `aiJson` (JSON), `notebookParts()` (טקסט ותמונות מהמחברת).
 7. חלון עם `<input type=file>` מקבל אוטומטית גרירה והדבקה של קבצים (`dialogFileInput` / `feedInput`).
 8. תשובות AI שנכנסות למחברת – בלי הערות מיותרות (ראה `qaForNotebook`).
