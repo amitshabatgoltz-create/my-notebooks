@@ -12,10 +12,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794084799">
+<link rel="stylesheet" href="style.css?v=1794085577">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794084799"></script>
+<script src="motion.js?v=1794085577"></script>
 </head>
 <body>
 
@@ -147,6 +147,8 @@
     <div class="side-label">המחברות שלי</div>
     <div class="side-list" id="sideList"></div>
     <button class="side-new" id="sideNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
+    <div class="side-label hidden" id="sideShLabel">👥 שותפו איתי</div>
+    <div class="side-list" id="sideShared"></div>
   </aside>
 
   <div class="main-wrap">
@@ -228,7 +230,7 @@
         </div>
         <div class="grid" id="grid"></div>
         <div class="empty hidden" id="loading">טוען את המחברות...</div>
-        <div class="shared-me hidden" id="sharedWithMe"><h3>שותפו איתי</h3><div class="sh-list" id="sharedList"></div></div>
+        <div class="shared-me hidden" id="sharedWithMe"><h3>👥 שותפו איתי</h3><div class="grid sh-grid" id="sharedList"></div></div>
         <button class="trash-btn hidden" id="trashBtn" type="button"><svg><use href="#i-trash"/></svg><span>פח מחזור</span></button>
         <div class="empty hidden" id="sample">
           אין לך עדיין מחברות.
@@ -405,6 +407,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794084799"></script>
+<script type="module" src="app.js?v=1794085577"></script>
 </body>
 </html>

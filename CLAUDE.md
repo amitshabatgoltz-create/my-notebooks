@@ -19,7 +19,7 @@
 - `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון), `/chats/{id}` (שיחות עם העוזר הלימודי: title, history, mem, createdAt, updatedAt).
 - `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `grades` {items: [{id, s, n, g, t (סוג), d}], cats: {מקצוע: [{n, p}]} – אחוז לכל סוג; ממוצע לפי `subjAvg`}, `activity`.
 - `stats/{uid}` – סטטיסטיקה לעמוד "ניהול האתר" (name, email, first, last, lastDay, nb, device, ai{סוג: מספר}). כל משתמש כותב רק את שלו (`statsPing`, `statsAi`), ורק בעל האתר קורא את כולם (לפי request.auth.token.email בכללים – זה צד-שרת, לא נחשף בדפדפן). Google Analytics פעיל דרך `track(name, params)`.
-- `shares/{id}` – מחברות משותפות (mode: view | copy | edit), עם `presence`.
+- `shares/{id}` – מחברות משותפות (mode: view | copy | edit), עם `presence`. מחברות ששותפו איתי (`users/{uid}/shared`, `sharedList`) מופיעות ככרטיס גדול במסך המחברות (`renderShared`) וגם בצד (`#sideShared` ב-`renderSide`); מחברת שלי ששיתפתי (`shareId`) מקבלת תווית 👥.
 
 ## מכסה יומית ל-AI
 מכסת Gemini של כל האתר יחד (Free tier, נבדק ב-AI Studio ב-4.11.2026): Flash 20 ביום ו-5 בדקה, Flash Lite 500 ביום ו-15 בדקה. בינתיים כל האתר על Lite. Flash שמור למנוי פרו עתידי: הבחירה ב-`aiModels()`, והמתג הוא `isPro()` (כרגע false). מנוי אמיתי דורש תשלום ובדיקה בשרת, כי בדיקה בדפדפן אפשר לעקוף. `gemini-2.5-flash` ו-`gemini-2.5-flash-lite` הוסרו.

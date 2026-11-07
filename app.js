@@ -270,6 +270,7 @@ function nbCard(n, i) {
   const pv = document.createElement('div'); pv.className = 'nb-pv'; pv.textContent = preview(n.html) || 'מחברת ריקה';
   const m = document.createElement('div'); m.className = 'meta'; m.textContent = n.updatedAt ? 'עודכן ' + timeAgo(n.updatedAt) : '';
   body.append(l, pv, m); b.append(cover, body);
+  if (n.shareId) { const sb = document.createElement('span'); sb.className = 'nb-share'; sb.textContent = n.shareMode === 'edit' ? '👥 עריכה משותפת' : '👥 משותפת'; cover.appendChild(sb); }
   b.onclick = () => openNotebook(n.id);
   return b;
 }
@@ -288,7 +289,19 @@ function renderSide() {
     const b = document.createElement('button'); b.className = 'side-nb' + (n.id === openId ? ' on' : '');
     const dot = document.createElement('i'); dot.style.background = n.color || COLORS[0];
     const t = document.createElement('span'); t.textContent = n.title || 'מחברת ללא שם';
-    b.append(dot, t); b.onclick = () => openNotebook(n.id); box.appendChild(b);
+    b.append(dot, t);
+    if (n.shareId) { const s2 = document.createElement('small'); s2.className = 'side-sh'; s2.textContent = '👥'; s2.title = 'שיתפת את המחברת הזו'; b.appendChild(s2); }
+    b.onclick = () => openNotebook(n.id); box.appendChild(b);
+  });
+  // מחברות שאחרים שיתפו איתי – גם בצד
+  const sh = $('sideShared'); if (!sh) return; sh.innerHTML = '';
+  $('sideShLabel').classList.toggle('hidden', !sharedList.length);
+  sharedList.forEach(x => {
+    const b = document.createElement('button'); b.className = 'side-nb';
+    const dot = document.createElement('i'); dot.style.background = x.color || COLORS[0];
+    const t = document.createElement('span'); t.textContent = x.title || 'מחברת';
+    const o = document.createElement('small'); o.className = 'side-sh'; o.textContent = x.ownerName ? String(x.ownerName).split(/\s+/)[0] : '👥';
+    b.append(dot, t, o); b.onclick = () => openShare(x.id); sh.appendChild(b);
   });
 }
 const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView'];
@@ -2243,16 +2256,25 @@ function subscribeShared() {
   }, err => console.warn('shared', err));
 }
 function renderShared() {
+  renderSide();
   const box = $('sharedWithMe'); if (!box) return;
   box.classList.toggle('hidden', !sharedList.length);
   const list = $('sharedList'); list.innerHTML = '';
-  sharedList.forEach(x => {
-    const b = document.createElement('button'); b.className = 'sh-item'; b.style.setProperty('--c', x.color || COLORS[0]);
-    const t = document.createElement('b'); t.textContent = x.title || 'מחברת';
-    const o = document.createElement('small'); o.textContent = (x.ownerName ? 'מאת ' + x.ownerName : '') + (x.mode === 'edit' ? ' · עריכה משותפת' : '');
-    const rm = document.createElement('span'); rm.className = 'rm'; rm.textContent = '✕'; rm.title = 'הסרה מהרשימה';
-    rm.onclick = ev => { ev.stopPropagation(); deleteDoc(doc(db, 'users', me.uid, 'shared', x.id)).catch(() => {}); };
-    b.append(t, o, rm); b.onclick = () => openShare(x.id); list.appendChild(b);
+  // מחברות ששיתפו איתי: כרטיס גדול כמו של המחברות שלי
+  sharedList.forEach((x, i) => {
+    const b = document.createElement('button'); b.className = 'nb sh-card'; b.style.setProperty('--c', x.color || COLORS[0]); b.style.setProperty('--i', i);
+    const cover = document.createElement('div'); cover.className = 'nb-cover';
+    const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (x.title || '?').trim()[0] || '?';
+    const badge = document.createElement('span'); badge.className = 'nb-share'; badge.textContent = x.mode === 'edit' ? '👥 עריכה משותפת' : '👥 שותפה איתך';
+    cover.append(letter, badge);
+    const body = document.createElement('div'); body.className = 'nb-body';
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = x.title || 'מחברת';
+    const pv = document.createElement('div'); pv.className = 'nb-pv'; pv.textContent = x.ownerName ? 'מאת ' + x.ownerName : 'מחברת של חבר';
+    const m = document.createElement('div'); m.className = 'meta'; m.textContent = x.openedAt ? 'נפתחה ' + timeAgo(x.openedAt) : '';
+    body.append(l, pv, m); b.append(cover, body);
+    const rm = document.createElement('span'); rm.className = 'sh-rm'; rm.textContent = '✕'; rm.title = 'הסרה מהרשימה'; rm.setAttribute('role', 'button'); rm.setAttribute('aria-label', 'הסרה מהרשימה');
+    rm.onclick = ev => { ev.stopPropagation(); deleteDoc(doc(db, 'users', me.uid, 'shared', x.id)).then(() => toast('הוסרה מהרשימה (המחברת עצמה לא נמחקה)')).catch(() => {}); };
+    b.appendChild(rm); b.onclick = () => openShare(x.id); list.appendChild(b);
   });
 }
 if (shareParam) openShare(shareParam);

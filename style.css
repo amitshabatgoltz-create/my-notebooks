@@ -1747,3 +1747,14 @@ html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .chat-filebox{display:grid;gap:6px;margin-top:8px;white-space:normal}
 .chat-msg.me .chat-filebox .file-chip{background:rgba(255,255,255,.96);color:#1D1D1F;margin:0;max-width:100%}
 .chat-msg.me .chat-filebox .file-chip small{color:#6E6E78}
+
+/* מחברות משותפות: כרטיס גדול כמו מחברת רגילה, ובצד */
+.shared-me h3{margin:28px 0 12px;font-size:19px;font-weight:800}
+.sh-grid{margin-top:0}
+.nb .nb-share{position:absolute;bottom:8px;right:10px;z-index:2;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.92);color:#1D1D1F;white-space:nowrap}
+.nb-cover{position:relative}
+.sh-card{position:relative}
+.sh-card .sh-rm{position:absolute;top:8px;left:8px;z-index:3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.28);color:#fff;font-size:12px;opacity:0;transition:opacity .15s}
+.sh-card:hover .sh-rm,.sh-card:focus-within .sh-rm{opacity:1}
+@media (hover:none){.sh-card .sh-rm{opacity:.85}}
+.side-nb .side-sh{margin-inline-start:auto;font-size:11.5px;color:var(--muted);flex:none;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
