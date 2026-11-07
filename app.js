@@ -3672,11 +3672,11 @@ async function loadUsage() {
   catch { usage = usage && usage.day === tk ? usage : { day: tk }; }
   return usage;
 }
-async function usageLeft(k) { await refreshUnlimited(); if (isUnlimited()) return Infinity; const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
+// גם לבעל האתר יש מכסה רגילה (ביקש ב-7.11.2026). isUnlimited משמש רק לעמוד "ניהול האתר"
+async function usageLeft(k) { await refreshUnlimited(); const u = await loadUsage(); return Math.max(0, DAILY[k] - (u[k] || 0)); }
 // המונה בשרת יכול רק לעלות: באותו יום מוסיפים (increment), ביום חדש כותבים מסמך חדש
 function useOne(k, count = 1) {
   track('ai_use', { kind: k, count }); statsAi(k, count);
-  if (isUnlimited()) return;
   const tk = usageDay(); if (!usage || usage.day !== tk) usage = { day: tk };
   usage[k] = (usage[k] || 0) + count;
   const inc = () => updateDoc(usageDoc(), { [k]: increment(count) });
