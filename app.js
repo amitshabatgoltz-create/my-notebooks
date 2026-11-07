@@ -1006,7 +1006,7 @@ const aiModels = strongFirst => !isPro() ? [MODEL_LIGHT] : strongFirst ? [MODEL_
 let aiService = null;
 // 🔒 AI דרך השרת (functions/index.js): השרת סופר כל בקשה ואי אפשר לעקוף אותו.
 // false = הדרך הישנה (ישר מהדפדפן). מעבירים ל-true רק אחרי שהשרת עלה (firebase deploy --only functions).
-const AI_VIA_SERVER = false;
+const AI_VIA_SERVER = true;
 // איזה סוג פעולה עכשיו – לפי זה השרת סופר (chat, sum, qa, pr, fc, ocr, imp)
 let aiKindNow = 'chat';
 let aiCall = null;
