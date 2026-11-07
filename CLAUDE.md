@@ -8,6 +8,7 @@
 - אחרי כל שינוי: להסביר מה השתנה ואיך לראות את זה (בדרך כלל "תרענן פעמיים").
 
 ## מבנה
+- גוגל (7.11.2026): האתר מאומת ב-Google Search Console דרך `google0dd89255096ae44f.html` – **לא למחוק את הקובץ**. `sitemap.xml` נשלח. ב-`index.html` יש title, description, canonical, Open Graph ו-JSON-LD.
 - אתר סטטי בלי שלב build: `index.html`, `style.css`, `app.js` (מודול ES אחד גדול, כ-4,000 שורות, מחולק לאזורים עם כותרות `/* ===== ... ===== */`).
 - `motion.js` + `gsap.min.js` – כל האנימציות, דרך `window.Motion` (`view`, `tab`, `dialog`, `dialogOut`, `toast`, `toastOut`, `month`, `count`, `confetti`). תמיד לקרוא עם `window.Motion?.`. אם GSAP לא נטען או שביקשו פחות תנועה, האתר חוזר ל-CSS. כרטיסים מתחת למסך מקבלים `.gs-wait` ונחשפים בגלילה. בתוך מחברת פתוחה לא מזיזים תוכן.
 - `firebase-config.js` – ההגדרות של Firebase (פרויקט `my-notebooks-32ffd`). `sample-notebook.js` – מחברת לדוגמה.
