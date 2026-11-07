@@ -1778,3 +1778,4 @@ html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .nb-color{display:inline-flex;align-items:center;gap:7px}
 .doc-color{cursor:pointer}
 @media (max-width:600px){.nb-color span{display:none}}
+.login-en{margin:-8px 0 16px;font-size:12.5px;color:var(--muted);letter-spacing:.02em}
