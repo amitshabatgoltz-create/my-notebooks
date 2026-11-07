@@ -15,8 +15,7 @@ const GEMINI_KEY = defineSecret('GEMINI_API_KEY');
 // כי פעולה אחת לפעמים צריכה כמה קריאות (ניסיון חוזר, בדיקה כפולה של תמונה).
 const LIMIT = { chat: 45, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30 };
 const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יחד
-const MODELS = ['gemini-3.5-flash-lite'];               // המודל שכולם מקבלים
-const PRO_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];   // רק לבעל האתר
+const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];
@@ -86,7 +85,7 @@ exports.ai = onCall({
   const { kind, model, cfg, parts } = req.data || {};
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
-  if (!(owner ? PRO_MODELS : MODELS).includes(model)) throw new HttpsError('invalid-argument', 'bad-model');
+  if (!MODELS.includes(model)) throw new HttpsError('invalid-argument', 'bad-model');
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
