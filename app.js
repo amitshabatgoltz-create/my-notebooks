@@ -4662,9 +4662,35 @@ function chatContext() {
   if ($('chatLog').querySelector('.chat-empty')) chatRender();
 }
 function chatScroll() { const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
+// תשובה של העוזר: שורות עם "|" (טבלה בטקסט) הופכות לטבלה אמיתית. הכול נבנה עם textContent, אז אין סכנה מ-HTML
+function chatFill(el, text) {
+  const lines = String(text || '').split('\n');
+  const cells = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(x => x.trim().replace(/\*\*(.+?)\*\*/g, '$1')); };
+  const isRow = l => l.includes('|') && cells(l).filter(Boolean).length >= 2;
+  const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+  el.textContent = '';
+  let buf = [];
+  const flushText = () => { if (buf.length) { el.appendChild(document.createTextNode(buf.join('\n').replace(/\*\*(.+?)\*\*/g, '$1'))); buf = []; } };
+  for (let i = 0; i < lines.length;) {
+    let j = i; while (j < lines.length && (isRow(lines[j]) || (j > i && isSep(lines[j])))) j++;
+    const block = lines.slice(i, j).filter(l => !isSep(l));
+    if (block.length >= 2) {
+      flushText();
+      const hasHead = i + 1 < j && isSep(lines[i + 1]);
+      const wrap = document.createElement('div'); wrap.className = 'chat-tbl-wrap';
+      const tb = document.createElement('table'); tb.className = 'chat-tbl';
+      const n = Math.max(...block.map(l => cells(l).length));
+      block.forEach((l, k) => { const tr = document.createElement('tr'); const c = cells(l); for (let x = 0; x < n; x++) { const td = document.createElement(hasHead && k === 0 ? 'th' : 'td'); td.dir = 'auto'; td.textContent = c[x] || ''; tr.appendChild(td); } tb.appendChild(tr); });
+      wrap.appendChild(tb); el.appendChild(wrap); i = j;
+      if (lines[i] === '') i++;
+    } else { buf.push(lines[i]); i++; }
+  }
+  flushText();
+}
 function chatBubble(role, text) {
   $('chatLog').querySelector('.chat-empty')?.remove();
-  const b = document.createElement('div'); b.className = 'chat-msg ' + role; b.dir = 'auto'; b.textContent = text;
+  const b = document.createElement('div'); b.className = 'chat-msg ' + role; b.dir = 'auto';
+  if (role === 'bot') chatFill(b, text); else b.textContent = text;
   $('chatLog').appendChild(b); chatScroll(); return b;
 }
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
@@ -4870,6 +4896,12 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
 לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
 
+טבלה: כשמבקשים טבלה (או כשהשוואה או שלבים נראים טוב יותר בטבלה), כתוב טבלה אמיתית בפורמט הזה, עם שורת כותרת ושורת קווים:
+| כותרת | כותרת |
+|---|---|
+| תא | תא |
+בלי ** בתוך הטבלה.
+
 ${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ענה תמיד בעברית, בטקסט פשוט: בלי markdown ובלי HTML.`;
 }
 
@@ -5015,7 +5047,7 @@ async function chatSend() {
     ];
     const raw = await chatAsk(parts, t => {
       const s = chatSplit(t);
-      if (s.text && !s.broken) { b.classList.remove('typing'); b.textContent = s.text; chatScroll(); }
+      if (s.text && !s.broken) { b.classList.remove('typing'); chatFill(b, s.text); chatScroll(); }
       else if (s.partial && !b.classList.contains('making')) {
         const what = /"QUIZ"/.test(t) ? 'מכין לך שאלון…' : /"SHEET"/.test(t) ? 'מכין לך דף חזרה…' : '';
         if (what) { b.classList.remove('typing'); b.classList.add('making'); b.textContent = what; chatScroll(); }
@@ -5032,7 +5064,7 @@ async function chatSend() {
       try { ev = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
       if (ev) { if (!text) text = `הוספתי לך ליומן: ${ev.title}`; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
-      b.classList.remove('typing', 'making'); b.textContent = text;
+      b.classList.remove('typing', 'making'); chatFill(b, text);
       if (ev) chatAddedCard(ev);
     } else {
       if (s.action && kitLeft > 0) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);

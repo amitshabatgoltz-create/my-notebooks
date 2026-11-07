@@ -1665,3 +1665,12 @@ body.editing-shared .ai-card.wr{display:none}
 html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .ai-strip .ai-card.wr::after{display:block;animation-delay:.5s}
 @media (min-width:701px){.ai-strip .ai-card.wr{margin-inline-end:6px}}
+
+/* טבלה בתשובה של העוזר */
+.chat-tbl-wrap{overflow-x:auto;margin:8px 0;white-space:normal}
+.chat-tbl{border-collapse:collapse;width:100%;font-size:.95em;background:var(--surface);border-radius:10px;overflow:hidden}
+.chat-tbl th,.chat-tbl td{border:1px solid var(--line);padding:7px 10px;text-align:start;vertical-align:top}
+.chat-tbl th{background:var(--accent-soft);font-weight:700}
+.chat-tbl tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 3%,var(--surface))}
+.chat-msg.bot:has(.chat-tbl),.chat-panel.full .chat-msg.bot:has(.chat-tbl){max-width:calc(100% - 44px)}
+.chat-tbl-wrap{padding-bottom:2px}
