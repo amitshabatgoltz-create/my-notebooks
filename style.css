@@ -1600,3 +1600,44 @@ body.editing-shared .ai-card.pr{display:none}
 .coach-nav .btn-ghost{color:inherit;background:rgba(255,255,255,.12)}
 .coach-x{position:absolute;top:8px;left:8px;color:inherit;opacity:.7;font-size:14px;background:none}
 @media (prefers-reduced-motion:reduce){.dialog.coaching .coach-on{animation:none}}
+
+/* ===== שיפור עיצוב: כלים במסך הבית, כלי AI קטנים וצבעוניים במחברת, צבעים רכים ביומן השבועי ===== */
+:root{--c-ocr:#5E5CE6;--c-sum:#8B5CF6;--c-qa:#0E9F6E;--c-fc:#D97706;--c-pr:#DB2777;--c-cal:#2563EB;--c-new:#1D1D1F;--c-test:#E5484D;--c-hw:#2563EB}
+html[data-theme="dark"]{--c-ocr:#8F8DF5;--c-sum:#B197FC;--c-qa:#34D399;--c-fc:#FBBF24;--c-pr:#F472B6;--c-cal:#60A5FA;--c-new:#F2F2F6;--c-test:#FF6B70;--c-hw:#60A5FA}
+
+/* מסך הבית: 4 אריחים ברורים במקום שורת כפתורים */
+.hero-actions.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%}
+.hero:has(.tiles){align-items:stretch}
+.hero:has(.tiles) .hero-in{width:100%}
+.tile{--c:var(--accent);display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px;border-radius:18px;background:var(--surface);border:1px solid var(--line);text-align:start;color:var(--ink);transition:transform .15s var(--ease),border-color .15s,box-shadow .15s;min-height:44px}
+.tile:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:0 10px 24px -14px color-mix(in srgb,var(--c) 60%,transparent)}
+.tile:active{transform:scale(.98)}
+.tile .t-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--c);margin-bottom:8px}
+.tile .t-ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tile b{font-size:15.5px;font-weight:700}
+.tile small{font-size:12.5px;color:var(--muted)}
+.t-new{--c:var(--c-new)}.t-ocr{--c:var(--c-ocr)}.t-pr{--c:var(--c-pr)}.t-cal{--c:var(--c-cal)}
+.t-new .t-ic{background:var(--c-new);color:var(--surface)}
+.tiles #homeAdmin{grid-column:1/-1;justify-self:start}
+@media (max-width:700px){.hero-actions.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile{padding:12px}.tile .t-ic{width:36px;height:36px;margin-bottom:6px}}
+
+/* במחברת: כלי ה-AI כשורה של כפתורים קטנים וצבעוניים, כדי שהמחברת עצמה תהיה במרכז */
+.ai-strip{display:flex!important;flex-wrap:wrap;gap:8px;margin:2px 0 14px;padding:2px}
+.ai-strip .ai-card{--c:var(--accent);flex:0 0 auto;flex-direction:row!important;align-items:center!important;text-align:start!important;gap:8px!important;padding:6px 14px 6px 6px!important;min-height:44px;border-radius:999px;background:color-mix(in srgb,var(--c) 11%,var(--surface))!important;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 22%,transparent);box-shadow:none;grid-column:auto!important}
+.ai-strip .ai-card:hover{transform:translateY(-1px);box-shadow:none;background:color-mix(in srgb,var(--c) 17%,var(--surface))!important}
+.ai-strip .ai-card::after{display:none}
+.ai-strip .ai-card .ic{width:32px!important;height:32px!important;border-radius:50%;background:var(--c);color:#fff}
+.ai-strip .ai-card .ic svg{width:17px;height:17px}
+.ai-strip .ai-card .tx{align-items:flex-start!important}
+.ai-strip .ai-card b{font-size:14.5px!important;font-weight:700;white-space:nowrap}
+.ai-strip .ai-card small{display:none!important}
+html[data-theme="dark"] .ai-strip .ai-card .ic{color:#111}
+.ai-card.ocr{--c:var(--c-ocr)}.ai-card.sum{--c:var(--c-sum)}.ai-card.qa{--c:var(--c-qa)}.ai-card.fc{--c:var(--c-fc)}.ai-card.pr{--c:var(--c-pr)}
+@media (max-width:700px){.ai-strip{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding:2px 16px}.ai-strip::-webkit-scrollbar{display:none}}
+
+/* השבוע הקרוב: צבעים רכים לפי סוג, עם פס צבע בצד */
+.wk-ev{border-inline-start:3px solid transparent}
+.wk-test{background:color-mix(in srgb,var(--c-test) 13%,var(--surface));color:var(--c-test);border-inline-start-color:var(--c-test);font-weight:700}
+.wk-hw{background:color-mix(in srgb,var(--c-hw) 11%,var(--surface));color:var(--ink);border-inline-start-color:var(--c-hw)}
+.wk-other{background:color-mix(in srgb,var(--ink) 6%,var(--surface));border-inline-start-color:color-mix(in srgb,var(--ink) 30%,transparent)}
+.wk-day{min-height:150px}
