@@ -1743,3 +1743,7 @@ html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .tour-chip{position:fixed;z-index:40;bottom:calc(96px + env(safe-area-inset-bottom));right:16px;padding:10px 16px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;box-shadow:0 10px 24px -8px var(--accent);animation:rise .5s var(--ease) both}
 @media (min-width:821px){.tour-chip{bottom:24px;right:auto;left:110px}}
 @media (prefers-reduced-motion:reduce){.tour-spot,.tour-bub{transition:none}.tour-bub.pop,.welcome-dlg .wl-wave{animation:none}}
+/* קבצים שצורפו לעוזר: נשמרים ונפתחים */
+.chat-filebox{display:grid;gap:6px;margin-top:8px;white-space:normal}
+.chat-msg.me .chat-filebox .file-chip{background:rgba(255,255,255,.96);color:#1D1D1F;margin:0;max-width:100%}
+.chat-msg.me .chat-filebox .file-chip small{color:#6E6E78}

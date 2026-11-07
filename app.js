@@ -4879,7 +4879,7 @@ function chatRender() {
   $('chatLog').innerHTML = '';
   if (chatHistory.length) {
     const lastBot = chatHistory.map(m => m.role).lastIndexOf('bot');
-    chatHistory.forEach((m, k) => { if (m.hidden) return; const b = chatBubble(m.role, m.text); if (m.role === 'bot') { chatSources(b, m.src); chatTools(b, m, k === lastBot && !m.card); } if (m.card) chatCardEl(m); });
+    chatHistory.forEach((m, k) => { if (m.hidden) return; const b = chatBubble(m.role, m.role === 'me' && m.files ? m.text.replace(/^\(צירף: [^)]*\) ?/, '') : m.text); if (m.role === 'me') chatFileChips(b, m.files); if (m.role === 'bot') { chatSources(b, m.src); chatTools(b, m, k === lastBot && !m.card); } if (m.card) chatCardEl(m); });
     return;
   }
   // שיחה ריקה: ברכה והצעות במקום בועה רגילה
@@ -4940,8 +4940,8 @@ const chatRef = id => doc(db, 'users', me.uid, 'chats', id);
 const chatOldDoc = () => doc(db, 'users', me.uid, 'meta', 'chat');
 function chatApply(id, d) {
   chatId = id; chatSavedTitle = d.title || ''; chatCreated = d.createdAt || d.updatedAt || Date.now();
-  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || ''), ...(m.card ? { card: m.card } : {}), ...(m.hidden ? { hidden: true } : {}), ...(Array.isArray(m.src) && m.src.length ? { src: m.src.slice(0, 5).map(x => ({ t: String(x.t || ''), u: String(x.u || '') })) } : {}) }));
-  chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), part: typeof m.part === 'string' ? m.part : CHAT_FILE_GONE }));
+  chatHistory = (Array.isArray(d.history) ? d.history : []).map(m => ({ role: m.role === 'me' ? 'me' : 'bot', text: String(m.text || ''), ...(m.card ? { card: m.card } : {}), ...(m.hidden ? { hidden: true } : {}), ...(Array.isArray(m.files) && m.files.length ? { files: m.files.filter(x => x && chatFid(x.id)).slice(0, 6).map(x => ({ id: x.id, name: String(x.name || 'קובץ').slice(0, 120), size: +x.size || 0 })) } : {}), ...(Array.isArray(m.src) && m.src.length ? { src: m.src.slice(0, 5).map(x => ({ t: String(x.t || ''), u: String(x.u || '') })) } : {}) }));
+  chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), ...(chatFid(m.fid) ? { fid: m.fid } : {}), part: typeof m.part === 'string' ? m.part : chatFid(m.fid) ? null : CHAT_FILE_GONE }));
   chatPending = []; chatPaintFiles(); chatRender();
 }
 async function chatFetchList() {
@@ -4971,7 +4971,7 @@ function chatSave() {
   while (chatHistory.length > CHAT_MAX_HISTORY || chatHistory.reduce((t, m) => t + m.text.length, 0) > CHAT_MAX_HISTORY_TEXT) { if (chatHistory.length <= 2) break; chatHistory.shift(); }
   const now = Date.now();
   if (!chatId) { chatId = doc(chatCol()).id; chatCreated = now; chatSavedTitle = chatTitle(chatHistory); }
-  const mem = chatMem.map(m => ({ name: m.name, part: typeof m.part === 'string' ? m.part : null }));
+  const mem = chatMem.map(m => ({ name: m.name, ...(m.fid ? { fid: m.fid } : {}), part: typeof m.part === 'string' && m.part !== CHAT_FILE_GONE ? m.part : null }));
   setDoc(chatRef(chatId), { title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now }).catch(e => { console.warn('chat save', e); toast('לא הצלחתי לשמור את השיחה'); });
 }
 const chatWaitBusy = () => { if (!chatBusy) return false; toast('רגע, העוזר עוד עונה'); return true; };
@@ -5174,15 +5174,35 @@ async function chatAddFiles(list) {
     const name = f.name || 'תמונה';
     if (f.size > CHAT_MAX_FILE) { toast(`"${name}" גדול מדי. אפשר עד 12MB`); continue; }
     const it = { name, part: null }; chatPending.push(it); chatPaintFiles();
+    // שומרים את הקובץ עצמו בענן (כמו ביומן), כדי שאפשר יהיה לפתוח אותו גם בפעם הבאה
+    it.up = uploadFile(f).catch(e => { console.warn('chat file save', e); return null; });
     try { it.part = await fileToAiPart(f); }
     catch (e) { console.warn(e); chatPending = chatPending.filter(o => o !== it); toast(`אי אפשר לקרוא את "${name}". אפשר תמונה, PDF, Word, Excel או טקסט`); }
     chatPaintFiles();
   }
 }
+const chatFid = id => typeof id === 'string' && /^[\w-]{1,64}$/.test(id);
+// הקבצים שצירפת מופיעים מתחת להודעה שלך, עם פתיחה והורדה (כמו ביומן)
+function chatFileChips(b, files) {
+  if (!files || !files.length) return;
+  const box = document.createElement('div'); box.className = 'chat-filebox';
+  box.innerHTML = files.filter(x => chatFid(x.id)).map(x => fileChipHtml(x, false)).join('');
+  b.appendChild(box);
+}
+// בשיחה ישנה: תמונות ו-PDF שנשמרו בענן נטענים שוב, כדי שהעוזר "יראה" אותם
+async function chatRestoreMem() {
+  for (const m of chatMem) {
+    if (m.part != null || !m.fid) continue;
+    try {
+      const { blob, name } = await getFileBlob(m.fid);
+      m.part = await fileToAiPart(new File([blob], name || m.name, { type: blob.type }));
+    } catch (e) { console.warn('restore', e); m.part = CHAT_FILE_GONE; }
+  }
+}
 // קבצים נשארים לשאר השיחה, כדי שאפשר יהיה לשאול עליהם עוד שאלות
 function chatRemember(files) {
   chatMem.push(...files);
-  const size = m => typeof m.part === 'string' ? m.part.length : m.part.inlineData.data.length;
+  const size = m => typeof m.part === 'string' ? m.part.length : m.part && m.part.inlineData ? m.part.inlineData.data.length : 0;
   const textSize = () => chatMem.reduce((t, m) => t + (typeof m.part === 'string' ? m.part.length : 0), 0);
   while (chatMem.length > 1 && (chatMem.length > 6 || textSize() > CHAT_MAX_MEM_TEXT || chatMem.reduce((t, m) => t + size(m), 0) > CHAT_MAX_MEM)) chatMem.shift();
 }
@@ -5246,7 +5266,11 @@ async function chatSend() {
     chatPending = []; chatPaintFiles();
     chatContext();
     const shown = long ? `חומר שהדבקת (${msg.trim().split(/\s+/).length} מילים)\n${msg.slice(0, 280)}…` : msg;
-    chatBubble('me', [...files.map(f => '' + f.name), shown].filter(Boolean).join('\n'));
+    const sentFiles = (await Promise.all(files.map(f => f.up || null))).filter(Boolean);
+    files.forEach((f, k) => { const u = sentFiles.find(x => x.name === String(f.name).slice(0, 120)); if (u) f.fid = u.id; });
+    const meB = chatBubble('me', sentFiles.length === files.length ? shown : [...files.map(f => '' + f.name), shown].filter(Boolean).join('\n'));
+    chatFileChips(meB, sentFiles);
+    await chatRestoreMem();
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
@@ -5256,7 +5280,7 @@ async function chatSend() {
       if (!me || me.uid !== uid) return;
       const botItem = { role: 'bot', text: res.text };
       const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
-      chatHistory.push({ role: 'me', text: note + msg }, botItem);
+      chatHistory.push({ role: 'me', text: note + msg, ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
       chatTools(b, botItem, false); chatSave(); return;
     }
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
@@ -5306,7 +5330,7 @@ async function chatSend() {
     chatTools(b, botItem, !card);
     if (!card) chatNextChips(b, next);
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
-    chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg) }, botItem);
+    chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg), ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
     if (card) chatCardEl(botItem);
     chatSave();
   } catch (e) {
