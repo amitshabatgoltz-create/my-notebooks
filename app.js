@@ -165,7 +165,7 @@ $('sampleBtn').onclick = async () => {
 const BOX_COLORS = ['yellow', 'blue', 'green', 'purple', 'red', 'gray'];
 const LN_RE = /^\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
 const LINE_RE = /^\d{1,4}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
-const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH']);
+const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH','SUB','SUP']);
 function clean(html) {
   const d = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
   const walk = node => [...node.childNodes].forEach(ch => {
@@ -3616,7 +3616,7 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3, pr: 3 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
 let unlimitedEmail = null, unlimitedYes = false;
@@ -3629,7 +3629,7 @@ async function refreshUnlimited() {
 }
 const isUnlimited = () => unlimitedYes && unlimitedEmail === ((me && me.email) || '').toLowerCase();
 const OCR_MAX_IMGS = 4;
-const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה' };
+const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה', pr: 'דף תרגול דומה' };
 let usage = null;
 const usageDoc = () => doc(db, 'users', me.uid, 'meta', 'usage');
 async function loadUsage() {
@@ -3645,7 +3645,7 @@ function useOne(k, count = 1) {
   if (isUnlimited()) return;
   const tk = todayKey(); if (!usage || usage.date !== tk) usage = { date: tk, ocr: 0, sum: 0 };
   usage[k] = (usage[k] || 0) + count;
-  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0, kit: usage.kit || 0 }).catch(() => {});
+  setDoc(usageDoc(), { date: tk, ocr: usage.ocr || 0, sum: usage.sum || 0, qa: usage.qa || 0, fc: usage.fc || 0, chat: usage.chat || 0, cf: usage.cf || 0, kit: usage.kit || 0, pr: usage.pr || 0 }).catch(() => {});
 }
 function quotaText(k, left) {
   if (left === Infinity) return '<span class="q-dots"><i class="on"></i></span> ללא הגבלה';
@@ -3654,7 +3654,7 @@ function quotaText(k, left) {
 }
 function limitDialog(k) {
   dialog(d => {
-    d.innerHTML = `<div class="limit-box"><div class="big"><svg aria-hidden="true"><use href="#i-timer"/></svg></div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
+    d.innerHTML = `<div class="limit-box"><div class="big"><svg aria-hidden="true"><use href="#i-timer"/></svg></div><h3>${k === 'ocr' ? 'נגמרו התמונות להיום' : `נגמרו השימושים ב"${USE_NAME[k]}" להיום`}</h3><p>${k === 'ocr' ? `אפשר להעלות ${DAILY.ocr} תמונות ביום לתמונה לטקסט.` : k === 'qa' ? `אפשר לפתור ${DAILY.qa} עבודות מהמורה ביום.` : k === 'fc' ? `אפשר ליצור כרטיסיות שינון ${DAILY.fc} פעמים ביום. כרטיסיות שכבר יצרת פתוחות תמיד.` : k === 'chat' ? `אפשר לשלוח לעוזר הלימודי ${DAILY.chat} הודעות ביום.` : k === 'cf' ? `אפשר להעלות לעוזר הלימודי ${DAILY.cf} קבצים ותמונות ביום.` : k === 'pr' ? `אפשר ליצור ${DAILY.pr} דפי תרגול דומים ביום. דפים שכבר יצרת נשארים במחברת.` : k === 'kit' ? `אפשר להכין ${DAILY.kit} שאלונים ודפי חזרה ביום. מה שכבר הכנת נשאר פתוח, ואפשר להמשיך לשאול את העוזר.` : `אפשר ליצור ${DAILY.sum} סיכומים למבחן ביום.`} זה מתאפס בחצות, ומחר אפשר שוב.</p></div>`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
     row.appendChild(ok); d.appendChild(row);
@@ -3917,6 +3917,110 @@ INTROS.qa = [
 ];
 ILL.qa1 = `<svg viewBox="0 0 220 130"><rect x="40" y="12" width="140" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2].map(i=>`<text x="166" y="${40+i*28}" font-size="13" font-weight="700" fill="#5E5CE6" text-anchor="end">${i+1}.</text><rect x="62" y="${31+i*28}" width="${88-i*12}" height="7" rx="3.5" fill="#9AA0AE"/><text x="54" y="${40+i*28}" font-size="14" fill="#F59E0B" text-anchor="middle">?</text>`).join('')}</svg>`;
 ILL.qa2 = `<svg viewBox="0 0 220 130"><rect x="30" y="12" width="160" height="106" rx="10" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="96" y="24" width="78" height="9" rx="4.5" fill="#1D1D1F"/><rect x="58" y="42" width="116" height="7" rx="3.5" fill="#9AA0AE"/><rect x="78" y="55" width="96" height="7" rx="3.5" fill="#9AA0AE"/><rect x="62" y="70" width="112" height="16" rx="6" fill="#EEEEFD"/><text x="168" y="82" font-size="10" fill="#5E5CE6" text-anchor="end" font-weight="700">מהמחברת: "..."</text><rect x="92" y="94" width="82" height="14" rx="5" fill="#FFE58A"/><text x="168" y="104" font-size="9" fill="#8A6D00" text-anchor="end">לא כתוב במחברת</text></svg>`;
+
+/* ===== דף תרגול דומה: מעלים דף חזרה מהמורה, ומקבלים דף חדש באותו מבנה עם מספרים והקשרים אחרים ===== */
+const PR_PROMPT = (sol, more) => `קיבלת דף חזרה/תרגול של מורה (בתמונה, PDF או טקסט).
+שלב 1 – נתח את המבנה: כמה חלקים יש, כמה שאלות בכל חלק, מה הנושא של כל שאלה, איזה סוג שאלה (פתוחה, אמריקאית, השלמה, טבלה, חישוב, הוכחה) ואיזו רמת קושי.
+שלב 2 – בנה דף תרגול חדש עם אותו מבנה בדיוק: אותם חלקים באותו סדר ואותן כותרות, ${more ? 'בערך פי 1.5 שאלות בכל חלק (אותם נושאים, יותר תרגול)' : 'אותו מספר שאלות בכל חלק'}, אותם נושאים, אותו סוג שאלה ואותה רמת קושי – אבל מספרים, שמות והקשרים שונים לגמרי.
+אל תעתיק שאלות מהדף. תמציא שאלות חדשות באותה רמה. ודא שכל שאלה פתירה ושהמספרים יוצאים הגיוניים (כמו במקור – אם במקור יוצאים מספרים שלמים, גם כאן).
+${sol ? 'בסוף הדף הוסף <h2>מפתח תשובות</h2> ובו לכל שאלה (באותו מספור): התשובה הסופית מודגשת ב-<b>, ודרך פתרון קצרה של 1–4 שורות.' : 'אל תכתוב פתרונות או תשובות.'}
+פורמט: החזר HTML נקי בלבד (בלי \`\`\` ובלי הקדמה או הערות). השתמש רק ב: <h2> לכותרת הדף, <h3> לכותרת של כל חלק, <p>, <ol>/<li> או מספור כתוב ("1.", "א."), <b>, <table>, <sub>, <sup>.
+- שמור על המספור כמו במקור (1, 2, 3 או א, ב, ג וסעיפים).
+- נוסחאות: כתוב בטקסט רגיל עם סימנים: x², √, ×, ÷, ≤, ≥, π, שברים כ-3/4, ו-<sup>/<sub> לחזקות ולאינדקסים. בלי LaTeX ובלי $.
+- שאלות אמריקאיות: כל אפשרות בשורה משלה (<p>א. ...</p>).
+- טבלה למילוי: טבלת HTML אמיתית עם תאים ריקים.
+- כתוב באותה שפה של הדף המקורי (בדרך כלל עברית; אם הדף באנגלית – באנגלית).`;
+function prHtml(t) { return clean(String(t).replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')); }
+async function prDialog() {
+  const n = notebooks.find(x => x.id === openId) || null;
+  const left = await usageLeft('pr'); if (left <= 0) { limitDialog('pr'); return; }
+  if (!(await introOnce('pr'))) return;
+  dialog(d => {
+    d.classList.add('ocr-dlg', 'qa-dlg', 'pr-dlg');
+    d.innerHTML = `<h3>📝 דף תרגול דומה</h3><p class="muted-s">מעלים דף חזרה או תרגול שהמורה נתנה, ומקבלים דף חדש באותו מבנה בדיוק – אותם חלקים, אותם נושאים ואותה רמה – אבל עם מספרים ושאלות אחרים. מושלם להתאמן למבחן.</p>
+      <button type="button" class="tt-up small" id="prUp"><span class="ic"><svg aria-hidden="true"><use href="#i-doc"/></svg></span><b>העלאת הדף מהמורה</b><span>תמונה, PDF או Word – עד 3 קבצים</span></button>
+      <input type="file" id="prFile" accept="image/*,application/pdf,.pdf,.docx,.txt" multiple hidden>
+      <div class="oc-thumbs" id="prThumbs"></div>
+      <div class="qa-or">או / וגם</div>
+      <textarea id="prText" rows="4" placeholder="מדביקים כאן את הטקסט של הדף"></textarea>
+      <label class="pr-opt"><input type="checkbox" id="prSol" checked> כולל פתרונות בסוף</label>
+      <div class="oc-pick"><span>כמות שאלות</span><select id="prMore"><option value="0">כמו בדף המקורי</option><option value="1">יותר שאלות</option></select></div>
+      <p class="muted-s" style="margin:6px 0 0">${quotaText('pr', left)}</p>
+      <p class="tt-status" id="prStatus"></p>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'ליצור דף תרגול';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(go, no); d.appendChild(row);
+    let files = [];
+    const paint = () => { d.querySelector('#prThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : `<span>${esc((f.name.split('.').pop() || 'קובץ').toUpperCase())}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button></div>`).join(''); };
+    d.querySelector('#prThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
+    d.querySelector('#prUp').onclick = () => d.querySelector('#prFile').click();
+    d.querySelector('#prFile').onchange = ev => { [...ev.target.files].slice(0, 3 - files.length).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    go.onclick = async () => {
+      const q = d.querySelector('#prText').value.trim();
+      if (!q && !files.length) { toast('העלה את הדף מהמורה או הדבק את הטקסט שלו'); return; }
+      const sol = d.querySelector('#prSol').checked, more = d.querySelector('#prMore').value === '1';
+      go.disabled = true; d.querySelector('#prUp').disabled = true;
+      const st = d.querySelector('#prStatus'); const stop = ticking(st, 'מנתח את הדף ובונה דף חדש...');
+      try {
+        const parts = [PR_PROMPT(sol, more)];
+        for (const f of files) {
+          try { parts.push(await fileToAiPart(f)); }
+          catch (e) { if (e && e.code === 'type') { stop(); st.textContent = `אי אפשר לקרוא את "${f.name}". אפשר תמונה, PDF או Word.`; go.disabled = false; d.querySelector('#prUp').disabled = false; return; } throw e; }
+        }
+        if (q) parts.push('=== הטקסט של הדף ===\n' + q.slice(0, 60000));
+        const live = document.createElement('div'); live.className = 'ai-box live-read'; d.insertBefore(live, row);
+        const html0 = await aiText(aiModels(true), { temperature: 0.7, thinkingConfig: { thinkingBudget: 2048 } }, parts, t => { live.innerHTML = prHtml(t); live.scrollTop = live.scrollHeight; });
+        const html = prHtml(html0);
+        if (!html.replace(/<[^>]*>/g, '').trim()) throw new Error('empty');
+        stop(); useOne('pr');
+        closeDialog(); prResult(n, html, sol);
+      } catch (e) { stop(); console.error(e); showAiError(e); }
+    };
+  });
+}
+// מחלקים לדף התרגול ולמפתח התשובות, כדי שאפשר יהיה להוסיף רק את הדף
+function prSplit(html) {
+  const w = document.createElement('div'); w.innerHTML = html;
+  const k = [...w.children].find(el => /^H[1-3]$/.test(el.tagName) && /מפתח תשובות|פתרונות|answer key|solutions/i.test(el.textContent));
+  if (!k) return { sheet: html, key: '' };
+  const kw = document.createElement('div');
+  for (let x = k; x;) { const nx = x.nextSibling; kw.appendChild(x); x = nx; }
+  return { sheet: w.innerHTML, key: kw.innerHTML };
+}
+function prResult(n, html, sol) {
+  dialog(d => {
+    d.classList.add('ai-result');
+    d.innerHTML = `<h3>📝 דף התרגול שלך</h3><p class="muted-s">אותו מבנה כמו הדף של המורה, עם שאלות חדשות. ${sol ? 'הפתרונות בסוף – כדאי לפתור קודם לבד ורק אז לבדוק.' : ''} אפשר לתקן כאן לפני שמוסיפים.</p>`;
+    const box = document.createElement('div'); box.className = 'ai-box'; box.contentEditable = 'true'; box.innerHTML = html;
+    const final = () => qaForNotebook(box.innerHTML);
+    const row = document.createElement('div'); row.className = 'row';
+    const toNb = async (h, msg) => {
+      if (n) { if (openId !== n.id) openNotebook(n.id); const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast(msg); return; }
+      try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: 'דף תרגול', color: '#F97316', html: h, createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם דף התרגול ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); }
+    };
+    const add = document.createElement('button'); add.className = 'btn btn-primary'; add.textContent = n ? 'הוספה למחברת' : 'שמירה כמחברת חדשה';
+    add.onclick = () => toNb(final(), 'דף התרגול נוסף למחברת ✓');
+    const btns = [add];
+    if (sol) {
+      const only = document.createElement('button'); only.className = 'btn btn-ghost'; only.textContent = 'בלי הפתרונות';
+      only.onclick = () => toNb(clean(prSplit(final()).sheet), 'דף התרגול נוסף (בלי הפתרונות) ✓');
+      btns.push(only);
+    }
+    const cp = document.createElement('button'); cp.className = 'btn btn-ghost'; cp.textContent = 'העתקה';
+    cp.onclick = async () => { try { const t = document.createElement('div'); t.innerHTML = final(); t.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(t); const txt = t.innerText; t.remove(); await navigator.clipboard.writeText(txt); toast('הועתק ✓'); } catch { toast('לא הצלחתי להעתיק'); } };
+    const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(...btns, cp, close); d.append(box, row);
+  });
+}
+$('aiPr').addEventListener('click', prDialog);
+$('homePr').addEventListener('click', () => { openId = null; prDialog(); });
+INTROS.pr = [
+  ['pr1', 'מעלים דף חזרה מהמורה', 'מצלמים או מעלים את דף החזרה או התרגול שקיבלת לפני המבחן.'],
+  ['pr2', 'מקבלים דף חדש להתאמן', 'אותם חלקים, אותם נושאים ואותה רמה – אבל שאלות ומספרים חדשים. ובסוף יש פתרונות לבדיקה.'],
+];
+ILL.pr1 = `<svg viewBox="0 0 220 130"><rect x="70" y="12" width="80" height="106" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/>${[0,1,2,3].map(i=>`<rect x="${82+i%2*10}" y="${28+i*22}" width="${56-i%2*10}" height="7" rx="3.5" fill="#9AA0AE"/>`).join('')}<circle cx="150" cy="108" r="16" fill="#F97316"/><path d="M150 100v16M143 107l7-7 7 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+ILL.pr2 = `<svg viewBox="0 0 220 130"><rect x="22" y="16" width="72" height="98" rx="8" fill="#fff" stroke="#E2E4EC" stroke-width="2"/><rect x="126" y="16" width="72" height="98" rx="8" fill="#fff" stroke="#F97316" stroke-width="2"/>${[0,1,2].map(i=>`<rect x="34" y="${32+i*26}" width="48" height="7" rx="3.5" fill="#9AA0AE"/><rect x="138" y="${32+i*26}" width="48" height="7" rx="3.5" fill="#F97316" opacity=".7"/>`).join('')}<path d="M100 65h20M114 58l7 7-7 7" stroke="#5E5CE6" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 
 /* ================= כרטיסיות שינון ================= */
 // נשמרות לכל מחברת ב-users/<uid>/cards/<מחברת>, כדי שאפשר לחזור אליהן בלי עוד AI

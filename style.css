@@ -1569,3 +1569,14 @@ body[data-view="chatView"] .main-wrap{background:none}
 .hw-empty .big{animation:none;color:var(--accent);line-height:1}
 .hw-empty .big svg,.gr-empty .big svg,.limit-box .big svg{width:46px;height:46px;color:var(--accent)}
 .fi,.qa-file>span:first-child,.oc-th>span{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--accent)}
+
+/* דף תרגול דומה */
+.ai-card.pr{background:var(--solid)}
+.ai-card.pr::after{animation-delay:4s}
+body.editing-shared .ai-card.pr{display:none}
+.ai-strip .ai-card.pr{grid-column:1/-1}
+@media (min-width:1180px){.ai-strip{grid-template-columns:repeat(5,1fr)}.ai-strip .ai-card.pr{grid-column:auto}}
+@media (max-width:600px){.ai-strip .ai-card.pr{flex-direction:row;justify-content:center;gap:10px}.ai-strip .ai-card.pr .tx{align-items:flex-start}}
+.pr-opt{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:14px;font-weight:600;cursor:pointer}
+.pr-opt input{width:18px;height:18px;accent-color:var(--accent)}
+.ai-box sup,.ai-box sub,#editor sup,#editor sub{font-size:.75em}

@@ -12,10 +12,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1793908560">
+<link rel="stylesheet" href="style.css?v=1794060004">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1793908560"></script>
+<script src="motion.js?v=1794060004"></script>
 </head>
 <body>
 
@@ -178,7 +178,7 @@
             <h1 id="greet"></h1>
             <p class="hero-sub" id="greetSub"></p>
             <div class="hero-actions">
-              <button class="btn btn-ai" id="homeOcr"><svg aria-hidden="true"><use href="#i-camera"/></svg>צילום לוח</button><button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">ניהול</button>
+              <button class="btn btn-ai" id="homeOcr"><svg aria-hidden="true"><use href="#i-camera"/></svg>צילום לוח</button><button class="btn btn-ai" id="homePr" type="button"><svg aria-hidden="true"><use href="#i-doc"/></svg>📝 דף תרגול דומה</button><button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">ניהול</button>
               <button class="btn btn-light" id="homeNew"><svg><use href="#i-plus"/></svg>מחברת חדשה</button>
               <button class="btn btn-glass" id="homeCal"><svg><use href="#i-cal"/></svg>ליומן</button>
             </div>
@@ -251,6 +251,7 @@
             <button type="button" class="ai-card sum" id="aiSum"><span class="ic"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><span class="tx"><b>סיכום למבחן</b><small>סיכום מהמחברת בלחיצה</small></span></button>
             <button type="button" class="ai-card qa" id="aiQa"><span class="ic"><svg aria-hidden="true"><use href="#i-hw"/></svg></span><span class="tx"><b>עבודה מהמורה</b><small>מעלים את העבודה והוא עונה לפי המחברת</small></span></button>
             <button type="button" class="ai-card fc" id="aiFc"><span class="ic"><svg aria-hidden="true"><use href="#i-cards"/></svg></span><span class="tx"><b>כרטיסיות שינון</b><small>שאלה מקדימה, תשובה מאחורה</small></span></button>
+            <button type="button" class="ai-card pr" id="aiPr"><span class="ic"><svg aria-hidden="true"><use href="#i-doc"/></svg></span><span class="tx"><b>דף תרגול דומה</b><small>דף חדש כמו של המורה</small></span></button>
           </div>
           <div class="toolbar" id="toolbar">
             <div class="seg">
@@ -398,6 +399,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1793908560"></script>
+<script type="module" src="app.js?v=1794060004"></script>
 </body>
 </html>
