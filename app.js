@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -429,15 +429,12 @@ async function flush() {
   clearTimeout(saveTimer);
   if (!dirty || !openId || !me) return;
   if (saving) { saveTimer = setTimeout(flush, 400); return; }
+  // עריכה משותפת עם אינטרנט: שומרים בתוך טרנזקציה, כדי שאף שינוי של חבר לא יידרס
+  if (live && !live.rt && navigator.onLine) return flushLive(openId, live);
   saving = true; dirty = false;
   const id = openId;
   // בלי אינטרנט Firebase שומר במכשיר מיד, אבל לא מאשר עד שהחיבור חוזר: לא מחכים לו
   let localHtml = clean($('editor').innerHTML);
-  // עריכה משותפת: אם מישהו אחר שינה בינתיים, משלבים לפי פסקאות
-  if (live && !live.rt && live.remote && live.remote.html !== live.base) {
-    const merged = mergeHtml(live.base, localHtml, live.remote.html, live.remote.updatedBy);
-    if (merged !== localHtml) { localHtml = merged; applyRemoteHtml(merged); }
-  }
   const fields = { title: $('title').value.trim() || 'מחברת ללא שם', html: localHtml, updatedAt: Date.now() };
   if (live) { if (!live.rt) live.base = localHtml; live.lastSent = fields.updatedAt; }
   let pr;
@@ -453,6 +450,48 @@ async function flush() {
   pr.then(() => { if (openId === id && !dirty) setSave('נשמר בענן', 'ok'); }).catch(e => { console.error(e); dirty = true; setSave('לא נשמר · מנסה שוב', 'err'); saveTimer = setTimeout(flush, 3000); });
   try { await Promise.race([pr, new Promise(r => setTimeout(r, navigator.onLine ? 4000 : 300))]); done(); } catch {}
   finally { saving = false; }
+}
+// שמירה בעריכה משותפת (שיטת "סנכרון הבדלים"):
+// קוראים מהשרת את הגרסה העדכנית, ואם חבר שינה משהו מאז הפעם האחרונה – משלבים את השינוי שלו עם שלך (3 כיוונים),
+// וכותבים בבת אחת. אם חבר כתב בדיוק באותו רגע, Firestore מריץ את זה שוב עם הגרסה שלו, כך ששום דבר לא נמחק.
+async function flushLive(id, L) {
+  saving = true; dirty = false;
+  const ed = $('editor'), local0 = clean(ed.innerHTML), base0 = L.base, srv0 = L.srv;
+  const title = $('title').value.trim() || 'מחברת ללא שם';
+  const guest = String(id).startsWith('share:'), ref = shareDoc(L.id);
+  const nbx = guest ? null : notebooks.find(x => x.id === id);
+  let out = local0, now = 0;
+  try {
+    await runTransaction(db, async tx => {
+      const sn = await tx.get(ref); if (!sn.exists()) throw Object.assign(new Error('gone'), { code: 'gone' });
+      const d = sn.data(), srv = typeof d.html === 'string' ? d.html : '';
+      out = (srv === srv0 || srv === base0 || srv === local0) ? local0 : mergeHtml(base0, local0, srv, d.updatedBy);
+      now = Math.max(Date.now(), (d.updatedAt || 0) + 1);
+      tx.update(ref, { title, html: out, updatedAt: now, updatedBy: me.uid, updatedByName: myName(), ...(nbx ? { color: nbx.color || COLORS[0] } : {}) });
+    });
+  } catch (e) {
+    console.warn('live save', e); saving = false;
+    if (live === L && e.code !== 'gone') { dirty = true; setSave('לא נשמר · מנסה שוב', 'err'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 2000); }
+    return;
+  }
+  L.lastSent = now;
+  if (nbx) { const f = { title, html: out, updatedAt: now }; f.words = trackWords(nbx, out); updateDoc(nbDoc(id), f).catch(e => console.warn('nb', e)); }
+  if (live === L && openId === id) {
+    L.srv = out;
+    const cur = clean(ed.innerHTML);
+    if (cur === local0) {                                   // לא הקלדת בזמן השמירה
+      if (out !== local0) applyRemoteHtml(out);
+      L.base = clean(ed.innerHTML);
+    } else {                                                // הקלדת בזמן השמירה: שומרים גם את זה
+      const m = out === local0 ? cur : clean(merge3(local0, cur, out, true));
+      if (m !== cur) applyRemoteHtml(m);
+      L.base = out; dirty = true;
+    }
+  }
+  saving = false;
+  if (live === L && L.again) { L.again = false; dirty = true; }
+  if (dirty) { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); }
+  else if (openId === id) setSave('נשמר בענן', 'ok');
 }
 $('editor').addEventListener('input', markDirty);
 $('title').addEventListener('input', () => { markDirty(); const n = notebooks.find(x => x.id === openId); const el = document.querySelector('.side-nb.on span'); if (el) el.textContent = $('title').value; $('crumb').textContent = 'מחברות › ' + $('title').value; });
@@ -3012,7 +3051,8 @@ function caretRestore(pos) {
   while ((n = w.nextNode())) { if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); return; } left -= n.length; }
 }
 function applyRemoteHtml(html) {
-  const ed = $('editor'); let pos = document.activeElement === ed ? caretMark() : null;
+  const ed = $('editor'); if (clean(ed.innerHTML) === clean(html)) return;   // אין מה לשנות: לא נוגעים בסמן
+  let pos = document.activeElement === ed ? caretMark() : null;
   const y = window.scrollY, oldText = ed.textContent;
   // אבטחה: תוכן שמגיע מעורך אחר (או מישהו שכותב ישירות ל-Firestore/RTDB) חייב לעבור ניקוי לפני הצגה,
   // אחרת אפשר להזריק <img onerror=...> שירוץ אצל מי שעורך ביחד. clean() מסיר כל סקריפט ומאזין אירועים.
@@ -3028,14 +3068,20 @@ function applyRemoteHtml(html) {
 }
 function startLive(shareId, baseHtml) {
   stopLive();
-  live = { id: shareId, base: baseHtml, remote: null, lastSent: 0, unsub: null, presTimer: null, unsubPres: null };
+  // srv = הגרסה האחרונה שראינו בשרת; base = אותה גרסה כפי שהיא נראית בעורך שלך
+  live = { id: shareId, srv: baseHtml || '', base: clean($('editor').innerHTML), remote: null, lastSent: 0, unsub: null, presTimer: null, unsubPres: null };
   const L = live;
   L.unsub = onSnapshot(shareDoc(shareId), snap => {
     if (live !== L) return;
+    if (snap.metadata.hasPendingWrites) return;          // השינוי שלי עוד בדרך
     if (!snap.exists()) { toast('השיתוף בוטל'); stopLive(); if (String(openId).startsWith('share:')) { openId = null; document.body.classList.remove('editing-shared'); showLibrary(); } return; }
     const s = snap.data();
     if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
-    if (s.updatedBy === me.uid || (s.updatedAt || 0) <= L.lastSent) return;     // השינוי שלי חזר אליי
+    // השינוי שלי חזר אליי (משווים לשעון של המכשיר הזה בלבד – לא לשעון של החבר, שיכול להיות שונה)
+    if (s.html === L.srv || (s.updatedBy === me.uid && (s.updatedAt || 0) <= L.lastSent)) {
+      L.remote = s; if (s.updatedBy !== me.uid && s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
+      return;
+    }
     handleRemote(L, s, true);
   }, e => console.warn('live', e));
   if (rtdb) { startRtdb(L); paintPresence([]); return; }
@@ -3087,7 +3133,7 @@ function openSharedEdit(id, s) {
   document.body.classList.add('editing-shared');
   $('sharedBy').textContent = `של ${s.ownerName || 'חבר'}`;
   renderSide();
-  startLive(id, clean(s.html || ''));
+  startLive(id, s.html || '');
   if (live) live.remote = s;
 }
 
@@ -3471,9 +3517,12 @@ function handleRemote(L, s, fromStore) {
   // הבעלים מעדכן גם את המחברת השמורה שלו (רק מהשמירה האמיתית)
   if (fromStore && !String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === L.id); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
   if (fromStore && L.rt) return;                        // את הטקסט עצמו מקבלים מהערוץ המהיר
-  if (s.html === undefined || s.html === L.base) return;
-  if (!dirty) { applyRemoteHtml(s.html); L.base = s.html; showEditorBy(s.updatedByName || s.name); }
-  else { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 60); }
+  if (typeof s.html !== 'string' || s.html === L.srv) return;
+  if (saving) { L.again = true; return; }               // באמצע שמירה: אחריה נסנכרן שוב
+  if (!dirty && clean($('editor').innerHTML) === L.base) {
+    // לא שינית כלום מאז הסנכרון האחרון: פשוט מציגים את הגרסה של החבר
+    applyRemoteHtml(s.html); L.srv = s.html; L.base = clean($('editor').innerHTML); showEditorBy(s.updatedByName || s.name);
+  } else { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 60); }   // שמירה שמשלבת את שנינו
 }
 function startRtdb(L) {
   const meRef = dbRef(rtdb, `cursors/${L.id}/${me.uid}`), txtRef = dbRef(rtdb, `livetext/${L.id}`);
