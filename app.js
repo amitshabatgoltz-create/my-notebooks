@@ -754,7 +754,7 @@ async function autoPlan(e) {
   const plan = buildPlan(e, nbsForTest(e)); if (!plan.length) return;
   const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
   const ids = [];
-  try { for (const p of plan) { const ref = await addDoc(evCol(), { title: `${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() }); ids.push(ref.id); } }
+  try { for (const p of plan) { const ref = await addDoc(evCol(), { title: `${subj}: ${planShort(p.task)}`.slice(0, 80), note: p.task.slice(0, 400), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() }); ids.push(ref.id); } }
   catch (err) { console.warn('auto plan', err); return; }
   toastAction(`בניתי לך תוכנית למידה ל${subj}: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ביומן`, 'לראות ולשנות', () => planDialog(e));
 }
@@ -831,7 +831,7 @@ function evRow(e, showDate) {
   const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!e.done; cb.title = 'סיימתי';
   cb.onchange = () => updateDoc(evDoc(e.id), { done: cb.checked }).catch(() => toast('לא נשמר'));
   const t = document.createElement('div'); t.className = 't';
-  const sp = document.createElement('span'); sp.textContent = plainTitle(e.title);
+  const sp = document.createElement('span'); const full = plainTitle(e.title); sp.textContent = e.planFor ? full.split(':')[0] + ': ' + planShort(full.split(':').slice(1).join(':')) : full; sp.title = full;
   const sm = document.createElement('small');
   const d = fromKey(e.date);
   const nf = (e.files || []).length;
@@ -1339,14 +1339,17 @@ function renderWeek() {
     const n = document.createElement('span'); n.className = 'wk-n'; n.textContent = d.getDate();
     day.append(l, n);
     const items = events.filter(e => e.date === k).sort((a, b) => (b.type === 'test') - (a.type === 'test') || (a.time || '').localeCompare(b.time || ''));
-    items.slice(0, 4).forEach(e => {
+    const rank = e => e.type === 'test' ? 0 : e.type === 'hw' ? 1 : e.planFor ? 3 : 2;
+    items.sort((a, b) => rank(a) - rank(b));
+    items.slice(0, 3).forEach(e => {
       const b = document.createElement('button'); b.type = 'button'; b.dir = 'auto';
       b.className = 'wk-ev ' + (e.type === 'test' ? 'wk-test' : e.planFor ? 'wk-plan' : e.type === 'hw' ? 'wk-hw' : 'wk-other') + (e.done ? ' done' : '');
-      b.textContent = plainTitle(e.title); b.onclick = () => eventDialog(e.id);
+      const full = plainTitle(e.title);
+      b.textContent = e.planFor ? full.split(':')[0] + ': ' + planShort(full.split(':').slice(1).join(':')) : full; b.title = full; b.onclick = () => eventDialog(e.id);
       day.appendChild(b);
     });
-    if (items.length > 4) {
-      const m = document.createElement('button'); m.type = 'button'; m.className = 'wk-more'; m.textContent = `עוד ${items.length - 4}`; m.onclick = () => showTab('cal');
+    if (items.length > 3) {
+      const m = document.createElement('button'); m.type = 'button'; m.className = 'wk-more'; m.textContent = `+ עוד ${items.length - 3}`; m.onclick = () => showTab('cal');
       day.appendChild(m);
     }
     grid.appendChild(day);
@@ -4471,13 +4474,18 @@ function nbsForTest(e) {
 // מחלקים את המחברת לחלקים לפי הכותרות (ואם אין – לפי אורך)
 function nbUnits(n) {
   const t = document.createElement('div'); t.innerHTML = n.html || '';
-  const heads = [...t.querySelectorAll('h1,h2')].map(h => h.textContent.trim()).filter(x => x && x.length < 80 && !/סיכום למבחן|עבודה מהמורה|תשובות/.test(x));
+  const heads = [...t.querySelectorAll('h1,h2')].map(h => h.textContent.trim()).filter(x => x && x.length < 40 && !/סיכום למבחן|עבודה מהמורה|תשובות/.test(x));
   if (heads.length >= 2) return heads.map(h => ({ nb: n.title, label: h }));
   const h3 = [...t.querySelectorAll('h3')].map(h => h.textContent.trim()).filter(x => x && x.length < 80);
   if (h3.length >= 2) return h3.map(h => ({ nb: n.title, label: h }));
   const words = (t.textContent || '').trim().split(/\s+/).filter(Boolean).length;
   const parts = Math.max(1, Math.min(4, Math.round(words / 450)));
   return parts === 1 ? [{ nb: n.title, label: '' }] : Array.from({ length: parts }, (_, k) => ({ nb: n.title, label: `חלק ${k + 1} מתוך ${parts}` }));
+}
+// כותרת קצרה למשימה בתוכנית (הפירוט המלא נשמר בהערה של המשימה)
+function planShort(t) {
+  const x = String(t || '').split(/ – | \| /)[0].trim();
+  return x.length > 34 ? x.slice(0, 32).trim() + '…' : x;
 }
 function buildPlan(e, nbs) {
   const tk = todayKey(); const testDay = fromKey(e.date);
@@ -4532,7 +4540,7 @@ function planDialog(e) {
       try {
         for (const x of old) await deleteDoc(evDoc(x.id)).catch(() => {});
         const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
-        for (const p of plan) await addDoc(evCol(), { title: `${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() });
+        for (const p of plan) await addDoc(evCol(), { title: `${subj}: ${planShort(p.task)}`.slice(0, 80), note: p.task.slice(0, 400), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() });
         closeDialog(); toast(`התוכנית נוספה ליומן: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ✓`);
       } catch (err) { console.error(err); ok.disabled = false; toast('לא הצלחתי להוסיף'); }
     };
