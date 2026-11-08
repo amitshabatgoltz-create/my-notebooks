@@ -1779,3 +1779,16 @@ html[data-theme="dark"] .ai-strip .ai-card.wr .ic{color:#fff}
 .doc-color{cursor:pointer}
 @media (max-width:600px){.nb-color span{display:none}}
 .login-en{margin:-8px 0 16px;font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+
+/* מסך כניסה: הצד הסגול מסודר, באותו גובה של הכרטיס */
+#login{align-items:center}
+.login-aside{align-self:center;min-height:0;height:auto;max-width:520px;padding:34px 32px;gap:26px;justify-content:flex-start}
+.login-aside h2{font-size:clamp(28px,3vw,40px);line-height:1.15}
+.la-sub{margin:10px 0 0;font-size:16px;opacity:.85;line-height:1.5}
+.la-week{flex:none}
+.la-week div{min-height:96px}
+.la-week .hw{background:rgba(255,255,255,.22)}
+.la-feats{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.la-feats li{display:flex;align-items:center;gap:12px;font-size:15.5px;font-weight:500}
+.la-feats span{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.16);flex:none}
+.la-feats svg{width:20px;height:20px}

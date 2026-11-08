@@ -30,10 +30,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794166459">
+<link rel="stylesheet" href="style.css?v=1794167459">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794166459"></script>
+<script src="motion.js?v=1794167459"></script>
 </head>
 <body>
 
@@ -105,7 +105,6 @@
     <div class="app-icon" aria-hidden="true"><svg><use href="#i-book"/></svg></div>
     <h1>המחברות שלי</h1>
     <p>המחברות, היומן והסיכומים שלך. בכל מחשב ובכל טלפון.</p>
-    <p class="login-en" lang="en" dir="ltr">My Notebooks · notes, calendar &amp; AI study help</p>
 
     <div class="tabs">
       <button id="tabLogin" class="on" type="button">כניסה</button>
@@ -128,14 +127,22 @@
     <div class="status" id="loginStatus"></div>
   </div>
   <div class="login-aside" aria-hidden="true">
-    <h2>כל השבוע שלך במקום אחד.</h2>
+    <div>
+      <h2>כל השבוע שלך במקום אחד.</h2>
+      <p class="la-sub">מחברות, יומן ועוזר לימודי – בחינם, בכל מחשב ובכל טלפון.</p>
+    </div>
     <div class="la-week">
-      <div><b>א׳</b><i class="plan">חזרה</i></div>
+      <div><b>א׳</b><i class="hw">ש״ב</i></div>
       <div><b>ב׳</b><i class="plan">חזרה</i></div>
       <div><b>ג׳</b><i class="plan">שינון</i></div>
       <div><b>ד׳</b><i class="test">מבחן</i></div>
       <div><b>ה׳</b></div>
     </div>
+    <ul class="la-feats">
+      <li><span><svg aria-hidden="true"><use href="#i-camera"/></svg></span>מצלמים את הלוח – והוא מקליד למחברת</li>
+      <li><span><svg aria-hidden="true"><use href="#i-cal"/></svg></span>מבחנים ושיעורי בית, עם תוכנית למידה</li>
+      <li><span><svg aria-hidden="true"><use href="#i-spark"/></svg></span>עוזר לימודי שמסביר, פותר ובוחן אותך</li>
+    </ul>
   </div>
 </section>
 <script>if(window.Motion)Motion.login()</script>
@@ -435,6 +442,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794166459"></script>
+<script type="module" src="app.js?v=1794167459"></script>
 </body>
 </html>
