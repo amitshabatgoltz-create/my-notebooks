@@ -4488,6 +4488,8 @@ function buildPlan(e, nbs) {
   const units = nbs.flatMap(nbUnits);
   const plan = [];
   const review = days.length >= 2 ? days.pop() : null;           // היום האחרון לפני המבחן: חזרה כללית
+  // ימים שבהם המשתמש עסוק (אימון, חוג...) – מוסיפים הערה ללמוד לפני
+  const busyOn = k => events.filter(x => x.date === k && !x.planFor && !x.done && (x.busy || (x.type === 'event' && x.time)));
   if (!units.length) days.forEach((k, j) => plan.push({ date: k, task: j === 0 ? 'לקרוא את כל החומר פעם אחת' : 'חזרה על החומר וכתיבת שאלות לעצמך' }));
   else if (units.length <= days.length) {
     units.forEach((u, j) => plan.push({ date: days[j], task: `לקרוא ולסכם: ${u.nb}${u.label ? ' – ' + u.label : ''}` }));
@@ -4500,7 +4502,7 @@ function buildPlan(e, nbs) {
   }
   if (review) plan.push({ date: review, task: 'חזרה כללית + כרטיסיות (רק מה שסימנת "לא ידעתי") + שאלון מסכם עם העוזר' });
   else if (days.length === 1 && units.length) plan[0].task = 'חזרה על כל החומר: ' + [...new Set(units.map(u => u.nb))].join(', ');
-  return plan.map(p => ({ ...p, task: p.task.slice(0, 180) }));
+  return plan.map(p => { const bz = busyOn(p.date)[0]; const tail = bz ? ` (${bz.title.slice(0, 30)} ב-${bz.time} – ללמוד לפני)` : ''; return { ...p, task: p.task.slice(0, 180 - tail.length) + tail }; });
 }
 function planDialog(e) {
   const all = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -5301,16 +5303,22 @@ ${openId ? `לפניך תוכן המחברת הנוכחית של המשתמש: "
 היום: ${todayKey()}, יום ${HE_DAYS[new Date().getDay()]}.
 הדברים הקרובים ביומן של המשתמש:
 ${upcoming || '(אין)'}
+אירוע עם שעה ביומן (אימון, חוג וכו') = המשתמש עסוק אז. כשאתה מציע מתי ללמוד, אל תציע את הזמנים האלה.
 ${chatAboutMe()}
 
 התפקידים שלך:
 1. עזור למשתמש בכל שאלה ובקשה, גם אם אין לה קשר למחברת: להסביר חומר, לפתור ולבדוק תרגילים, לתרגל למבחן, לעזור בכתיבה ולתת עצות. אם השאלה קשורה למחברת, הסתמך עליה. בכל מקרה אחר השתמש בידע הכללי הרחב שלך, והסבר בצורה מעולה ותמציתית. אם אתה לא בטוח במשהו, אמור זאת.
 אם המשתמש העלה תמונה או קובץ, קרא אותם ועזור לו לפיהם. אל תמציא מה שלא רואים בבירור.
-2. אם המשתמש מבקש בהודעה שלו להוסיף משימה, שיעורי בית או מבחן (למשל: "יש לי שיעורים במתמטיקה עמודים 12 ו-13"), עליך לזהות זאת ולהחזיר בתחילת התשובה שלך אובייקט JSON מובנה בפורמט הבא בדיוק, ולאחר מכן הסבר קצר למשתמש:
+2. יומן: אם המשתמש מבקש להוסיף משהו ליומן, או שולח לו"ז, מערכת אימונים, חוגים, תורנויות, משמרות, טיול, יום הולדת או כל דבר עם יום ושעה – הוסף את זה ליומן. גם דברים שלא קשורים ללימודים, כי ככה יודעים מתי הוא עסוק ולא יכול ללמוד. לעולם אל תסרב ואל תגיד שזה לא קשור ללימודים. אם הוא כותב "תוסיף את זה ליומן" – הכוונה למה שהוא שלח קודם בשיחה.
+החזר בתחילת התשובה JSON בפורמט הזה בדיוק, עם פריט לכל מועד, ואחריו משפט קצר:
+{"action":"ADD_TO_CALENDAR","items":[{"taskType":"אירוע","title":"אימון כדורגל","date":"YYYY-MM-DD","time":"19:00","note":"פרטים נוספים"}]}
+- taskType: "שיעורי בית", "מבחן" או "אירוע" (אימון, חוג, משחק וכל פעילות אחרת = אירוע).
+- title: שם קצר וברור (למשל "אימון כדורגל", "משחק חוץ באום אל פאחם", "שיעורי בית במתמטיקה: עמודים 12-13").
+- date: התאריך המדויק לפי טבלת הימים למטה. time: שעת ההתחלה בפורמט HH:MM, או "" אם אין. note: פרטים חשובים (למשל "הגעה עד 17:00"), או "".
+- weeks: רק אם המשתמש אמר שזה קבוע ("כל שבוע", "מערכת קבועה") – מספר השבועות לחזור (עד 12). אחרת אל תכתוב weeks.
+- אם אין יום בכלל (למשל "יש לי שיעורים במתמטיקה") – date הוא "".
+התאריכים הקרובים: ${chatNextDays()}
 
-{"action": "ADD_TO_CALENDAR", "taskType": "שיעורי בית", "subject": "מתמטיקה", "content": "עמודים 12 ו-13"}
-
-הערך של taskType הוא אחד מאלה: "שיעורי בית", "מבחן", "אירוע". ההסבר שאחרי ה-JSON הוא משפט קצר, למשל: הוספתי לך ליומן שיעורי בית במתמטיקה (עמודים 12 ו-13)! בהצלחה בהכנה
 3. בדוק בעצמך מה חסר לך, בלי לחכות שהמשתמש ישאל. כשהוא שולח חומר או מבקש עזרה למבחן, בדוק מה החומר מזכיר אבל לא נמצא אצלך במחברת, בקבצים או בשיחה: למשל מילים מעמודים בספר, טקסט או דף עבודה. אמור לו מיד ובמפורש מה בדיוק חסר ובקש שישלח את זה, ואמור גם במה אפשר להתחיל כבר עכשיו. נושאים כלליים כמו דקדוק אפשר ללמד מהידע שלך. אל תמציא תוכן שאין לך, ואל תעמיד פנים שיש לך אותו.
 
 4. שאלון: אם המשתמש מבקש שתבחן אותו, לתרגל או שאלון, אל תשאל שאלה אחת בטקסט. החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר ומעודד:
@@ -5379,22 +5387,44 @@ function chatSplit(raw) {
 }
 
 // התאריך מגיע מההודעה של המשתמש, באותה דרך של "הוספה מהירה": תאריך שכתוב, אחרת השיעור הבא במקצוע, אחרת מחר
-async function chatAddEvent(act, userMsg) {
-  const subject = String(act.subject || '').trim().slice(0, 80), content = String(act.content || '').trim().slice(0, 200);
-  const title = [subject, content].filter(Boolean).join(': '); if (!title) return null;
-  const kind = String(act.taskType || '');
-  const type = /מבחן/.test(kind) ? 'test' : /אירוע/.test(kind) ? 'event' : 'hw';
-  const q = parseQuick(`${userMsg} ${subject}`);
-  const ref = await addDoc(evCol(), { title, type, time: q.time || '', date: q.date, done: false, createdAt: Date.now(), ...(q.written ? {} : { autoDate: true }) });
-  return { id: ref.id, title, type, label: q.dateLabel + (q.time ? ' · ' + q.time : '') };
+function chatNextDays() {
+  const out = []; const d = fromKey(todayKey());
+  for (let i = 0; i < 14; i++) { out.push(`${i === 0 ? 'היום ' : i === 1 ? 'מחר ' : ''}יום ${HE_DAYS[d.getDay()]} = ${key(d)}`); d.setDate(d.getDate() + 1); }
+  return out.join(', ');
 }
-function chatAddedCard(ev) {
+async function chatAddEvent(act, userMsg) {
+  const list = Array.isArray(act.items) ? act.items : [act];
+  const out = [];
+  for (const it of list.slice(0, 40)) {
+    if (!it || typeof it !== 'object') continue;
+    const subject = String(it.subject || '').trim().slice(0, 80), content = String(it.content || '').trim().slice(0, 200);
+    const title = (String(it.title || '').trim() || [subject, content].filter(Boolean).join(': ')).slice(0, 200); if (!title) continue;
+    const kind = String(it.taskType || '');
+    const type = /מבחן/.test(kind) ? 'test' : /שיעורי|משימה/.test(kind) ? 'hw' : /אירוע/.test(kind) ? 'event' : 'hw';
+    let date = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') && !isNaN(fromKey(it.date)) ? it.date : '';
+    let time = /^\d{1,2}:\d{2}$/.test(it.time || '') ? it.time.padStart(5, '0') : '';
+    let written = !!date;
+    if (date && (date < key(new Date(Date.now() - 864e5)) || date > key(new Date(Date.now() + 400 * 864e5)))) { date = ''; written = false; }
+    if (!date) { const q = parseQuick(`${list.length > 1 ? '' : userMsg + ' '}${title} ${content}`); date = q.date; written = q.written; if (!time) time = q.time || ''; }
+    const note = String(it.note || '').trim().slice(0, 300);
+    const weeks = Math.min(12, Math.max(1, parseInt(it.weeks, 10) || 1));
+    for (let w = 0; w < weeks; w++) {
+      const d = fromKey(date); d.setDate(d.getDate() + 7 * w); const dk = key(d);
+      const ref = await addDoc(evCol(), { title, type, time, date: dk, done: false, createdAt: Date.now(), ...(note ? { note } : {}), ...(type === 'event' && time ? { busy: true } : {}), ...(written ? {} : { autoDate: true }) });
+      out.push({ id: ref.id, title, type, label: dayLabel(dk) + (time ? ' · ' + time : '') });
+    }
+  }
+  return out;
+}
+function chatAddedCard(evs) {
   const c = document.createElement('div'); c.className = 'chat-added';
-  const tx = document.createElement('span'); tx.dir = 'auto'; tx.textContent = `✓ ביומן: ${TYPE_NAME[ev.type]} · ${ev.title} · ${ev.label}`;
+  const tx = document.createElement('span'); tx.dir = 'auto';
+  tx.textContent = evs.length === 1 ? `✓ ביומן: ${TYPE_NAME[evs[0].type]} · ${evs[0].title} · ${evs[0].label}` : `✓ נוספו ליומן ${evs.length} דברים:\n` + evs.slice(0, 12).map(e => `${e.label} – ${e.title}`).join('\n') + (evs.length > 12 ? '\n…' : '');
+  tx.style.whiteSpace = 'pre-line';
   const undo = document.createElement('button'); undo.type = 'button'; undo.textContent = 'ביטול';
   undo.onclick = async () => {
     undo.disabled = true;
-    try { await deleteDoc(evDoc(ev.id)); tx.textContent = 'בוטל, זה הוסר מהיומן.'; undo.remove(); }
+    try { for (const ev of evs) await deleteDoc(evDoc(ev.id)); tx.textContent = 'בוטל, זה הוסר מהיומן.'; undo.remove(); }
     catch { undo.disabled = false; toast('לא הצלחתי לבטל'); }
   };
   c.append(tx, undo); $('chatLog').appendChild(c); chatScroll();
@@ -5557,12 +5587,12 @@ async function chatSend() {
     // JSON שבור או חתוך של שאלון לא מוצג למשתמש
     if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
     if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
-      let ev = null;
-      try { ev = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
-      if (ev) { if (!text) text = `הוספתי לך ליומן: ${ev.title}`; }
+      let evs = [];
+      try { evs = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
+      if (evs.length) { if (!text) text = evs.length === 1 ? `הוספתי לך ליומן: ${evs[0].title}` : `הוספתי לך ליומן ${evs.length} דברים.`; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
       b.classList.remove('typing', 'making'); chatFill(b, text);
-      if (ev) chatAddedCard(ev);
+      if (evs.length) chatAddedCard(evs);
     } else {
       if (s.action && kitLeft > 0) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);
       if (card) useOne('kit');
