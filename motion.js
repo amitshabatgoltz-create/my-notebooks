@@ -176,13 +176,7 @@
       guard(gsap.timeline({ defaults: { ease: 'power3.out', clearProps: CLEAR } })
         .fromTo(card, { opacity: 0, y: 26, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.7 })
         .fromTo('.login-card .app-icon', { opacity: 0, scale: 0.4, rotation: -16 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.7, ease: 'back.out(2)' }, 0.15)
-        .fromTo(parts, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.05 }, 0.25)
-        .fromTo('.login-aside', { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.8 }, 0.1)
-        .fromTo('.gs-word', { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.55, stagger: 0.07 }, 0.3)
-        .fromTo('.la-week>div', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.07 }, 0.55)
-        // השבוע מתמלא: החזרות נכנסות אחת אחת, והמבחן נוחת אחרון
-        .fromTo('.la-week .plan', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(2.2)', stagger: 0.14 }, 1)
-        .fromTo('.la-week .test', { opacity: 0, scale: 0.4, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.6, ease: 'back.out(3)' }, 1.5), 3200);
+        .fromTo(parts, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.05 }, 0.25), 2000);
     },
 
     view(el, name) {

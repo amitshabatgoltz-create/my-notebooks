@@ -69,8 +69,13 @@ function setMode(m) {
   $('nameField').classList.toggle('hidden', m === 'login');
   $('authBtn').textContent = m === 'login' ? 'כניסה' : 'יצירת חשבון';
   $('password').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+  $('loginTitle').textContent = m === 'login' ? 'כניסה ל"המחברות שלי"' : 'יצירת חשבון חדש';
+  $('swapText').textContent = m === 'login' ? 'אין לך חשבון?' : 'כבר יש לך חשבון?';
+  $('swapMode').textContent = m === 'login' ? 'להרשמה' : 'לכניסה';
+  $('forgotBtn').classList.toggle('hidden', m !== 'login');
   status('');
 }
+$('swapMode').onclick = () => setMode(mode === 'login' ? 'signup' : 'login');
 $('tabLogin').onclick = () => setMode('login');
 $('tabSignup').onclick = () => setMode('signup');
 
