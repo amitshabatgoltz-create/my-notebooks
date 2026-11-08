@@ -5310,7 +5310,7 @@ ${chatAboutMe()}
 1. עזור למשתמש בכל שאלה ובקשה, גם אם אין לה קשר למחברת: להסביר חומר, לפתור ולבדוק תרגילים, לתרגל למבחן, לעזור בכתיבה ולתת עצות. אם השאלה קשורה למחברת, הסתמך עליה. בכל מקרה אחר השתמש בידע הכללי הרחב שלך, והסבר בצורה מעולה ותמציתית. אם אתה לא בטוח במשהו, אמור זאת.
 אם המשתמש העלה תמונה או קובץ, קרא אותם ועזור לו לפיהם. אל תמציא מה שלא רואים בבירור.
 2. יומן: אם המשתמש מבקש להוסיף משהו ליומן, או שולח לו"ז, מערכת אימונים, חוגים, תורנויות, משמרות, טיול, יום הולדת או כל דבר עם יום ושעה – הוסף את זה ליומן. גם דברים שלא קשורים ללימודים, כי ככה יודעים מתי הוא עסוק ולא יכול ללמוד. לעולם אל תסרב ואל תגיד שזה לא קשור ללימודים. אם הוא כותב "תוסיף את זה ליומן" – הכוונה למה שהוא שלח קודם בשיחה.
-החזר בתחילת התשובה JSON בפורמט הזה בדיוק, עם פריט לכל מועד, ואחריו משפט קצר:
+החזר בתחילת התשובה JSON בפורמט הזה בדיוק, עם פריט נפרד לכל יום ושעה (לו"ז של 4 אימונים = 4 פריטים, לעולם לא פריט אחד עם כל הימים), ואחריו משפט קצר:
 {"action":"ADD_TO_CALENDAR","items":[{"taskType":"אירוע","title":"אימון כדורגל","date":"YYYY-MM-DD","time":"19:00","note":"פרטים נוספים"}]}
 - taskType: "שיעורי בית", "מבחן" או "אירוע" (אימון, חוג, משחק וכל פעילות אחרת = אירוע).
 - title: שם קצר וברור (למשל "אימון כדורגל", "משחק חוץ באום אל פאחם", "שיעורי בית במתמטיקה: עמודים 12-13").
@@ -5392,8 +5392,38 @@ function chatNextDays() {
   for (let i = 0; i < 14; i++) { out.push(`${i === 0 ? 'היום ' : i === 1 ? 'מחר ' : ''}יום ${HE_DAYS[d.getDay()]} = ${key(d)}`); d.setDate(d.getDate() + 1); }
   return out.join(', ');
 }
+// לו"ז שנכתב בשורה אחת ("ראשון 19:00, שלישי 19:00, רביעי 18:00 משחק...") – מפרקים לפריט לכל יום
+const SCH_DAY = /(?:יום\s*)?(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)(?![א-ת])/g;
+function chatSplitSchedule(text, base) {
+  const t = String(text || ''); const hits = [...t.matchAll(SCH_DAY)];
+  if (hits.length < 2) return null;
+  const head = t.slice(0, hits[0].index).replace(/[:\-–,.\s]+$/, '').trim();
+  const name = (base || (head && head.length <= 25 && !/\n/.test(head) ? head : 'אימון')).replace(/[:\-–,.\s]+$/, '').slice(0, 60);
+  const out = []; const today = fromKey(todayKey());
+  hits.forEach((h, i) => {
+    const seg = t.slice(h.index + h[0].length, i + 1 < hits.length ? hits[i + 1].index : t.length);
+    const tm = seg.match(/(\d{1,2}):(\d{2})/); if (!tm) return;
+    const time = `${tm[1].padStart(2, '0')}:${tm[2]}`;
+    const d = new Date(today); d.setDate(d.getDate() + ((HE_DAYS.indexOf(h[1]) - d.getDay() + 7) % 7));
+    // מה שכתוב אחרי השעה (למשל "משחק חוץ באום אל פאחם (הגעה עד 17:00)")
+    let rest = seg.slice(seg.indexOf(tm[0]) + tm[0].length).replace(/^[ \t,\-–:]+/, '');
+    rest = /^[.\n]/.test(rest) ? '' : rest.split(/\.(?:\s|$)|\n/)[0].replace(/[\s,\-–:]+$/, '').trim();
+    const paren = rest.match(/\(([^)]*)\)/); const note = paren ? paren[1].trim() : '';
+    const extra = rest.replace(/\([^)]*\)/g, '').trim();
+    out.push({ taskType: 'אירוע', title: extra && extra.length > 3 ? extra.slice(0, 80) : name, date: key(d), time, note });
+  });
+  return out.length >= 2 ? out : null;
+}
 async function chatAddEvent(act, userMsg) {
-  const list = Array.isArray(act.items) ? act.items : [act];
+  let list = Array.isArray(act.items) ? act.items : [act];
+  // ה-AI לפעמים מכניס את כל הלו"ז לפריט אחד – מפרקים בעצמנו
+  list = list.flatMap(it => {
+    if (!it || typeof it !== 'object') return [];
+    const all = [it.title, it.subject, it.content, it.note].filter(Boolean).join(' ');
+    const base = String(it.title || it.subject || '').split(/[:\-–(]/)[0].trim();
+    return chatSplitSchedule(all, /\d|ראשון|שני|שלישי|רביעי|חמישי/.test(base) ? '' : base) || [it];
+  });
+  if (list.length === 1 && /אירוע/.test(String(list[0].taskType || ""))) { const fromMsg = chatSplitSchedule(userMsg); if (fromMsg) list = fromMsg; }
   const out = [];
   for (const it of list.slice(0, 40)) {
     if (!it || typeof it !== 'object') continue;
@@ -5588,7 +5618,7 @@ async function chatSend() {
     if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
     if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
       let evs = [];
-      try { evs = await chatAddEvent(s.action, msg.slice(0, 300)); } catch (e) { console.error(e); }
+      try { evs = await chatAddEvent(s.action, msg.slice(0, 600)); } catch (e) { console.error(e); }
       if (evs.length) { if (!text) text = evs.length === 1 ? `הוספתי לך ליומן: ${evs[0].title}` : `הוספתי לך ליומן ${evs.length} דברים.`; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
       b.classList.remove('typing', 'making'); chatFill(b, text);
