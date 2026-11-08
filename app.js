@@ -134,7 +134,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -2205,6 +2205,12 @@ let trash = [];
 let unsubSh = null, unsubView = null, sharedList = [];
 let shareParam = new URLSearchParams(location.search).get('s');
 if (shareParam && !/^[A-Za-z0-9]{3,40}$/.test(shareParam)) shareParam = null;
+// מחברת משותפת שכבר נפתחה פעם במכשיר הזה: כניסה מחדש לאתר (עם הקישור שנשאר בכתובת) מתחילה בדף הבית, ושואלים אם לפתוח
+const SEEN_SH = 'seenShares';
+const shSeen = id => { try { return JSON.parse(localStorage.getItem(SEEN_SH) || '[]').includes(id); } catch { return false; } };
+const shMark = id => { try { const l = JSON.parse(localStorage.getItem(SEEN_SH) || '[]').filter(x => x !== id); l.unshift(id); localStorage.setItem(SEEN_SH, JSON.stringify(l.slice(0, 50))); } catch {} };
+let shareAsk = null;
+if (shareParam && shSeen(shareParam)) { shareAsk = shareParam; shareParam = null; history.replaceState(null, '', location.pathname); }
 const shareDoc = id => doc(db, 'shares', id);
 const shareUrl = id => location.origin + location.pathname.replace(/index\.html$/, '') + '?s=' + id;
 
@@ -2285,6 +2291,7 @@ let shareEditOpened = false;
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
   shareParam = id; shareEditOpened = false;
+  shMark(id); shareAsk = null;
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
   const v = $('shareView'); v.classList.remove('hidden'); document.body.classList.add('viewing-share');
   $('shBody').innerHTML = '<div class="skel-grid"><div class="skel"><i></i><b></b><b></b></div></div>';
