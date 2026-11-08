@@ -220,7 +220,7 @@ main{max-width:1060px;margin:0 auto;padding:8px 28px 80px}
 .ed-title:focus{outline:none}
 .ed-title::placeholder{color:color-mix(in srgb,var(--muted) 60%,transparent)}
 .toolbar{position:sticky;top:64px;z-index:10;display:flex;align-items:center;gap:2px;width:fit-content;max-width:100%;margin-bottom:18px;padding:5px;border-radius:16px;
-  background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--line);box-shadow:var(--shadow);overflow-x:auto;scrollbar-width:none}
+  background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--line);box-shadow:var(--shadow);overflow-x:auto;scrollbar-width:none;flex-wrap:wrap;row-gap:4px}
 .toolbar::-webkit-scrollbar{display:none}
 .toolbar button{flex:none;display:grid;place-items:center;min-width:36px;height:34px;padding:0 9px;border-radius:10px;font-size:14px;color:var(--ink);transition:background .12s}
 .toolbar button:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
@@ -253,7 +253,7 @@ html[data-theme="dark"] :is(#editor,#shareBody) mark{background:color-mix(in srg
   .btn-sum{padding:10px 12px}
   .doc-color{margin-top:14px}
   .ed-title{font-size:30px}
-  .toolbar{top:62px;margin-inline:-16px;width:auto;border-radius:0;border-inline:none}
+  .toolbar{top:62px;margin-inline:-16px;width:auto;border-radius:0;border-inline:none;flex-wrap:nowrap}
   :is(#editor,#shareBody){font-size:16.5px}
 }
 
