@@ -5295,7 +5295,7 @@ function chatSidePaint() {
     if (g !== group) { group = g; const h = document.createElement('div'); h.className = 'cs-group'; h.textContent = g; box.appendChild(h); }
     const row = document.createElement('div'); row.className = 'cs-row' + (c.id === chatId ? ' on' : '');
     const open = document.createElement('button'); open.type = 'button'; open.className = 'cs-open'; open.dir = 'auto';
-    open.textContent = c.title || 'שיחה'; open.title = c.title || 'שיחה';
+    open.innerHTML = '<svg aria-hidden="true"><use href="#i-chat"/></svg><span></span>'; open.lastChild.textContent = c.title || 'שיחה'; open.title = c.title || 'שיחה';
     open.onclick = () => { if (c.id !== chatId) chatPick(c); if (chatSideMobile()) chatSideToggle(false); };
     const del = document.createElement('button'); del.type = 'button'; del.className = 'cs-del'; del.textContent = '✕'; del.setAttribute('aria-label', 'מחיקת השיחה'); del.title = 'מחיקה';
     del.onclick = () => chatDelete(c, row);
