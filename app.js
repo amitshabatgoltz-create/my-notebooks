@@ -737,10 +737,32 @@ let selDay = todayKey();
 const evCol = () => collection(db, 'users', me.uid, 'events');
 const evDoc = id => doc(db, 'users', me.uid, 'events', id);
 
+/* ---- תוכנית למידה אוטומטית: מבחן חדש שנכנס ליומן (מכל מקום) מקבל לבד תוכנית לימים שלפניו ---- */
+let evSeen = null;
+function autoPlanNewTests(snap) {
+  const ids = new Set(snap.docs.map(d => d.id));
+  if (!evSeen) { evSeen = ids; return; }            // הטעינה הראשונה: לא נוגעים במה שכבר היה
+  const fresh = events.filter(e => !evSeen.has(e.id) && e.type === 'test' && !e.done && (Date.now() - (e.createdAt || 0)) < 120000);
+  evSeen = ids;
+  if (!fresh.length || fresh.length > 2) return;   // ייבוא של לוח מבחנים שלם – לא ממלאים את היומן לבד
+  fresh.forEach(e => setTimeout(() => autoPlan(e), 900));
+}
+async function autoPlan(e) {
+  if (!me || events.some(x => x.planFor === e.id)) return;
+  const daysLeft = Math.round((fromKey(e.date) - fromKey(todayKey())) / 864e5);
+  if (daysLeft < 2 || daysLeft > 30) return;
+  const plan = buildPlan(e, nbsForTest(e)); if (!plan.length) return;
+  const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
+  const ids = [];
+  try { for (const p of plan) { const ref = await addDoc(evCol(), { title: `${subj}: ${p.task}`.slice(0, 200), type: 'other', date: p.date, time: '', done: false, planFor: e.id, createdAt: Date.now() }); ids.push(ref.id); } }
+  catch (err) { console.warn('auto plan', err); return; }
+  toastAction(`בניתי לך תוכנית למידה ל${subj}: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ביומן`, 'לראות ולשנות', () => planDialog(e));
+}
 function subscribeEvents() {
   unsubEv = onSnapshot(evCol(), snap => {
     events = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+    autoPlanNewTests(snap);
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
     if (!$('home').classList.contains('hidden')) renderHome();
     if (!$('hwView').classList.contains('hidden')) renderHW();
@@ -4469,14 +4491,14 @@ function buildPlan(e, nbs) {
   if (!units.length) days.forEach((k, j) => plan.push({ date: k, task: j === 0 ? 'לקרוא את כל החומר פעם אחת' : 'חזרה על החומר וכתיבת שאלות לעצמך' }));
   else if (units.length <= days.length) {
     units.forEach((u, j) => plan.push({ date: days[j], task: `לקרוא ולסכם: ${u.nb}${u.label ? ' – ' + u.label : ''}` }));
-    days.slice(units.length).forEach(k => plan.push({ date: k, task: 'כרטיסיות שינון + חזרה על מה שקשה' }));
+    days.slice(units.length).forEach(k => plan.push({ date: k, task: 'כרטיסיות שינון – חוזרים על מה ששכחת + חזרה על מה שקשה' }));
   } else {
     const per = units.length / days.length;
     days.forEach((k, j) => { const part = units.slice(Math.round(j * per), Math.round((j + 1) * per)); if (!part.length) return;
       const byNb = {}; part.forEach(u => (byNb[u.nb] = byNb[u.nb] || []).push(u.label));
       plan.push({ date: k, task: 'לקרוא ולסכם: ' + Object.entries(byNb).map(([nb, ls]) => nb + (ls.filter(Boolean).length ? ' – ' + ls.filter(Boolean).join(', ') : '')).join(' | ') }); });
   }
-  if (review) plan.push({ date: review, task: 'חזרה כללית על הכל + כרטיסיות שינון' });
+  if (review) plan.push({ date: review, task: 'חזרה כללית + כרטיסיות (רק מה שסימנת "לא ידעתי") + שאלון מסכם עם העוזר' });
   else if (days.length === 1 && units.length) plan[0].task = 'חזרה על כל החומר: ' + [...new Set(units.map(u => u.nb))].join(', ');
   return plan.map(p => ({ ...p, task: p.task.slice(0, 180) }));
 }
@@ -5072,15 +5094,37 @@ function chatRender() {
     const t = document.createElement('span'); t.dir = 'auto'; t.textContent = s.text;
     c.append(i, t); c.onclick = () => chatUse(s); grid.appendChild(c);
   });
-  box.append(orb, h, p, grid); $('chatLog').appendChild(box);
+  const ins = chatInsight();
+  if (ins) { const c = document.createElement('button'); c.type = 'button'; c.className = 'chat-insight'; c.dir = 'auto'; c.innerHTML = `<span class="ic">${ic(ins.icon)}</span>`; const t = document.createElement('span'); t.textContent = ins.text; c.appendChild(t); c.onclick = () => chatUse(ins); box.append(orb, h, p, c, grid); }
+  else box.append(orb, h, p, grid);
+  $('chatLog').appendChild(box);
 }
 // הצעות לפי מה שקורה עכשיו: מחברת פתוחה, או המבחן הקרוב ביומן
+// העוזר מכיר אותך: מבחן קרוב + המקצוע עם הממוצע הנמוך
+function gradeAvgs() {
+  const subs = [...new Set(grades.map(g => g.s).filter(Boolean))];
+  return subs.map(s => { const a = subjAvg(s, grades.filter(g => g.s === s)).avg; return a == null ? null : { s, a: Math.round(a) }; }).filter(Boolean).sort((x, y) => x.a - y.a);
+}
+function chatInsight() {
+  const tk = todayKey(), lim = key(new Date(Date.now() + 10 * 864e5));
+  const test = events.find(e => e.type === 'test' && !e.done && e.date >= tk && e.date <= lim);
+  const avgs = gradeAvgs();
+  if (test) {
+    const subj = String(test.title || '').replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '').slice(0, 40) || test.title;
+    const g = avgs.find(x => subjMatches(test.title, x.s) || subjMatches(x.s, subj));
+    const when = dayLabel(test.date);
+    const text = g && g.a < 85 ? `יש לך ${test.title} ${when}, והממוצע שלך ב${g.s} הוא ${g.a}. רוצה שנתרגל?` : `יש לך ${test.title} ${when}. רוצה שנתרגל?`;
+    return { icon: 'target', text, send: `יש לי ${test.title} ב-${test.date}${g ? ` (הממוצע שלי ב${g.s}: ${g.a})` : ''}. בוא נתרגל: תתחיל לשאול אותי שאלות, אחת אחת, מהקל לקשה.` };
+  }
+  if (avgs.length >= 2 && avgs[0].a < 80) return { icon: 'grades', text: `הממוצע שלך ב${avgs[0].s} (${avgs[0].a}) הכי נמוך. רוצה שנחזק אותו?`, send: `הממוצע שלי ב${avgs[0].s} הוא ${avgs[0].a}. תעזור לי להבין מה כדאי לחזק ותן לי תרגול קצר.` };
+  return null;
+}
 function chatSuggestions() {
   if (openId) return [
     { icon: 'doc', text: 'דף חזרה מהמחברת', send: 'תכין לי דף חזרה מסודר מהמחברת הזאת' },
     { icon: 'target', text: 'שאלון על החומר', send: 'תכין לי שאלון על החומר שבמחברת' },
     { icon: 'bulb', text: 'מה הכי קשה כאן?', send: 'מה הנושא הכי קשה במחברת? תסביר לי אותו בפשטות' },
-    { icon: 'clip', text: 'להעלות דף או צילום', file: true },
+    { icon: 'hw', text: 'בדיקת שיעורי בית', check: true },
   ];
   const test = events.find(e => e.type === 'test' && !e.done && e.date >= todayKey());
   const title = test ? String(test.title || '').slice(0, 40) : '';
@@ -5088,12 +5132,13 @@ function chatSuggestions() {
     test ? { icon: 'target', text: `תבחן אותי: ${title}`, send: `יש לי ${title} ב-${test.date}. תכין לי שאלון תרגול למבחן` } : { icon: 'target', text: 'תכין אותי למבחן', send: 'אני רוצה להתכונן למבחן. תגיד לי איזה חומר אתה צריך ממני כדי להכין לי שאלון ודף חזרה' },
     { icon: 'doc', text: 'להכין דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
     { icon: 'cal', text: 'מה יש לי השבוע?', send: 'מה יש לי השבוע ביומן? במה כדאי להתחיל?' },
-    { icon: 'clip', text: 'להעלות דף או צילום', file: true },
+    { icon: 'hw', text: 'בדיקת שיעורי בית', check: true },
   ];
 }
 function chatUse(s) {
   const inp = $('chatInput');
   if (s.file) { $('chatFile').click(); return; }
+  if (s.check) { inp.value = 'תבדוק את מה שפתרתי: תסמן איפה טעיתי ולמה, בלי לפתור במקומי'; toast('צלם או העלה את מה שפתרת, ואז שלח'); $('chatFile').click(); return; }
   if (s.fill) { inp.value = s.fill; inp.focus(); return; }
   if (chatWaitBusy()) return;
   inp.value = s.send; chatSend();
@@ -5227,6 +5272,24 @@ function chatPlace(v) {
   chatContext();
 }
 
+// מה העוזר יודע על התלמיד: מערכת שעות וממוצעים
+function chatAboutMe() {
+  const out = [];
+  const days = (timetable && timetable.days) || {};
+  const tt = [0, 1, 2, 3, 4, 5].map(i => { const l = (days[i] || []).filter(Boolean); return l.length ? `${HE_DAYS[i]}: ${[...new Set(l)].join(', ')}` : ''; }).filter(Boolean);
+  if (tt.length) out.push('מערכת השעות של המשתמש:\n' + tt.join('\n'));
+  const avgs = gradeAvgs();
+  if (avgs.length) out.push('הממוצעים של המשתמש לפי מקצוע (מהנמוך לגבוה): ' + avgs.map(x => `${x.s} ${x.a}`).join(', '));
+  if (!out.length) return '';
+  return out.join('\n') + '\nהשתמש במידע הזה כשזה עוזר: למשל, אם יש מבחן קרוב במקצוע שהממוצע בו נמוך, הצע לתרגל אותו. אל תציף את המשתמש במספרים כשהוא לא שאל.\n';
+}
+const CHAT_TEACH = `מצב מורה פעיל (המשתמש ביקש ללמוד בעצמו). זה הכלל הכי חשוב:
+- אל תיתן את התשובה הסופית ואל תפתור את התרגיל עד הסוף. גם אם המשתמש מבקש "רק תגיד לי".
+- הובל אותו צעד אחרי צעד: שאל שאלה אחת קצרה בכל פעם, וחכה לתשובה שלו.
+- תן רמזים מדורגים: קודם רמז קטן, ורק אם הוא תקוע – רמז גדול יותר.
+- כשהוא עונה: אם צדק – תגיד שזה נכון ולמה, ותמשיך לשלב הבא. אם טעה – אל תגיד מה הנכון; תשאל שאלה שתעזור לו למצוא את הטעות בעצמו.
+- כשהוא מגיע לתשובה בעצמו – תפרגן, ותסכם במשפט מה למד.
+- ההסבר קצר, בגובה העיניים. אל תחזיר QUIZ או SHEET במצב הזה, אלא אם ביקש במפורש.`;
 function chatPrompt(noKit) {
   const currentNotebookText = openId ? $('editor').innerText.trim().slice(0, 30000) : '';
   const upcoming = events.filter(e => !e.done && e.date >= todayKey()).slice(0, 30)
@@ -5238,6 +5301,7 @@ ${openId ? `לפניך תוכן המחברת הנוכחית של המשתמש: "
 היום: ${todayKey()}, יום ${HE_DAYS[new Date().getDay()]}.
 הדברים הקרובים ביומן של המשתמש:
 ${upcoming || '(אין)'}
+${chatAboutMe()}
 
 התפקידים שלך:
 1. עזור למשתמש בכל שאלה ובקשה, גם אם אין לה קשר למחברת: להסביר חומר, לפתור ולבדוק תרגילים, לתרגל למבחן, לעזור בכתיבה ולתת עצות. אם השאלה קשורה למחברת, הסתמך עליה. בכל מקרה אחר השתמש בידע הכללי הרחב שלך, והסבר בצורה מעולה ותמציתית. אם אתה לא בטוח במשהו, אמור זאת.
@@ -5264,7 +5328,12 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 | תא | תא |
 בלי ** בתוך הטבלה.
 
-${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ציורים ותרשימים: כשמבקשים לצייר או להראות תרשים, גרף, צורה גאומטרית, ציר מספרים, מחזור (מים, מזון), מבנה (תא, אטום) או כל איור שעוזר להבין – צייר בעצמך: כתוב קוד SVG שלם בתוך בלוק \`\`\`svg ... \`\`\`. השתמש ב-viewBox (למשל 0 0 400 300), רקע לבן, צבעים ברורים, קווים עבים, וטקסט קצר בעברית עם font-family="Arial" ו-direction="rtl". ודא שהציור נכון מתמטית או מדעית (מידות, זוויות, צירים). אחרי הציור – הסבר קצר במשפט או שניים.
+${chatTeach ? CHAT_TEACH + '\n\n' : ''}${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ציורים ותרשימים: כשמבקשים לצייר או להראות תרשים, גרף, צורה גאומטרית, ציר מספרים, מחזור (מים, מזון), מבנה (תא, אטום) או כל איור שעוזר להבין – צייר בעצמך: כתוב קוד SVG שלם בתוך בלוק \`\`\`svg ... \`\`\`. השתמש ב-viewBox (למשל 0 0 400 300), רקע לבן, צבעים ברורים, קווים עבים, וטקסט קצר בעברית עם font-family="Arial" ו-direction="rtl". ודא שהציור נכון מתמטית או מדעית (מידות, זוויות, צירים). אחרי הציור – הסבר קצר במשפט או שניים.
+
+בדיקת שיעורי בית: כשהמשתמש שולח פתרון שלו (בתמונה או בטקסט) ומבקש לבדוק – עבור על כל שאלה לפי הסדר:
+- נכון: כתוב "✓ נכון" ומשפט קצר למה.
+- לא נכון: כתוב "✕" ואת המקום המדויק של הטעות (באיזה שלב או שורה), ולמה זו טעות. תן רמז איך לתקן, אבל אל תכתוב את התשובה הנכונה ואל תפתור במקומו – אלא אם ביקש במפורש אחרי שניסה שוב.
+- בסוף: כמה נכונות מתוך כמה, ועל מה כדאי לחזור.
 
 איך לענות (חשוב מאוד):
 - קודם התשובה עצמה, ישר ולעניין. בלי "בטח!", "שאלה מצוינת" ובלי לחזור על השאלה.
@@ -5534,6 +5603,7 @@ $('chatListBtn').onclick = chatListDialog;
 
 /* ---- כרטיסים בתוך הצ'אט: שאלון אינטראקטיבי ודף חזרה ---- */
 const CHAT_ACTIONS = [
+  { icon: 'hw', text: 'בדיקת שיעורי בית', check: true },
   { icon: 'target', text: 'שאלון', send: 'תכין לי שאלון תרגול על החומר' },
   { icon: 'doc', text: 'דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
   { icon: 'compass', text: 'במה להתחיל?', send: 'במה כדאי לי להתחיל ללמוד עכשיו, ולמה?' },
@@ -5708,8 +5778,33 @@ function chatGoMode(busy) {
   g.innerHTML = busy ? '<span class="sq"></span>' : '<svg><use href="#i-send"/></svg>';
   g.title = busy ? 'עצירה' : 'שליחה'; g.setAttribute('aria-label', g.title);
 }
-$('chatGo').onclick = () => { if (chatBusy) { chatStopper && chatStopper(); return; } chatSend(); };
+$('chatGo').onclick = () => { if (chatRec) chatRec.stop(); if (chatBusy) { chatStopper && chatStopper(); return; } chatSend(); };
 $('chatWeb').onclick = () => { chatWeb = !chatWeb; $('chatWeb').classList.toggle('on', chatWeb); $('chatWeb').setAttribute('aria-pressed', chatWeb); toast(chatWeb ? 'חיפוש באינטרנט פועל: התשובות יבואו עם מקורות' : 'חיפוש באינטרנט כבוי'); };
+/* ---- מצב מורה: העוזר לא נותן תשובות, אלא מוביל צעד אחרי צעד עם שאלות ורמזים ---- */
+let chatTeach = false; try { chatTeach = localStorage.getItem('chatTeach') === '1'; } catch {}
+function chatTeachPaint() {
+  $('chatTeach').classList.toggle('on', chatTeach); $('chatTeach').setAttribute('aria-pressed', chatTeach);
+  $('chatPanel').classList.toggle('teach', chatTeach);
+  $('chatInput').placeholder = chatTeach ? 'מצב מורה: כתוב את השאלה, ואוביל אותך לתשובה…' : 'כתוב לי כאן…';
+}
+$('chatTeach').onclick = () => { chatTeach = !chatTeach; try { localStorage.setItem('chatTeach', chatTeach ? '1' : '0'); } catch {} chatTeachPaint(); toast(chatTeach ? 'מצב מורה פועל: אוביל אותך לתשובה בעצמך, עם שאלות ורמזים' : 'מצב מורה כבוי: אענה ישר'); };
+chatTeachPaint();
+/* ---- לדבר עם העוזר: מיקרופון במקום להקליד (Web Speech) ---- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let chatRec = null;
+if (SR) $('chatMic').classList.remove('hidden');
+$('chatMic').onclick = () => {
+  if (chatRec) { chatRec.stop(); return; }
+  if (chatBusy) return;
+  const inp = $('chatInput'), before = inp.value.trim();
+  let rec; try { rec = new SR(); } catch { toast('המיקרופון לא נתמך בדפדפן הזה'); return; }
+  rec.lang = 'he-IL'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  let heard = '', failed = false;
+  rec.onresult = e => { heard = [...e.results].map(r => r[0].transcript).join(' ').trim(); inp.value = (before ? before + ' ' : '') + heard; inp.dispatchEvent(new Event('input')); };
+  rec.onerror = e => { failed = true; toast(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'צריך לאשר לאתר להשתמש במיקרופון (בהגדרות הדפדפן)' : e.error === 'no-speech' ? 'לא שמעתי כלום. נסה שוב ודבר קרוב לטלפון' : 'המיקרופון לא עבד. נסה שוב'); };
+  rec.onend = () => { chatRec = null; $('chatMic').classList.remove('on'); $('chatMic').setAttribute('aria-pressed', 'false'); if (!failed && heard) chatSend(); };
+  try { rec.start(); chatRec = rec; $('chatMic').classList.add('on'); $('chatMic').setAttribute('aria-pressed', 'true'); toast('מקשיב… דבר, וכשתסיים אשלח'); } catch { toast('המיקרופון לא עבד. נסה שוב'); }
+};
 $('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); }
   else if (e.key === 'Escape' && !$('chatPanel').classList.contains('full')) chatOpen(false);
