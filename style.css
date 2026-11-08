@@ -1899,3 +1899,37 @@ html[data-theme="dark"] .login-card{box-shadow:0 24px 60px -28px rgba(0,0,0,.7)}
 #haInput:placeholder-shown,#chatInput:placeholder-shown{direction:rtl;text-align:right}
 .side-ai{flex:none}
 #haInput::placeholder{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ===== רשימת השיחות בצד של עמוד העוזר ===== */
+#chatView:not(.hidden){display:flex;gap:18px;align-items:stretch}
+#chatView>.chat-panel{flex:1;min-width:0}
+.chat-side{flex:none;width:260px;display:flex;flex-direction:column;gap:8px;min-height:0;height:100%;padding:4px 14px 14px 0;border-inline-start:1px solid var(--line)}
+#chatView.cs-closed .chat-side{display:none}
+#chatView:not(.cs-closed) #chatListBtn,#chatView:not(.cs-closed) #chatNew{display:none}
+.cs-head{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 2px}
+.cs-head b{font-size:14px;font-weight:700}
+.cs-x{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;color:var(--muted)}
+.cs-x:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.cs-x svg,.cs-new svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cs-new{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:14px}
+.cs-new:hover{filter:brightness(.97)}
+.cs-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:1px;margin:0 -4px;padding:0 4px}
+.cs-group{font-size:12px;color:var(--muted);font-weight:600;padding:12px 10px 4px}
+.cs-row{display:flex;align-items:center;border-radius:10px}
+.cs-row:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.cs-row.on{background:var(--accent-soft)}
+.cs-row.on .cs-open{color:var(--accent);font-weight:600}
+.cs-open{flex:1;min-width:0;padding:8px 10px;text-align:right;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.cs-del{flex:none;width:28px;height:28px;margin-inline-end:4px;border-radius:8px;color:var(--muted);font-size:12px;opacity:0}
+.cs-row:hover .cs-del,.cs-row.on .cs-del,.cs-del:focus-visible{opacity:1}
+.cs-del:hover{color:var(--danger);background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.cs-empty{color:var(--muted);font-size:13.5px;padding:14px 10px;line-height:1.5}
+@media (hover:none){.cs-del{opacity:.7}}
+@media (max-width:820px){
+  #chatView:not(.hidden){display:block}
+  #chatView #chatListBtn,#chatView #chatNew{display:inline-flex !important}
+  .chat-side{display:flex;position:fixed;z-index:60;top:0;bottom:0;left:0;width:min(300px,84vw);height:auto;padding:14px;background:var(--surface);border:0;box-shadow:0 0 40px rgba(0,0,0,.25);transform:translateX(-105%);transition:transform .25s var(--ease)}
+  #chatView.cs-closed .chat-side{display:flex}
+  #chatView.cs-open .chat-side{transform:none}
+  #chatView.cs-open::before{content:"";position:fixed;inset:0;z-index:59;background:rgba(0,0,0,.3)}
+}

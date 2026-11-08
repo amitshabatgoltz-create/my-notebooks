@@ -5077,6 +5077,7 @@ function chatBubble(role, text) {
 }
 // שיחה של חשבון אחד לא נשארת כשנכנסים לחשבון אחר באותו דפדפן
 function chatRender() {
+  chatSidePaint();
   $('chatLog').innerHTML = '';
   if (chatHistory.length) {
     const lastBot = chatHistory.map(m => m.role).lastIndexOf('bot');
@@ -5196,6 +5197,7 @@ function chatSave() {
   const now = Date.now();
   if (!chatId) { chatId = doc(chatCol()).id; chatCreated = now; chatSavedTitle = chatTitle(chatHistory); }
   const mem = chatMem.map(m => ({ name: m.name, ...(m.fid ? { fid: m.fid } : {}), part: typeof m.part === 'string' && m.part !== CHAT_FILE_GONE ? m.part : null }));
+  chatSideUpsert({ id: chatId, title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now });
   setDoc(chatRef(chatId), { title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now }).catch(e => { console.warn('chat save', e); toast('לא הצלחתי לשמור את השיחה'); });
 }
 const chatWaitBusy = () => { if (!chatBusy) return false; toast('רגע, העוזר עוד עונה'); return true; };
@@ -5210,12 +5212,13 @@ async function chatPick(c) {
 }
 function chatDelete(c, row) {
   deleteDoc(chatRef(c.id)).catch(e => console.warn('chat delete', e));
+  if (chatSideItems) { chatSideItems = chatSideItems.filter(x => x.id !== c.id); chatSidePaint(); }
   row.remove();
   const box = document.querySelector('#dialogRoot .chat-list');
   if (box && !box.children.length) box.innerHTML = '<p class="chat-list-empty">עוד אין שיחות שמורות.</p>';
   if (chatId === c.id) { chatClearState(); chatRender(); }
   const { id, ...data } = c;
-  toastAction('השיחה נמחקה', 'ביטול', () => { setDoc(chatRef(id), data).then(() => chatListDialog()).catch(() => toast('לא הצלחתי לשחזר')); });
+  toastAction('השיחה נמחקה', 'ביטול', () => { setDoc(chatRef(id), data).then(() => { chatSideUpsert(c); if (row.closest('#dialogRoot')) chatListDialog(); }).catch(() => toast('לא הצלחתי לשחזר')); });
 }
 async function chatListDialog() {
   if (chatWaitBusy()) return;
@@ -5246,6 +5249,55 @@ async function chatListDialog() {
     actions.append(add, no); d.append(box, actions);
   });
 }
+/* ---- רשימת השיחות בצד (בעמוד העוזר), כמו באתרי AI. אפשר לסגור ולפתוח ---- */
+var chatSideItems = null, chatSideUid = null;
+const chatSideMobile = () => matchMedia('(max-width:820px)').matches;
+function chatSideToggle(open) {
+  const v = $('chatView');
+  if (chatSideMobile()) { v.classList.toggle('cs-open', open); return; }
+  v.classList.toggle('cs-closed', !open);
+  try { localStorage.setItem('chatSide', open ? '1' : '0'); } catch {}
+}
+try { if (localStorage.getItem('chatSide') === '0') $('chatView').classList.add('cs-closed'); } catch {}
+async function chatSideLoad() {
+  if (!me) return;
+  if (chatSideItems && chatSideUid === me.uid) { chatSidePaint(); return; }
+  chatSideUid = me.uid; chatSideItems = null; chatSidePaint();
+  try { await chatReady; const l = await chatFetchList(); if (chatSideUid === (me && me.uid)) chatSideItems = l; }
+  catch (e) { console.warn('chat side', e); chatSideItems = []; }
+  chatSidePaint();
+}
+function chatSideUpsert(c) {
+  if (!chatSideItems || !me || chatSideUid !== me.uid) return;
+  chatSideItems = [c, ...chatSideItems.filter(x => x.id !== c.id)].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  chatSidePaint();
+}
+function chatSideGroup(t) {
+  const d = Math.floor((fromKey(todayKey()) - fromKey(key(new Date(t || 0)))) / 864e5);
+  return d <= 0 ? 'היום' : d === 1 ? 'אתמול' : d < 7 ? 'השבוע' : d < 30 ? 'החודש' : 'קודם';
+}
+function chatSidePaint() {
+  const box = $('csList'); if (!box) return;
+  box.innerHTML = '';
+  if (!chatSideItems) { box.innerHTML = '<p class="cs-empty">טוען…</p>'; return; }
+  if (!chatSideItems.length) { box.innerHTML = '<p class="cs-empty">עוד אין שיחות. כל שיחה נשמרת כאן לבד.</p>'; return; }
+  let group = '';
+  chatSideItems.forEach(c => {
+    const g = chatSideGroup(c.updatedAt);
+    if (g !== group) { group = g; const h = document.createElement('div'); h.className = 'cs-group'; h.textContent = g; box.appendChild(h); }
+    const row = document.createElement('div'); row.className = 'cs-row' + (c.id === chatId ? ' on' : '');
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'cs-open'; open.dir = 'auto';
+    open.textContent = c.title || 'שיחה'; open.title = c.title || 'שיחה';
+    open.onclick = () => { if (c.id !== chatId) chatPick(c); if (chatSideMobile()) chatSideToggle(false); };
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'cs-del'; del.textContent = '✕'; del.setAttribute('aria-label', 'מחיקת השיחה'); del.title = 'מחיקה';
+    del.onclick = () => chatDelete(c, row);
+    row.append(open, del); box.appendChild(row);
+  });
+}
+$('csClose').onclick = () => chatSideToggle(false);
+$('csNew').onclick = () => { chatNew(); if (chatSideMobile()) chatSideToggle(false); };
+$('chatView').addEventListener('click', e => { if (e.target === $('chatView') && $('chatView').classList.contains('cs-open')) chatSideToggle(false); });
+
 async function chatLeftHint() {
   const n = await usageLeft('chat');
   $('chatInput').placeholder = n > 5 ? 'כתוב לי כאן…' : n <= 0 ? 'נגמרו ההודעות להיום, מחר אפשר שוב' : n === 1 ? 'נשארה לך הודעה אחת היום' : `נשארו לך ${n} הודעות היום`;
@@ -5268,7 +5320,7 @@ function chatOpen(on) {
 // אותה שיחה בשני מקומות: מסך מלא בכרטיסייה, וחלון קטן מעל מחברת (שם הוא קורא את המחברת)
 function chatPlace(v) {
   const p = $('chatPanel'), full = p.classList.contains('full');
-  if (v === 'chatView') { if (!full) chatFresh(); $('chatView').appendChild(p); p.classList.add('full'); chatOpen(true); return; }
+  if (v === 'chatView') { if (!full) chatFresh(); $('chatView').insertBefore(p, $('chatSide')); chatSideLoad(); p.classList.add('full'); chatOpen(true); return; }
   if (full) { p.classList.remove('full'); $('app').appendChild(p); }
   if (full || v !== 'notebook') chatOpen(false);
   chatContext();
@@ -5659,7 +5711,7 @@ $('chatFile').onchange = () => { const inp = $('chatFile'), list = [...inp.files
 $('chatFab').onclick = () => chatOpen(true);
 $('chatClose').onclick = () => chatOpen(false);
 $('chatNew').onclick = chatNew;
-$('chatListBtn').onclick = chatListDialog;
+$('chatListBtn').onclick = () => $('chatPanel').classList.contains('full') ? chatSideToggle(true) : chatListDialog();
 
 /* ---- כרטיסים בתוך הצ'אט: שאלון אינטראקטיבי ודף חזרה ---- */
 const CHAT_ACTIONS = [
