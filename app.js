@@ -2942,7 +2942,7 @@ function nextLesson(text) {
 }
 function paintTTBtn() { const b = $('ttBtn'); if (b) b.classList.toggle('on', ttSubjects().length > 0); }
 
-async function timetableDialog() {
+async function timetableDialog(fromFile) {
   if (!(await introOnce('tt'))) return;
   dialog(d => {
     d.classList.add('tt-dlg');
@@ -2972,8 +2972,10 @@ async function timetableDialog() {
     d.querySelector('#ttPhoto').onclick = () => d.querySelector('#ttFile').click();
     const showTable = () => { d.querySelector('.tt-scroll').classList.remove('hidden'); const m = d.querySelector('#ttManual'); if (m) m.remove(); };
     if (d.querySelector('#ttManual')) d.querySelector('#ttManual').onclick = () => { showTable(); d.querySelector('.tt input').focus(); };
-    d.querySelector('#ttFile').onchange = async ev => {
-      const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
+    d.querySelector('#ttFile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) readTT(f); };
+    // קובץ שהגיע מהעוזר הלימודי נקרא מיד
+    if (fromFile) setTimeout(() => readTT(fromFile), 60);
+    async function readTT(f) {
       const st = d.querySelector('#ttStatus'); const stop = ticking(st, 'קורא את המערכת...'); d.querySelector('#ttPhoto').disabled = true;
       try {
         let data, mime = f.type || 'image/jpeg';
@@ -4841,6 +4843,8 @@ $('grImport').onclick = gradesImportDialog;
 
 /* ================= עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
 const CHAT_SHORT = 80;
+// "תכניס לי למערכת שעות" עם צילום של המערכת
+const CHAT_TT = /מערכת(\s*ה)?\s*שעות|למערכת|את המערכת|המערכת שלי|timetable|schedule/i;
 // "תצייר לי חתול", "תיצור תמונה של...". תרשים, גרף או צורה – ה-AI מצייר בעצמו (SVG), בלי יצירת תמונה
 const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
 const CHAT_DIAGRAM = /גרף|תרשים|דיאגרמ|משולש|ריבוע|מלבן|מעגל|עיגול|זווית|ציר|מצולע|טבלה|מפה של|פונקצי|שבר|סכמה|מבנה של|graph|chart|diagram|triangle/i;
@@ -5439,6 +5443,8 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 
 ${chatTeach ? CHAT_TEACH + '\n\n' : ''}${noKit ? 'נגמרו למשתמש השאלונים ודפי החזרה להיום: אל תחזיר QUIZ או SHEET, ואם ביקש כזה אמור שאפשר שוב מחר.\n\n' : ''}ציורים ותרשימים: כשמבקשים לצייר או להראות תרשים, גרף, צורה גאומטרית, ציר מספרים, מחזור (מים, מזון), מבנה (תא, אטום) או כל איור שעוזר להבין – צייר בעצמך: כתוב קוד SVG שלם בתוך בלוק \`\`\`svg ... \`\`\`. השתמש ב-viewBox (למשל 0 0 400 300), רקע לבן, צבעים ברורים, קווים עבים, וטקסט קצר בעברית עם font-family="Arial" ו-direction="rtl". ודא שהציור נכון מתמטית או מדעית (מידות, זוויות, צירים). אחרי הציור – הסבר קצר במשפט או שניים.
 
+מערכת שעות: אם המשתמש שלח צילום של מערכת שעות בלי לבקש משהו מיוחד, אמור לו במשפט אחד שאם יכתוב "תכניס למערכת שעות" ויצרף את התמונה, האתר ימלא לו את המערכת לבד.
+
 בדיקת שיעורי בית: כשהמשתמש שולח פתרון שלו (בתמונה או בטקסט) ומבקש לבדוק – עבור על כל שאלה לפי הסדר:
 - נכון: כתוב "✓ נכון" ומשפט קצר למה.
 - לא נכון: כתוב "✕" ואת המקום המדויק של הטעות (באיזה שלב או שורה), ולמה זו טעות. תן רמז איך לתקן, אבל אל תכתוב את התשובה הנכונה ואל תפתור במקומו – אלא אם ביקש במפורש אחרי שניסה שוב.
@@ -5581,7 +5587,7 @@ async function chatAddFiles(list) {
   for (const f of list.slice(0, room)) {
     const name = f.name || 'תמונה';
     if (f.size > CHAT_MAX_FILE) { toast(`"${name}" גדול מדי. אפשר עד 12MB`); continue; }
-    const it = { name, part: null }; chatPending.push(it); chatPaintFiles();
+    const it = { name, part: null, file: f }; chatPending.push(it); chatPaintFiles();
     // שומרים את הקובץ עצמו בענן (כמו ביומן), כדי שאפשר יהיה לפתוח אותו גם בפעם הבאה
     it.up = uploadFile(f).catch(e => { console.warn('chat file save', e); return null; });
     try { it.part = await fileToAiPart(f); }
@@ -5683,6 +5689,17 @@ async function chatSend() {
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
+    // צילום של מערכת שעות + "תכניס למערכת" – פותחים את מערכת השעות וממלאים אותה מהתמונה (עם בדיקה לפני שמירה)
+    const ttFile = files.map(f => f.file).find(f => f && (/^image\//.test(f.type) || /pdf$/i.test(f.type || f.name)));
+    if (ttFile && CHAT_TT.test(msg)) {
+      b.classList.remove('typing'); chatFill(b, 'פותח את מערכת השעות וממלא אותה לפי התמונה. תבדוק שהכול נכון ותלחץ **שמירה**.');
+      const note = `(צירף: ${files.map(f => f.name).join(', ')}) `;
+      const botItem = { role: 'bot', text: 'פתחתי את מערכת השעות ומילאתי אותה לפי התמונה, לבדיקה ושמירה.' };
+      chatHistory.push({ role: 'me', text: note + msg, ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
+      chatTools(b, botItem, false); chatSave();
+      setTimeout(() => timetableDialog(ttFile), 400);
+      return;
+    }
     // בקשה לתמונה אמיתית (לא תרשים): יוצרים תמונה בשרת
     if (AI_VIA_SERVER && !long && CHAT_IMG.test(msg) && !CHAT_DIAGRAM.test(msg)) {
       const res = await chatMakeImage(msg, files, b);
