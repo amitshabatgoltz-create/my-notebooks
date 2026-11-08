@@ -3086,13 +3086,28 @@ function startLive(shareId, baseHtml) {
   }, e => console.warn('live', e));
   if (rtdb) { startRtdb(L); paintPresence([]); return; }
   // מי עוד כאן (בלי Realtime Database: דרך Firestore, איטי יותר)
-  const pres = () => setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {});
+  // רק כשהמסך באמת פתוח: טאב ברקע או טלפון נעול לא נחשבים "כאן"
+  const pres = () => { if (!document.hidden) setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {}); };
   L.pres = pres;
-  pres(); L.presTimer = setInterval(pres, 20000);
+  // מי שלא עדכן ב-50 השניות האחרונות כבר לא כאן (בודקים כל כמה שניות, גם בלי עדכון חדש).
+  // סופרים לפי השעון של המכשיר הזה – מתי ראינו ממנו עדכון – כי השעון של החבר יכול להיות שונה
+  L.heard = new Map();
+  const refresh = () => {
+    if (live !== L) return; const now = Date.now();
+    L.others = (L.presAll || []).filter(p => p.id !== me.uid && now - (L.heard.get(p.id)?.t || 0) < 50000);
+    paintPresence(L.others); paintCursors();
+  };
+  pres(); L.presTimer = setInterval(() => { pres(); refresh(); }, 15000);
   L.unsubPres = onSnapshot(collection(db, 'shares', shareId, 'presence'), snap => {
     if (live !== L) return;
-    const now = Date.now(); const others = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.id !== me.uid && now - (p.at || 0) < 60000);
-    L.others = others; paintPresence(others); paintCursors();
+    const now = Date.now();
+    L.presAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    L.presAll.forEach(p => {
+      const h = L.heard.get(p.id);
+      if (!h) L.heard.set(p.id, { at: p.at, t: Math.abs(now - (p.at || 0)) < 300000 ? now : 0 });   // ישן מאוד = עזב מזמן
+      else if (h.at !== p.at) L.heard.set(p.id, { at: p.at, t: now });
+    });
+    refresh();
   }, () => {});
   paintPresence([]);
 }
@@ -3260,7 +3275,21 @@ function presPush(patch) {
   if (presT) { presPending = true; return; }
   live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, live.rt ? 40 : 350);
 }
-document.addEventListener('selectionchange', () => { if (!live) return; const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co)) presPush(c); });
+// שולחים את הסמן רק כשאתה באמת הזזת אותו (מקלדת / לחיצה). כשהטקסט של החבר נכנס והסמן שלך זז לבד –
+// לא שולחים, אחרת הסמן שלך "רודף" אחרי מה שהחבר מקליד ונראה כאילו אתה שם.
+let userActAt = 0;
+['keydown', 'pointerdown', 'input', 'focus'].forEach(t => $('editor').addEventListener(t, () => { userActAt = Date.now(); }));
+document.addEventListener('selectionchange', () => {
+  if (!live || Date.now() - userActAt > 1500 || document.activeElement !== $('editor')) return;
+  const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co)) presPush(c);
+});
+// יצאת מהמחברת (חלון אחר, טלפון נעול): הסמן שלך נעלם אצל החברים
+$('editor').addEventListener('blur', () => { if (live) presPush({ cb: -1 }); });
+document.addEventListener('visibilitychange', () => {
+  if (!live) return;
+  if (document.hidden) { live.me = { ...(live.me || {}), cb: -1, mb: -2 }; if (!live.rt && me) deleteDoc(doc(db, 'shares', live.id, 'presence', me.uid)).catch(() => {}); }
+  else live.pres && live.pres();
+});
 $('editor').addEventListener('mousemove', e => {
   if (!live) return; const bi = blockIndexOf(e.target === $('editor') ? null : e.target);
   const ed = $('editor').getBoundingClientRect();
