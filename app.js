@@ -5331,6 +5331,7 @@ function chatWhy(e) {
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
   else if (/daily-limit/.test(m)) why = 'נגמרו ההודעות לעוזר להיום. מחר אפשר שוב.';
   else if (/minute-limit/.test(m)) why = 'יותר מדי הודעות בבת אחת. חכה דקה ונסה שוב.';
+  else if (/gemini-credits|prepayment|credits? (are )?depleted/i.test(m)) why = 'נגמר הקרדיט של Gemini באתר (בחשבון Google AI Studio). העוזר יחזור לעבוד אחרי שמנהל האתר יטען קרדיט.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) why = 'העוזר הגיע למגבלת השימוש של כל האתר. נסה שוב בעוד דקה. אם זה לא עובר, המכסה נגמרה להיום והיא מתחדשת בבוקר.';
   else if (/too large|exceeds|token count|\b413\b/i.test(m)) why = 'הטקסט ארוך מדי בשביל Gemini. נסה להדביק חלק קטן יותר.';
   else if (/timeout has expired|aborted/i.test(m)) why = 'לקח יותר מדי זמן. נסה להדביק חלק קטן יותר.';

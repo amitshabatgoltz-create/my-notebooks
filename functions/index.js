@@ -133,6 +133,7 @@ exports.ai = onCall({
     if (e instanceof HttpsError) throw e;
     const msg = String(e && e.message || e).slice(0, 300);
     console.error('gemini', msg);
+    if (/prepayment|credits? (are )?depleted|billing/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-credits: ' + msg);
     if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-quota: ' + msg);
     throw new HttpsError('internal', 'gemini: ' + msg);
   }
