@@ -1894,3 +1894,8 @@ html[data-theme="dark"] .login-card{box-shadow:0 24px 60px -28px rgba(0,0,0,.7)}
   background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(135deg,#5E5CE6,#8A4FE0 55%,#E0488F) border-box!important;
   box-shadow:0 18px 40px -22px #7B4FE0}
 #home .hero-sub{margin-bottom:16px}
+
+/* התיבה של העוזר: הטקסט מימין, גם כשהיא ריקה */
+#haInput:placeholder-shown,#chatInput:placeholder-shown{direction:rtl;text-align:right}
+.side-ai{flex:none}
+#haInput::placeholder{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

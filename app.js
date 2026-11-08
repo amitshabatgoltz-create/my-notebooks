@@ -5832,6 +5832,21 @@ $('haGo').onclick = homeAsk;
 $('haFile').onclick = () => { showTab('chat'); $('chatFile').click(); };
 $('haInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); homeAsk(); } });
 $('haInput').addEventListener('input', () => { const i = $('haInput'); i.style.height = ''; i.style.height = Math.min(220, i.scrollHeight) + 'px'; });
+/* ---- כמו ב-Gemini: בתיבה של העוזר נכתבות דוגמאות אות אחרי אות, ונמחקות ---- */
+const HA_IDEAS = ['מה זה פוטוסינתזה?', 'תבחן אותי באנגלית', 'יש לי מבחן ביום חמישי', 'איך פותרים משוואה?', 'תכין לי דף חזרה', 'תבדוק לי שיעורי בית', 'מה יש לי השבוע?', 'תסכם לי את הפרק', 'תצייר לי משולש'];
+(function typeIdeas() {
+  const inp = $('haInput'), base = 'שאל את העוזר כל דבר…';
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let k = Math.floor(Math.random() * HA_IDEAS.length), i = 0, del = false, wait = 0;
+  setInterval(() => {
+    if (inp.value || document.activeElement === inp || document.hidden) { if (inp.placeholder !== base) inp.placeholder = base; return; }
+    if (wait > 0) { wait--; return; }
+    const t = HA_IDEAS[k];
+    if (!del) { i++; if (i >= t.length) { del = true; wait = 28; } }
+    else { i--; if (i <= 0) { del = false; k = (k + 1) % HA_IDEAS.length; wait = 5; } }
+    inp.placeholder = t.slice(0, i) + (i < t.length || del ? '|' : '');
+  }, 60);
+})();
 let chatStopper = null, chatWeb = false;
 function chatGoMode(busy) {
   const g = $('chatGo'); g.disabled = false; g.classList.toggle('stop', busy);
