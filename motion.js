@@ -82,7 +82,7 @@
   /* ===== ניווט: סימון אחד שמחליק ללשונית הפעילה (בצד במחשב, למטה בטלפון) ===== */
   const navs = [];
   function placePill(nav, animate) {
-    const b = nav.querySelector('button.on'), pill = nav._pill;
+    const b = nav.querySelector('button.on:not(.ai-nav)'), pill = nav._pill;
     if (!b || !b.offsetWidth) { gsap.set(pill, { autoAlpha: 0 }); return; }
     const to = { x: b.offsetLeft, y: b.offsetTop };
     gsap.set(pill, { width: b.offsetWidth, height: b.offsetHeight });

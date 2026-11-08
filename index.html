@@ -30,10 +30,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794169605">
+<link rel="stylesheet" href="style.css?v=1794169719">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794169605"></script>
+<script src="motion.js?v=1794169719"></script>
 </head>
 <body>
 
@@ -176,6 +176,7 @@
 <div id="app" class="hidden">
   <aside class="side">
     <div class="side-brand"><span class="app-icon sm" aria-hidden="true"><svg><use href="#i-book"/></svg></span>המחברות שלי</div>
+    <button data-tab="chat" class="side-ai ai-nav" type="button"><span class="sa-ic"><svg aria-hidden="true"><use href="#i-spark"/></svg></span><span class="sa-tx"><b>עוזר לימודי</b><small>מסביר, פותר ובוחן אותך</small></span></button>
     <nav class="side-nav" aria-label="ניווט">
       <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
       <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
@@ -183,7 +184,6 @@
       <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
       <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
-      <button data-tab="chat"><svg><use href="#i-spark"/></svg>עוזר לימודי</button>
       <button data-tab="admin" class="hidden admin-only"><svg><use href="#i-grades"/></svg>ניהול האתר</button>
     </nav>
     <div class="side-label">המחברות שלי</div>
@@ -222,6 +222,15 @@
             <p class="hero-date" id="homeDate"></p>
             <h1 id="greet"></h1>
             <p class="hero-sub" id="greetSub"></p>
+            <div class="quick-add home-ask">
+              <div class="ha-row">
+                <span class="ai-orb sm" aria-hidden="true"><svg><use href="#i-spark"/></svg></span>
+                <textarea id="haInput" rows="1" dir="auto" placeholder="שאל את העוזר כל דבר…" aria-label="הודעה לעוזר הלימודי"></textarea>
+                <button class="chat-attach" id="haFile" type="button" title="צירוף תמונה או קובץ" aria-label="צירוף תמונה או קובץ"><svg><use href="#i-clip"/></svg></button>
+                <button class="chat-send" id="haGo" type="button" aria-label="שליחה" title="שליחה"><svg><use href="#i-send"/></svg></button>
+              </div>
+              <div class="ha-chips" id="haChips"></div>
+            </div>
             <div class="hero-actions tiles">
               <button class="tile t-nb" id="homeNotes" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-book"/></svg></span><b>המחברות שלי</b><small id="homeNotesN">כל המחברות במקום אחד</small></button>
               <button class="tile t-new" id="homeNew" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-plus"/></svg></span><b>מחברת חדשה</b><small>לכתוב סיכום משיעור</small></button>
@@ -233,15 +242,6 @@
           </div>
         </div>
         <section class="card week" id="weekCard" aria-label="השבוע הקרוב"></section>
-        <div class="quick-add home-ask">
-          <div class="ha-row">
-            <span class="ai-orb sm" aria-hidden="true"><svg><use href="#i-spark"/></svg></span>
-            <textarea id="haInput" rows="1" dir="auto" placeholder="שאל אותי כל דבר…" aria-label="הודעה לעוזר הלימודי"></textarea>
-            <button class="chat-attach" id="haFile" type="button" title="צירוף תמונה או קובץ" aria-label="צירוף תמונה או קובץ"><svg><use href="#i-clip"/></svg></button>
-            <button class="chat-send" id="haGo" type="button" aria-label="שליחה" title="שליחה"><svg><use href="#i-send"/></svg></button>
-          </div>
-          <div class="ha-chips" id="haChips"></div>
-        </div>
         <!-- ההוספה המהירה הישנה: מוסתרת, הקוד שלה עדיין נטען -->
         <div class="quick-add hidden" id="quickAdd">
           <textarea id="qaInput" rows="1" placeholder="מה יש לך? למשל: ש״ב במתמטיקה עמ׳ 45 למחר" aria-label="הוספה מהירה ליומן"></textarea>
@@ -419,11 +419,11 @@
   <nav class="tabbar" aria-label="ניווט">
     <button data-tab="home"><svg><use href="#i-home"/></svg>בית</button>
     <button data-tab="notes"><svg><use href="#i-book"/></svg>מחברות</button>
+    <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
+    <button data-tab="chat" class="tb-ai ai-nav" aria-label="עוזר לימודי"><span class="tb-orb"><svg><use href="#i-spark"/></svg></span>עוזר</button>
     <button data-tab="hw"><svg><use href="#i-hw"/></svg>שיעורי בית</button>
-      <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
-      <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת</button>
-      <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
-      <button data-tab="chat"><svg><use href="#i-spark"/></svg>עוזר</button>
+    <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת</button>
+    <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
   </nav>
 
   <!-- עוזר לימודי -->
@@ -450,6 +450,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794169605"></script>
+<script type="module" src="app.js?v=1794169719"></script>
 </body>
 </html>
