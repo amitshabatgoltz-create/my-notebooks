@@ -5302,7 +5302,7 @@ function chatSidePaint() {
     row.append(open, del); box.appendChild(row);
   });
 }
-$('csClose').onclick = () => chatSideToggle(false);
+$('csClose').onclick = () => chatSideToggle(!chatSideMobile() && $('chatView').classList.contains('cs-closed'));
 $('csNew').onclick = () => { chatNew(); if (chatSideMobile()) chatSideToggle(false); };
 $('chatView').addEventListener('click', e => { if (e.target === $('chatView') && $('chatView').classList.contains('cs-open')) chatSideToggle(false); });
 
