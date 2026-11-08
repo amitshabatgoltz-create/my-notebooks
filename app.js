@@ -15,6 +15,39 @@ import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
 const $ = id => document.getElementById(id);
+
+/* ---- כיוון טקסט אחיד: כל מה שיש בו עברית – מימין, ורק טקסט בלי עברית בכלל – משמאל.
+   (dir="auto" של הדפדפן קובע לפי האות הראשונה, אז "Grammar..." או "2x+5" בתחילת שורה הפכו את כל השורה לשמאל.)
+   בתוך המחברת עצמה (#editor) לא נוגעים. ---- */
+(function smartDir() {
+  const HE = /[֐-׿]/;
+  const pick = t => (!t || !t.trim() || HE.test(t)) ? 'rtl' : 'ltr';
+  const fix = el => {
+    if (!el || el.closest('#editor')) return;
+    const val = el.matches('input,textarea') ? el.value : el.textContent;
+    const d = pick(val); if (el.getAttribute('dir') !== d) el.setAttribute('dir', d);
+  };
+  const adopt = root => {
+    if (root.nodeType !== 1) return;
+    if (root.getAttribute('dir') === 'auto') { root.dataset.ad = '1'; fix(root); }
+    root.querySelectorAll('[dir="auto"]').forEach(el => { el.dataset.ad = '1'; fix(el); });
+  };
+  const start = () => {
+    adopt(document.body);
+    new MutationObserver(ms => {
+      const todo = new Set();
+      for (const m of ms) {
+        if (m.type === 'attributes') { if (m.target.getAttribute('dir') === 'auto') adopt(m.target); continue; }
+        m.addedNodes.forEach(n => { if (n.nodeType === 1) adopt(n); });
+        const host = (m.target.nodeType === 1 ? m.target : m.target.parentElement)?.closest?.('[data-ad]');
+        if (host) todo.add(host);
+      }
+      todo.forEach(fix);
+    }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['dir'] });
+    document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.ad) fix(e.target); }, true);
+  };
+  if (document.body) start(); else addEventListener('DOMContentLoaded', start);
+})();
 const ic = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#1f8fa3','#4b5563'];
 
