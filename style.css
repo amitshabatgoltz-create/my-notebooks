@@ -2287,3 +2287,5 @@ html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in s
 .sh-cta .go{flex:none;padding:9px 16px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:14.5px}
 @media (max-width:520px){.sh-cta{flex-wrap:wrap}.sh-cta .go{width:100%;text-align:center}}
 a.menu-item{display:block;text-decoration:none;color:inherit}
+.login-mail{color:inherit;opacity:.85;text-decoration:none;font-size:13px}
+.login-mail:hover{text-decoration:underline;opacity:1}
