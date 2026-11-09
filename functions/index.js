@@ -17,6 +17,9 @@ const LIMIT = { chat: 45, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30, img: 4 
 // יצירת תמונות: מנסים לפי הסדר עד שאחד עובד (שמות של מודלים משתנים מדי פעם)
 const IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.0-flash-preview-image-generation'];
 const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יחד
+// כל האתר יחד: ל-Gemini החינמי יש 15 בקשות בדקה לכל הפרויקט. שומרים מקום אחד ביטחון.
+// בקשה שאין לה מקום בדקה הזו מחכה (תור) עד הדקה הבאה, ולא נכשלת מיד.
+const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +process.env.AI_QUEUE_WAIT_MS || 25000;
 const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
@@ -59,6 +62,35 @@ function cleanConfig(c) {
   return out;
 }
 
+async function takeGlobal() {
+  const ref = db.doc('aiQuota/_site');
+  const until = Date.now() + QUEUE_WAIT_MS;
+  for (;;) {
+    const min = Math.floor(Date.now() / 60000);
+    const ok = await db.runTransaction(async tx => {
+      const sn = await tx.get(ref); const g = sn.exists ? sn.data() : {};
+      const count = g.min === min ? (g.count || 0) : 0;
+      if (count >= GLOBAL_PER_MIN) return false;
+      tx.set(ref, { min, count: count + 1 }); return true;
+    });
+    if (ok) return;
+    const wait = (min + 1) * 60000 - Date.now() + Math.random() * 1500;   // עד תחילת הדקה הבאה, בפיזור קטן
+    if (Date.now() + wait > until) throw new HttpsError('resource-exhausted', 'site-busy');
+    await new Promise(res => setTimeout(res, wait));
+  }
+}
+// בקשה שנכשלה לפני שנשלחה תשובה – מחזירים את השימוש למכסה של המשתמש
+async function refundOne(uid, kind) {
+  const ref = db.doc(`aiQuota/${uid}`);
+  try {
+    await db.runTransaction(async tx => {
+      const sn = await tx.get(ref); if (!sn.exists) return;
+      const q = sn.data(); if (q.day !== israelDay()) return;
+      const used = (q.counts && q.counts[kind]) || 0; if (used <= 0) return;
+      tx.set(ref, { ...q, counts: { ...q.counts, [kind]: used - 1 }, minCount: Math.max(0, (q.minCount || 1) - 1) });
+    });
+  } catch (e) { console.warn('refund', String(e && e.message).slice(0, 120)); }
+}
 // סופרים קודם, ורק אז שואלים את Gemini. הכול בטרנזקציה, אז גם הרבה בקשות בבת אחת לא עוברות את המכסה.
 async function takeOne(uid, kind) {
   const ref = db.doc(`aiQuota/${uid}`);
@@ -78,8 +110,8 @@ async function takeOne(uid, kind) {
 let genai = null;
 async function gemini() {
   if (process.env.FAKE_AI === '1') return { models: {
-    generateContent: async () => ({ text: 'תשובה לבדיקה' }),
-    generateContentStream: async () => (async function* () { yield { text: 'תשובה ' }; yield { text: 'לבדיקה', candidates: [{ finishReason: 'STOP' }] }; })(),
+    generateContent: async () => { if (process.env.FAKE_FAIL === '1') throw new Error('429 RESOURCE_EXHAUSTED quota'); return { text: 'תשובה לבדיקה' }; },
+    generateContentStream: async () => { if (process.env.FAKE_FAIL === '1') throw new Error('429 RESOURCE_EXHAUSTED quota'); return (async function* () { yield { text: 'תשובה ' }; yield { text: 'לבדיקה', candidates: [{ finishReason: 'STOP' }] }; })(); },
   } };
   if (!genai) { const { GoogleGenAI } = await import('@google/genai'); genai = new GoogleGenAI({ apiKey: GEMINI_KEY.value() }); }
   return genai;
@@ -97,6 +129,8 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
+  try { await takeGlobal(); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
+  const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
 
   const ai = await gemini();
   if (image === true) {
@@ -112,6 +146,7 @@ exports.ai = onCall({
       } catch (e) { lastErr = e; console.warn('image', m, String(e && e.message).slice(0, 200)); if (!/404|not.?found|not supported|NOT_FOUND|INVALID_ARGUMENT/i.test(String(e && e.message))) break; }
     }
     const msg = String(lastErr && lastErr.message || 'no-image').slice(0, 300);
+    await failed();
     if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-quota: ' + msg);
     throw new HttpsError('not-found', 'image-off: ' + msg);
   }
@@ -147,6 +182,7 @@ exports.ai = onCall({
       return await run(Number.isInteger(tb) ? { ...rest, thinkingConfig: { thinkingBudget: Math.min(8192, Math.max(0, tb)) } } : rest);
     }
   } catch (e) {
+    if (!sent) await failed();
     if (e instanceof HttpsError) throw e;
     const msg = String(e && e.message || e).slice(0, 300);
     console.error('gemini', msg);

@@ -186,7 +186,8 @@ function subscribe() {
     const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     notebooks = allNb.filter(n => !n.trashed); trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
     purgeTrash(); renderTrashBtn();
-    renderGrid();
+    // עומס: בכל שמירה אוטומטית (כל ~1.2 שנ׳ בזמן כתיבה) מגיע עדכון. מציירים את כל הרשימה רק כשהיא על המסך
+    if (!$('library').classList.contains('hidden')) renderGrid(); else renderSide();
     if (!$('home').classList.contains('hidden')) renderHome();
     $('sample').classList.toggle('hidden', notebooks.length > 0);
     if (openId && !String(openId).startsWith('share:') && !notebooks.find(n => n.id === openId)) showLibrary();
@@ -2451,6 +2452,7 @@ function showAiError(e, title = 'לא הצלחתי ליצור סיכום') {
   else if (msg === 'empty') why = 'לא חזרה תשובה. נסה שוב, או צילום ברור יותר.';
   else if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
   else if (/app.?check|appcheck|attestation/i.test(msg)) why = recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE') ? 'Firebase עדיין לא מזהה את האתר (App Check). בדוק שמפתח ה-reCAPTCHA נשמר ב-App Check ← Apps, וחכה כמה דקות.' : 'צריך להגדיר App Check עם reCAPTCHA כדי שהסיכום יעבוד (ראה README, שלב 7).';
+  else if (/site-busy|gemini-quota/.test(msg)) why = 'ה-AI עמוס עכשיו – הרבה תלמידים משתמשים בבת אחת. נסה שוב בעוד דקה. השימוש לא נספר לך.';
   else if (/daily-limit/.test(msg)) why = 'הגעת למקסימום השימושים ב-AI להיום. מחר אפשר שוב.';
   else if (/minute-limit/.test(msg)) why = 'יותר מדי בקשות בבת אחת. חכה דקה ונסה שוב.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(msg)) why = 'הגעת למגבלת השימוש החינמית לרגע. נסה שוב בעוד כמה דקות.';
@@ -3818,7 +3820,10 @@ async function uploadFile(f, onProgress) {
   if (f.size > FILE_MAX) throw Object.assign(new Error('big'), { code: 'too-big' });
   const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
   const ref = doc(collection(db, 'users', me.uid, 'files')); const n = Math.max(1, Math.ceil(b64.length / CHUNK));
-  for (let i = 0; i < n; i++) { await setDoc(chunkDoc(ref.id, i), { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) }); if (onProgress) onProgress(Math.round((i + 1) / n * 100)); }
+  // עד 4 חתיכות במקביל
+  let done = 0, next = 0;
+  const worker = async () => { while (next < n) { const i = next++; await setDoc(chunkDoc(ref.id, i), { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) }); done++; if (onProgress) onProgress(Math.round(done / n * 100)); } };
+  await Promise.all(Array.from({ length: Math.min(4, n) }, worker));
   const meta = { name: f.name.slice(0, 120), type: f.type || '', size: f.size };
   await setDoc(ref, { ...meta, chunks: n, createdAt: Date.now() });
   return { id: ref.id, name: meta.name, size: meta.size };
@@ -3840,7 +3845,9 @@ async function getFileBlob(id, uid) {
   const k = (uid || me.uid) + '/' + id; if (fileBlobs.has(k)) return fileBlobs.get(k);
   const meta = await getDoc(fileDoc(id, uid)); if (!meta.exists()) throw new Error('missing');
   const m = meta.data(); const parts = [];
-  for (let i = 0; i < m.chunks; i++) { const c = await getDoc(chunkDoc(id, i, uid)); if (!c.exists()) throw new Error('chunk'); parts.push(c.data().d); }
+  // כל החתיכות במקביל (קודם: אחת אחרי השנייה – קובץ גדול = עשרות סיבובים לשרת)
+  const snaps = await Promise.all(Array.from({ length: m.chunks }, (_, i) => getDoc(chunkDoc(id, i, uid))));
+  for (const c of snaps) { if (!c.exists()) throw new Error('chunk'); parts.push(c.data().d); }
   const bin = atob(parts.join('')); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   const blob = new Blob([arr], { type: m.type || 'application/octet-stream' }); fileBlobs.set(k, { blob, name: m.name }); return { blob, name: m.name };
 }
@@ -6526,7 +6533,23 @@ function chatApply(id, d) {
   chatMem = (Array.isArray(d.mem) ? d.mem : []).map(m => ({ name: String(m.name || ''), ...(chatFid(m.fid) ? { fid: m.fid } : {}), part: typeof m.part === 'string' ? m.part : chatFid(m.fid) ? null : CHAT_FILE_GONE }));
   chatPending = []; chatPaintFiles(); chatRender();
 }
+// רשימת השיחות: אינדקס קטן (כותרת, זמן, כמה הודעות) ב-users/{uid}/chatIdx – במקום להוריד 50 שיחות שלמות
+const chatIdxRef = id => doc(db, 'users', me.uid, 'chatIdx', id);
+const chatIdxSave = c => setDoc(chatIdxRef(c.id), { title: String(c.title || 'שיחה').slice(0, 80), updatedAt: c.updatedAt || Date.now(), createdAt: c.createdAt || c.updatedAt || Date.now(), n: (c.history || []).length }).catch(() => {});
 async function chatFetchList() {
+  const flag = 'chatIdx:' + me.uid;
+  let migrated = false; try { migrated = localStorage.getItem(flag) === '1'; } catch {}
+  if (migrated) {
+    const sn = await getDocs(query(collection(db, 'users', me.uid, 'chatIdx'), orderBy('updatedAt', 'desc'), limit(50)));
+    return sn.docs.map(d => ({ id: d.id, ...d.data(), lite: true }));
+  }
+  // פעם אחת לכל משתמש: בונים את האינדקס מהשיחות הקיימות
+  const full = await chatFetchFull();
+  await Promise.all(full.map(chatIdxSave));
+  try { localStorage.setItem(flag, '1'); } catch {}
+  return full;
+}
+async function chatFetchFull() {
   const sn = await getDocs(query(chatCol(), orderBy('updatedAt', 'desc'), limit(50)));
   return sn.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }
@@ -6555,6 +6578,7 @@ function chatSave() {
   if (!chatId) { chatId = doc(chatCol()).id; chatCreated = now; chatSavedTitle = chatTitle(chatHistory); }
   const mem = chatMem.map(m => ({ name: m.name, ...(m.fid ? { fid: m.fid } : {}), part: typeof m.part === 'string' && m.part !== CHAT_FILE_GONE ? m.part : null }));
   chatSideUpsert({ id: chatId, title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now });
+  chatIdxSave({ id: chatId, title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, createdAt: chatCreated, updatedAt: now });
   setDoc(chatRef(chatId), { title: chatSavedTitle || chatTitle(chatHistory), history: chatHistory, mem, createdAt: chatCreated, updatedAt: now }).catch(e => { console.warn('chat save', e); toast('לא הצלחתי לשמור את השיחה'); });
 }
 const chatWaitBusy = () => { if (!chatBusy) return false; toast('רגע, העוזר עוד עונה'); return true; };
@@ -6565,17 +6589,24 @@ function chatNew() {
 }
 async function chatPick(c) {
   if (chatWaitBusy()) return;
-  closeDialog(); chatApply(c.id, c); chatReady = Promise.resolve();
+  closeDialog();
+  if (c.lite) {   // מהאינדקס: מורידים עכשיו רק את השיחה הזו
+    try { const sn = await getDoc(chatRef(c.id)); if (!sn.exists()) { toast('השיחה לא נמצאה'); return; } c = { id: c.id, ...sn.data() }; }
+    catch { toast('לא הצלחתי לפתוח את השיחה'); return; }
+  }
+  chatApply(c.id, c); chatReady = Promise.resolve();
 }
-function chatDelete(c, row) {
+async function chatDelete(c, row) {
+  if (c.lite) { try { const sn = await getDoc(chatRef(c.id)); if (sn.exists()) c = { id: c.id, ...sn.data() }; } catch {} }
   deleteDoc(chatRef(c.id)).catch(e => console.warn('chat delete', e));
+  deleteDoc(chatIdxRef(c.id)).catch(() => {});
   if (chatSideItems) { chatSideItems = chatSideItems.filter(x => x.id !== c.id); chatSidePaint(); }
   row.remove();
   const box = document.querySelector('#dialogRoot .chat-list');
   if (box && !box.children.length) box.innerHTML = '<p class="chat-list-empty">עוד אין שיחות שמורות.</p>';
   if (chatId === c.id) { chatClearState(); chatRender(); }
   const { id, ...data } = c;
-  toastAction('השיחה נמחקה', 'ביטול', () => { setDoc(chatRef(id), data).then(() => { chatSideUpsert(c); if (row.closest('#dialogRoot')) chatListDialog(); }).catch(() => toast('לא הצלחתי לשחזר')); });
+  toastAction('השיחה נמחקה', 'ביטול', () => { setDoc(chatRef(id), data).then(() => { chatIdxSave(c); chatSideUpsert(c); if (row.closest('#dialogRoot')) chatListDialog(); }).catch(() => toast('לא הצלחתי לשחזר')); });
 }
 async function chatListDialog() {
   if (chatWaitBusy()) return;
@@ -6592,7 +6623,7 @@ async function chatListDialog() {
       const row = document.createElement('div'); row.className = 'chat-row' + (c.id === chatId ? ' on' : '');
       const open = document.createElement('button'); open.type = 'button'; open.className = 'chat-row-open';
       const t = document.createElement('b'); t.dir = 'auto'; t.textContent = c.title || 'שיחה';
-      const when = document.createElement('small'); when.textContent = `${timeAgo(c.updatedAt)} · ${Math.ceil((c.history || []).length / 2)} שאלות`;
+      const when = document.createElement('small'); when.textContent = `${timeAgo(c.updatedAt)} · ${Math.ceil((c.n ?? (c.history || []).length) / 2)} שאלות`;
       const dot = document.createElement('span'); dot.className = 'chat-row-ic'; dot.innerHTML = '<svg><use href="#i-spark"/></svg>';
       const tx = document.createElement('span'); tx.className = 'chat-row-tx'; tx.append(t, when);
       open.append(dot, tx); open.onclick = () => chatPick(c);
@@ -6939,7 +6970,8 @@ async function chatAsk(parts, onText, onWait, short, deep) {
     try { if (short || AI_VIA_SERVER) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
       aiSearchNow = false;
-      if (i >= 2 || /daily-limit|minute-limit/.test(String(e && e.message)) || !(chatBusyErr(e) || chatStatus(e) === 429 || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
+      // עומס: על "אין מקום" (429) לא מנסים שוב לבד – זה רק מגדיל את העומס על כולם
+      if (i >= 2 || /daily-limit|minute-limit|site-busy|gemini-quota/.test(String(e && e.message)) || !(chatBusyErr(e) || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
       await new Promise(r => setTimeout(r, [5000, 15000][i]));
     }
@@ -6953,6 +6985,7 @@ function chatWhy(e) {
   else if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
   else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
+  else if (/site-busy|gemini-quota/.test(m)) why = 'העוזר עמוס עכשיו – הרבה תלמידים שואלים בבת אחת. נסה שוב בעוד דקה. ההודעה לא נספרה לך.';
   else if (/daily-limit/.test(m)) why = 'נגמרו ההודעות לעוזר להיום. מחר אפשר שוב.';
   else if (/minute-limit/.test(m)) why = 'יותר מדי הודעות בבת אחת. חכה דקה ונסה שוב.';
   else if (/gemini-credits|prepayment|credits? (are )?depleted/i.test(m)) why = 'נגמר הקרדיט של Gemini באתר (בחשבון Google AI Studio). העוזר יחזור לעבוד אחרי שמנהל האתר יטען קרדיט.';
@@ -7270,6 +7303,7 @@ const HA_IDEAS = ['מה זה פוטוסינתזה?', 'תבחן אותי באנג
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   let k = Math.floor(Math.random() * HA_IDEAS.length), i = 0, del = false, wait = 0;
   setInterval(() => {
+    if ($('home').classList.contains('hidden')) return;
     if (inp.value || document.activeElement === inp || document.hidden) { if (inp.placeholder !== base) inp.placeholder = base; return; }
     if (wait > 0) { wait--; return; }
     const t = HA_IDEAS[k];
