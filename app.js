@@ -4893,7 +4893,8 @@ const CHAT_TT = /מערכת(\s*ה)?\s*שעות|למערכת|את המערכת|ה
 const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
 const CHAT_DIAGRAM = /גרף|תרשים|דיאגרמ|משולש|ריבוע|מלבן|מעגל|עיגול|זווית|ציר|מצולע|טבלה|מפה של|פונקצי|שבר|סכמה|מבנה של|graph|chart|diagram|triangle/i;
 let chatImgOff = false;
-const CHAT_DRAW_HINT = '\n\n(בקשה לציור: צייר את זה בעצמך כאיור SVG צבעוני ומפורט בבלוק ```svg, עם משפט קצר לפניו. אם צורפה תמונה – צייר לפיה. בלי להגיד שאי אפשר ליצור תמונות.)';
+const CHAT_IMG_ERR = /יצירת תמונות (לא זמינה|עוד לא הופעלה)|לא הצלחתי ליצור תמונה|נגמרו התמונות להיום/;
+const CHAT_DRAW_HINT = '\n\n(בקשה לציור: צייר את זה בעצמך כאיור SVG צבעוני ומפורט בבלוק ```svg, עם משפט קצר לפניו. אם צורפה תמונה, או שהמשתמש כותב "אותו" / "את זה" על תמונה שצירף קודם בשיחה – צייר לפיה. אסור להגיד שאי אפשר ליצור תמונות או לבקש ממנו לנסח אחרת – פשוט צייר.)';
 async function chatMakeImage(msg, files, b) {
   b.classList.remove('typing'); b.classList.add('making'); b.textContent = 'מצייר לך…';
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
@@ -5763,7 +5764,8 @@ async function chatSend() {
       }
     }
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
-    const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
+    // הודעות שגיאה ישנות על יצירת תמונה לא נכנסות להיסטוריה – אחרת העוזר מחקה אותן במקום לצייר
+    const past = chatHistory.map(m => m.role !== 'me' && CHAT_IMG_ERR.test(m.text || '') ? `העוזר: (ציור שלא הצליח – עכשיו צייר אותו ב-SVG)` : `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
     const parts = [
       chatPrompt(kitLeft <= 0),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
