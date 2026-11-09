@@ -4848,6 +4848,8 @@ const CHAT_TT = /מערכת(\s*ה)?\s*שעות|למערכת|את המערכת|ה
 // "תצייר לי חתול", "תיצור תמונה של...". תרשים, גרף או צורה – ה-AI מצייר בעצמו (SVG), בלי יצירת תמונה
 const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
 const CHAT_DIAGRAM = /גרף|תרשים|דיאגרמ|משולש|ריבוע|מלבן|מעגל|עיגול|זווית|ציר|מצולע|טבלה|מפה של|פונקצי|שבר|סכמה|מבנה של|graph|chart|diagram|triangle/i;
+let chatImgOff = false;
+const CHAT_DRAW_HINT = '\n\n(בקשה לציור: צייר את זה בעצמך כאיור SVG צבעוני ומפורט בבלוק ```svg, עם משפט קצר לפניו. אם צורפה תמונה – צייר לפיה. בלי להגיד שאי אפשר ליצור תמונות.)';
 async function chatMakeImage(msg, files, b) {
   b.classList.remove('typing'); b.classList.add('making'); b.textContent = 'מצייר לך…';
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
@@ -4862,9 +4864,10 @@ async function chatMakeImage(msg, files, b) {
     return { text: `יצרתי תמונה: ${msg.slice(0, 80)}${(r.data && r.data.t) ? '\n' + r.data.t : ''}\n(התמונה עצמה לא נשמרת בשיחה – אפשר להוריד אותה או להוסיף למחברת)` };
   } catch (e) {
     const m = String(e && e.message || '');
-    const why = /daily-limit/.test(m) ? 'נגמרו התמונות להיום (אפשר 4 ביום). מחר אפשר שוב.' : /bad-kind|bad-model|not-found|404|image-off/.test(m) ? 'יצירת תמונות עוד לא הופעלה בשרת. בינתיים אני יכול לצייר תרשימים, גרפים וצורות – פשוט תבקש.' : /quota|429|RESOURCE/.test(m) ? 'יצירת תמונות לא זמינה כרגע בתוכנית החינמית של Google. אני יכול לצייר תרשים או איור פשוט במקום – תבקש "תצייר תרשים של...".' : 'לא הצלחתי ליצור תמונה. נסה שוב בעוד רגע.';
-    b.classList.remove('making'); b.classList.add('err'); b.textContent = why;
-    return { text: why };
+    // יצירת תמונה לא עבדה (תוכנית חינמית, לא הופעל, נגמר להיום) – העוזר מצייר בעצמו איור (SVG) במקום הודעת שגיאה
+    if (/bad-kind|bad-model|not-found|404|image-off|quota|429|RESOURCE|limit:\s*0/.test(m)) chatImgOff = true;
+    b.classList.remove('making'); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
+    return { fallback: true };
   }
 }
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
@@ -5701,20 +5704,26 @@ async function chatSend() {
       return;
     }
     // בקשה לתמונה אמיתית (לא תרשים): יוצרים תמונה בשרת
-    if (AI_VIA_SERVER && !long && CHAT_IMG.test(msg) && !CHAT_DIAGRAM.test(msg)) {
+    const wantsImg = !long && CHAT_IMG.test(msg) && !CHAT_DIAGRAM.test(msg);
+    // אם יצירת תמונה לא זמינה – העוזר מצייר איור SVG בעצמו (drawHint)
+    let drawHint = wantsImg && (!AI_VIA_SERVER || chatImgOff) ? CHAT_DRAW_HINT : '';
+    if (AI_VIA_SERVER && wantsImg && !chatImgOff) {
       const res = await chatMakeImage(msg, files, b);
       if (!me || me.uid !== uid) return;
+      if (res.fallback) drawHint = CHAT_DRAW_HINT;
+      else {
       const botItem = { role: 'bot', text: res.text };
       const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
       chatHistory.push({ role: 'me', text: note + msg, ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
       chatTools(b, botItem, false); chatSave(); return;
+      }
     }
     chatRemember(long ? [...files, { name: 'חומר שהמשתמש הדביק', part: msg }] : files);
     const past = chatHistory.map(m => `${m.role === 'me' ? 'המשתמש' : 'העוזר'}: ${m.text}${m.card ? ' ' + chatCardText(m.card) : ''}`).join('\n');
     const parts = [
       chatPrompt(kitLeft <= 0),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
-      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : msg || 'עזור לי עם מה שהעליתי.'}`,
+      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint}`,
     ];
     const raw = await Promise.race([chatAsk(parts, t => {
       if (stopped) return; lastRaw = t;
@@ -5724,7 +5733,7 @@ async function chatSend() {
         const what = /"QUIZ"/.test(t) ? 'מכין לך שאלון…' : /"SHEET"/.test(t) ? 'מכין לך דף חזרה…' : '';
         if (what) { b.classList.remove('typing'); b.classList.add('making'); b.textContent = what; chatScroll(); }
       }
-    }, () => { b.classList.remove('typing'); b.textContent = 'העוזר עמוס, מנסה שוב…'; }, short, deep), stopP]);
+    }, () => { b.classList.remove('typing'); b.textContent = 'העוזר עמוס, מנסה שוב…'; }, short && !drawHint, deep || !!drawHint), stopP]);
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
