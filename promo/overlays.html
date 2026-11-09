@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>כיתובים לסרטון – המחברות שלי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@800;900&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#2A2A33;color:#F2F2F6;font-family:'Rubik',system-ui,sans-serif;padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+p{margin:0;color:#B9B9C6;max-width:560px;text-align:center}
+.grid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.it{display:flex;flex-direction:column;align-items:center;gap:8px}
+canvas{width:180px;height:320px;border-radius:12px;background:repeating-conic-gradient(#3a3a44 0 25%,#30303a 0 50%) 0 0/24px 24px}
+a{color:#fff;background:#5E5CE6;padding:8px 14px;border-radius:99px;text-decoration:none;font-weight:700;font-size:14px}
+</style>
+</head>
+<body>
+<h1 style="margin:0;font-size:22px">כיתובים לסרטון שמצלמים בעצמך</h1>
+<p>תמונות שקופות בגודל של סרטון לטיקטוק. מורידים, ובעריכה (CapCut או טיקטוק) שמים כל אחת מעל הקטע המתאים.</p>
+<div class="grid" id="g"></div>
+<script>
+const W = 1080, H = 1920;
+// כל כיתוב: שורות; כל שורה: חלקים [טקסט, מרקר?]
+const CAPS = [
+  ['1-נמאס-לי', [[['נמאס לי', 0]], [['להעתיק', 0], ['מהלוח', 1]]]],
+  ['2-בניתי-אתר', [[['אז', 0], ['בניתי אתר', 1]], [['שעושה את זה במקומי', 0]]]],
+  ['3-מצלמים', [[['מצלמים...', 0]]]],
+  ['4-מקליד', [[['...והוא', 0], ['מקליד הכול', 1]]]],
+  ['5-ויש-גם', [[['יש גם', 0], ['סיכום למבחן', 1]], [['ועוזר שמסביר', 0]]]],
+  ['6-בחינם', [[['בחינם', 1], ['· קישור בביו', 0]]]],
+];
+function draw(ctx, lines) {
+  ctx.clearRect(0, 0, W, H);
+  const size = 92, lh = 132, y0 = 300 - (lines.length - 1) * lh / 2;
+  ctx.font = `900 ${size}px "Rubik"`; ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.direction = 'rtl'; ctx.lineJoin = 'round';
+  lines.forEach((segs, i) => {
+    const GAP = 42, y = y0 + i * lh, tot = segs.reduce((a, [s]) => a + ctx.measureText(s).width, 0) + GAP * (segs.length - 1);
+    let x = W / 2 + tot / 2;
+    for (const [s, m] of segs) {
+      const w = ctx.measureText(s).width;
+      if (m) { ctx.save(); ctx.fillStyle = '#FFE45C'; ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6; ctx.beginPath(); ctx.roundRect(x - w - 20, y - size * .58, w + 40, size * 1.18, 20); ctx.fill(); ctx.restore(); }
+      else { ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText(s, x, y + 4); }
+      ctx.fillStyle = m ? '#1D1340' : '#fff'; ctx.fillText(s, x, y + 4);
+      x -= w + GAP;
+    }
+  });
+}
+const ready = document.fonts.load('900 92px "Rubik"');
+ready.then(() => {
+  const g = document.getElementById('g');
+  CAPS.forEach(([name, lines]) => {
+    const c = document.createElement('canvas'); c.width = W; c.height = H; draw(c.getContext('2d'), lines);
+    const it = document.createElement('div'); it.className = 'it';
+    const a = document.createElement('a'); a.textContent = 'הורדה'; a.download = 'כיתוב-' + name + '.png'; a.href = c.toDataURL('image/png');
+    it.append(c, a); g.appendChild(it);
+  });
+  window.__done = true;
+});
+</script>
+</body>
+</html>
