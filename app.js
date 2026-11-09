@@ -106,8 +106,11 @@ function setMode(m) {
   $('swapText').textContent = m === 'login' ? 'אין לך חשבון?' : 'כבר יש לך חשבון?';
   $('swapMode').textContent = m === 'login' ? 'להרשמה' : 'לכניסה';
   $('forgotBtn').classList.toggle('hidden', m !== 'login');
+  $('pwHint').classList.toggle('hidden', m === 'login'); $('termsNote').classList.toggle('hidden', m === 'login');
   status('');
 }
+// הצגת הסיסמה
+$('pwEye').onclick = () => { const i = $('password'), show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('pwEye').textContent = show ? 'הסתר' : 'הצג'; $('pwEye').setAttribute('aria-pressed', String(show)); $('pwEye').setAttribute('aria-label', show ? 'הסתרת הסיסמה' : 'הצגת הסיסמה'); };
 $('swapMode').onclick = () => setMode(mode === 'login' ? 'signup' : 'login');
 $('tabLogin').onclick = () => setMode('login');
 $('tabSignup').onclick = () => setMode('signup');
