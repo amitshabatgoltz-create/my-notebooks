@@ -3499,6 +3499,7 @@ function openShare(id) {
   unsubView = onSnapshot(shareDoc(id), snap => {
     if (!snap.exists()) { $('shTitle').textContent = 'המחברת לא זמינה'; $('shOwner').textContent = ''; $('shBody').innerHTML = '<p class="sh-empty">הקישור הזה בוטל, או שהמחברת נמחקה.</p>'; $('shCopy').classList.add('hidden'); if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {}); return; }
     const s = snap.data(); const mine = me && s.owner === me.uid; const viewOnly = (s.mode || 'copy') === 'view';
+    $('shCta').classList.toggle('hidden', !!me);                // מי שעוד לא משתמש באתר: הזמנה להצטרף
     $('shareView').classList.toggle('view-only', viewOnly && !mine);
     document.title = (s.title || 'מחברת') + ' · המחברות שלי';
     $('shTitle').textContent = s.title || 'מחברת';
@@ -7564,5 +7565,13 @@ function ttNudge() {
   });
   return true;
 }
+// הזמנת חבר: שיתוף מהטלפון (או וואטסאפ במחשב) עם הודעה מוכנה
+$('inviteBtn').addEventListener('click', async () => {
+  $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false');
+  const url = location.origin + location.pathname, text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם:';
+  track('invite', {});
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
+});
 $('adminMenuBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); });
 $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });
