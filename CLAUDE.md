@@ -45,6 +45,10 @@
 
 מסך הבית: התיבה `#haInput` שולחת לעוזר ועוברת לעמוד שלו (`homeAsk`). ההוספה המהירה הישנה (`#quickAdd`) מוסתרת, והקוד שלה נשאר כי אלמנטים שלה נטענים בפתיחה.
 
+## עורך המחברת (כמו Docs/Canva, 9.11.2026)
+אזור `עורך כמו Google Docs / Canva` ב-app.js: נטוי, קו חוצה, צבע/מרקר בצבעים/גודל (`#styleBtn` → `applyInline`/`applyHl` דרך `wrapSel` – foreColor עם צבע-דגל ואז הופכים ל-`span[data-c|data-s]`/`mark[data-c]`), רשימת משימות `ul[data-check]` + `li[data-done]` (`toggleChecklist`, לחיצה על הריבוע – `checkHit`), ציטוט `blockquote` (`convertBlock`), קו `hr`, קישורים (`linkDialog`, Ctrl+K, חלונית `lk-pop`), תפריט הוספה `#insBtn` ו-"/" בשורה (`INS`, `slashCheck`) עם תבניות (`TPL`), קיצורי Markdown ("- ", "1. ", "# ", "> ", "[] ", "---"), חיפוש והחלפה (`findOpen`, Ctrl+F/H, CSS Highlight API), מונה מילים `#edStats`, קיצורים (`keysDialog`, Ctrl+/). אחרי פקודות רשימה – `fixNest()` (כרום שם רשימה בתוך p).
+עריכה משותפת: `applyRemoteHtml` מחליף רק את הבלוקים שהשתנו (לא את כל העורך), כדי שהסמן וההקלדה לא יקפצו. הסמן של החבר נמצא לפי האותיות שלפניו (`cx`, `findCaret`), והעכבר שלו מוסתר כשהוא מקליד (`ct` > `mt`).
+
 ## כללים חשובים
 1. **לפני כל העלאה – בדיקת תחביר כמודול:** `cp app.js /tmp/a.mjs && node --check /tmp/a.mjs`. (`node --check app.js` לבד לא תופס שגיאות – ככה פעם עלה באג ששבר את כל האתר.)
 2. **בכל העלאה – להעלות מספר גרסה**, אחרת הדפדפן והטלפון ממשיכים להציג את הישנה:

@@ -205,7 +205,8 @@ $('sampleBtn').onclick = async () => {
 const BOX_COLORS = ['yellow', 'blue', 'green', 'purple', 'red', 'gray'];
 const LN_RE = /^\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
 const LINE_RE = /^\d{1,4}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;
-const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH','SUB','SUP']);
+const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','S','STRIKE','DEL','MARK','UL','OL','LI','BR','DIV','SPAN','IMG','TABLE','TBODY','THEAD','TR','TD','TH','SUB','SUP','A','BLOCKQUOTE','HR']);
+const TXT_COLORS = ['red', 'orange', 'green', 'blue', 'purple', 'gray', 'ink'], HL_COLORS = ['green', 'blue', 'pink', 'orange'], TXT_SIZES = ['s', 'm', 'l', 'xl'];
 function clean(html) {
   const d = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
   const walk = node => [...node.childNodes].forEach(ch => {
@@ -250,10 +251,20 @@ function clean(html) {
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
+      const dc = ch.getAttribute('data-c'), ds = ch.getAttribute('data-s'), chk = ch.hasAttribute('data-check'), dn = ch.hasAttribute('data-done'), href = ch.getAttribute('href') || '';
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
-      if (dr === 'ltr' && /^(P|H1|H2|H3|LI|UL|OL)$/.test(ch.tagName)) ch.setAttribute('dir', 'ltr');   // כיוון כתיבה
+      if (ch.tagName === 'A') {                       // קישור: רק http/https/mailto
+        if (!/^(https?:\/\/|mailto:)[^\s"<>]{1,1500}$/i.test(href)) { walk(ch); ch.replaceWith(...ch.childNodes); return; }
+        ch.setAttribute('href', href); ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener noreferrer');
+      }
+      if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
+      if (ch.tagName === 'SPAN' && TXT_SIZES.includes(ds)) ch.setAttribute('data-s', ds);    // גודל טקסט
+      if (ch.tagName === 'MARK' && HL_COLORS.includes(dc)) ch.setAttribute('data-c', dc);    // צבע מרקר
+      if (ch.tagName === 'UL' && chk) ch.setAttribute('data-check', '');                      // רשימת משימות
+      if (ch.tagName === 'LI' && dn) ch.setAttribute('data-done', '');
+      if (dr === 'ltr' && /^(P|H1|H2|H3|LI|UL|OL|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('dir', 'ltr');   // כיוון כתיבה
       if (isTl) ch.className = 'tl';
-      if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
+      if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
       walk(ch);
     } else if (ch.nodeType === 3) {                  // טקסט עם "&#39;" כתוב כמו שהוא (מהעתקה מ-PDF/אתר) – מציגים את התו האמיתי
       if (/&(#\d{2,6}|#x[\da-f]{2,5}|quot|apos|amp|lt|gt|nbsp);/i.test(ch.nodeValue)) ch.nodeValue = decodeEnt(ch.nodeValue);
@@ -459,7 +470,7 @@ function markDirty() {
   dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer);
   // בעריכה משותפת שולחים מהר (אחרי חצי שנייה של שקט, ולא יותר משנייה וחצי בזמן הקלדה)
   if (live && rtdb) { liveBroadcast(); saveTimer = setTimeout(flush, Date.now() - dirtySince > 4000 ? 0 : 1500); }
-  else if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1500 ? 0 : 450);
+  else if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1000 ? 0 : 280);
   else saveTimer = setTimeout(flush, 1200);
 }
 const setSave = (txt, st) => { const el = $('save'); el.textContent = txt; el.dataset.st = st || ''; };
@@ -550,8 +561,8 @@ function restoreSelection() {
   else { const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); s.removeAllRanges(); s.addRange(r); }
 }
 // עוטפים טקסט "חופשי" (שלא בתוך פסקה) בפסקאות, כדי שיהיה אפשר לשנות אותו
-const BLOCK_RE = /^(P|H1|H2|H3|LI|DIV)$/;
-const INLINE = ['B','STRONG','I','EM','U','MARK','SPAN','BR'];
+const BLOCK_RE = /^(P|H1|H2|H3|LI|DIV|BLOCKQUOTE)$/;
+const INLINE = ['B','STRONG','I','EM','U','S','STRIKE','DEL','MARK','SPAN','BR','A','SUB','SUP'];
 function wrapLoose() {
   const ed = $('editor');
   // DIV שמכיל בתוכו שורות — מוציאים את השורות החוצה
@@ -625,8 +636,8 @@ function setBlock(tag) {
   }
 
   /* ---- עם סימון: משנים רק את מה שסומן ---- */
-  const leaves = [...ed.querySelectorAll('p,h1,h2,h3,li,div')]
-    .filter(el => ![...el.querySelectorAll('p,h1,h2,h3,li,div')].length && r.intersectsNode(el));
+  const leaves = [...ed.querySelectorAll('p,h1,h2,h3,li,div,blockquote')]
+    .filter(el => ![...el.querySelectorAll('p,h1,h2,h3,li,div,blockquote')].length && r.intersectsNode(el));
   if (!leaves.length) return;
   const target = (tag !== 'p' && leaves.every(el => el.tagName === tag.toUpperCase())) ? 'p' : tag; // לחיצה שנייה מחזירה לטקסט
   const parts = leaves.map(b => ({
@@ -669,7 +680,9 @@ tb.addEventListener('click', e => {
   const c = b.dataset.cmd;
   if (['h1','h2','h3','p'].includes(c)) { setBlock(c); markDirty(); return; }
   restoreSelection();
-  if (c === 'ul') document.execCommand('insertUnorderedList');
+  if (c === 'ul') { const L0 = caretList(); if (L0 && L0.hasAttribute('data-check')) { L0.removeAttribute('data-check'); L0.querySelectorAll('li[data-done]').forEach(x => x.removeAttribute('data-done')); } else document.execCommand('insertUnorderedList'); }
+  else if (c === 'check') toggleChecklist();
+  else if (['italic', 'strikeThrough'].includes(c)) document.execCommand(c);
   else if (c === 'ol') document.execCommand('insertOrderedList');
   else if (c === 'mark') {
     const sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { toast('קודם מסמנים את המילים שרוצים להדגיש'); return; }
@@ -679,7 +692,7 @@ tb.addEventListener('click', e => {
     else { const r = sel.getRangeAt(0); const mk = document.createElement('mark'); try { r.surroundContents(mk); } catch { mk.appendChild(r.extractContents()); r.insertNode(mk); } }
   }
   else document.execCommand(c);
-  markDirty();
+  fixNest(); markDirty();
 });
 // מחברת ריקה: במקום דף לבן – ציור עיפרון והזמנה להתחיל לכתוב
 function checkEmpty() {
@@ -735,6 +748,487 @@ function textToHtml(text) {
   if (inList) html += '</ul>';
   return html;
 }
+
+/* ================= עורך כמו Google Docs / Canva: צבע וגודל, רשימת משימות, תפריט הוספה ו-"/", קישורים, חיפוש והחלפה, קיצורי כתיבה ================= */
+const edOpen = () => !$('notebook').classList.contains('hidden');
+const edCan = () => $('editor').isContentEditable;
+function caretEl() {
+  const s = getSelection(); if (!s.rangeCount) return null;
+  const n = s.getRangeAt(0).startContainer, el = n && (n.nodeType === 1 ? n : n.parentElement);
+  return el && $('editor').contains(el) ? el : null;
+}
+function caretList() { const el = caretEl(); const L = el && el.closest('ul,ol'); return L && $('editor').contains(L) && !L.classList.contains('tl') ? L : null; }
+// רשימה שנוצרה בתוך פסקה (קורה בכרום בשורה ריקה) – מוציאים אותה החוצה, והסמן נשאר במקום
+function fixNest() {
+  const ed = $('editor'), bad = ed.querySelectorAll(':is(p,h1,h2,h3,blockquote) > :is(ul,ol)'); if (!bad.length) return;
+  const s = getSelection(), r = s.rangeCount ? s.getRangeAt(0) : null, pos = r && [r.startContainer, r.startOffset];
+  bad.forEach(L => { const p = L.parentElement; if (!p.isConnected) return; const kids = [...p.childNodes].filter(n => !(n.nodeName === 'BR' || (n.nodeType === 3 && !n.nodeValue.trim()))); p.replaceWith(...kids); });
+  if (pos && pos[0].isConnected) { try { const nr = document.createRange(); nr.setStart(pos[0], pos[1]); nr.collapse(true); s.removeAllRanges(); s.addRange(nr); } catch {} }
+}
+function toggleChecklist() {
+  let L = caretList();
+  if (L && L.tagName === 'UL' && L.hasAttribute('data-check')) { L.removeAttribute('data-check'); L.querySelectorAll('li[data-done]').forEach(x => x.removeAttribute('data-done')); return; }
+  if (!L || L.tagName !== 'UL') { document.execCommand('insertUnorderedList'); L = caretList(); }
+  if (L && L.tagName === 'UL') L.setAttribute('data-check', '');
+}
+// לחיצה על הריבוע ליד משימה = וי
+function checkHit(e) {
+  const ul = e.target.closest && e.target.closest('#editor ul[data-check]'); if (!ul) return null;
+  for (const li of ul.children) {
+    if (li.tagName !== 'LI') continue;
+    const r = li.getBoundingClientRect(), rtl = getComputedStyle(li).direction === 'rtl';
+    const x = rtl ? r.right - e.clientX : e.clientX - r.left;
+    if (x <= 3 && x >= -32 && e.clientY >= r.top - 2 && e.clientY <= r.top + 30) return li;
+  }
+  return null;
+}
+$('editor').addEventListener('mousedown', e => { if (checkHit(e)) e.preventDefault(); });
+$('editor').addEventListener('click', e => {
+  const li = checkHit(e); if (!li || !edCan()) return;
+  e.preventDefault(); li.toggleAttribute('data-done'); markDirty();
+});
+
+/* ---- חלונית קטנה ליד כפתור (צבע / הוספה / "/" / קישור) ---- */
+let edPopEl = null;
+function closeEdPop() { if (edPopEl) { edPopEl.remove(); edPopEl = null; } document.querySelectorAll('#toolbar .open').forEach(b => b.classList.remove('open')); slash = null; }
+function edPop(at, build, cls) {
+  closeEdPop();
+  const p = document.createElement('div'); p.className = 'ed-pop ' + (cls || '');
+  build(p); document.body.appendChild(p); edPopEl = p;
+  p.addEventListener('mousedown', e => { if (!e.target.closest('input')) e.preventDefault(); });
+  placePop(p, at);
+  if (at instanceof Element) at.classList.add('open');
+  return p;
+}
+function placePop(p, at) {
+  const r = at instanceof Element ? at.getBoundingClientRect() : at;
+  const vw = document.documentElement.clientWidth, vh = innerHeight;
+  const below = vh - r.bottom - 14, above = r.top - 14;
+  if (p.offsetHeight > below) p.style.maxHeight = Math.max(160, below >= 220 || below >= above ? below : above) + 'px';
+  const W = p.offsetWidth, H = p.offsetHeight;
+  const x = Math.min(Math.max(8, r.right - W), vw - W - 8);
+  let y = r.bottom + 6; if (y + H > vh - 8 && above > below) y = r.top - H - 6;
+  p.style.left = x + 'px'; p.style.top = Math.max(8, Math.min(y, vh - H - 8)) + 'px';
+}
+document.addEventListener('pointerdown', e => { if (edPopEl && !edPopEl.contains(e.target) && !e.target.closest('#styleBtn,#insBtn')) closeEdPop(); }, true);
+window.addEventListener('resize', () => closeEdPop());
+document.addEventListener('scroll', e => { if (edPopEl && !edPopEl.contains(e.target)) closeEdPop(); }, true);
+
+/* ---- צבע טקסט, מרקר בצבעים, גודל, ניקוי עיצוב ---- */
+const SENT = '#010203';
+function wrapSel(make, nest) {
+  restoreSelection();
+  const s = getSelection();
+  if (!s.rangeCount || s.isCollapsed) { toast('קודם מסמנים את הטקסט'); return null; }
+  try { document.execCommand('styleWithCSS', false, false); } catch {}
+  document.execCommand('foreColor', false, SENT);
+  const made = [];
+  $('editor').querySelectorAll('font[color],span[style]').forEach(f => {
+    const hit = f.tagName === 'FONT' ? (f.getAttribute('color') || '').toLowerCase() === SENT : /rgb\(1,\s*2,\s*3\)/.test(f.getAttribute('style') || '');
+    if (!hit) return;
+    const el = make(); el.append(...f.childNodes); f.replaceWith(el); made.push(el);
+    el.querySelectorAll(nest).forEach(x => x.replaceWith(...x.childNodes));
+  });
+  if (made.length) selectNodes(made);
+  return made;
+}
+function selectNodes(list) {
+  if (!list.length) return;
+  const s = getSelection(), r = document.createRange();
+  r.setStartBefore(list[0]); r.setEndAfter(list[list.length - 1]); s.removeAllRanges(); s.addRange(r); savedRange = r.cloneRange();
+}
+function applyInline(attr, val, plain) {
+  const sel = `span[${attr}]`;
+  const made = wrapSel(() => { const sp = document.createElement('span'); sp.setAttribute(attr, val); return sp; }, sel);
+  if (!made) return;
+  if (val === plain) {                       // "רגיל": אם אין צבע/גודל מסביב – לא צריך בכלל את העטיפה
+    const nodes = [];
+    made.forEach(el => { if (!el.parentElement.closest(sel)) { const ch = [...el.childNodes]; el.replaceWith(...ch); nodes.push(...ch); } else nodes.push(el); });
+    selectNodes(nodes);
+  }
+  markDirty();
+}
+function applyHl(c) {
+  if (c === 'none') {
+    restoreSelection(); const s = getSelection(); if (!s.rangeCount) return; const r = s.getRangeAt(0);
+    [...$('editor').querySelectorAll('mark')].filter(m => r.intersectsNode(m)).forEach(m => m.replaceWith(...m.childNodes));
+    markDirty(); return;
+  }
+  if (wrapSel(() => { const m = document.createElement('mark'); if (c !== 'yellow') m.setAttribute('data-c', c); return m; }, 'mark')) markDirty();
+}
+function clearFormat() {
+  restoreSelection(); const s = getSelection();
+  if (!s.rangeCount || s.isCollapsed) { toast('קודם מסמנים את הטקסט'); return; }
+  document.execCommand('removeFormat');
+  const r = s.getRangeAt(0);
+  [...$('editor').querySelectorAll('mark,span[data-c],span[data-s],font')].filter(m => r.intersectsNode(m)).forEach(m => m.replaceWith(...m.childNodes));
+  markDirty();
+}
+const C_NAMES = { ink: 'רגיל', red: 'אדום', orange: 'כתום', green: 'ירוק', blue: 'כחול', purple: 'סגול', gray: 'אפור' };
+const H_NAMES = { yellow: 'צהוב', green: 'ירוק', blue: 'כחול', pink: 'ורוד', orange: 'כתום', none: 'בלי מרקר' };
+const S_NAMES = { s: 'קטן', m: 'רגיל', l: 'גדול', xl: 'ענק' };
+$('styleBtn').addEventListener('click', () => {
+  if (edPopEl && edPopEl.classList.contains('st-pop')) { closeEdPop(); return; }
+  edPop($('styleBtn'), p => {
+    p.innerHTML = `<div class="ep-h">צבע טקסט</div><div class="ep-sw">${TXT_COLORS.slice().sort((a, b) => (b === 'ink') - (a === 'ink')).map(c => `<button type="button" data-tc="${c}" title="${C_NAMES[c]}" aria-label="${C_NAMES[c]}"><i class="tc" data-c="${c}">א</i></button>`).join('')}</div>
+      <div class="ep-h">מרקר</div><div class="ep-sw">${['yellow', ...HL_COLORS, 'none'].map(c => `<button type="button" data-hl="${c}" title="${H_NAMES[c]}" aria-label="${H_NAMES[c]}"><i class="hl" data-c="${c}"></i></button>`).join('')}</div>
+      <div class="ep-h">גודל</div><div class="ep-sz">${TXT_SIZES.map(z => `<button type="button" data-sz="${z}"><span data-s="${z}">${S_NAMES[z]}</span></button>`).join('')}</div>
+      <button type="button" class="ep-item" data-clear><svg><use href="#i-eraser"/></svg><span class="tx"><b>ניקוי עיצוב</b></span><kbd>Ctrl+\\</kbd></button>`;
+    p.onclick = ev => {
+      const b = ev.target.closest('button'); if (!b) return;
+      closeEdPop();
+      if (b.dataset.tc) applyInline('data-c', b.dataset.tc, 'ink');
+      else if (b.dataset.hl) applyHl(b.dataset.hl);
+      else if (b.dataset.sz) applyInline('data-s', b.dataset.sz, 'm');
+      else if (b.hasAttribute('data-clear')) clearFormat();
+    };
+  }, 'st-pop');
+});
+
+/* ---- ציטוט, קו מפריד, תבניות ---- */
+function convertBlock(tag) {
+  restoreSelection();
+  const s = getSelection(), r0 = s.rangeCount ? s.getRangeAt(0) : null;
+  const pos = r0 && [r0.startContainer, r0.startOffset, r0.endContainer, r0.endOffset];
+  wrapLoose();
+  const ed = $('editor'); let r = null;
+  if (pos) { try { r = document.createRange(); r.setStart(pos[0], pos[1]); r.setEnd(pos[2], pos[3]); } catch { r = null; } }
+  if (!r || !ed.contains(r.startContainer)) return;
+  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,blockquote')].filter(el => r.intersectsNode(el) && !el.closest('.cv,td,th,li') && !el.querySelector('p,h1,h2,h3,blockquote'));
+  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|BLOCKQUOTE)$/.test(B.tagName) && !B.closest('li,td,th')) blocks = [B]; }
+  if (!blocks.length) { if (caretEl()?.closest('td,th,li')) { toast('אי אפשר בתוך טבלה או רשימה'); return; } const el = newBlock(tag); ed.appendChild(el); placeCaret(el); return; }
+  const to = blocks.every(b => b.tagName === tag.toUpperCase()) ? 'p' : tag;
+  const out = blocks.map(b => { const n = document.createElement(to); ['dir', 'data-a'].forEach(a => b.hasAttribute(a) && n.setAttribute(a, b.getAttribute(a))); n.append(...b.childNodes); if (!n.firstChild) n.appendChild(document.createElement('br')); b.replaceWith(n); return n; });
+  const map = n => { const k = blocks.indexOf(n); return k > -1 ? out[k] : n; };   // הסמן היה על השורה עצמה – עובר לשורה החדשה
+  try {
+    const a = map(pos[0]), b = map(pos[2]); if (!a.isConnected || !b.isConnected) throw 0;
+    const len = n => n.nodeType === 3 ? n.length : n.childNodes.length;
+    const nr = document.createRange(); nr.setStart(a, Math.min(pos[1], len(a))); nr.setEnd(b, Math.min(pos[3], len(b))); s.removeAllRanges(); s.addRange(nr);
+  } catch { placeCaret(out[0]); }
+}
+function insertHr() {
+  restoreSelection();
+  const B = blockOf(caretEl());
+  if (B && B.tagName === 'P' && isEmpty(B) && !B.closest('td,th,li,blockquote')) { const hr = document.createElement('hr'); B.before(hr); placeCaret(B); }
+  else document.execCommand('insertHTML', false, '<hr><p><br></p>');
+}
+function todayHe() { return new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
+const rowsOf = (n, c) => Array.from({ length: n }, () => `<tr>${'<td><br></td>'.repeat(c)}</tr>`).join('');
+const TPL = {
+  lesson: () => `<h2>סיכום שיעור</h2><p><b>נושא:</b> </p><p><b>תאריך:</b> ${todayHe()}</p><h3>מה למדנו</h3><ul><li><br></li></ul><h3>מושגים חשובים</h3><ul><li><br></li></ul><h3>מה עוד לא הבנתי</h3><ul data-check><li><br></li></ul>`,
+  cornell: () => `<h2>דף קורנל</h2><table><thead><tr><th>מילות מפתח ושאלות</th><th>מה כתבתי בשיעור</th></tr></thead><tbody>${rowsOf(4, 2)}</tbody></table><h3>סיכום במילים שלי</h3><p><br></p>`,
+  lab: () => `<h2>דוח מעבדה</h2><h3>שאלת החקר</h3><p><br></p><h3>השערה</h3><p><br></p><h3>חומרים וכלים</h3><ul><li><br></li></ul><h3>מהלך הניסוי</h3><ol><li><br></li></ol><h3>תוצאות</h3><table><thead><tr><th>מה בדקנו</th><th>מה יצא</th></tr></thead><tbody>${rowsOf(3, 2)}</tbody></table><h3>מסקנות</h3><p><br></p>`,
+  vocab: () => `<h2>מילים חדשות</h2><table><thead><tr><th>מילה</th><th>פירוש</th><th>משפט לדוגמה</th></tr></thead><tbody>${rowsOf(5, 3)}</tbody></table>`,
+  pros: () => `<h2>השוואה</h2><table><thead><tr><th>בעד</th><th>נגד</th></tr></thead><tbody>${rowsOf(4, 2)}</tbody></table><h3>מה אני חושב</h3><p><br></p>`,
+  todo: () => `<h2>מה צריך לעשות</h2><ul data-check><li><br></li><li><br></li><li><br></li></ul>`,
+};
+function insertTpl(k) {
+  restoreSelection();
+  document.execCommand('insertHTML', false, clean(TPL[k]()) + '<p><br></p>');
+  wrapLoose();
+}
+const run = id => () => $(id).click();
+const INS = [];
+INS.push(
+  { g: 'בסיסי' },
+  { t: 'כותרת', d: 'כותרת גדולה', x: 'H1', k: 'h1 heading title ראשית', f: () => setBlock('h1') },
+  { t: 'כותרת משנה', d: 'לחלק נושאים', x: 'H2', k: 'h2 heading subtitle', f: () => setBlock('h2') },
+  { t: 'כותרת קטנה', d: 'כותרת בצבע', x: 'H3', k: 'h3 heading', f: () => setBlock('h3') },
+  { t: 'טקסט רגיל', d: 'פסקה', x: 'T', k: 'text paragraph p פסקה', f: () => setBlock('p') },
+  { t: 'רשימה עם נקודות', d: 'או מקלידים - ורווח', i: 'ul', k: 'bullet list ul', f: () => document.execCommand('insertUnorderedList') },
+  { t: 'רשימה ממוספרת', d: 'או מקלידים 1. ורווח', i: 'ol', k: 'numbered list ol מספרים', f: () => document.execCommand('insertOrderedList') },
+  { t: 'רשימת משימות', d: 'עם ריבוע לסמן וי', i: 'checklist', k: 'todo check task צ\'קליסט וי', f: toggleChecklist },
+  { t: 'ציטוט / הדגשה', d: 'פס צבעוני בצד', i: 'quote', k: 'quote blockquote ציטוט', f: () => convertBlock('blockquote') },
+  { t: 'קו מפריד', d: 'או מקלידים --- ו-Enter', i: 'hr', k: 'divider hr line קו', f: insertHr },
+  { g: 'הוספה' },
+  { t: 'טבלה', i: 'table', k: 'table טבלה', f: run('tableBtn') },
+  { t: 'מסגרת צבעונית', i: 'box', k: 'box callout תיבה', f: run('boxBtn') },
+  { t: 'תמונה', i: 'image', k: 'image picture img', f: run('imgBtn') },
+  { t: 'שרבוט', i: 'pen', k: 'draw sketch ציור', f: run('sketchBtn') },
+  { t: 'ציר זמן', i: 'timeline', k: 'timeline היסטוריה', f: run('tlBtn') },
+  { t: 'קובץ מצורף', i: 'clip', k: 'file pdf word', f: run('fileBtn') },
+  { t: 'קישור', i: 'link', k: 'link url אתר', f: () => linkDialog() },
+  { t: 'התאריך של היום', i: 'cal', k: 'date today תאריך', f: () => document.execCommand('insertText', false, todayHe()) },
+  { g: 'תבניות' },
+  { t: 'סיכום שיעור', d: 'נושא, מה למדנו, מושגים', i: 'template', k: 'template lesson summary תבנית', f: () => insertTpl('lesson') },
+  { t: 'דף קורנל', d: 'מילות מפתח מול רשימות', i: 'template', k: 'cornell template תבנית', f: () => insertTpl('cornell') },
+  { t: 'דוח מעבדה', d: 'השערה, ניסוי, מסקנות', i: 'template', k: 'lab report ניסוי תבנית', f: () => insertTpl('lab') },
+  { t: 'מילים חדשות', d: 'מילה, פירוש ומשפט', i: 'template', k: 'vocabulary words אנגלית תבנית', f: () => insertTpl('vocab') },
+  { t: 'בעד ונגד', d: 'טבלת השוואה', i: 'template', k: 'pros cons compare השוואה תבנית', f: () => insertTpl('pros') },
+  { t: 'רשימת מטלות', d: '3 משימות עם וי', i: 'template', k: 'todo tasks משימות תבנית', f: () => insertTpl('todo') },
+  { g: 'עוד' },
+  { t: 'חיפוש והחלפה', d: 'Ctrl+F', i: 'search', k: 'find replace search', f: () => findOpen() },
+  { t: 'קיצורי מקלדת', d: 'Ctrl+/', i: 'keyboard', k: 'shortcuts keyboard', f: () => keysDialog() },
+);
+function insItemHtml(it, i, on) {
+  return `<button type="button" class="ep-item${on ? ' on' : ''}" data-i="${i}" role="option"><span class="ic">${it.x ? `<b>${it.x}</b>` : `<svg><use href="#i-${it.i}"/></svg>`}</span><span class="tx"><b>${it.t}</b>${it.d ? `<small>${it.d}</small>` : ''}</span></button>`;
+}
+function insRun(it) {
+  closeEdPop();
+  if (!edCan()) return;
+  restoreSelection(); it.f(); fixNest(); markDirty();
+}
+$('insBtn').addEventListener('click', () => {
+  if (edPopEl && edPopEl.classList.contains('ins-pop')) { closeEdPop(); return; }
+  edPop($('insBtn'), p => {
+    p.innerHTML = `<p class="ep-tip">טיפ: בשורה ריקה מקלידים <kbd>/</kbd> ומקבלים את התפריט הזה</p>` + INS.map((it, i) => it.g ? `<div class="ep-h">${it.g}</div>` : insItemHtml(it, i)).join('');
+    p.onclick = ev => { const b = ev.target.closest('button[data-i]'); if (b) insRun(INS[+b.dataset.i]); };
+  }, 'ins-pop');
+});
+
+/* ---- "/" בתחילת שורה: תפריט הוספה מהיר, ממשיכים להקליד כדי לסנן ---- */
+let slash = null;
+function slashText() {
+  const s = getSelection(); if (!s.rangeCount || !s.isCollapsed) return null;
+  const B = blockOf(s.anchorNode); if (!B || B.closest('td,th,.cv,ol.tl')) return null;
+  const pre = document.createRange(); pre.setStart(B, 0); pre.setEnd(s.anchorNode, s.anchorOffset);
+  const m = /^\/([^/\n]{0,24})$/.exec(pre.toString().replace(/ /g, ' '));
+  return m && !/\s{2}/.test(m[1]) ? { B, q: m[1].trim().toLowerCase(), pre } : null;
+}
+function slashCheck() {
+  const st = slashText(); if (!st) { if (slash) closeEdPop(); return; }
+  const list = INS.map((it, i) => [it, i]).filter(([it]) => !it.g && (!st.q || (it.t + ' ' + (it.k || '')).toLowerCase().includes(st.q)));
+  if (!list.length) { if (slash) closeEdPop(); return; }
+  const r = st.pre.cloneRange(); r.collapse(false); let rc = r.getBoundingClientRect();
+  if (!rc.height) rc = st.B.getBoundingClientRect();
+  const at = { left: rc.left, right: rc.right + 40, top: rc.top, bottom: rc.bottom };
+  const keep = slash ? slash.list[slash.on]?.[1] : -1;
+  const on = Math.max(0, list.findIndex(([, i]) => i === keep));
+  edPop(at, p => { p.innerHTML = list.map(([it, i], k) => insItemHtml(it, i, k === on)).join(''); p.onclick = ev => { const b = ev.target.closest('button[data-i]'); if (b) slashPick(INS[+b.dataset.i]); }; }, 'ins-pop slash-pop');
+  slash = { list, on };
+}
+function slashPick(it) {
+  const st = slashText();
+  if (st) { st.pre.deleteContents(); if (isEmpty(st.B) && !st.B.querySelector('br,img')) st.B.appendChild(document.createElement('br')); placeCaret(st.B); savedRange = getSelection().getRangeAt(0).cloneRange(); }
+  insRun(it);
+}
+document.addEventListener('keydown', e => {
+  if (!slash || !edPopEl || e.target !== $('editor')) return;
+  const n = slash.list.length;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); e.stopImmediatePropagation();
+    slash.on = (slash.on + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+    edPopEl.querySelectorAll('.ep-item').forEach((b, k) => b.classList.toggle('on', k === slash.on));
+    edPopEl.querySelector('.ep-item.on')?.scrollIntoView({ block: 'nearest' });
+  } else if ((e.key === 'Enter' || e.key === 'Tab') && !e.isComposing) {
+    e.preventDefault(); e.stopImmediatePropagation(); slashPick(slash.list[slash.on][0]);
+  } else if (e.key === 'Escape') { e.preventDefault(); closeEdPop(); }
+}, true);
+
+/* ---- כתיבה מהירה כמו ב-Docs: "- " רשימה, "1. " ממוספרת, "# " כותרת, "> " ציטוט, "[] " משימה, "---" קו ---- */
+const MD = { '-': 'ul', '*': 'ul', '•': 'ul', '1.': 'ol', '1)': 'ol', '#': 'h1', '##': 'h2', '###': 'h3', '>': 'quote', '[]': 'check', '[ ]': 'check' };
+$('editor').addEventListener('input', e => {
+  if (e.inputType === 'insertParagraph') {            // שורה חדשה אחרי משימה שסומנה – מתחילה בלי וי
+    const li = caretEl()?.closest('li'); if (li && li.hasAttribute('data-done') && isEmpty(li)) li.removeAttribute('data-done');
+  }
+  if (slash || e.data === '/') slashCheck();
+  if (e.inputType !== 'insertText' || e.data !== ' ' || live) return;   // בעריכה משותפת לא משנים מבנה לבד
+  const s = getSelection(); if (!s.rangeCount || !s.isCollapsed) return;
+  const B = blockOf(s.anchorNode); if (!B || B.tagName !== 'P' || B.closest('td,th,li,.cv,blockquote')) return;
+  const pre = document.createRange(); pre.setStart(B, 0); pre.setEnd(s.anchorNode, s.anchorOffset);
+  const t = pre.toString().replace(/ /g, ' '); if (!t.endsWith(' ')) return;
+  const act = MD[t.slice(0, -1)]; if (!act) return;
+  pre.deleteContents(); if (isEmpty(B) && !B.querySelector('br')) B.appendChild(document.createElement('br'));
+  placeCaret(B); savedRange = getSelection().getRangeAt(0).cloneRange();
+  if (act === 'ul') document.execCommand('insertUnorderedList');
+  else if (act === 'ol') document.execCommand('insertOrderedList');
+  else if (act === 'check') toggleChecklist();
+  else if (act === 'quote') convertBlock('blockquote');
+  else convertBlock(act);
+  fixNest(); markDirty();
+});
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  const el = caretEl(); if (!el) return;
+  const B = blockOf(el);
+  if (B && B.tagName === 'P' && /^(-{3,}|_{3,}|—-|–-)$/.test(B.textContent.trim()) && !B.closest('td,th,li')) {   // --- = קו מפריד
+    e.preventDefault(); const hr = document.createElement('hr'); B.before(hr); B.innerHTML = '<br>'; placeCaret(B); markDirty(); return;
+  }
+  const q = el.closest('blockquote'); if (!q || !$('editor').contains(q)) return;
+  e.preventDefault();
+  if (isEmpty(q)) { const p = newBlock('p'); q.replaceWith(p); placeCaret(p); markDirty(); return; }   // Enter בציטוט ריק = יציאה
+  const r = getSelection().getRangeAt(0); r.deleteContents();
+  const tail = document.createRange(); tail.setStart(r.startContainer, r.startOffset); tail.setEnd(q, q.childNodes.length);
+  const n = document.createElement('blockquote'); ['dir', 'data-a'].forEach(a => q.hasAttribute(a) && n.setAttribute(a, q.getAttribute(a)));
+  n.appendChild(tail.extractContents());
+  if (isEmpty(n) && !n.querySelector('img')) n.innerHTML = '<br>';
+  if (isEmpty(q) && !q.querySelector('br,img')) q.appendChild(document.createElement('br'));
+  q.after(n); placeCaret(n); markDirty();
+});
+// Tab ברשימה = הזחה פנימה (Shift+Tab = החוצה)
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || caretCell()) return;
+  const li = caretEl()?.closest('li'); if (!li || li.closest('ol.tl')) return;
+  e.preventDefault();
+  const was = li.parentElement?.hasAttribute('data-check');
+  document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+  const L = caretList(); if (was && L && L.tagName === 'UL') L.setAttribute('data-check', '');
+  markDirty();
+});
+
+/* ---- קישורים ---- */
+function linkDialog() {
+  restoreSelection();
+  const s = getSelection(); const r = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+  const a0 = caretEl()?.closest('a');
+  const txt0 = a0 ? a0.textContent : (r ? r.toString() : '');
+  dialog(d => {
+    d.innerHTML = `<h3>${a0 ? 'עריכת קישור' : 'הוספת קישור'}</h3><p>מדביקים כתובת של אתר, סרטון או מסמך. לחיצה על הקישור במחברת תפתח אותו.</p>
+      <input id="lkUrl" dir="ltr" inputmode="url" placeholder="https://..." autocomplete="off" spellcheck="false"><input id="lkTxt" dir="auto" placeholder="הטקסט שיופיע (לא חובה)">`;
+    const url = d.querySelector('#lkUrl'), txt = d.querySelector('#lkTxt');
+    url.value = a0 ? a0.getAttribute('href') : ''; txt.value = txt0;
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok);
+    if (a0) { const rm = document.createElement('button'); rm.className = 'btn btn-ghost'; rm.textContent = 'הסרת הקישור'; rm.onclick = () => { closeDialog(); a0.replaceWith(...a0.childNodes); markDirty(); }; row.append(rm); }
+    row.append(no); d.append(row);
+    const go = () => {
+      let u = url.value.trim(); if (!u) { url.focus(); return; }
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = (/^[^\s/@]+@[^\s/@]+\.[a-z]{2,}$/i.test(u) ? 'mailto:' : 'https://') + u;
+      if (!/^(https?:\/\/|mailto:)[^\s"<>]{1,1500}$/i.test(u) || !/^(mailto:|https?:\/\/[^/\s]+\.[^/\s]+)/i.test(u)) { toast('הכתובת לא נראית תקינה'); url.focus(); return; }
+      const t = txt.value.trim(); closeDialog();
+      const ed = $('editor'); ed.focus({ preventScroll: true });
+      if (a0 && ed.contains(a0)) { a0.setAttribute('href', u); if (t && t !== a0.textContent) a0.textContent = t; }
+      else {
+        if (r) { s.removeAllRanges(); s.addRange(r); }
+        if (r && !r.collapsed && (!t || t === txt0)) document.execCommand('createLink', false, u);
+        else document.execCommand('insertHTML', false, `<a href="${esc(u)}">${esc(t || u.replace(/^mailto:|^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>&nbsp;`);
+      }
+      ed.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+      markDirty();
+    };
+    ok.onclick = go; [url, txt].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go(); } }));
+    setTimeout(() => url.focus(), 60);
+  });
+}
+$('linkBtn').addEventListener('click', linkDialog);
+// לחיצה על קישור במחברת: חלונית קטנה עם פתיחה / עריכה / הסרה (Ctrl+לחיצה פותח ישר)
+$('editor').addEventListener('click', e => {
+  const a = e.target.closest('#editor a[href]'); if (!a) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey || !edCan()) { window.open(a.href, '_blank', 'noopener'); return; }
+  let host = a.getAttribute('href'); try { const U = new URL(a.href); host = U.protocol === 'mailto:' ? U.pathname : U.hostname.replace(/^www\./, ''); } catch {}
+  edPop(a, p => {
+    p.innerHTML = `<div class="lk-row"><svg><use href="#i-link"/></svg><a class="lk-host" href="${esc(a.href)}" target="_blank" rel="noopener noreferrer" dir="ltr">${esc(host)}</a><button type="button" data-k="edit">עריכה</button><button type="button" data-k="rm">הסרה</button></div>`;
+    p.onclick = ev => {
+      const b = ev.target.closest('button'); if (!b) { if (ev.target.closest('a')) closeEdPop(); return; }
+      closeEdPop();
+      if (b.dataset.k === 'rm') { a.replaceWith(...a.childNodes); markDirty(); }
+      else { const r = document.createRange(); r.selectNodeContents(a); savedRange = r; linkDialog(); }
+    };
+  }, 'lk-pop');
+});
+
+/* ---- חיפוש והחלפה (Ctrl+F) ---- */
+let fr = null;
+const HL_OK = !!(window.CSS && CSS.highlights && window.Highlight);
+function findOpen(rep) {
+  if (!edOpen()) return;
+  if (fr) { (rep ? fr.r : fr.q).focus(); fr.q.select(); return; }
+  const bar = document.createElement('div'); bar.className = 'fr-bar'; bar.setAttribute('role', 'search');
+  const chev = d => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
+  bar.innerHTML = `<div class="fr-row"><svg><use href="#i-search"/></svg><input class="fr-q" dir="auto" placeholder="חיפוש במחברת" aria-label="חיפוש במחברת"><span class="fr-n"></span>
+      <button type="button" data-a="prev" title="הקודם (Shift+Enter)" aria-label="הקודם">${chev('m6 15 6-6 6 6')}</button><button type="button" data-a="next" title="הבא (Enter)" aria-label="הבא">${chev('m6 9 6 6 6-6')}</button><button type="button" data-a="x" title="סגירה (Esc)" aria-label="סגירה">✕</button></div>
+    <div class="fr-row"><input class="fr-r" dir="auto" placeholder="להחליף ב..." aria-label="להחליף ב"><button type="button" data-a="one" class="fr-txt">החלפה</button><button type="button" data-a="all" class="fr-txt">הכל</button></div>`;
+  document.body.appendChild(bar);
+  fr = { bar, q: bar.querySelector('.fr-q'), r: bar.querySelector('.fr-r'), n: bar.querySelector('.fr-n'), hits: [], i: 0 };
+  const sel = getSelection().toString().trim(); if (sel && sel.length < 60 && !sel.includes('\n')) fr.q.value = sel;
+  fr.q.addEventListener('input', () => frSearch());
+  fr.q.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); frGo(e.shiftKey ? -1 : 1); } });
+  fr.r.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); frReplace(); } });
+  bar.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); frClose(); } });
+  bar.onclick = e => { const a = e.target.closest('button')?.dataset.a; if (a === 'prev') frGo(-1); else if (a === 'next') frGo(1); else if (a === 'x') frClose(); else if (a === 'one') frReplace(); else if (a === 'all') frReplace(true); };
+  if (!edCan()) bar.querySelectorAll('.fr-row')[1].remove();
+  frSearch(); (rep && edCan() ? fr.r : fr.q).focus(); fr.q.select();
+}
+function frClose() { if (!fr) return; fr.bar.remove(); fr = null; if (HL_OK) { CSS.highlights.delete('fr-all'); CSS.highlights.delete('fr-cur'); } }
+function frSearch(keep) {
+  if (!fr) return;
+  if (!edOpen()) { frClose(); return; }
+  const q = fr.q.value; fr.hits = [];
+  if (q) {
+    const ql = q.toLowerCase(), w = document.createTreeWalker($('editor'), NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest('.cv') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    for (let n; (n = w.nextNode());) { const t = n.nodeValue.toLowerCase(); let i = 0; while ((i = t.indexOf(ql, i)) > -1) { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + q.length); fr.hits.push(r); i += q.length; } }
+  }
+  if (!keep) fr.i = 0;
+  fr.i = Math.max(0, Math.min(fr.i, fr.hits.length - 1));
+  frPaint(!keep);
+}
+function frGo(d) { if (!fr || !fr.hits.length) return; fr.i = (fr.i + d + fr.hits.length) % fr.hits.length; frPaint(true); }
+function frPaint(scroll) {
+  const h = fr.hits, cur = h[fr.i];
+  fr.n.textContent = h.length ? `${fr.i + 1}/${h.length}` : (fr.q.value ? 'אין' : '');
+  fr.bar.classList.toggle('none', !!fr.q.value && !h.length);
+  if (HL_OK) { CSS.highlights.set('fr-all', new Highlight(...h)); CSS.highlights.set('fr-cur', cur ? new Highlight(cur) : new Highlight()); }
+  if (scroll && cur) { const rc = cur.getBoundingClientRect(); if (rc.top < 150 || rc.bottom > innerHeight - 60) cur.startContainer.parentElement.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+}
+function frReplace(all) {
+  if (!fr || !fr.hits.length || !edCan()) return;
+  const rep = fr.r.value, list = all ? fr.hits.slice().reverse() : [fr.hits[fr.i]];
+  list.forEach(r => { r.deleteContents(); if (rep) r.insertNode(document.createTextNode(rep)); });
+  markDirty(); if (all) toast(`הוחלפו ${list.length}`);
+  frSearch(true);
+}
+$('findBtn').addEventListener('click', () => fr ? frClose() : findOpen());
+$('backBtn').addEventListener('click', () => { frClose(); closeEdPop(); });
+
+/* ---- מונה מילים בתחתית (וכמה מילים מסומנות, כמו ב-Docs) ---- */
+let statsT = 0;
+const wordsIn = t => (t.match(/[\p{L}\p{N}][\p{L}\p{N}'׳״"\-]*/gu) || []).length;
+function edStats() {
+  const el = $('edStats'); if (!el || !edOpen()) return;
+  const w = wordsIn($('editor').innerText || '');
+  const s = getSelection(), sw = s.rangeCount && !s.isCollapsed && $('editor').contains(s.anchorNode) ? wordsIn(s.toString()) : 0;
+  el.textContent = !w ? '' : sw ? `נבחרו ${sw.toLocaleString('he-IL')} מתוך ${w.toLocaleString('he-IL')} מילים` : `${w.toLocaleString('he-IL')} מילים · ${Math.max(1, Math.round(w / 180))} דק׳ קריאה`;
+}
+const edStatsSoon = () => { clearTimeout(statsT); statsT = setTimeout(edStats, 500); };
+new MutationObserver(() => { edStatsSoon(); if (fr) { clearTimeout(fr.t); fr.t = setTimeout(() => frSearch(true), 300); } }).observe($('editor'), { childList: true, subtree: true, characterData: true });
+
+/* ---- כפתורים דולקים לפי מה שיש איפה שהסמן (מודגש, נטוי, רשימה...) ---- */
+let tbT = 0;
+document.addEventListener('selectionchange', () => {
+  clearTimeout(tbT);
+  tbT = setTimeout(() => {
+    if (!edOpen()) return;
+    const el = caretEl(); edStatsSoon(); if (!el) return;
+    const q = c => { try { return document.queryCommandState(c); } catch { return false; } };
+    const L = caretList();
+    const on = { bold: q('bold'), italic: q('italic'), underline: q('underline'), strikeThrough: q('strikeThrough'), mark: !!el.closest('mark'),
+      ul: !!L && L.tagName === 'UL' && !L.hasAttribute('data-check'), ol: !!L && L.tagName === 'OL', check: !!L && L.hasAttribute('data-check') };
+    tb.querySelectorAll('button[data-cmd]').forEach(b => { if (b.dataset.cmd in on) b.classList.toggle('on', on[b.dataset.cmd]); });
+    $('linkBtn').classList.toggle('on', !!el.closest('a'));
+  }, 80);
+});
+
+/* ---- קיצורי מקלדת ---- */
+const KEYS = [['Ctrl+B', 'מודגש'], ['Ctrl+I', 'נטוי'], ['Ctrl+U', 'קו תחתון'], ['Ctrl+Shift+X', 'קו חוצה'], ['Ctrl+\\', 'ניקוי עיצוב'], ['Ctrl+K', 'קישור'],
+  ['Ctrl+Alt+1 / 2 / 3', 'כותרת / משנה / קטנה'], ['Ctrl+Alt+0', 'טקסט רגיל'], ['Ctrl+Shift+7', 'רשימה ממוספרת'], ['Ctrl+Shift+8', 'רשימה עם נקודות'], ['Ctrl+Shift+9', 'רשימת משימות'],
+  ['Tab / Shift+Tab', 'הזחה ברשימה'], ['Ctrl+F', 'חיפוש'], ['Ctrl+H', 'חיפוש והחלפה'], ['Ctrl+Z / Ctrl+Y', 'ביטול / ביצוע שוב'],
+  ['/', 'תפריט הוספה (בשורה ריקה)'], ['- רווח', 'רשימה'], ['1. רווח', 'רשימה ממוספרת'], ['# רווח', 'כותרת (## משנה)'], ['> רווח', 'ציטוט'], ['[] רווח', 'משימה'], ['--- Enter', 'קו מפריד']];
+function keysDialog() {
+  dialog(d => {
+    d.innerHTML = `<h3>קיצורי מקלדת</h3><p>כמו ב-Google Docs. במק – Cmd במקום Ctrl.</p><div class="keys-list">${KEYS.map(([k, t]) => `<div><kbd dir="ltr">${esc(k)}</kbd><span>${t}</span></div>`).join('')}</div>`;
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = closeDialog; d.append(ok);
+  });
+}
+document.addEventListener('keydown', e => {
+  if (!edOpen() || !(e.ctrlKey || e.metaKey) || $('dialogRoot').firstChild) return;
+  const c = e.code, inEd = document.activeElement === $('editor');
+  if (c === 'KeyF' && !e.shiftKey && !e.altKey) { e.preventDefault(); findOpen(); return; }
+  if (c === 'KeyH' && !e.shiftKey && !e.altKey) { e.preventDefault(); findOpen(true); return; }
+  if (c === 'Slash') { e.preventDefault(); keysDialog(); return; }
+  if (!inEd || !edCan()) return;
+  const done = f => { e.preventDefault(); f(); markDirty(); };
+  if (c === 'KeyK' && !e.shiftKey) done(linkDialog);
+  else if (e.shiftKey && c === 'KeyX') done(() => document.execCommand('strikeThrough'));
+  else if (c === 'Backslash') done(clearFormat);
+  else if (e.altKey && !e.shiftKey && /^Digit[0-3]$/.test(c)) done(() => setBlock(['p', 'h1', 'h2', 'h3'][+c.slice(5)]));
+  else if (e.shiftKey && c === 'Digit7') done(() => document.execCommand('insertOrderedList'));
+  else if (e.shiftKey && c === 'Digit8') done(() => document.execCommand('insertUnorderedList'));
+  else if (e.shiftKey && c === 'Digit9') done(toggleChecklist);
+  fixNest();
+});
 
 
 /* ================= ניווט ================= */
@@ -2089,8 +2583,8 @@ function alignBlocks(dir) {
   restoreSelection(); wrapLoose && wrapLoose();
   const s = window.getSelection(); if (!s.rangeCount) return;
   const r = s.getRangeAt(0); const ed = $('editor');
-  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li'));
-  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI)$/.test(B.tagName)) blocks = [B]; }
+  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li,blockquote')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li,blockquote'));
+  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(B.tagName)) blocks = [B]; }
   if (!blocks.length) return;
   blocks.forEach(b => { if (dir === 'right') b.removeAttribute('data-a'); else b.setAttribute('data-a', dir); });
   updateAlignButtons(); markDirty();
@@ -2106,8 +2600,8 @@ function selBlocks() {
   restoreSelection(); wrapLoose && wrapLoose();
   const s = window.getSelection(); if (!s.rangeCount) return [];
   const r = s.getRangeAt(0); const ed = $('editor'); if (!ed.contains(r.startContainer)) return [];
-  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li'));
-  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI)$/.test(B.tagName)) blocks = [B]; }
+  let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li,blockquote')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li,blockquote'));
+  if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(B.tagName)) blocks = [B]; }
   return blocks;
 }
 function toggleDir() {
@@ -3169,12 +3663,28 @@ function caretRestore(pos) {
   while ((n = w.nextNode())) { if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const s2 = getSelection(); s2.removeAllRanges(); s2.addRange(r); return; } left -= n.length; }
 }
 function applyRemoteHtml(html) {
-  const ed = $('editor'); if (clean(ed.innerHTML) === clean(html)) return;   // אין מה לשנות: לא נוגעים בסמן
-  let pos = document.activeElement === ed ? caretMark() : null;
-  const y = window.scrollY, oldText = ed.textContent;
+  const ed = $('editor');
   // אבטחה: תוכן שמגיע מעורך אחר (או מישהו שכותב ישירות ל-Firestore/RTDB) חייב לעבור ניקוי לפני הצגה,
   // אחרת אפשר להזריק <img onerror=...> שירוץ אצל מי שעורך ביחד. clean() מסיר כל סקריפט ומאזין אירועים.
-  ed.innerHTML = clean(html); loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
+  html = clean(html);
+  // מחליפים רק את השורות שהשתנו (כמו ב-Docs): השורה שאתה כותב בה לא נוגעים בה אם החבר כתב במקום אחר,
+  // כך שהסמן שלך לא קופץ וההקלדה לא נתקעת
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const cur = [...ed.childNodes], nxt = [...tmp.childNodes];
+  const keyOf = (n, cl) => n.nodeType === 1 ? (cl ? clean(n.outerHTML) : n.outerHTML) : n.nodeType === 3 ? n.nodeValue : '';
+  const ck = cur.map(n => keyOf(n, true)), nk = nxt.map(n => keyOf(n));
+  if (ck.join('') === nk.join('')) return;                                   // אין מה לשנות: לא נוגעים בסמן
+  let p = 0; while (p < cur.length && p < nxt.length && ck[p] === nk[p]) p++;
+  let q = 0; while (q < cur.length - p && q < nxt.length - p && ck[cur.length - 1 - q] === nk[nxt.length - 1 - q]) q++;
+  const oldMid = cur.slice(p, cur.length - q), newMid = nxt.slice(p, nxt.length - q), after = cur[cur.length - q] || null;
+  const sel = getSelection();
+  const caretIn = document.activeElement === ed && sel.rangeCount && (sel.anchorNode === ed || oldMid.some(n => n === sel.anchorNode || n.contains(sel.anchorNode)));
+  let pos = caretIn ? caretMark() : null;
+  const y = window.scrollY, oldText = ed.textContent;
+  const box = document.createElement('div'); box.append(...newMid);
+  loadImages(box); renderFiles(box); renderCanvases(box); applyBoxSizes(box);
+  oldMid.forEach(n => n.remove());
+  [...box.childNodes].forEach(n => ed.insertBefore(n, after));
   if (pos !== null) {
     // הסמן שלך זז יחד עם הטקסט: אם החבר הוסיף לפניך, הסמן מתקדם בהתאם
     const nt = ed.textContent, r = editRegion(oldText, nt), delta = nt.length - oldText.length;
@@ -3385,13 +3895,15 @@ function myCaret() {
   const sel = getSelection(); if (!sel.rangeCount || !$('editor').contains(sel.anchorNode)) return null;
   const r = sel.getRangeAt(0); const bi = blockIndexOf(r.startContainer); if (bi < 0) return null;
   const blk = topBlocks()[bi]; const pre = document.createRange(); pre.selectNodeContents(blk); pre.setEnd(r.startContainer, r.startOffset);
-  return { cb: bi, co: pre.toString().length };
+  const t = pre.toString();
+  // cx = כמה אותיות לפני הסמן: כך החבר מוצא את המקום הנכון גם אם הטקסט אצלו עוד לא בדיוק אותו דבר
+  return { cb: bi, co: t.length, cx: t.slice(-16), ct: Date.now() };
 }
 let presT = null, presPending = false;
 function presPush(patch) {
   if (!live) return; live.me = { ...(live.me || {}), ...patch };
   if (presT) { presPending = true; return; }
-  live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, live.rt ? 40 : 350);
+  live.pres && live.pres(); presT = setTimeout(() => { presT = null; if (presPending) { presPending = false; live && live.pres && live.pres(); } }, live.rt ? 40 : 200);
 }
 // שולחים את הסמן רק כשאתה באמת הזזת אותו (מקלדת / לחיצה). כשהטקסט של החבר נכנס והסמן שלך זז לבד –
 // לא שולחים, אחרת הסמן שלך "רודף" אחרי מה שהחבר מקליד ונראה כאילו אתה שם.
@@ -3399,7 +3911,7 @@ let userActAt = 0;
 ['keydown', 'pointerdown', 'input', 'focus'].forEach(t => $('editor').addEventListener(t, () => { userActAt = Date.now(); }));
 document.addEventListener('selectionchange', () => {
   if (!live || Date.now() - userActAt > 1500 || document.activeElement !== $('editor')) return;
-  const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co)) presPush(c);
+  const c = myCaret(); if (c && (!live.me || c.cb !== live.me.cb || c.co !== live.me.co || c.cx !== live.me.cx)) presPush(c);
 });
 // יצאת מהמחברת (חלון אחר, טלפון נעול): הסמן שלך נעלם אצל החברים
 $('editor').addEventListener('blur', () => { if (live) presPush({ cb: -1 }); });
@@ -3414,6 +3926,7 @@ $('editor').addEventListener('mousemove', e => {
   let m;
   if (bi >= 0) { const r = rectOf(topBlocks()[bi]) || ed; m = { mb: bi, mx: +((e.clientX - r.left) / (r.width || 1)).toFixed(3), my: +((e.clientY - r.top) / (r.height || 1)).toFixed(3) }; }
   else m = { mb: -1, mx: +((e.clientX - ed.left) / ed.width).toFixed(3), my: Math.round(e.clientY - ed.top) };
+  m.mt = Date.now();
   presPush(m);
 });
 $('editor').addEventListener('mouseleave', () => presPush({ mb: -2 }));
@@ -3422,7 +3935,23 @@ function caretRect(blk, off) {
   if (blk.nodeType === 3) { const r = document.createRange(); r.setStart(blk, Math.min(off, blk.length)); r.collapse(true); return r.getClientRects()[0] || null; }
   const w = document.createTreeWalker(blk, NodeFilter.SHOW_TEXT); let n, left = off, last = null;
   while ((n = w.nextNode())) { last = n; if (left <= n.length) { const r = document.createRange(); r.setStart(n, left); r.collapse(true); const rr = r.getClientRects(); if (rr.length) return rr[0]; const r2 = document.createRange(); r2.selectNodeContents(n); return r2.getBoundingClientRect(); } left -= n.length; }
-  const b = blk.getBoundingClientRect(); return { left: b.right, top: b.top, height: Math.min(28, b.height || 24), right: b.right };
+  // החבר כבר הקליד יותר ממה שהגיע אליך: הסמן בסוף הטקסט (בעברית – משמאל), לא בתחילת השורה
+  if (last && last.length) { const r = document.createRange(); r.setStart(last, last.length); r.collapse(true); const rr = r.getClientRects(); if (rr.length) return rr[rr.length - 1]; }
+  const b = blk.getBoundingClientRect(), rtl = getComputedStyle(blk.nodeType === 1 ? blk : blk.parentElement).direction === 'rtl';
+  return { left: rtl ? b.right - 2 : b.left, top: b.top, height: Math.min(28, b.height || 24), right: b.right };
+}
+// איפה הסמן של החבר: מחפשים את האותיות שלפני הסמן שלו בשורה (או בשורות הקרובות), כי המספרים לבד יכולים להיות ישנים
+function findCaret(blocks, o) {
+  const cb = o.cb, co = o.co || 0, cx = o.cx || '';
+  if (cx.length >= 2) {
+    for (const d of [0, 1, -1, 2, -2, 3, -3]) {
+      const blk = blocks[cb + d]; if (!blk) continue;
+      const t = blk.textContent; let best = -1, i = t.indexOf(cx);
+      while (i > -1) { if (best < 0 || Math.abs(i + cx.length - co) < Math.abs(best + cx.length - co)) best = i; i = t.indexOf(cx, i + 1); }
+      if (best > -1) return { blk, off: best + cx.length };
+    }
+  }
+  return blocks[cb] ? { blk: blocks[cb], off: co } : null;
 }
 const cursorEls = new Map();
 let cursorAnim = null;
@@ -3444,13 +3973,15 @@ function paintCursors() {
       cursorEls.set(o.id, E);
     }
     E.caret.querySelector('span').textContent = nm; E.mouse.querySelector('span').textContent = nm;
-    const blk = blocks[o.cb];
+    const fc = o.cb >= 0 ? findCaret(blocks, o) : null, blk = fc && fc.blk;
     const b = blk ? rectOf(blk) : null;
     if (b) Object.assign(E.line.style, { display: '', top: (b.top - page.top - 2) + 'px', left: (ed.left - page.left - 8) + 'px', width: (ed.width + 16) + 'px', height: (b.height + 4) + 'px' }); else E.line.style.display = 'none';
-    const cr = blk ? caretRect(blk, o.co || 0) : null;
+    const cr = blk ? caretRect(blk, fc.off) : null;
     if (cr) Object.assign(E.caret.style, { display: '', top: (cr.top - page.top) + 'px', left: (cr.left - page.left) + 'px', height: (cr.height || 22) + 'px' }); else E.caret.style.display = 'none';
     let x, y;
-    if (o.mb !== undefined && o.mb !== -2) {
+    // החבר מקליד (הסמן זז אחרי העכבר): לא מראים את העכבר שלו, כדי שלא ייראה שהוא במקום אחר
+    const typing = (o.ct || 0) > (o.mt || 0) && blk;
+    if (!typing && o.mb !== undefined && o.mb !== -2) {
       if (o.mb >= 0 && blocks[o.mb]) { const r = rectOf(blocks[o.mb]); x = r.left + o.mx * r.width; y = r.top + o.my * r.height; }
       else if (o.mb === -1) { x = ed.left + o.mx * ed.width; y = ed.top + o.my; }
     }
