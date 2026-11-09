@@ -11,7 +11,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gst
 import { getAnalytics, isSupported as analyticsSupported, logEvent } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
 import { getDatabase, ref as dbRef, set as dbSet, onValue, onDisconnect, remove as dbRemove } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
-import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1793615860";
+import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1794223306";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
 const $ = id => document.getElementById(id);
@@ -469,7 +469,7 @@ function markDirty() {
   if (!dirty) dirtySince = Date.now();
   dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer);
   // בעריכה משותפת שולחים מהר (אחרי חצי שנייה של שקט, ולא יותר משנייה וחצי בזמן הקלדה)
-  if (live && rtdb) { liveBroadcast(); saveTimer = setTimeout(flush, Date.now() - dirtySince > 4000 ? 0 : 1500); }
+  if (live && live.rt) { liveBroadcast(); saveTimer = setTimeout(flush, Date.now() - dirtySince > 4000 ? 0 : 1500); }
   else if (live) saveTimer = setTimeout(flush, Date.now() - dirtySince > 1000 ? 0 : 280);
   else saveTimer = setTimeout(flush, 1200);
 }
@@ -3973,8 +3973,23 @@ function startLive(shareId, baseHtml) {
     }
     handleRemote(L, s, true);
   }, e => console.warn('live', e));
-  if (rtdb) { startRtdb(L); paintPresence([]); return; }
-  // מי עוד כאן (בלי Realtime Database: דרך Firestore, איטי יותר)
+  firePresence(L, shareId);
+  // ערוץ מהיר (Realtime Database): בודקים שהוא באמת עובד, ורק אז עוברים אליו. אם לא – נשארים בדרך הרגילה
+  if (rtdb && !rtdbBad) {
+    const probe = dbRef(rtdb, `cursors/${shareId}/${me.uid}`);
+    Promise.race([dbSet(probe, { name: myName(), at: Date.now() }), new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 6000))])
+      .then(() => {
+        if (live !== L) return;
+        if (L.unsubPres) L.unsubPres(); clearInterval(L.presTimer); L.unsubPres = null;
+        deleteDoc(doc(db, 'shares', shareId, 'presence', me.uid)).catch(() => {});
+        startRtdb(L);
+      })
+      .catch(e => { console.warn('rtdb off', e); if (String(e && e.message).includes('ermission')) rtdbBad = true; });
+  }
+}
+let rtdbBad = false;
+// מי עוד כאן (בלי Realtime Database: דרך Firestore, איטי יותר)
+function firePresence(L, shareId) {
   // רק כשהמסך באמת פתוח: טאב ברקע או טלפון נעול לא נחשבים "כאן"
   const pres = () => { if (!document.hidden) setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {}); };
   L.pres = pres;
@@ -4455,7 +4470,8 @@ function handleRemote(L, s, fromStore) {
   if (s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
   // הבעלים מעדכן גם את המחברת השמורה שלו (רק מהשמירה האמיתית)
   if (fromStore && !String(openId).startsWith('share:')) { const nb = notebooks.find(x => x.shareId === L.id); if (nb && !dirty) updateDoc(nbDoc(nb.id), { html: s.html, title: s.title || nb.title, updatedAt: s.updatedAt || Date.now() }).catch(() => {}); }
-  if (fromStore && L.rt) return;                        // את הטקסט עצמו מקבלים מהערוץ המהיר
+  // את הטקסט עצמו מקבלים מהערוץ המהיר – אלא אם זו גרסה שלא ראינו בו (למשל חבר שהערוץ המהיר לא עובד אצלו)
+  if (fromStore && L.rt && (!L.hist || L.hist.has(hsh(s.html || '')))) return;
   if (typeof s.html !== 'string' || s.html === L.srv) return;
   if (saving) { L.again = true; return; }               // באמצע שמירה: אחריה נסנכרן שוב
   if (!dirty && clean($('editor').innerHTML) === L.base) {
@@ -4474,8 +4490,12 @@ function startRtdb(L) {
     L.others = Object.entries(v).map(([id, d]) => ({ id, ...d })).filter(p => p.id !== me.uid && now - (p.at || 0) < 90000);
     paintPresence(L.others); paintCursors();
   });
+  let first = true;
   L.rt.offTxt = onValue(txtRef, snap => {
-    if (live !== L) return; const v = snap.val(); if (!v || v.by === me.uid || typeof v.html !== 'string') return;
+    if (live !== L) return; const v = snap.val();
+    // הערך הראשון הוא מה שנשאר מהפעם הקודמת (אולי ישן): את הגרסה העדכנית כבר קיבלנו מהשמירה, אז לא מחזירים אחורה
+    if (first) { first = false; return; }
+    if (!v || v.by === me.uid || typeof v.html !== 'string') return;
     if (v.title && document.activeElement !== $('title') && $('title').value !== v.title) $('title').value = v.title;
     // שילוב בשלושה כיוונים מול הגרסה שהחבר בנה עליה
     const base = (L.hist && L.hist.get(v.baseH)) || L.base;

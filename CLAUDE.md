@@ -15,7 +15,7 @@
 - `firebase-config.js` – ההגדרות של Firebase (פרויקט `my-notebooks-32ffd`). `sample-notebook.js` – מחברת לדוגמה.
 - `sw.js` – service worker: קודם רשת, ואם אין אינטרנט – מהמטמון. `manifest.webmanifest` + אייקונים – אפליקציה במסך הבית.
 - `firestore.rules`, `database.rules.json` – הכללים מודבקים **ידנית** בקונסול של Firebase (אין deploy אוטומטי). אם משנים אותם – להגיד למשתמש להדביק.
-- Firebase JS SDK 13.1.0 מ-gstatic: Auth, Firestore (מטמון מקומי), AI Logic (Gemini), App Check (reCAPTCHA Enterprise), Realtime Database (רק אם יש `databaseURL` בהגדרות – כרגע אין, אז עריכה משותפת עובדת דרך Firestore).
+- Firebase JS SDK 13.1.0 מ-gstatic: Auth, Firestore (מטמון מקומי), AI Logic (Gemini), App Check (reCAPTCHA Enterprise), Realtime Database (europe-west1, `databaseURL` בהגדרות מ-9.11.2026): ערוץ מהיר לעריכה משותפת. `startLive` בודק קודם שהוא עובד (`probe`) ורק אז עובר אליו (`startRtdb`); אם נחסם – נשאר ב-Firestore (`firePresence`, `rtdbBad`).
 
 ## איפה הנתונים (Firestore)
 - `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון), `/chats/{id}` (שיחות עם העוזר הלימודי: title, history, mem, createdAt, updatedAt).

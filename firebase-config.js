@@ -5,6 +5,7 @@ export const firebaseConfig = {
   apiKey: "AIzaSyDvPcrPFvOHccmtCcnOkEI1sIREvELdrp4",
   authDomain: "my-notebooks-32ffd.firebaseapp.com",
   projectId: "my-notebooks-32ffd",
+  databaseURL: "https://my-notebooks-32ffd-default-rtdb.europe-west1.firebasedatabase.app",
   storageBucket: "my-notebooks-32ffd.firebasestorage.app",
   messagingSenderId: "715695187837",
   appId: "1:715695187837:web:6466a55d80879c1e854e14",
