@@ -30,10 +30,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794223297">
+<link rel="stylesheet" href="style.css?v=1794231352">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794223297"></script>
+<script src="motion.js?v=1794231352"></script>
 </head>
 <body>
 
@@ -303,6 +303,7 @@
           <span class="save" id="save"></span>
           <span class="presence hidden" id="presence"></span><span class="shared-by" id="sharedBy"></span>
           <button class="btn btn-ghost nb-color" id="nbColor" type="button" title="שינוי הצבע של המחברת"><i class="nbc-dot" id="nbColorDot"></i><span>צבע</span></button>
+          <button class="btn btn-ghost nb-layout" id="nbLayout" type="button" title="צורת המחברת: עמוד אינסופי, דפים או שקופיות"><svg viewBox="0 0 48 42" aria-hidden="true"></svg><span>עמוד אינסופי</span></button>
           <button class="btn btn-ghost nb-timer" id="nbTimer" type="button" title="טיימר לימוד"><svg><use href="#i-timer"/></svg><span>טיימר</span></button>
           <button class="btn btn-ghost share-btn" id="shareBtn" title="שיתוף עם חברים"><svg><use href="#i-share"/></svg><span>שיתוף</span></button>
           <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
@@ -362,7 +363,7 @@
             <button data-cmd="redo" title="ביצוע שוב (Ctrl+Y)" aria-label="ביצוע שוב"><svg><use href="#i-redo"/></svg></button>
             <button type="button" id="tbHelp" class="tb-help" aria-label="מה כל כפתור?"><svg><use href="#i-help"/></svg></button>
           </div>
-          <div class="page"><div id="editor" contenteditable="true" spellcheck="true"></div></div>
+          <div class="page"><div id="editor" contenteditable="true" spellcheck="true"></div><button type="button" class="slide-add hidden" id="slideAdd"><svg><use href="#i-plus"/></svg><span>שקופית חדשה</span></button></div>
           <div class="ed-stats" id="edStats" aria-live="polite"></div>
         </div>
       </section>
@@ -476,6 +477,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794223297"></script>
+<script type="module" src="app.js?v=1794231352"></script>
 </body>
 </html>

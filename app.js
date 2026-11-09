@@ -251,12 +251,14 @@ function clean(html) {
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
+      const sl = ch.tagName === 'DIV' && ch.hasAttribute('data-slide');
       const dc = ch.getAttribute('data-c'), ds = ch.getAttribute('data-s'), chk = ch.hasAttribute('data-check'), dn = ch.hasAttribute('data-done'), href = ch.getAttribute('href') || '';
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
       if (ch.tagName === 'A') {                       // קישור: רק http/https/mailto
         if (!/^(https?:\/\/|mailto:)[^\s"<>]{1,1500}$/i.test(href)) { walk(ch); ch.replaceWith(...ch.childNodes); return; }
         ch.setAttribute('href', href); ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener noreferrer');
       }
+      if (sl) ch.setAttribute('data-slide', '');                                               // שקופית (מחברת של שקופיות)
       if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
       if (ch.tagName === 'SPAN' && TXT_SIZES.includes(ds)) ch.setAttribute('data-s', ds);    // גודל טקסט
       if (ch.tagName === 'MARK' && HL_COLORS.includes(dc)) ch.setAttribute('data-c', dc);    // צבע מרקר
@@ -380,6 +382,7 @@ function openNotebook(id) {
   applyBoxSizes($('editor'));
   setSave('נשמר בענן', 'ok');
   setView('notebook', 'מחברות › ' + (n.title || ''));
+  setLayout(layoutOf(n));
   renderSide();
   document.body.classList.remove('editing-shared');
   stopLive();
@@ -410,7 +413,7 @@ $('nbColor').onclick = nbColorDialog;
 $('docColor').onclick = nbColorDialog;
 
 function newNotebook() {
-  let color = COLORS[notebooks.length % COLORS.length];
+  let color = COLORS[notebooks.length % COLORS.length], layout = '';
   dialog(d => {
     d.innerHTML = '<h3>מחברת חדשה</h3><p>איך לקרוא למחברת?</p>';
     const inp = document.createElement('input'); inp.placeholder = 'למשל: מחברת היסטוריה';
@@ -427,14 +430,16 @@ function newNotebook() {
       ok.disabled = true;
       try {
         const ref = doc(nbCol()); const now = Date.now();
-        await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color, html: '', createdAt: now, updatedAt: now });
+        await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color, html: layout === 'slides' ? SLIDE_EMPTY : '', ...(layout ? { layout } : {}), createdAt: now, updatedAt: now });
         closeDialog();
         const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100);
         wait();
       } catch (e) { ok.disabled = false; toast('לא הצלחתי ליצור את המחברת'); }
     };
     ok.onclick = go; inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-    row.append(ok, cancel); d.append(inp, pick, row); setTimeout(() => inp.focus(), 30);
+    const lh = document.createElement('p'); lh.className = 'lay-h'; lh.textContent = 'איך המחברת תיראה?';
+    const lp = layoutPicker(layout, k => { layout = k; });
+    row.append(ok, cancel); d.append(inp, pick, lh, lp, row); setTimeout(() => inp.focus(), 30);
   });
 }
 
@@ -466,6 +471,7 @@ $('delBtn').onclick = () => {
 /* ================= שמירה אוטומטית ================= */
 let dirtySince = 0;
 function markDirty() {
+  if (curLayout() === 'slides') slideFix();
   if (!dirty) dirtySince = Date.now();
   dirty = true; setSave('שומר...', 'busy'); clearTimeout(saveTimer);
   // בעריכה משותפת שולחים מהר (אחרי חצי שנייה של שקט, ולא יותר משנייה וחצי בזמן הקלדה)
@@ -563,10 +569,10 @@ function restoreSelection() {
 // עוטפים טקסט "חופשי" (שלא בתוך פסקה) בפסקאות, כדי שיהיה אפשר לשנות אותו
 const BLOCK_RE = /^(P|H1|H2|H3|LI|DIV|BLOCKQUOTE)$/;
 const INLINE = ['B','STRONG','I','EM','U','S','STRIKE','DEL','MARK','SPAN','BR','A','SUB','SUP'];
-function wrapLoose() {
-  const ed = $('editor');
+function wrapLoose(ed = $('editor')) {
+  if (ed.id === 'editor') ed.querySelectorAll(':scope > [data-slide]').forEach(sl => wrapLoose(sl));   // בתוך כל שקופית
   // DIV שמכיל בתוכו שורות — מוציאים את השורות החוצה
-  ed.querySelectorAll(':scope > div').forEach(d => {
+  ed.querySelectorAll(':scope > div:not([data-slide])').forEach(d => {
     if ([...d.children].some(c => BLOCK_RE.test(c.tagName) || c.tagName === 'UL' || c.tagName === 'OL')) d.replaceWith(...d.childNodes);
   });
   let group = [];
@@ -584,7 +590,7 @@ function wrapLoose() {
 function blockOf(node) {
   const ed = $('editor');
   let n = node && (node.nodeType === 1 ? node : node.parentElement);
-  while (n && n !== ed) { if (BLOCK_RE.test(n.tagName)) return n; n = n.parentElement; }
+  while (n && n !== ed) { if (BLOCK_RE.test(n.tagName) && !n.hasAttribute('data-slide')) return n; n = n.parentElement; }
   return null;
 }
 const isEmpty = el => !el.textContent.replace(/​/g, '').trim();
@@ -698,7 +704,7 @@ tb.addEventListener('click', e => {
 function checkEmpty() {
   const ed = $('editor');
   const empty = !ed.textContent.trim() && !ed.querySelector('img,table,[data-cv],[data-file],[data-box],hr,ol.tl,ul li,ol li');
-  ed.classList.toggle('is-empty', empty);
+  ed.classList.toggle('is-empty', empty && curLayout() !== 'slides');
 }
 { let raf = 0; new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(checkEmpty); }).observe($('editor'), { childList: true, subtree: true, characterData: true }); }
 $('editor').addEventListener('paste', e => {
@@ -1352,9 +1358,11 @@ tbTipWire(bh);
 let hBlk = null, bhHideT = 0, bDrag = null;
 function blockAt(el) {
   const ed = $('editor'); if (!el || el === ed || !ed.contains(el)) return null;
+  const sl = el.closest('[data-slide]'); if (sl === el && sl.parentElement === ed) return sl;   // השוליים של שקופית = כל השקופית
+  const root = sl && sl.parentElement === ed ? sl : ed;
   const li = el.closest('li');
-  if (li && li.parentElement.parentElement === ed && !li.parentElement.classList.contains('tl')) return li;
-  let n = el; while (n.parentElement !== ed) n = n.parentElement;
+  if (li && li.parentElement.parentElement === root && !li.parentElement.classList.contains('tl')) return li;
+  let n = el; while (n.parentElement !== root) n = n.parentElement;
   return n.nodeType === 1 ? n : null;
 }
 function blockAtY(y) { return [...$('editor').children].find(c => { const r = c.getBoundingClientRect(); return y >= r.top - 4 && y <= r.bottom + 4; }) || null; }
@@ -1387,6 +1395,7 @@ if (HOVER_OK) {
 bh.addEventListener('mousedown', e => e.preventDefault());
 bh.querySelector('[data-h="add"]').addEventListener('click', () => {
   if (!hBlk || !hBlk.isConnected) return;
+  if (hBlk.hasAttribute('data-slide')) { bh.classList.add('hidden'); addSlide(hBlk); return; }
   const n = document.createElement(hBlk.tagName === 'LI' ? 'li' : 'p'); n.appendChild(document.createElement('br'));
   hBlk.after(n); $('editor').focus({ preventScroll: true }); placeCaret(n);
   bh.classList.add('hidden');
@@ -1472,7 +1481,7 @@ function blockMenu(blk) {
       if (!blk.isConnected) return;
       if (b.dataset.t) { turnInto(blk, b.dataset.t); return; }
       const a = b.dataset.a;
-      if (a === 'dup') { const c = blk.cloneNode(true); blk.after(c); renderCanvases(c.parentElement === $('editor') ? wrapOne(c) : c); markDirty(); }
+      if (a === 'dup') { const c = blk.cloneNode(true); blk.after(c); renderCanvases(c.parentElement === $('editor') && !c.hasAttribute('data-slide') ? wrapOne(c) : c); markDirty(); }
       else if (a === 'up' || a === 'down') moveBlock(blk, a === 'up' ? -1 : 1);
       else if (a === 'del') {
         const par = blk.parentElement, next = blk.nextSibling; blk.remove();
@@ -1485,6 +1494,171 @@ function blockMenu(blk) {
   }, 'blk-pop');
 }
 function wrapOne(c) { const w = document.createElement('div'); return { querySelectorAll: s => c.matches(s) ? [c] : w.querySelectorAll(s) }; }
+
+
+/* ================= צורת המחברת: עמוד אינסופי / דפים כמו Google Docs / שקופיות כמו PowerPoint ================= */
+// נשמר על המחברת בשדה layout ('' = עמוד אינסופי, pages, slides). מחברות ישנות בלי השדה = עמוד אינסופי
+const LAYOUTS = [
+  ['', 'עמוד אינסופי', 'כותבים בלי סוף, כמו תמיד', '<path d="M13 40V7a3 3 0 0 1 3-3h16a3 3 0 0 1 3 3v33"/><path d="M18 11h12M18 16h12M18 21h8M18 26h12M18 31h6" opacity=".55"/>'],
+  ['pages', 'דפים', 'דפים כמו בדוקס, ממשיכים לדף הבא', '<rect x="14" y="2" width="20" height="17" rx="2"/><rect x="14" y="22" width="20" height="17" rx="2"/><path d="M18 7h12M18 11h12M18 15h7M18 27h12M18 31h9" opacity=".55"/>'],
+  ['slides', 'שקופיות', 'שקופיות כמו במצגת', '<rect x="5" y="3" width="38" height="16" rx="2"/><rect x="5" y="22" width="38" height="16" rx="2"/><path d="M11 8h16M11 13h10M11 27h16M11 32h10" opacity=".55"/>'],
+];
+const SLIDE_EMPTY = '<div data-slide=""><p><br></p></div>';
+function layoutOf(n) { return n && (n.layout === 'pages' || n.layout === 'slides') ? n.layout : ''; }
+function curLayout() { return $('editor').dataset.layout || ''; }
+function layoutPicker(cur, onPick) {
+  const w = document.createElement('div'); w.className = 'lay-pick'; w.setAttribute('role', 'radiogroup');
+  LAYOUTS.forEach(([k, t, sub, ic]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(k === cur)); if (k === cur) b.classList.add('on');
+    b.innerHTML = `<svg viewBox="0 0 48 42" aria-hidden="true">${ic}</svg><b>${t}</b><small>${sub}</small>`;
+    b.onclick = () => { [...w.children].forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); }); b.classList.add('on'); b.setAttribute('aria-checked', 'true'); onPick(k); };
+    w.appendChild(b);
+  });
+  return w;
+}
+const mkSlide = empty => { const s = document.createElement('div'); s.setAttribute('data-slide', ''); if (empty) { const p = document.createElement('p'); p.appendChild(document.createElement('br')); s.appendChild(p); } return s; };
+const isSlide = n => n && n.nodeType === 1 && n.hasAttribute('data-slide');
+// עמוד אינסופי / דפים → שקופיות: כל כותרת גדולה (H1/H2) פותחת שקופית חדשה
+function toSlides() {
+  const ed = $('editor'); let cur = null; const out = [];
+  [...ed.childNodes].forEach(n => {
+    if (n.nodeType === 3 && !n.nodeValue.trim()) { n.remove(); return; }
+    if (isSlide(n)) { cur = n; out.push(n); return; }
+    if (!cur || (n.nodeType === 1 && /^H[12]$/.test(n.tagName) && cur.childNodes.length)) { cur = mkSlide(false); out.push(cur); }
+    cur.appendChild(n);
+  });
+  ed.append(...out);
+}
+// שקופיות → עמוד אינסופי / דפים: כל התוכן נשאר, לפי הסדר
+function fromSlides() {
+  $('editor').querySelectorAll(':scope > [data-slide]').forEach(s => {
+    if (isEmpty(s) && !s.querySelector('img,table,[data-cv],[data-file],[data-box],hr,li')) s.remove(); else s.replaceWith(...s.childNodes);
+  });
+}
+// כל התוכן חייב להיות בתוך שקופית (אחרי מחיקה של הכול, הדבקה, וכו')
+function slideFix() {
+  const ed = $('editor'); if (curLayout() !== 'slides') return;
+  const pos = document.activeElement === ed ? caretMark() : null;
+  let changed = false;
+  ed.querySelectorAll('[data-slide] [data-slide]').forEach(x => { x.replaceWith(...x.childNodes); changed = true; });
+  let last = null; const lead = [];
+  [...ed.childNodes].forEach(n => {
+    if (isSlide(n)) { if (lead.length) { n.prepend(...lead); lead.length = 0; } last = n; return; }
+    if (n.nodeType === 3 && !n.nodeValue.trim()) { n.remove(); return; }
+    changed = true; if (last) last.appendChild(n); else lead.push(n);
+  });
+  if (lead.length || !ed.querySelector(':scope > [data-slide]')) { const s = mkSlide(!lead.length); s.append(...lead); ed.appendChild(s); changed = true; }
+  ed.querySelectorAll(':scope > [data-slide]').forEach(s => {
+    if (!s.firstChild || (s.childNodes.length === 1 && s.firstChild.nodeName === 'BR')) { s.innerHTML = '<p><br></p>'; changed = true; }
+    else if ([...s.childNodes].some(n => (n.nodeType === 3 && n.nodeValue.trim()) || (n.nodeType === 1 && INLINE.includes(n.tagName) && n.tagName !== 'BR'))) { wrapLoose(s); changed = true; }
+  });
+  if (changed && pos !== null) caretRestore(pos);
+}
+function addSlide(after) {
+  const ed = $('editor'), s = mkSlide(true);
+  if (after && after.parentElement === ed) after.after(s); else ed.appendChild(s);
+  ed.focus({ preventScroll: true }); placeCaret(s.firstChild);
+  s.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  markDirty();
+}
+// מחיקה בתחילת שקופית / בסוף שקופית: לא מדביקים שתי שקופיות יחד. שקופית ריקה – נמחקת
+const SLIDE_MEDIA = 'img,table,hr,[data-cv],[data-file],[data-box],ol.tl';
+$('editor').addEventListener('keydown', e => {
+  if (curLayout() !== 'slides' || (e.key !== 'Backspace' && e.key !== 'Delete') || e.isComposing) return;
+  const s = getSelection(); if (!s.rangeCount || !s.isCollapsed) return;
+  const r = s.getRangeAt(0), el = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+  const sl = el && el.closest('[data-slide]'); if (!sl || sl.parentElement !== $('editor')) return;
+  const back = e.key === 'Backspace', edge = back ? sl.firstElementChild : sl.lastElementChild;
+  if (edge && edge !== el && !edge.contains(r.startContainer)) return;          // לא בשורה הראשונה / האחרונה
+  if (edge && /^(UL|OL)$/.test(edge.tagName) && !isEmpty(sl)) return;            // ברשימה: כרגיל (יציאה מהרשימה)
+  const part = document.createRange(); part.selectNodeContents(sl);
+  if (back) part.setEnd(r.startContainer, r.startOffset); else part.setStart(r.startContainer, r.startOffset);
+  if (part.toString().replace(/​/g, '').length || part.cloneContents().querySelector(SLIDE_MEDIA)) return;
+  const other = back ? sl.previousElementSibling : sl.nextElementSibling;
+  e.preventDefault();
+  if (!isSlide(other)) return;
+  const gone = back ? sl : other;
+  if (isEmpty(gone) && !gone.querySelector(SLIDE_MEDIA)) {
+    gone.remove();
+    if (back) { const c = document.createRange(); c.selectNodeContents(other.lastElementChild || other); c.collapse(false); s.removeAllRanges(); s.addRange(c); }
+    markDirty();
+  }
+});
+$('slideAdd').addEventListener('mousedown', e => e.preventDefault());
+$('slideAdd').onclick = () => addSlide(null);
+
+/* ---- דפים: הטקסט עובר לדף הבא כשנגמר המקום ---- */
+// שורה שלא נכנסת בסוף הדף מקבלת רווח למעלה עד הדף הבא. זה רק בתצוגה: clean() מוחק את זה בשמירה
+const pgSheets = document.createElement('div'); pgSheets.className = 'pg-sheets'; pgSheets.setAttribute('aria-hidden', 'true'); pageEl.prepend(pgSheets);
+let pgPushed = [], pgRaf = 0;
+function pgUnpush() { pgPushed.forEach(u => { u.style.marginTop = ''; if (!u.getAttribute('style')) u.removeAttribute('style'); }); pgPushed = []; }
+function pgClear() { cancelAnimationFrame(pgRaf); pgUnpush(); pgSheets.innerHTML = ''; const ed = $('editor'); ed.style.minHeight = ''; ed.style.removeProperty('--pm'); if (!ed.getAttribute('style')) ed.removeAttribute('style'); }
+function pgSchedule() { if (curLayout() !== 'pages') return; cancelAnimationFrame(pgRaf); pgRaf = requestAnimationFrame(paginate); }
+function paginate() {
+  const ed = $('editor'); if (curLayout() !== 'pages' || !edOpen()) return;
+  const W = ed.offsetWidth; if (!W) return;
+  const ph = Math.round(W * 297 / 210), M = Math.round(Math.max(22, Math.min(76, W * .09))), G = W < 500 ? 16 : 26, P = ph + G;
+  if (ed.style.getPropertyValue('--pm') !== M + 'px') ed.style.setProperty('--pm', M + 'px');
+  pgUnpush();
+  const units = [];
+  for (const c of ed.children) {
+    if (/^(UL|OL)$/.test(c.tagName) && !c.classList.contains('tl')) units.push(...[...c.children].filter(x => x.tagName === 'LI'));
+    else units.push(c);
+  }
+  const top0 = ed.getBoundingClientRect().top; let lastB = 0;
+  for (const u of units) {
+    const r = u.getBoundingClientRect(); if (!r.height) continue;
+    let t = r.top - top0; const h = r.height, i = Math.floor(t / P), start = i * P + M, end = i * P + ph - M;
+    // לא נכנס עד סוף הדף (או מתחיל בשוליים של הדף): עובר לראש הדף הבא. משהו גבוה מדף שלם נשאר במקום
+    if (t + h > end + 1 && t > start + 1 && (h <= ph - 2 * M || t > end - 1)) {
+      const target = (i + 1) * P + M, mt = parseFloat(getComputedStyle(u).marginTop) || 0;
+      u.style.marginTop = (mt + target - t) + 'px'; pgPushed.push(u);
+      const t2 = u.getBoundingClientRect().top - top0;
+      if (Math.abs(t2 - target) > .5) u.style.marginTop = (parseFloat(u.style.marginTop) + target - t2) + 'px';
+      t = target;
+    }
+    lastB = Math.max(lastB, t + h);
+  }
+  const n = Math.max(1, Math.ceil((lastB + M + G) / P));
+  const mh = (n * P - G) + 'px'; if (ed.style.minHeight !== mh) ed.style.minHeight = mh;
+  if (pgSheets.children.length !== n) pgSheets.innerHTML = Array.from({ length: n }, (_, k) => `<div class="pg-sheet"><span>${k + 1}</span></div>`).join('');
+  Object.assign(pgSheets.style, { top: ed.offsetTop + 'px', left: ed.offsetLeft + 'px', width: W + 'px' });
+  [...pgSheets.children].forEach((s, k) => { s.style.top = k * P + 'px'; s.style.height = ph + 'px'; });
+}
+new MutationObserver(pgSchedule).observe($('editor'), { childList: true, subtree: true, characterData: true });
+new ResizeObserver(pgSchedule).observe($('editor'));
+$('editor').addEventListener('load', pgSchedule, true);   // תמונה נטענה
+
+function setLayout(lay, convert) {
+  const ed = $('editor'); lay = layoutOf({ layout: lay }); const prev = curLayout();
+  if (lay) { ed.dataset.layout = lay; pageEl.dataset.layout = lay; } else { delete ed.dataset.layout; delete pageEl.dataset.layout; }
+  if (convert && prev !== lay) { if (lay === 'slides') toSlides(); else if (prev === 'slides') fromSlides(); }
+  $('slideAdd').classList.toggle('hidden', lay !== 'slides');
+  if (lay === 'slides') slideFix();
+  pgClear(); if (lay === 'pages') pgSchedule();
+  checkEmpty();
+  const L = LAYOUTS.find(x => x[0] === lay), lb = $('nbLayout');
+  lb.querySelector('span').textContent = L[1]; lb.querySelector('svg').innerHTML = L[3];
+}
+// שינוי הצורה של מחברת פתוחה (מראש המחברת)
+function nbLayoutDialog() {
+  const n = notebooks.find(x => x.id === openId); if (!n) return;
+  dialog(d => {
+    d.innerHTML = '<h3>איך המחברת תיראה?</h3><p>אפשר להחליף מתי שרוצים. שום דבר לא נמחק.</p>';
+    d.appendChild(layoutPicker(layoutOf(n), async k => {
+      if (k === layoutOf(n)) return;
+      n.layout = k; setLayout(k, true); markDirty();
+      try {
+        await updateDoc(nbDoc(n.id), { layout: k });
+        if (n.shareId) updateDoc(shareDoc(n.shareId), { layout: k }).catch(() => {});
+      } catch { toast('לא הצלחתי לשמור את הצורה'); }
+    }));
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
+    d.appendChild(ok);
+  });
+}
+$('nbLayout').onclick = nbLayoutDialog;
 
 
 /* ================= ניווט ================= */
@@ -3033,7 +3207,7 @@ async function shareDialog() {
             if (dirty) await flush();
             const ref = doc(collection(db, 'shares'));
             const nn = notebooks.find(x => x.id === openId) || n;
-            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], mode, createdAt: Date.now(), updatedAt: Date.now() });
+            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], layout: layoutOf(nn), mode, createdAt: Date.now(), updatedAt: Date.now() });
             nn.shareMode = mode;
             if (mode === 'edit') startLive(ref.id, clean($('editor').innerHTML));
             await updateDoc(nbDoc(nn.id), { shareId: ref.id, shareMode: mode });
@@ -3097,7 +3271,7 @@ function openShare(id) {
     if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
-    const b = $('shBody'); b.innerHTML = clean(s.html || '');
+    const b = $('shBody'); b.innerHTML = clean(s.html || ''); b.dataset.layout = layoutOf(s);
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     const editMode = s.mode === 'edit';
@@ -3128,7 +3302,7 @@ async function copyShare(id, s) {
       if (src.exists()) await setDoc(imgDoc(iid), { data: src.data().data, createdAt: Date.now() });
     }
     const ref = doc(nbCol()); const now = Date.now();
-    await setDoc(ref, { title: s.title || 'מחברת', color: s.color || COLORS[0], html, createdAt: now, updatedAt: now });
+    await setDoc(ref, { title: s.title || 'מחברת', color: s.color || COLORS[0], html, ...(layoutOf(s) ? { layout: layoutOf(s) } : {}), createdAt: now, updatedAt: now });
     toast('נשמר עותק במחברות שלך ✓');
     closeShare(); setTimeout(() => openNotebook(ref.id), 300);
   } catch (e) { console.error(e); toast('לא הצלחתי לשמור עותק'); }
@@ -3965,6 +4139,7 @@ function startLive(shareId, baseHtml) {
     if (snap.metadata.hasPendingWrites) return;          // השינוי שלי עוד בדרך
     if (!snap.exists()) { toast('השיתוף בוטל'); stopLive(); if (String(openId).startsWith('share:')) { openId = null; document.body.classList.remove('editing-shared'); showLibrary(); } return; }
     const s = snap.data();
+    if (String(openId).startsWith('share:') && layoutOf(s) !== curLayout()) setLayout(layoutOf(s));
     if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     // השינוי שלי חזר אליי (משווים לשעון של המכשיר הזה בלבד – לא לשעון של החבר, שיכול להיות שונה)
     if (s.html === L.srv || (s.updatedBy === me.uid && (s.updatedAt || 0) <= L.lastSent)) {
@@ -4049,6 +4224,7 @@ function openSharedEdit(id, s) {
   $('app').classList.remove('hidden'); $('login').classList.add('hidden');
   setSave('עריכה משותפת', 'ok');
   setView('notebook', `משותפת · ${s.title || ''}`);
+  setLayout(layoutOf(s));
   document.body.classList.add('editing-shared');
   $('sharedBy').textContent = `של ${s.ownerName || 'חבר'}`;
   renderSide();
