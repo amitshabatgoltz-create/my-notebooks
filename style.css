@@ -2214,3 +2214,16 @@ html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in s
   .opt-fs,.opt-margin{grid-template-columns:repeat(3,1fr)}
   .opt-tpl{grid-template-columns:1fr 1fr}
 }
+
+/* רקע שורות: הטקסט יושב בין הקווים, כמו במחברת (כל שורה בדיוק בגובה של שורה במחברת) */
+:is(.nb-prev,.pg-sheet,#editor[data-layout="slides"]>[data-slide]){background-origin:content-box}
+.nb-prev[data-bg="lines"]>*{line-height:var(--lh)}
+.nb-prev[data-bg="lines"]>b{font-size:1.25em}
+.page[data-bg="lines"] #editor :is(p,li,blockquote,h1,h2,h3){line-height:var(--lh);margin-top:0;margin-bottom:0}
+.page[data-bg="lines"] #editor :is(ul,ol){margin-top:0;margin-bottom:0}
+.page[data-bg="lines"] #editor :is(h1,h2,h3){padding-bottom:0;border-bottom:none}
+.page[data-bg="lines"] #editor :is(h1,h2){margin-top:var(--lh)}
+.page[data-bg="lines"] #editor h1{font-size:1.6em}
+.page[data-bg="lines"] #editor h2{font-size:1.35em}
+.page[data-bg="lines"] #editor h3{font-size:1.1em}
+.page[data-bg="lines"] #editor>:first-child,.page[data-bg="lines"] #editor>[data-slide]>:first-child{margin-top:0}
