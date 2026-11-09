@@ -7491,7 +7491,7 @@ function runTour(custom, onEnd) {           // custom = סיור אחר (למש�
     if (!alive) return; alive = false; if (!custom) tourDone();
     removeEventListener('resize', place); removeEventListener('scroll', place, true); removeEventListener('keydown', key);
     ov.remove(); spot.remove(); bub.remove();
-    if (custom) onEnd && onEnd(finished); else if (finished) tourFinish();
+    if (custom) onEnd && onEnd(finished); else if (finished) tourFinish(); else setTimeout(ttNudge, 400);
   };
   let el = null;
   function place() {
@@ -7528,6 +7528,7 @@ function runTour(custom, onEnd) {           // custom = סיור אחר (למש�
 }
 function tourFinish() {
   track('tour_done', {});
+  if (ttNudge()) return;                   // אין עוד מערכת שעות: קודם מזמינים לשים אותה
   dialog(d => {
     d.classList.add('welcome-dlg');
     d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-spark"/></svg></div><h3>זהו, אתה מוכן!</h3><p>רוצה להתחיל עכשיו?</p>`;
@@ -7538,5 +7539,29 @@ function tourFinish() {
     row.append(a, b, c); d.appendChild(row);
     setTimeout(() => confetti(d.querySelector('.wl-icon')), 200);
   });
+}
+// משתמש חדש בלי מערכת שעות: מסבירים למה כדאי לשים אותה (פעם אחת, אחרי הסיור)
+const ttNudgeKey = () => 'ttNudge:' + (me && me.uid);
+function ttNudge() {
+  if (!me || ttSubjects().length) return false;
+  try { if (localStorage.getItem(ttNudgeKey())) return false; localStorage.setItem(ttNudgeKey(), '1'); } catch {}
+  track('tt_nudge', {});
+  dialog(d => {
+    d.classList.add('welcome-dlg', 'tt-nudge');
+    d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-tt"/></svg></div><h3>עוד צעד אחד: מערכת השעות שלך</h3>
+      <p>לוקח דקה: מצלמים את המערכת מבית הספר (או צילום מסך ממשו"ב), והיא נבנית לבד.</p>
+      <div class="nudge-why">
+        <div><span><svg aria-hidden="true"><use href="#i-hw"/></svg></span><p><b>שיעורי בית בלי לחשוב על תאריך</b>כותבים "ש״ב בהיסטוריה", והם נכנסים ליום של השיעור הבא בהיסטוריה.</p></div>
+        <div><span><svg aria-hidden="true"><use href="#i-spark"/></svg></span><p><b>העוזר הלימודי מכיר את השבוע שלך</b>יודע מה יש לך מחר, ועוזר להתכונן בדיוק לזה.</p></div>
+        <div><span><svg aria-hidden="true"><use href="#i-tt"/></svg></span><p><b>המערכת תמיד איתך</b>בטלפון ובמחשב, בלי לחפש את הדף מבית הספר.</p></div>
+      </div>`;
+    const row = document.createElement('div'); row.className = 'row wl-end';
+    const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = 'לשים את המערכת עכשיו';
+    a.onclick = () => { closeDialog(); track('tt_nudge_yes', {}); setTimeout(() => timetableDialog(), 200); };
+    const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = 'אחר כך';
+    b.onclick = () => { closeDialog(); toast('אפשר תמיד דרך "מערכת שעות" בתפריט'); };
+    row.append(a, b); d.appendChild(row);
+  });
+  return true;
 }
 $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });

@@ -2263,3 +2263,11 @@ html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in s
 .ov-rows[data-r="10"]{height:22px;background-image:repeating-linear-gradient(to bottom,transparent 0 3px,var(--muted) 3px 4px)}
 .ov-rows[data-r="20"]{height:32px}
 .on>.ov-rows{border-color:var(--accent)}
+
+/* הזמנה לשים מערכת שעות (משתמש חדש) */
+.nudge-why{display:flex;flex-direction:column;gap:10px;margin:0 0 18px;text-align:start}
+.nudge-why>div{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:14px;background:var(--side)}
+.nudge-why span{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent)}
+.nudge-why span svg{width:18px;height:18px}
+.nudge-why p{margin:0 !important;font-size:13.5px;line-height:1.45;color:var(--muted)}
+.nudge-why b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:1px}
