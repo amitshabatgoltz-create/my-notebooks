@@ -2340,18 +2340,32 @@ async function runSummary(n, text, images, topics) {
   showSummary(n, html, topics);
 }
 
-function showAiError(e) {
+function showAiError(e, title = 'לא הצלחתי ליצור סיכום') {
   const msg = String(e && (e.message || e.code) || '');
-  let why = 'לא הצלחתי ליצור סיכום. נסה שוב בעוד דקה.';
-  if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
+  const code = String(e && e.code || '');
+  let why = title + '. נסה שוב בעוד דקה.';
+  // תמונה לטקסט: בעיות בקובץ עצמו (נבדקות לפני שהוא נשלח)
+  if (msg === 'heic') why = 'התמונה שמורה בפורמט HEIC של אייפון, והדפדפן הזה לא מצליח לפתוח אותה. אפשר לצלם ישר מהאתר בטלפון, או לשמור את התמונה כ-JPG ולנסות שוב.';
+  else if (msg === 'bad-image') why = 'לא הצלחתי לפתוח את הקובץ כתמונה. נסה תמונה רגילה (JPG או PNG) או צילום מסך.';
+  else if (msg === 'not-image') why = 'אפשר להעלות כאן רק תמונה או PDF.';
+  else if (/too-big|pdf-big|payload|413|request entity/i.test(msg)) why = 'הקבצים גדולים מדי. נסה פחות תמונות בפעם אחת, או PDF קטן יותר.';
+  else if (/blocked: RECITATION|RECITATION/.test(msg)) why = 'זה נראה כמו עמוד מספר מודפס, ו-Google לא מאפשר להעתיק עמוד שלם מילה במילה. נסה לצלם רק חלק מהעמוד.';
+  else if (/blocked: (SAFETY|PROHIBITED|BLOCKLIST|OTHER|IMAGE_SAFETY)/.test(msg)) why = 'Google לא הסכים לקרוא את התמונה הזו. נסה תמונה אחרת, או לצלם רק את הטקסט.';
+  else if (/bad-part|bad-parts|unsupported|mime/i.test(msg)) why = 'סוג הקובץ לא נתמך. נסה תמונה רגילה (JPG או PNG) או PDF.';
+  else if (/deadline|timeout|timed out/i.test(msg + code)) why = 'זה לקח יותר מדי זמן. נסה תמונה אחת בכל פעם, או מצב "מהיר".';
+  else if (/failed to fetch|network|unavailable|offline/i.test(msg + code) || (typeof navigator !== 'undefined' && navigator.onLine === false)) why = 'אין חיבור טוב לאינטרנט. בדוק את החיבור ונסה שוב.';
+  else if (/gemini-credits|prepayment|credits? (are )?depleted/i.test(msg)) why = 'נגמר הקרדיט של Gemini באתר. זה יחזור לעבוד אחרי שמנהל האתר יטען קרדיט.';
+  else if (/unauthenticated|login/i.test(msg + code)) why = 'צריך להתחבר מחדש לחשבון. רענן את הדף ונסה שוב.';
+  else if (msg === 'empty') why = 'לא חזרה תשובה. נסה שוב, או צילום ברור יותר.';
+  else if (/api-not-enabled|not been used|disabled|PERMISSION_DENIED|403/i.test(msg)) why = 'צריך להפעיל את AI Logic בפרויקט ה-Firebase (ראה README, שלב 7).';
   else if (/app.?check|appcheck|attestation/i.test(msg)) why = recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE') ? 'Firebase עדיין לא מזהה את האתר (App Check). בדוק שמפתח ה-reCAPTCHA נשמר ב-App Check ← Apps, וחכה כמה דקות.' : 'צריך להגדיר App Check עם reCAPTCHA כדי שהסיכום יעבוד (ראה README, שלב 7).';
   else if (/daily-limit/.test(msg)) why = 'הגעת למקסימום השימושים ב-AI להיום. מחר אפשר שוב.';
   else if (/minute-limit/.test(msg)) why = 'יותר מדי בקשות בבת אחת. חכה דקה ונסה שוב.';
   else if (/quota|429|RESOURCE_EXHAUSTED/i.test(msg)) why = 'הגעת למגבלת השימוש החינמית לרגע. נסה שוב בעוד כמה דקות.';
   dialog(d => {
-    d.innerHTML = '<h3>לא הצלחתי ליצור סיכום</h3>';
+    d.innerHTML = `<h3>${title}</h3>`;
     const p = document.createElement('p'); p.textContent = why;
-    const small = document.createElement('p'); small.style.fontSize = '12px'; small.textContent = msg.slice(0, 200);
+    const small = document.createElement('p'); small.style.fontSize = '12px'; small.dir = 'ltr'; small.textContent = (msg + (e && e.tried ? ' · ' + e.tried : '')).slice(0, 240);
     const c = document.createElement('button'); c.className = 'btn btn-ghost'; c.textContent = 'סגירה'; c.onclick = closeDialog;
     d.append(p, small, c);
   });
@@ -4826,6 +4840,7 @@ function liveBroadcast(now) {
 
 /* ===== תמונה לטקסט: מצלמים לוח/דף, וה-AI מקליד את זה ===== */
 const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכיתה, דף מחברת בכתב יד או דף מודפס, בעברית (לפעמים גם אנגלית/מתמטיקה).
+התמונות הן צילומים אמיתיים מטלפון: לפעמים בזווית, מסובבות, מטושטשות, עם צל, השתקפות אור על הלוח או כתב יד לא מסודר. אם יש בהן טקסט – קרא אותו בכל זאת, אל תוותר ואל תכתוב שאי אפשר לקרוא.
 הקלד את כל התוכן בדיוק כפי שהוא כתוב, לפי הסדר (מימין לשמאל, מלמעלה למטה; אם יש כמה תמונות – לפי הסדר שלהן).
 החזר HTML נקי בלבד, בלי הסברים ובלי \`\`\`:
 - כותרות: <h2> לכותרת ראשית, <h3> לכותרת משנה.
@@ -4842,6 +4857,30 @@ const OCR_HW = () => { const d = new Date(); return `
 - subject: המקצוע לפי ההקשר (שם המחברת, התוכן). למשל אם מדובר בפסוקים ובמלכים – "תנ"ך".
 - due: רק אם כתוב עד מתי. היום ${todayKey()}, יום ${HE_DAYS[d.getDay()]}. "עד יום חמישי" = יום חמישי הקרוב. "לשבוע הבא" = בעוד 7 ימים. "למחר" = מחר. אם לא כתוב – "".
 - אם אין שיעורי בית בכלל – אל תוסיף את השורה הזו.`; };
+// איזה קובץ זה – גם כשהדפדפן לא יודע (HEIC מאייפון במחשב מגיע לפעמים בלי סוג בכלל)
+function ocrKind(f) {
+  const t = (f.type || '').toLowerCase(), nm = (f.name || '').toLowerCase();
+  if (t === 'application/pdf' || /\.pdf$/.test(nm)) return 'pdf';
+  if (/hei[cf]/.test(t) || /\.hei[cf]$/.test(nm)) return 'heic';
+  if (t.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|avif|tiff?|jfif)$/.test(nm)) return 'img';
+  return '';
+}
+const fileB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('bad-image')); r.readAsDataURL(f); });
+// מכינים קובץ ל-AI: תמונה מוקטנת ל-JPG (הדפדפן מסובב לפי EXIF), PDF כמו שהוא.
+// HEIC שהדפדפן לא יודע לפתוח – Gemini כן יודע לקרוא, אז שולחים אותו כמו שהוא
+async function ocrPart(f, exact) {
+  const k = ocrKind(f);
+  if (k === 'pdf') { if (f.size > 15e6) throw new Error('pdf-big'); return { inlineData: { mimeType: 'application/pdf', data: await fileB64(f) } }; }
+  if (!k) throw new Error('not-image');
+  try {
+    const dd = exact ? await shrink(f, 2600, 3500000) : await shrink(f, 1800, 1500000);
+    if (!/^data:image\/jpeg;base64,./.test(dd)) throw new Error('bad-image');
+    return { inlineData: { mimeType: 'image/jpeg', data: dd.split(',')[1] } };
+  } catch {
+    if (k === 'heic' && f.size < 12e6) return { inlineData: { mimeType: /heif/i.test(f.type + f.name) ? 'image/heif' : 'image/heic', data: await fileB64(f) } };
+    throw new Error(k === 'heic' ? 'heic' : 'bad-image');
+  }
+}
 async function ocrDialog() {
   let n = notebooks.find(x => x.id === openId) || null;
   if (openId && !n && !String(openId).startsWith('share:')) return;
@@ -4858,7 +4897,7 @@ async function ocrDialog() {
         <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ</em><b>מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
       </div>
       <button type="button" class="tt-up" id="ocUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
-      <input type="file" id="ocFile" accept="image/*,application/pdf" multiple hidden>
+      <input type="file" id="ocFile" accept="image/*,.heic,.heif,application/pdf" multiple hidden>
       <div class="oc-thumbs" id="ocThumbs"></div>
       <p class="tt-status" id="ocStatus"></p>`;
     const row = document.createElement('div'); row.className = 'row';
@@ -4871,13 +4910,13 @@ async function ocrDialog() {
     d.querySelector('.oc-modes').onclick = e => { const b = e.target.closest('.oc-mode'); if (!b || go.disabled) return; ocMode = b.dataset.m; try { localStorage.setItem('ocMode', ocMode); } catch {} paintMode(); };
     paintMode();
     const paint = () => {
-      d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="">` : '<span>PDF</span>'}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
+      d.querySelector('#ocThumbs').innerHTML = files.map((f, i) => `<div class="oc-th">${ocrKind(f) === 'img' ? `<img src="${f.url}" alt="">` : `<span>${ocrKind(f) === 'pdf' ? 'PDF' : 'HEIC'}</span>`}<button type="button" data-i="${i}" title="הסרה">✕</button><i>${i + 1}</i></div>`).join('');
       go.classList.toggle('hidden', !files.length); go.textContent = files.length > 1 ? `להקליד ${files.length} תמונות` : 'להקליד את זה';
     };
     d.querySelector('#ocThumbs').onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; files.splice(+b.dataset.i, 1); paint(); };
     d.querySelector('#ocUp').onclick = () => d.querySelector('#ocFile').click();
     const maxImgs = Math.min(OCR_MAX_IMGS, left);
-    d.querySelector('#ocFile').onchange = ev => { const add = [...ev.target.files]; const room = maxImgs - files.length; if (add.length > room) toast(left < OCR_MAX_IMGS ? `נשארו לך היום ${left === 1 ? 'תמונה אחת' : left + ' תמונות'}` : `אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
+    d.querySelector('#ocFile').onchange = ev => { const all = [...ev.target.files]; const add = all.filter(f => ocrKind(f)); if (add.length < all.length) toast('אפשר להעלות כאן רק תמונות או PDF'); const room = maxImgs - files.length; if (add.length > room) toast(left < OCR_MAX_IMGS ? `נשארו לך היום ${left === 1 ? 'תמונה אחת' : left + ' תמונות'}` : `אפשר עד ${OCR_MAX_IMGS} תמונות בפעם אחת`); add.slice(0, Math.max(0, room)).forEach(f => files.push(Object.assign(f, { url: URL.createObjectURL(f) }))); ev.target.value = ''; paint(); };
     go.onclick = async () => {
       if (!files.length) return;
       let mode = '';
@@ -4887,10 +4926,9 @@ async function ocrDialog() {
       const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? 'קורא בעיון ובודק את עצמו... (בערך 25 שניות)' : 'מקליד מהר... (בערך 5 שניות)');
       try {
         const parts = [];
-        for (const f of files) {
-          if (/^image\//.test(f.type)) { const dd = exact ? await shrink(f, 2600, 3500000) : await shrink(f, 1800, 1500000); parts.push({ inlineData: { mimeType: (dd.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: dd.split(',')[1] } }); }
-          else parts.push({ inlineData: { mimeType: 'application/pdf', data: await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); }) } });
-        }
+        for (const f of files) parts.push(await ocrPart(f, exact));
+        // השרת מקבל עד 24MB בבקשה אחת
+        if (parts.reduce((s, p) => s + p.inlineData.data.length, 0) > 20e6) throw new Error('too-big');
         let txt = '', lastErr = null;
         // כאן דיוק חשוב יותר ממהירות (יש רק 3 ביום): מודל מלא, עם זמן "חשיבה", והקשר מהמחברת
         const ctxTitle = n ? (n.title || '') : openId ? $('title').value : '';
@@ -4906,12 +4944,16 @@ async function ocrDialog() {
         const fullPrompt = OCR_PROMPT + ctx + '\n' + OCR_HW() + '\n' + OCR_TITLE;
         // קריאה שנייה במקביל (לא מוסיפה זמן): מה שהשתיים קראו אחרת – מסומן לבדיקה
         aiKindNow = 'ocr';
+        // ב-Gemini 3.5 Flash-Lite ברירת המחדל היא כמעט בלי "חשיבה", וזה מה שגרם לו לא להבין תמונות.
+        // thinkingLevel + רזולוציה גבוהה (השרת החדש מעביר אותם; השרת הישן מתעלם ומשתמש ב-thinkingBudget).
+        // התמונות לפני ההוראות – כך Gemini ממליץ
+        const ocCfg = (budget, level) => ({ temperature: 0.2, thinkingConfig: { thinkingBudget: budget, thinkingLevel: level }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' });
         const second = exact
-          ? aiText(aiModels(true), { temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '')
-          : aiText(aiModels(false), { temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }, [OCR_PROMPT + ctx, ...parts]).catch(() => '');
+          ? aiText(aiModels(true), ocCfg(2048, 'medium'), [...parts, OCR_PROMPT + ctx]).catch(() => '')
+          : aiText(aiModels(false), ocCfg(0, 'minimal'), [...parts, OCR_PROMPT + ctx]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(aiModels(true), { temperature: 0.1, thinkingConfig: { thinkingBudget: exact ? 8192 : 0 } }, [fullPrompt, ...parts], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        try { txt = await aiText(aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
         if (txt) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
@@ -4925,7 +4967,7 @@ async function ocrDialog() {
         files.forEach(f => URL.revokeObjectURL(f.url));
         useOne('ocr', files.length);
         closeDialog(); ocrResult(n, html, title, hw, mode);
-      } catch (e) { stop(); console.error(e); showAiError(e); }
+      } catch (e) { stop(); console.error(e); showAiError(e, 'לא הצלחתי לקרוא את התמונה'); }
     };
   });
 }

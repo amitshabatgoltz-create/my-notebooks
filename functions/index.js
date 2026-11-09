@@ -48,8 +48,14 @@ function cleanConfig(c) {
   const out = {};
   if (c && typeof c.temperature === 'number') out.temperature = Math.min(2, Math.max(0, c.temperature));
   if (c && (c.responseMimeType === 'application/json' || c.responseMimeType === 'text/plain')) out.responseMimeType = c.responseMimeType;
+  // מודלים של Gemini 3 ומעלה עובדים עם thinkingLevel (ב-3.5 Flash-Lite ברירת המחדל היא minimal – כמעט בלי חשיבה).
+  // אם האתר שלח רמה – משתמשים בה (אסור לשלוח את שניהם יחד), ואם לא – בתקציב הישן
+  const tl = c && c.thinkingConfig && c.thinkingConfig.thinkingLevel;
   const tb = c && c.thinkingConfig && c.thinkingConfig.thinkingBudget;
-  if (Number.isInteger(tb)) out.thinkingConfig = { thinkingBudget: Math.min(8192, Math.max(0, tb)) };
+  if (['minimal', 'low', 'medium', 'high'].includes(tl)) out.thinkingConfig = { thinkingLevel: tl.toUpperCase() };
+  else if (Number.isInteger(tb)) out.thinkingConfig = { thinkingBudget: Math.min(8192, Math.max(0, tb)) };
+  // רזולוציה של תמונות (לקריאת כתב יד ולוח – HIGH)
+  if (c && ['MEDIA_RESOLUTION_LOW', 'MEDIA_RESOLUTION_MEDIUM', 'MEDIA_RESOLUTION_HIGH'].includes(c.mediaResolution)) out.mediaResolution = c.mediaResolution;
   return out;
 }
 
@@ -131,7 +137,15 @@ exports.ai = onCall({
     // קישורים בהודעה (urls): Gemini נכנס לדפים וקורא אותם. אפשר יחד עם חיפוש ב-Google
     const tools = [...(urls === true ? [{ urlContext: {} }] : []), ...(search === true ? [{ googleSearch: {} }] : [])];
     if (tools.length) { try { return await run({ ...config, tools }); } catch (e) { if (sent) throw e; console.warn('tools failed, trying without', String(e && e.message).slice(0, 200)); } }
-    return await run(config);
+    try { return await run(config); }
+    catch (e) {
+      // המודל לא קיבל thinkingLevel / mediaResolution – מנסים שוב בדרך הישנה
+      if (sent || !(config.thinkingConfig?.thinkingLevel || config.mediaResolution)) throw e;
+      console.warn('level failed, trying budget', String(e && e.message).slice(0, 200));
+      const { mediaResolution, thinkingConfig, ...rest } = config;
+      const tb = cfg && cfg.thinkingConfig && cfg.thinkingConfig.thinkingBudget;
+      return await run(Number.isInteger(tb) ? { ...rest, thinkingConfig: { thinkingBudget: Math.min(8192, Math.max(0, tb)) } } : rest);
+    }
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     const msg = String(e && e.message || e).slice(0, 300);
