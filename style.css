@@ -2142,3 +2142,75 @@ html:not([data-theme="dark"]) .page[data-layout="pages"] .pg-sheet{border-color:
   .ed-top .btn:not(.btn-sum){padding-inline:9px}
   .save{min-width:0;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* ---------- הגדרות מחברת: חלון בשלבים, רקע, גופן, גודל ---------- */
+.dialog.nb-wiz{max-width:520px;display:flex;flex-direction:column;padding-bottom:18px}
+.wz-head small{display:block;font-size:12.5px;color:var(--muted);margin:8px 0 2px}
+.wz-head p{margin-bottom:12px !important}
+.wz-dots{display:flex;gap:6px}
+.wz-dots i{height:5px;flex:1;border-radius:5px;background:var(--line);transition:background .2s}
+.wz-dots i.on,.wz-dots i.done{background:var(--accent)}
+.wz-dots i.done{opacity:.45}
+.wz-body{flex:1;min-height:0;overflow:auto;margin:0 -6px;padding:2px 6px}
+.wz-row{margin-top:14px;align-items:center}
+.wz-now{margin-inline-start:auto;color:var(--muted)}
+.nb-set .set-sec{margin-bottom:16px}
+.nb-set .set-sec .lay-pick,.nb-set .set-sec .picker{margin-bottom:0}
+.set-lab{font-weight:700;font-size:14px;margin-bottom:7px}
+.set-chips{display:flex;flex-wrap:wrap;gap:6px}
+.set-chips .sj-chip{padding:6px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);font-size:14px;color:var(--ink)}
+.set-chips .sj-chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.opt-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.opt-orient,.opt-margin,.opt-fs{grid-template-columns:repeat(3,1fr)}
+.opt-orient{grid-template-columns:repeat(2,1fr)}
+.opt-tpl{grid-template-columns:repeat(2,1fr)}
+.opt-grid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);text-align:center;min-height:44px;transition:border-color .15s,background .15s}
+.opt-grid button:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.opt-grid button.on{border-color:var(--accent);background:var(--accent-soft)}
+.opt-grid b{font-size:13.5px;line-height:1.3}
+.opt-grid small{font-size:11.5px;color:var(--muted);line-height:1.3}
+.opt-tpl button{align-items:flex-start;text-align:start;padding:10px 12px}
+.ov-bg{display:block;width:44px;height:34px;border-radius:6px;border:1px solid var(--line);background-color:var(--surface)}
+.ov-or{display:block;width:26px;height:36px;border-radius:4px;border:2px solid currentColor;color:var(--muted)}
+.ov-or.land{width:38px;height:27px;margin:4px 0 5px}
+.on>.ov-or{color:var(--accent)}
+.ov-mg{display:block;width:30px;height:40px;border-radius:4px;border:2px solid var(--muted);padding:6px 5px}
+.ov-mg[data-m="narrow"]{padding:3px}.ov-mg[data-m="wide"]{padding:9px 8px}
+.ov-mg i{display:block;width:100%;height:100%;border-radius:2px;background:repeating-linear-gradient(to bottom,var(--muted) 0 2px,transparent 2px 5px);opacity:.6}
+.ov-font{display:block;font-style:normal;font-size:22px;line-height:1.2}
+.ov-fs{display:block;font-style:normal;font-weight:700;line-height:1.2;font-size:22px}
+.ov-fs[data-fs="s"]{font-size:16px}.ov-fs[data-fs="l"]{font-size:30px}
+.nb-prev{border:1px solid var(--line);border-radius:12px;padding:12px 16px;background-color:var(--surface);font-size:17px;line-height:1.75;--lh:29.75px}
+.nb-prev b{display:block;font-size:1.3em;line-height:1.35}
+.nb-prev span{display:block}
+.nb-prev[data-fs="s"]{font-size:15px;--lh:26.25px}.nb-prev[data-fs="l"]{font-size:20px;--lh:35px}
+
+/* גופנים וגודל טקסט */
+:is(#editor,#shBody,.nb-prev,.ov-font)[data-font="clean"]{font-family:'Assistant',system-ui,sans-serif}
+:is(#editor,#shBody,.nb-prev,.ov-font)[data-font="round"]{font-family:'Varela Round',system-ui,sans-serif}
+:is(#editor,#shBody,.nb-prev,.ov-font)[data-font="hand"]{font-family:'Amatic SC',system-ui,sans-serif;font-weight:700}
+:is(#editor,#shBody)[data-font="hand"]{font-size:21px}
+.nb-prev[data-font="hand"]{font-size:21px}
+:is(#editor,#shBody)[data-fs="s"]{font-size:15px}
+:is(#editor,#shBody)[data-fs="l"]{font-size:20px}
+:is(#editor,#shBody)[data-font="hand"][data-fs="s"]{font-size:18px}
+:is(#editor,#shBody)[data-font="hand"][data-fs="l"]{font-size:25px}
+
+/* רקע לדף: שורות / משבצות / נקודות */
+.page,#shBody{--lh:29.75px;--rule:color-mix(in srgb,var(--accent) 16%,var(--line))}
+.page[data-fs="s"]{--lh:26.25px}.page[data-fs="l"]{--lh:35px}
+.page[data-font="hand"]{--lh:36.75px}.page[data-font="hand"][data-fs="s"]{--lh:31.5px}.page[data-font="hand"][data-fs="l"]{--lh:43.75px}
+@media (max-width:820px){.page:not([data-fs]):not([data-font="hand"]){--lh:28.875px}}
+html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in srgb,var(--accent) 22%,var(--line))}
+:is(.ov-bg,.nb-prev){--rule:color-mix(in srgb,var(--accent) 22%,var(--line))}
+[data-bg="lines"]:is(.ov-bg,.nb-prev),.page[data-bg="lines"]:not([data-layout]) #editor,.page[data-bg="lines"] .pg-sheet,.page[data-bg="lines"] #editor[data-layout="slides"]>[data-slide]{background-image:linear-gradient(to bottom,transparent calc(var(--lh) - 1px),var(--rule) calc(var(--lh) - 1px));background-size:100% var(--lh)}
+[data-bg="grid"]:is(.ov-bg,.nb-prev),.page[data-bg="grid"]:not([data-layout]) #editor,.page[data-bg="grid"] .pg-sheet,.page[data-bg="grid"] #editor[data-layout="slides"]>[data-slide]{background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);background-size:24px 24px}
+[data-bg="dots"]:is(.ov-bg,.nb-prev),.page[data-bg="dots"]:not([data-layout]) #editor,.page[data-bg="dots"] .pg-sheet,.page[data-bg="dots"] #editor[data-layout="slides"]>[data-slide]{background-image:radial-gradient(circle,var(--rule) 1.3px,transparent 1.7px);background-size:22px 22px}
+.ov-bg[data-bg="lines"]{--lh:8px}.ov-bg[data-bg="grid"]{background-size:8px 8px}.ov-bg[data-bg="dots"]{background-size:7px 7px}
+.page[data-bg] .pg-sheet{background-position:0 var(--pm,0)}
+.page[data-bg]:not([data-layout]) #editor{border-radius:8px}
+@media (max-width:600px){
+  .opt-grid{grid-template-columns:repeat(2,1fr)}
+  .opt-fs,.opt-margin{grid-template-columns:repeat(3,1fr)}
+  .opt-tpl{grid-template-columns:1fr 1fr}
+}

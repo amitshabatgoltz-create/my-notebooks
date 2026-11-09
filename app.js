@@ -382,7 +382,7 @@ function openNotebook(id) {
   applyBoxSizes($('editor'));
   setSave('נשמר בענן', 'ok');
   setView('notebook', 'מחברות › ' + (n.title || ''));
-  setLayout(layoutOf(n));
+  applyLook(n);
   renderSide();
   document.body.classList.remove('editing-shared');
   stopLive();
@@ -412,34 +412,55 @@ function nbColorDialog() {
 $('nbColor').onclick = nbColorDialog;
 $('docColor').onclick = nbColorDialog;
 
+// מחברת חדשה: חלון הגדרות בשלבים (שם ומקצוע ← צורה ← דף ← כתב ← תבנית). בכל שלב יש ברירת מחדל, ו"יצירה" זמינה תמיד
 function newNotebook() {
-  let color = COLORS[notebooks.length % COLORS.length], layout = '';
+  const st = { title: '', subject: '', color: COLORS[notebooks.length % COLORS.length], layout: '', bg: '', orient: '', margin: '', font: '', fs: '', tpl: '' };
+  let step = 0;
   dialog(d => {
-    d.innerHTML = '<h3>מחברת חדשה</h3><p>איך לקרוא למחברת?</p>';
-    const inp = document.createElement('input'); inp.placeholder = 'למשל: מחברת היסטוריה';
-    const pick = document.createElement('div'); pick.className = 'picker';
-    COLORS.forEach(c => {
-      const s = document.createElement('button'); s.style.background = c; if (c === color) s.classList.add('on');
-      s.onclick = () => { color = c; [...pick.children].forEach(x => x.classList.remove('on')); s.classList.add('on'); };
-      pick.appendChild(s);
-    });
-    const row = document.createElement('div'); row.className = 'row';
-    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יצירה';
-    const cancel = document.createElement('button'); cancel.className = 'btn btn-ghost'; cancel.textContent = 'ביטול'; cancel.onclick = closeDialog;
-    const go = async () => {
-      ok.disabled = true;
+    d.classList.add('nb-wiz');
+    const head = document.createElement('div'); head.className = 'wz-head';
+    const body = document.createElement('div'); body.className = 'wz-body';
+    const row = document.createElement('div'); row.className = 'row wz-row';
+    const next = document.createElement('button'); next.className = 'btn btn-primary';
+    const back = document.createElement('button'); back.className = 'btn btn-ghost'; back.textContent = 'חזרה';
+    const now = document.createElement('button'); now.className = 'btn btn-ghost wz-now'; now.textContent = 'יצירה עכשיו';
+    const STEPS = [
+      ['מחברת חדשה', 'איך קוראים לה, ובאיזה מקצוע?', b => {
+        const inp = document.createElement('input'); inp.placeholder = 'למשל: מחברת היסטוריה'; inp.value = st.title; inp.setAttribute('aria-label', 'שם המחברת');
+        inp.oninput = () => { st.title = inp.value; };
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(1); } });
+        b.append(inp, nbSettingsUI(st, () => {}, ['subject', 'color']));
+        setTimeout(() => inp.focus(), 30);
+      }],
+      ['איך המחברת תיראה?', 'אפשר להחליף אחר כך מראש המחברת.', b => b.append(nbSettingsUI(st, () => paint(), ['layout']))],
+      ['הדף', 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : ''), b => b.append(nbSettingsUI(st, () => paint(), ['bg', 'orient', 'margin'], true))],
+      ['הכתב', 'גופן וגודל טקסט', b => b.append(nbSettingsUI(st, () => paint(), ['font', 'fs'], true))],
+      ['להתחיל עם תבנית?', 'או דף ריק', b => b.append(nbSettingsUI(st, () => {}, ['tpl']))],
+    ];
+    const paint = () => {
+      const [h, sub, build] = STEPS[step];
+      head.innerHTML = `<div class="wz-dots" aria-hidden="true">${STEPS.map((_, i) => `<i${i === step ? ' class="on"' : i < step ? ' class="done"' : ''}></i>`).join('')}</div><small>שלב ${step + 1} מתוך ${STEPS.length}</small><h3></h3><p></p>`;
+      head.querySelector('h3').textContent = h; head.querySelector('p').textContent = typeof sub === 'function' ? sub() : (step === 2 ? 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : '') : sub);
+      const y = body.scrollTop; body.innerHTML = ''; build(body); body.scrollTop = y;
+      next.textContent = step === STEPS.length - 1 ? 'יצירה' : 'הבא';
+      back.classList.toggle('hidden', step === 0); now.classList.toggle('hidden', step === STEPS.length - 1);
+    };
+    const go = k => { if (step + k >= STEPS.length) return create(); step = Math.max(0, step + k); body.scrollTop = 0; paint(); };
+    const create = async () => {
+      [next, now].forEach(x => { x.disabled = true; });
       try {
-        const ref = doc(nbCol()); const now = Date.now();
-        await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color, html: layout === 'slides' ? SLIDE_EMPTY : '', ...(layout ? { layout } : {}), createdAt: now, updatedAt: now });
+        const ref = doc(nbCol()); const t = Date.now();
+        let html = st.tpl && TPL[st.tpl] ? clean(TPL[st.tpl]()) + '<p><br></p>' : '';
+        if (st.layout === 'slides') html = html ? `<div data-slide="">${html}</div>` : SLIDE_EMPTY;
+        const look = {}; NB_KEYS.forEach(k => { if (st[k]) look[k] = st[k]; });
+        await setDoc(ref, { title: st.title.trim() || st.subject || 'מחברת חדשה', color: st.color, html, ...look, ...(st.subject ? { subject: st.subject } : {}), createdAt: t, updatedAt: t });
         closeDialog();
         const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100);
         wait();
-      } catch (e) { ok.disabled = false; toast('לא הצלחתי ליצור את המחברת'); }
+      } catch (e) { [next, now].forEach(x => { x.disabled = false; }); toast('לא הצלחתי ליצור את המחברת'); }
     };
-    ok.onclick = go; inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-    const lh = document.createElement('p'); lh.className = 'lay-h'; lh.textContent = 'איך המחברת תיראה?';
-    const lp = layoutPicker(layout, k => { layout = k; });
-    row.append(ok, cancel); d.append(inp, pick, lh, lp, row); setTimeout(() => inp.focus(), 30);
+    next.onclick = () => go(1); back.onclick = () => go(-1); now.onclick = create;
+    row.append(next, back, now); d.append(head, body, row); paint();
   });
 }
 
@@ -1598,7 +1619,9 @@ function pgSchedule() { if (curLayout() !== 'pages') return; cancelAnimationFram
 function paginate() {
   const ed = $('editor'); if (curLayout() !== 'pages' || !edOpen()) return;
   const W = ed.offsetWidth; if (!W) return;
-  const ph = Math.round(W * 297 / 210), M = Math.round(Math.max(22, Math.min(76, W * .09))), G = W < 500 ? 16 : 26, P = ph + G;
+  const land = ed.dataset.orient === 'land', mg = { narrow: [.05, 40], wide: [.13, 110] }[ed.dataset.margin] || [.09, 76];
+  const ph = Math.round(W * (land ? 210 / 297 : 297 / 210)), M = Math.round(Math.max(land ? 16 : 20, Math.min(mg[1], W * mg[0]))), G = W < 500 ? 16 : 26, P = ph + G;
+  pgSheets.style.setProperty('--pm', M + 'px');
   if (ed.style.getPropertyValue('--pm') !== M + 'px') ed.style.setProperty('--pm', M + 'px');
   pgUnpush();
   const units = [];
@@ -1638,27 +1661,104 @@ function setLayout(lay, convert) {
   if (lay === 'slides') slideFix();
   pgClear(); if (lay === 'pages') pgSchedule();
   checkEmpty();
-  const L = LAYOUTS.find(x => x[0] === lay), lb = $('nbLayout');
-  lb.querySelector('span').textContent = L[1]; lb.querySelector('svg').innerHTML = L[3];
 }
-// שינוי הצורה של מחברת פתוחה (מראש המחברת)
-function nbLayoutDialog() {
+/* ---- הגדרות המחברת: רקע, כיוון, שוליים, גופן, גודל (נשמרות על המחברת) ---- */
+const NB_KEYS = ['layout', 'bg', 'orient', 'margin', 'font', 'fs'];
+const NB_OPTS = {
+  bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות']]],
+  orient: ['כיוון הדף', [['', 'לאורך'], ['land', 'לרוחב']]],
+  margin: ['שוליים', [['narrow', 'צרים'], ['', 'רגילים'], ['wide', 'רחבים']]],
+  font: ['גופן', [['', 'רגיל'], ['clean', 'נקי'], ['round', 'עגול'], ['hand', 'כתב יד']]],
+  fs: ['גודל טקסט', [['s', 'קטן'], ['', 'רגיל'], ['l', 'גדול']]],
+  tpl: ['תבנית', [['', 'ריקה', 'דף ריק'], ['lesson', 'סיכום שיעור', 'מה למדנו, מושגים, שאלות'], ['cornell', 'דף קורנל', 'מילות מפתח וסיכום'], ['lab', 'דוח מעבדה', 'השערה, ניסוי, תוצאות'], ['vocab', 'מילים חדשות', 'מילה, פירוש, משפט'], ['pros', 'בעד ונגד', 'השוואה בטבלה'], ['todo', 'רשימת משימות', 'עם וי']]],
+};
+const SUBJ_BASE = ['מתמטיקה', 'אנגלית', 'עברית', 'היסטוריה', 'תנ"ך', 'מדעים', 'ספרות', 'אזרחות', 'גאוגרפיה', 'פיזיקה', 'כימיה', 'ביולוגיה'];
+function lookOf(n) {
+  const o = {}; NB_KEYS.forEach(k => { const v = n && n[k]; o[k] = k === 'layout' ? layoutOf(n) : (NB_OPTS[k][1].some(([x]) => x && x === v) ? v : ''); });
+  return o;
+}
+function curLook() { const ed = $('editor'), o = {}; NB_KEYS.forEach(k => { o[k] = ed.dataset[k] || ''; }); return o; }
+function applyLook(look, convert) {
+  const ed = $('editor'); look = lookOf(look);
+  setLayout(look.layout, convert);
+  ['bg', 'orient', 'margin', 'font', 'fs'].forEach(k => {
+    if (look[k]) { ed.dataset[k] = look[k]; pageEl.dataset[k] = look[k]; } else { delete ed.dataset[k]; delete pageEl.dataset[k]; }
+  });
+  pgSchedule();
+}
+// הכרטיסים של ההגדרות (בחלון של מחברת חדשה, ובהגדרות של מחברת קיימת). st משתנה במקום
+function nbSettingsUI(st, onChange, keys, preview) {
+  const w = document.createElement('div'); w.className = 'nb-set';
+  const render = () => {
+    w.innerHTML = '';
+    keys.forEach(k => {
+      if ((k === 'orient' || k === 'margin') && st.layout !== 'pages') return;
+      const sec = document.createElement('div'); sec.className = 'set-sec';
+      const lab = document.createElement('div'); lab.className = 'set-lab'; sec.appendChild(lab);
+      const pick = (v, el, grid) => { st[k] = v; [...grid.children].forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-checked', String(x === el)); }); onChange(k, v); if (k === 'layout' || preview) render(); };
+      if (k === 'layout') { lab.textContent = 'צורה'; sec.appendChild(layoutPicker(st.layout, v => { st.layout = v; onChange(k, v); render(); })); }
+      else if (k === 'color') {
+        lab.textContent = 'צבע';
+        const g = document.createElement('div'); g.className = 'picker';
+        COLORS.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === st.color) s.classList.add('on'); s.onclick = () => { st.color = c; [...g.children].forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g.appendChild(s); });
+        sec.appendChild(g);
+      } else if (k === 'subject') {
+        lab.textContent = 'מקצוע';
+        const list = [...new Set([...(typeof ttSubjects === 'function' ? ttSubjects() : []), ...SUBJ_BASE])].slice(0, 18);
+        if (st.subject && !list.includes(st.subject)) list.unshift(st.subject);
+        const g = document.createElement('div'); g.className = 'set-chips'; g.setAttribute('role', 'radiogroup');
+        [['', 'בלי'], ...list.map(x => [x, x])].forEach(([v, t]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'sj-chip' + (v === st.subject ? ' on' : ''); b.textContent = t; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(v === st.subject));
+          b.onclick = () => pick(v, b, g); g.appendChild(b);
+        });
+        sec.appendChild(g);
+      } else {
+        const [t, opts] = NB_OPTS[k]; lab.textContent = t;
+        const g = document.createElement('div'); g.className = 'opt-grid opt-' + k; g.setAttribute('role', 'radiogroup');
+        opts.forEach(([v, name, sub]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio');
+          const on = v === (st[k] || ''); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
+          const vis = k === 'bg' ? `<i class="ov-bg" data-bg="${v}"></i>` : k === 'orient' ? `<i class="ov-or${v ? ' land' : ''}"></i>` : k === 'margin' ? `<i class="ov-mg" data-m="${v}"><i></i></i>`
+            : k === 'font' ? `<i class="ov-font" data-font="${v}">אבג</i>` : k === 'fs' ? `<i class="ov-fs" data-fs="${v}">א</i>` : '';
+          b.innerHTML = `${vis}<b>${name}</b>${sub ? `<small>${sub}</small>` : ''}`;
+          b.onclick = () => pick(v, b, g); g.appendChild(b);
+        });
+        sec.appendChild(g);
+      }
+      w.appendChild(sec);
+    });
+    if (preview) {
+      const p = document.createElement('div'); p.className = 'nb-prev'; p.setAttribute('aria-hidden', 'true');
+      ['bg', 'font', 'fs'].forEach(k => { if (st[k]) p.dataset[k] = st[k]; });
+      p.innerHTML = '<b>כותרת לדוגמה</b><span>ככה ייראה הטקסט במחברת שלך.</span><span>שורה שנייה של טקסט.</span>';
+      const sec = document.createElement('div'); sec.className = 'set-sec'; sec.innerHTML = '<div class="set-lab">איך זה ייראה</div>'; sec.appendChild(p); w.appendChild(sec);
+    }
+  };
+  render(); return w;
+}
+// הגדרות של מחברת פתוחה (מראש המחברת): משתנה מיד ונשמר
+function nbSettingsDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
+  const st = { ...lookOf(n), color: n.color || COLORS[0], subject: n.subject || '' };
   dialog(d => {
-    d.innerHTML = '<h3>איך המחברת תיראה?</h3><p>אפשר להחליף מתי שרוצים. שום דבר לא נמחק.</p>';
-    d.appendChild(layoutPicker(layoutOf(n), async k => {
-      if (k === layoutOf(n)) return;
-      n.layout = k; setLayout(k, true); markDirty();
+    d.classList.add('nb-wiz');
+    d.innerHTML = '<h3>הגדרות המחברת</h3><p>כל שינוי נשמר מיד. שום דבר לא נמחק.</p>';
+    const body = document.createElement('div'); body.className = 'wz-body';
+    body.appendChild(nbSettingsUI(st, async (k, v) => {
+      n[k] = v;
+      if (k === 'color') { $('docColor').style.setProperty('--c', v); $('nbColorDot').style.background = v; renderSide(); }
+      else if (k !== 'subject') { applyLook(n, k === 'layout'); if (k === 'layout') markDirty(); }
       try {
-        await updateDoc(nbDoc(n.id), { layout: k });
-        if (n.shareId) updateDoc(shareDoc(n.shareId), { layout: k }).catch(() => {});
-      } catch { toast('לא הצלחתי לשמור את הצורה'); }
-    }));
+        await updateDoc(nbDoc(n.id), { [k]: v });
+        if (n.shareId && k !== 'subject') updateDoc(shareDoc(n.shareId), { [k]: v }).catch(() => {});
+      } catch { toast('לא הצלחתי לשמור את ההגדרה'); }
+    }, ['layout', 'bg', 'orient', 'margin', 'font', 'fs', 'color', 'subject'], true));
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
-    d.appendChild(ok);
+    const row = document.createElement('div'); row.className = 'row wz-row'; row.appendChild(ok);
+    d.append(body, row);
   });
 }
-$('nbLayout').onclick = nbLayoutDialog;
+$('nbLayout').onclick = nbSettingsDialog;
 
 
 /* ================= ניווט ================= */
@@ -3207,7 +3307,7 @@ async function shareDialog() {
             if (dirty) await flush();
             const ref = doc(collection(db, 'shares'));
             const nn = notebooks.find(x => x.id === openId) || n;
-            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], layout: layoutOf(nn), mode, createdAt: Date.now(), updatedAt: Date.now() });
+            await setDoc(ref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: nn.id, title: $('title').value.trim() || nn.title || 'מחברת', html: clean($('editor').innerHTML), color: nn.color || COLORS[0], ...lookOf(nn), mode, createdAt: Date.now(), updatedAt: Date.now() });
             nn.shareMode = mode;
             if (mode === 'edit') startLive(ref.id, clean($('editor').innerHTML));
             await updateDoc(nbDoc(nn.id), { shareId: ref.id, shareMode: mode });
@@ -3271,7 +3371,7 @@ function openShare(id) {
     if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]);
-    const b = $('shBody'); b.innerHTML = clean(s.html || ''); b.dataset.layout = layoutOf(s);
+    const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); }
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     const editMode = s.mode === 'edit';
@@ -3302,7 +3402,7 @@ async function copyShare(id, s) {
       if (src.exists()) await setDoc(imgDoc(iid), { data: src.data().data, createdAt: Date.now() });
     }
     const ref = doc(nbCol()); const now = Date.now();
-    await setDoc(ref, { title: s.title || 'מחברת', color: s.color || COLORS[0], html, ...(layoutOf(s) ? { layout: layoutOf(s) } : {}), createdAt: now, updatedAt: now });
+    await setDoc(ref, { title: s.title || 'מחברת', color: s.color || COLORS[0], html, ...Object.fromEntries(Object.entries(lookOf(s)).filter(([, v]) => v)), createdAt: now, updatedAt: now });
     toast('נשמר עותק במחברות שלך ✓');
     closeShare(); setTimeout(() => openNotebook(ref.id), 300);
   } catch (e) { console.error(e); toast('לא הצלחתי לשמור עותק'); }
@@ -4139,7 +4239,7 @@ function startLive(shareId, baseHtml) {
     if (snap.metadata.hasPendingWrites) return;          // השינוי שלי עוד בדרך
     if (!snap.exists()) { toast('השיתוף בוטל'); stopLive(); if (String(openId).startsWith('share:')) { openId = null; document.body.classList.remove('editing-shared'); showLibrary(); } return; }
     const s = snap.data();
-    if (String(openId).startsWith('share:') && layoutOf(s) !== curLayout()) setLayout(layoutOf(s));
+    if (String(openId).startsWith('share:') && JSON.stringify(lookOf(s)) !== JSON.stringify(curLook())) applyLook(s);
     if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     // השינוי שלי חזר אליי (משווים לשעון של המכשיר הזה בלבד – לא לשעון של החבר, שיכול להיות שונה)
     if (s.html === L.srv || (s.updatedBy === me.uid && (s.updatedAt || 0) <= L.lastSent)) {
@@ -4224,7 +4324,7 @@ function openSharedEdit(id, s) {
   $('app').classList.remove('hidden'); $('login').classList.add('hidden');
   setSave('עריכה משותפת', 'ok');
   setView('notebook', `משותפת · ${s.title || ''}`);
-  setLayout(layoutOf(s));
+  applyLook(s);
   document.body.classList.add('editing-shared');
   $('sharedBy').textContent = `של ${s.ownerName || 'חבר'}`;
   renderSide();
