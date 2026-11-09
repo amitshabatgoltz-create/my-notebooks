@@ -2252,7 +2252,7 @@ html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in s
 .page[data-layout="pages"] .pg-nav.row{position:relative;top:auto;left:auto;width:auto;bottom:auto;margin:0 0 12px;z-index:5;padding:6px;border-radius:14px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .pg-nav.row .pg-nav-in{position:static;flex-direction:row;align-items:center;max-height:none}
 .pg-nav.row .pg-nav-h{display:none}
-.pg-nav.row .pg-list{flex-direction:row;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden}
+.pg-nav.row .pg-list{flex-direction:row;flex:0 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden}
 .pg-nav.row .pg-item{width:38px;padding:3px}
 .pg-nav.row .pg-item i{display:none}
 .pg-nav.row .pg-item b{position:static;display:grid;place-items:center;height:100%}
