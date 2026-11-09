@@ -1146,6 +1146,8 @@ const AI_VIA_SERVER = true;
 let aiKindNow = 'chat';
 // לבקש מהשרת חיפוש ב-Google (מקורות אמיתיים). המקורות שחזרו נשמרים ב-aiLastSrc
 let aiSearchNow = false, aiLastSrc = [];
+// יש קישור בהודעה: השרת מבקש מ-Gemini להיכנס לדף ולקרוא אותו (urlContext)
+let aiUrlsNow = false;
 let aiCall = null;
 function aiModel(name, generationConfig) {
   if (AI_VIA_SERVER) return aiServerModel(name, generationConfig);
@@ -1155,7 +1157,7 @@ function aiModel(name, generationConfig) {
 // מתנהג כמו המודל של Firebase AI (generateContent / generateContentStream), אבל דרך השרת
 function aiServerModel(name, cfg) {
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
-  const body = parts => ({ kind: aiKindNow, search: aiSearchNow, model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
+  const body = parts => ({ kind: aiKindNow, search: aiSearchNow, ...(aiUrlsNow ? { urls: true } : {}), model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
   const chunk = c => ({ text: () => c.t || '', candidates: c.f ? [{ finishReason: c.f }] : [], promptFeedback: c.b ? { blockReason: c.b } : undefined });
   return {
     async generateContent(parts) { aiLastSrc = []; const r = await aiCall(body(parts)); aiLastSrc = (r.data && r.data.src) || []; return { response: chunk(r.data || {}) }; },
@@ -5681,7 +5683,7 @@ async function chatAsk(parts, onText, onWait, short, deep) {
   for (let i = 0; ; i++) {
     // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
     aiKindNow = 'chat';
-    aiSearchNow = chatWeb;
+    aiSearchNow = chatWeb; aiUrlsNow = chatLinks;
     try { if (short || AI_VIA_SERVER) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
       aiSearchNow = false;
@@ -5738,6 +5740,7 @@ async function chatSend() {
     chatFileChips(meB, sentFiles);
     await chatRestoreMem();
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
+    chatLinks = CHAT_URL.test(msg);
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
     // צילום של מערכת שעות + "תכניס למערכת" – פותחים את מערכת השעות וממלאים אותה מהתמונה (עם בדיקה לפני שמירה)
@@ -5772,7 +5775,7 @@ async function chatSend() {
     const parts = [
       chatPrompt(kitLeft <= 0),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
-      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint}`,
+      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint + (chatLinks ? CHAT_LINK_HINT : '')}`,
     ];
     const raw = await Promise.race([chatAsk(parts, t => {
       if (stopped) return; lastRaw = t;
@@ -5826,7 +5829,7 @@ async function chatSend() {
       if (!input.value) input.value = msg;
     }
   } finally {
-    chatBusy = false; chatStopper = null; aiSearchNow = false; chatGoMode(false); if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
+    chatBusy = false; chatStopper = null; aiSearchNow = false; aiUrlsNow = false; chatLinks = false; chatGoMode(false); if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
   }
 }
 
@@ -6023,7 +6026,9 @@ const HA_IDEAS = ['מה זה פוטוסינתזה?', 'תבחן אותי באנג
     inp.placeholder = t.slice(0, i) + (i < t.length || del ? '|' : '');
   }, 60);
 })();
-let chatStopper = null, chatWeb = false;
+let chatStopper = null, chatWeb = false, chatLinks = false;
+const CHAT_URL = /https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/i;
+const CHAT_LINK_HINT = '\n\n(בהודעה יש קישור: קרא את הדף שבקישור וענה לפי מה שכתוב בו. אם לא הצלחת לפתוח אותו או שאין לך את התוכן שלו – אמור את זה בפשטות, ואל תמציא מה כתוב שם.)';
 function chatGoMode(busy) {
   const g = $('chatGo'); g.disabled = false; g.classList.toggle('stop', busy);
   g.innerHTML = busy ? '<span class="sq"></span>' : '<svg><use href="#i-send"/></svg>';

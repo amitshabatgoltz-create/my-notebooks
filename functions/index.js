@@ -84,7 +84,7 @@ exports.ai = onCall({
   timeoutSeconds: 300, memory: '512MiB', maxInstances: 10, concurrency: 40,
 }, async (req, res) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'login');
-  const { kind, model, cfg, parts, search, image } = req.data || {};
+  const { kind, model, cfg, parts, search, image, urls } = req.data || {};
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
   if (image === true ? kind !== 'img' : (kind === 'img' || !MODELS.includes(model))) throw new HttpsError('invalid-argument', 'bad-model');
@@ -110,7 +110,8 @@ exports.ai = onCall({
     throw new HttpsError('not-found', 'image-off: ' + msg);
   }
   // חיפוש ב-Google: התשובה מבוססת על אתרים אמיתיים, והם חוזרים כמקורות (src)
-  const sources = r => (r.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ title: String(w.title || '').slice(0, 200), uri: String(w.uri || '').slice(0, 500) }));
+  const sources = r => (r.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web).filter(Boolean).map(w => ({ title: String(w.title || '').slice(0, 200), uri: String(w.uri || '').slice(0, 500) }))
+    .concat((r.candidates?.[0]?.urlContextMetadata?.urlMetadata || []).filter(u => /SUCCESS/.test(String(u.urlRetrievalStatus || '')) && u.retrievedUrl).map(u => ({ title: String(u.retrievedUrl).replace(/^https?:\/\/(www\.)?/, '').slice(0, 200), uri: String(u.retrievedUrl).slice(0, 500) })));
   let sent = false;
   const run = async cfg2 => {
     if (req.acceptsStreaming) {
@@ -127,7 +128,9 @@ exports.ai = onCall({
     return { t: r.text || '', f: r.candidates?.[0]?.finishReason || '', b: r.promptFeedback?.blockReason || '', src: sources(r) };
   };
   try {
-    if (search === true) { try { return await run({ ...config, tools: [{ googleSearch: {} }] }); } catch (e) { if (sent) throw e; console.warn('search failed, trying without', String(e && e.message).slice(0, 200)); } }
+    // קישורים בהודעה (urls): Gemini נכנס לדפים וקורא אותם. אפשר יחד עם חיפוש ב-Google
+    const tools = [...(urls === true ? [{ urlContext: {} }] : []), ...(search === true ? [{ googleSearch: {} }] : [])];
+    if (tools.length) { try { return await run({ ...config, tools }); } catch (e) { if (sent) throw e; console.warn('tools failed, trying without', String(e && e.message).slice(0, 200)); } }
     return await run(config);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
