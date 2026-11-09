@@ -251,14 +251,15 @@ function clean(html) {
       }
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
-      const sl = ch.tagName === 'DIV' && ch.hasAttribute('data-slide');
+      const sl = ch.tagName === 'DIV' && ch.hasAttribute('data-slide'), pb = ch.tagName === 'HR' && ch.hasAttribute('data-pb');
       const dc = ch.getAttribute('data-c'), ds = ch.getAttribute('data-s'), chk = ch.hasAttribute('data-check'), dn = ch.hasAttribute('data-done'), href = ch.getAttribute('href') || '';
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
       if (ch.tagName === 'A') {                       // קישור: רק http/https/mailto
         if (!/^(https?:\/\/|mailto:)[^\s"<>]{1,1500}$/i.test(href)) { walk(ch); ch.replaceWith(...ch.childNodes); return; }
         ch.setAttribute('href', href); ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener noreferrer');
       }
-      if (sl) ch.setAttribute('data-slide', '');                                               // שקופית (מחברת של שקופיות)
+      if (sl) ch.setAttribute('data-slide', '');
+      if (pb) ch.setAttribute('data-pb', '');                                                  // מעבר לדף הבא (במחברת של דפים)                                               // שקופית (מחברת של שקופיות)
       if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
       if (ch.tagName === 'SPAN' && TXT_SIZES.includes(ds)) ch.setAttribute('data-s', ds);    // גודל טקסט
       if (ch.tagName === 'MARK' && HL_COLORS.includes(dc)) ch.setAttribute('data-c', dc);    // צבע מרקר
@@ -1606,6 +1607,23 @@ $('editor').addEventListener('keydown', e => {
     markDirty();
   }
 });
+// דף חדש (במחברת של דפים): כמו Ctrl+Enter ב-Docs – מה שאחריו מתחיל בראש הדף הבא
+function addPageBreak(atEnd) {
+  const ed = $('editor'); const hr = document.createElement('hr'); hr.setAttribute('data-pb', '');
+  const p = document.createElement('p'); p.appendChild(document.createElement('br'));
+  let blk = null;
+  if (!atEnd) { const el = caretEl(); blk = el && blockAt(el); if (blk && blk.tagName === 'LI') blk = blk.parentElement; while (blk && blk.parentElement !== ed) blk = blk.parentElement; }
+  if (blk) blk.after(hr, p); else ed.append(hr, p);
+  ed.focus({ preventScroll: true }); placeCaret(p); markDirty();
+  requestAnimationFrame(() => { paginate(); p.scrollIntoView({ block: 'center' }); });
+}
+$('editor').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+  if (curLayout() === 'pages') { e.preventDefault(); addPageBreak(false); }
+  else if (curLayout() === 'slides') { e.preventDefault(); const el = caretEl(); addSlide(el && el.closest('#editor > [data-slide]')); }
+});
+$('pageAdd').addEventListener('mousedown', e => e.preventDefault());
+$('pageAdd').onclick = () => addPageBreak(true);
 $('slideAdd').addEventListener('mousedown', e => e.preventDefault());
 $('slideAdd').onclick = () => addSlide(null);
 
@@ -1629,10 +1647,21 @@ function paginate() {
     if (/^(UL|OL)$/.test(c.tagName) && !c.classList.contains('tl')) units.push(...[...c.children].filter(x => x.tagName === 'LI'));
     else units.push(c);
   }
-  const top0 = ed.getBoundingClientRect().top; let lastB = 0;
+  const top0 = ed.getBoundingClientRect().top; let lastB = 0, brk = -1;
   for (const u of units) {
+    if (u.tagName === 'HR' && u.hasAttribute('data-pb')) { brk = Math.floor(Math.max(0, u.getBoundingClientRect().top - top0 - 1) / P); lastB = Math.max(lastB, (brk + 1) * P + 1); continue; }
     const r = u.getBoundingClientRect(); if (!r.height) continue;
     let t = r.top - top0; const h = r.height, i = Math.floor(t / P), start = i * P + M, end = i * P + ph - M;
+    if (brk >= 0) {                                   // אחרי "דף חדש": מתחילים בראש הדף הבא
+      const target = (brk + 1) * P + M; brk = -1;
+      if (t < target - .5) {
+        const mt = parseFloat(getComputedStyle(u).marginTop) || 0;
+        u.style.marginTop = (mt + target - t) + 'px'; pgPushed.push(u);
+        const t2 = u.getBoundingClientRect().top - top0;
+        if (Math.abs(t2 - target) > .5) u.style.marginTop = (parseFloat(u.style.marginTop) + target - t2) + 'px';
+        lastB = Math.max(lastB, target + h); continue;
+      }
+    }
     // לא נכנס עד סוף הדף (או מתחיל בשוליים של הדף): עובר לראש הדף הבא. משהו גבוה מדף שלם נשאר במקום
     if (t + h > end + 1 && t > start + 1 && (h <= ph - 2 * M || t > end - 1)) {
       const target = (i + 1) * P + M, mt = parseFloat(getComputedStyle(u).marginTop) || 0;
@@ -1657,7 +1686,7 @@ function setLayout(lay, convert) {
   const ed = $('editor'); lay = layoutOf({ layout: lay }); const prev = curLayout();
   if (lay) { ed.dataset.layout = lay; pageEl.dataset.layout = lay; } else { delete ed.dataset.layout; delete pageEl.dataset.layout; }
   if (convert && prev !== lay) { if (lay === 'slides') toSlides(); else if (prev === 'slides') fromSlides(); }
-  $('slideAdd').classList.toggle('hidden', lay !== 'slides');
+  $('slideAdd').classList.toggle('hidden', lay !== 'slides'); $('pageAdd').classList.toggle('hidden', lay !== 'pages');
   if (lay === 'slides') slideFix();
   pgClear(); if (lay === 'pages') pgSchedule();
   checkEmpty();
