@@ -3076,15 +3076,59 @@ function editRegion(base, x) {
 }
 function merge3(base, a, b, aFirst) {
   if (a === base) return b; if (b === base || a === b) return a;
+  // דרך מהירה: כל צד שינה מקום אחד, והמקומות רחוקים זה מזה
   const ra = editRegion(base, a), rb = editRegion(base, b);
-  if (ra.e <= rb.s && !(ra.e === rb.s && ra.s === rb.s)) return base.slice(0, ra.s) + ra.ins + base.slice(ra.e, rb.s) + rb.ins + base.slice(rb.e);
-  if (rb.e <= ra.s && !(rb.e === ra.s && ra.s === rb.s)) return base.slice(0, rb.s) + rb.ins + base.slice(rb.e, ra.s) + ra.ins + base.slice(ra.e);
-  // שניהם הוסיפו באותה נקודה בדיוק: שתי התוספות נכנסות בסדר קבוע
-  if (ra.s === ra.e && rb.s === rb.e && ra.s === rb.s) return base.slice(0, ra.s) + (aFirst ? ra.ins + rb.ins : rb.ins + ra.ins) + base.slice(ra.e);
-  // שינויים חופפים באותו מקום: גרסה אחת מנצחת (תמיד אותה אחת בשני המכשירים), בלי כפילויות
-  const s0 = Math.min(ra.s, rb.s), e0 = Math.max(ra.e, rb.e);
-  const win = aFirst ? a : b;
-  return base.slice(0, s0) + win.slice(s0, win.length - (base.length - e0)) + base.slice(e0);
+  if (ra.e < rb.s || (ra.e === rb.s && ra.s < rb.s)) return base.slice(0, ra.s) + ra.ins + base.slice(ra.e, rb.s) + rb.ins + base.slice(rb.e);
+  if (rb.e < ra.s || (rb.e === ra.s && rb.s < ra.s)) return base.slice(0, rb.s) + rb.ins + base.slice(rb.e, ra.s) + ra.ins + base.slice(ra.e);
+  return mergeTokens(base, a, b, aFirst);
+}
+// שילוב מדויק לפי מילים ותגיות: מוצאים כל מקום שכל צד שינה (לא רק אזור אחד גדול),
+// כך ששינויים קרובים לא דורסים זה את זה. רק אם שניכם שיניתם את אותה מילה בדיוק – יש התנגשות, וגם אז לא מוחקים טקסט שהוקלד.
+const TOK_RE = /<[^>]*>|&[#\w]+;|[^\s<&]+|\s+|[<&]/g;
+const toks = s => s.match(TOK_RE) || [];
+function hunksOf(a, b) {
+  let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let q = 0; while (q < a.length - p && q < b.length - p && a[a.length - 1 - q] === b[b.length - 1 - q]) q++;
+  const n = a.length - p - q, m = b.length - p - q;
+  if (!n && !m) return [];
+  if (!n || !m || n * m > 2e6) return [{ s: p, e: p + n, ins: b.slice(p, p + m) }];
+  // LCS על החלק האמצעי
+  const W = m + 1, dp = new Uint32Array((n + 1) * W);
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i * W + j] = a[p + i] === b[p + j] ? dp[(i + 1) * W + j + 1] + 1 : Math.max(dp[(i + 1) * W + j], dp[i * W + j + 1]);
+  const out = []; let i = 0, j = 0, cur = null;
+  const open = () => cur || (cur = { s: p + i, e: p + i, ins: [] });
+  const close = () => { if (cur) { out.push(cur); cur = null; } };
+  while (i < n || j < m) {
+    if (i < n && j < m && a[p + i] === b[p + j]) { close(); i++; j++; }
+    else if (j < m && (i >= n || dp[i * W + j + 1] >= dp[(i + 1) * W + j])) { open().ins.push(b[p + j]); j++; }
+    else { open(); i++; cur.e = p + i; }
+  }
+  close(); return out;
+}
+function mergeTokens(base, a, b, aFirst) {
+  const B = toks(base), ha = hunksOf(B, toks(a)), hb = hunksOf(B, toks(b));
+  const all = [...ha.map(h => ({ ...h, side: 0 })), ...hb.map(h => ({ ...h, side: 1 }))]
+    .sort((x, y) => x.s - y.s || (x.e - x.s) - (y.e - y.s) || x.side - y.side);
+  const hit = (x, g) => (x.s < g.e && g.s < x.e) || (x.s === x.e && g.s < x.s && x.s < g.e) || (g.s === g.e && x.s < g.s && g.s < x.e) || (x.s === x.e && g.s === g.e && x.s === g.s);
+  const out = []; let pos = 0, k = 0;
+  while (k < all.length) {
+    const g = { s: all[k].s, e: all[k].e, items: [all[k]] }; k++;
+    while (k < all.length && hit(all[k], g)) { g.items.push(all[k]); g.s = Math.min(g.s, all[k].s); g.e = Math.max(g.e, all[k].e); k++; }
+    out.push(...B.slice(pos, g.s)); pos = g.e;
+    const ver = side => { const r = []; let p = g.s; g.items.filter(h => h.side === side).forEach(h => { r.push(...B.slice(p, h.s), ...h.ins); p = h.e; }); r.push(...B.slice(p, g.e)); return r; };
+    const sides = new Set(g.items.map(h => h.side));
+    if (sides.size === 1) { out.push(...ver([...sides][0])); continue; }
+    const va = ver(0), vb = ver(1);
+    if (va.join('') === vb.join('')) { out.push(...va); continue; }
+    if (g.s === g.e) { out.push(...(aFirst ? [...va, ...vb] : [...vb, ...va])); continue; }   // שניהם הוסיפו באותה נקודה
+    // אותה מילה שונתה אצל שניכם: גרסה אחת נכנסת (תמיד אותה אחת), ומה שהשני הקליד נשאר אחריה
+    const win = aFirst ? va : vb, loseSide = aFirst ? 1 : 0;
+    const extra = g.items.filter(h => h.side === loseSide).flatMap(h => h.ins).filter(t => t[0] !== '<');
+    out.push(...win); if (extra.join('').trim()) out.push(' ', ...extra);
+  }
+  out.push(...B.slice(pos));
+  return out.join('');
 }
 function mergeHtml(base, local, remote, remoteUid) {
   return clean(merge3(base, local, remote, String(me && me.uid) < String(remoteUid || '')));
