@@ -1655,11 +1655,14 @@ function addPageBreak(atEnd) {
   const p = document.createElement('p'); p.appendChild(document.createElement('br'));
   let blk = null;
   if (!atEnd) { const el = caretEl(); blk = el && blockAt(el); if (blk && blk.tagName === 'LI') blk = blk.parentElement; while (blk && blk.parentElement !== ed) blk = blk.parentElement; }
-  const tail = ed.lastElementChild;
-  if (!blk && tail && tail.tagName === 'P' && isEmpty(tail) && !tail.querySelector('img') && tail.previousElementSibling && !tail.previousElementSibling.matches('hr[data-pb]')) { tail.before(hr); p.remove(); ed.focus({ preventScroll: true }); placeCaret(tail); markDirty(); requestAnimationFrame(() => { paginate(); tail.scrollIntoView({ block: 'center' }); }); return; }
-  if (blk) blk.after(hr, p); else ed.append(hr, p);
-  ed.focus({ preventScroll: true }); placeCaret(p); markDirty();
-  requestAnimationFrame(() => { paginate(); p.scrollIntoView({ block: 'center' }); });
+  // מהכפתור: מוסיפים עמוד בסוף ולא מזיזים אותך – לא את המסך ולא את הסמן. (Ctrl+Enter: הסמן עובר לעמוד החדש)
+  const y = scrollY, tail = ed.lastElementChild;
+  let line = p;
+  if (!blk && tail && tail.tagName === 'P' && isEmpty(tail) && !tail.querySelector('img') && tail.previousElementSibling && !tail.previousElementSibling.matches('hr[data-pb]')) { tail.before(hr); line = tail; }
+  else if (blk) blk.after(hr, p); else ed.append(hr, p);
+  if (!atEnd) { ed.focus({ preventScroll: true }); placeCaret(line); }
+  markDirty(); paginate(); scrollTo(0, y);
+  if (atEnd) toast(`נוסף עמוד ${pgSheets.children.length}`);
 }
 $('editor').addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
