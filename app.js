@@ -415,7 +415,7 @@ $('docColor').onclick = nbColorDialog;
 
 // מחברת חדשה: חלון הגדרות בשלבים (שם ומקצוע ← צורה ← דף ← כתב ← תבנית). בכל שלב יש ברירת מחדל, ו"יצירה" זמינה תמיד
 function newNotebook() {
-  const st = { title: '', subject: '', color: COLORS[notebooks.length % COLORS.length], layout: '', bg: '', orient: '', margin: '', font: '', fs: '', tpl: '' };
+  const st = { title: '', subject: '', color: COLORS[notebooks.length % COLORS.length], ...nbDefaults(), tpl: '' };
   let step = 0;
   dialog(d => {
     d.classList.add('nb-wiz');
@@ -1542,8 +1542,8 @@ function layoutPicker(cur, onPick) {
 const mkSlide = empty => { const s = document.createElement('div'); s.setAttribute('data-slide', ''); if (empty) { const p = document.createElement('p'); p.appendChild(document.createElement('br')); s.appendChild(p); } return s; };
 const isSlide = n => n && n.nodeType === 1 && n.hasAttribute('data-slide');
 // עמוד אינסופי / דפים → שקופיות: כל כותרת גדולה (H1/H2) פותחת שקופית חדשה
-function toSlides() {
-  const ed = $('editor'); let cur = null; const out = [];
+function toSlides(ed = $('editor')) {
+  let cur = null; const out = [];
   [...ed.childNodes].forEach(n => {
     if (n.nodeType === 3 && !n.nodeValue.trim()) { n.remove(); return; }
     if (isSlide(n)) { cur = n; out.push(n); return; }
@@ -1553,8 +1553,8 @@ function toSlides() {
   ed.append(...out);
 }
 // שקופיות → עמוד אינסופי / דפים: כל התוכן נשאר, לפי הסדר
-function fromSlides() {
-  $('editor').querySelectorAll(':scope > [data-slide]').forEach(s => {
+function fromSlides(root = $('editor')) {
+  root.querySelectorAll(':scope > [data-slide]').forEach(s => {
     if (isEmpty(s) && !s.querySelector('img,table,[data-cv],[data-file],[data-box],hr,li')) s.remove(); else s.replaceWith(...s.childNodes);
   });
 }
@@ -1607,12 +1607,56 @@ $('editor').addEventListener('keydown', e => {
     markDirty();
   }
 });
+/* ---- עמודים בצד: רשימה של כל העמודים, לחיצה קופצת לעמוד, ו"עמוד חדש" ---- */
+const pgNav = document.createElement('nav'); pgNav.className = 'pg-nav'; pgNav.setAttribute('aria-label', 'עמודים');
+pgNav.innerHTML = '<div class="pg-nav-in"><div class="pg-nav-h">עמודים</div><div class="pg-list"></div><button type="button" class="pg-new" title="עמוד חדש (Ctrl+Enter)"><svg><use href="#i-plus"/></svg><span>עמוד חדש</span></button></div>';
+pageEl.insertBefore(pgNav, $('editor'));
+pgNav.querySelector('.pg-new').addEventListener('mousedown', e => e.preventDefault());
+pgNav.querySelector('.pg-new').onclick = () => addPageBreak(true);
+let pgFirsts = [];
+function pgNavPaint(n, firsts) {
+  pgFirsts = firsts;
+  const list = pgNav.querySelector('.pg-list');
+  const snip = k => { const u = firsts[k]; return u ? (u.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60) : ''; };
+  while (list.children.length > n) list.lastChild.remove();
+  for (let k = 0; k < n; k++) {
+    let b = list.children[k];
+    if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'pg-item'; b.innerHTML = '<i></i><b></b>'; b.dataset.k = k; b.addEventListener('mousedown', e => e.preventDefault()); list.appendChild(b); }
+    const t = snip(k); b.querySelector('b').textContent = k + 1; b.querySelector('i').textContent = t; b.title = t ? `עמוד ${k + 1}: ${t}` : `עמוד ${k + 1}`;
+    b.setAttribute('aria-label', `עמוד ${k + 1}`);
+  }
+  pgNavMark();
+}
+pgNav.querySelector('.pg-list').addEventListener('click', e => {
+  const b = e.target.closest('.pg-item'); if (!b) return;
+  const k = +b.dataset.k, sh = pgSheets.children[k]; if (!sh) return;
+  const y = sh.getBoundingClientRect().top + scrollY - 150;
+  scrollTo({ top: Math.max(0, y), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  const u = pgFirsts[k]; if (u && edCan()) { $('editor').focus({ preventScroll: true }); try { const r = document.createRange(); r.selectNodeContents(u); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); } catch {} }
+});
+// העמוד שרואים עכשיו מסומן
+let pgMarkRaf = 0;
+function pgNavMark() {
+  if (curLayout() !== 'pages') return;
+  const mid = innerHeight * .45; let cur = 0;
+  [...pgSheets.children].forEach((s, k) => { if (s.getBoundingClientRect().top <= mid) cur = k; });
+  [...pgNav.querySelectorAll('.pg-item')].forEach((b, k) => { b.classList.toggle('on', k === cur); if (k === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  const on = pgNav.querySelector('.pg-item.on'), list = pgNav.querySelector('.pg-list');
+  if (on && pgNav.classList.contains('row')) { const lr = list.getBoundingClientRect(), r = on.getBoundingClientRect(); if (r.left < lr.left || r.right > lr.right) list.scrollLeft += r.left - lr.left - 40; }
+}
+addEventListener('scroll', () => { cancelAnimationFrame(pgMarkRaf); pgMarkRaf = requestAnimationFrame(pgNavMark); }, { passive: true });
+// במסך רחב – בצד של הדף; במסך צר – שורה מעל הדף
+function pgNavPlace() { const r = pageEl.getBoundingClientRect(); pgNav.classList.toggle('row', r.left < 132); }
+addEventListener('resize', pgNavPlace);
+new ResizeObserver(pgNavPlace).observe(pageEl);
 // דף חדש (במחברת של דפים): כמו Ctrl+Enter ב-Docs – מה שאחריו מתחיל בראש הדף הבא
 function addPageBreak(atEnd) {
   const ed = $('editor'); const hr = document.createElement('hr'); hr.setAttribute('data-pb', '');
   const p = document.createElement('p'); p.appendChild(document.createElement('br'));
   let blk = null;
   if (!atEnd) { const el = caretEl(); blk = el && blockAt(el); if (blk && blk.tagName === 'LI') blk = blk.parentElement; while (blk && blk.parentElement !== ed) blk = blk.parentElement; }
+  const tail = ed.lastElementChild;
+  if (!blk && tail && tail.tagName === 'P' && isEmpty(tail) && !tail.querySelector('img') && tail.previousElementSibling && !tail.previousElementSibling.matches('hr[data-pb]')) { tail.before(hr); p.remove(); ed.focus({ preventScroll: true }); placeCaret(tail); markDirty(); requestAnimationFrame(() => { paginate(); tail.scrollIntoView({ block: 'center' }); }); return; }
   if (blk) blk.after(hr, p); else ed.append(hr, p);
   ed.focus({ preventScroll: true }); placeCaret(p); markDirty();
   requestAnimationFrame(() => { paginate(); p.scrollIntoView({ block: 'center' }); });
@@ -1647,7 +1691,8 @@ function paginate() {
     if (/^(UL|OL)$/.test(c.tagName) && !c.classList.contains('tl')) units.push(...[...c.children].filter(x => x.tagName === 'LI'));
     else units.push(c);
   }
-  const top0 = ed.getBoundingClientRect().top; let lastB = 0, brk = -1;
+  const top0 = ed.getBoundingClientRect().top; let lastB = 0, brk = -1; const firsts = [];
+  const note = (u, t) => { const k = Math.floor(t / P); if (!firsts[k]) firsts[k] = u; };
   for (const u of units) {
     if (u.tagName === 'HR' && u.hasAttribute('data-pb')) { brk = Math.floor(Math.max(0, u.getBoundingClientRect().top - top0 - 1) / P); lastB = Math.max(lastB, (brk + 1) * P + 1); continue; }
     const r = u.getBoundingClientRect(); if (!r.height) continue;
@@ -1659,7 +1704,7 @@ function paginate() {
         u.style.marginTop = (mt + target - t) + 'px'; pgPushed.push(u);
         const t2 = u.getBoundingClientRect().top - top0;
         if (Math.abs(t2 - target) > .5) u.style.marginTop = (parseFloat(u.style.marginTop) + target - t2) + 'px';
-        lastB = Math.max(lastB, target + h); continue;
+        lastB = Math.max(lastB, target + h); note(u, target); continue;
       }
     }
     // לא נכנס עד סוף הדף (או מתחיל בשוליים של הדף): עובר לראש הדף הבא. משהו גבוה מדף שלם נשאר במקום
@@ -1670,6 +1715,7 @@ function paginate() {
       if (Math.abs(t2 - target) > .5) u.style.marginTop = (parseFloat(u.style.marginTop) + target - t2) + 'px';
       t = target;
     }
+    note(u, t);
     lastB = Math.max(lastB, t + h);
   }
   const n = Math.max(1, Math.ceil((lastB + M + G) / P));
@@ -1677,6 +1723,7 @@ function paginate() {
   if (pgSheets.children.length !== n) pgSheets.innerHTML = Array.from({ length: n }, (_, k) => `<div class="pg-sheet"><span>${k + 1}</span></div>`).join('');
   Object.assign(pgSheets.style, { top: ed.offsetTop + 'px', left: ed.offsetLeft + 'px', width: W + 'px' });
   [...pgSheets.children].forEach((s, k) => { s.style.top = k * P + 'px'; s.style.height = ph + 'px'; });
+  pgNavPaint(n, firsts);
 }
 new MutationObserver(pgSchedule).observe($('editor'), { childList: true, subtree: true, characterData: true });
 new ResizeObserver(pgSchedule).observe($('editor'));
@@ -1783,11 +1830,49 @@ function nbSettingsDialog() {
       } catch { toast('לא הצלחתי לשמור את ההגדרה'); }
     }, ['layout', 'bg', 'orient', 'margin', 'font', 'fs', 'color', 'subject'], true));
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
-    const row = document.createElement('div'); row.className = 'row wz-row'; row.appendChild(ok);
+    const all = document.createElement('button'); all.className = 'btn btn-ghost wz-all'; all.textContent = 'ככה לכל המחברות';
+    all.title = 'אותה צורה, רקע, גופן וגודל לכל המחברות שלך, וגם למחברות חדשות';
+    all.onclick = () => lookAllDialog(lookOf(n));
+    const row = document.createElement('div'); row.className = 'row wz-row'; row.append(ok, all);
     d.append(body, row);
   });
 }
 $('nbLayout').onclick = nbSettingsDialog;
+
+// "ככה לכל המחברות": אותן הגדרות לכל המחברות שלי, וגם ברירת המחדל למחברת חדשה
+const nbDefKey = () => 'nbDef:' + (me ? me.uid : '');
+function nbDefaults() { try { return lookOf(JSON.parse(localStorage.getItem(nbDefKey()) || '{}')); } catch { return lookOf({}); } }
+function lookAllDialog(look) {
+  const names = [LAYOUTS.find(x => x[0] === look.layout)[1], ...['bg', 'font', 'fs'].filter(k => look[k]).map(k => NB_OPTS[k][1].find(o => o[0] === look[k])[1])];
+  const others = notebooks.filter(x => x.id !== openId);
+  dialog(d => {
+    d.innerHTML = '<h3>ככה לכל המחברות?</h3><p></p>';
+    d.querySelector('p').textContent = `${others.length ? `כל ${others.length + 1} המחברות שלך` : 'המחברת הזו'} יקבלו: ${names.join(', ')}. גם כל מחברת חדשה תתחיל ככה. התוכן לא נמחק.`;
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'כן, לכל המחברות';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    ok.onclick = async () => {
+      ok.disabled = true; ok.textContent = 'מעדכן...';
+      try { localStorage.setItem(nbDefKey(), JSON.stringify(look)); } catch {}
+      let bad = 0;
+      await Promise.all(others.map(async x => {
+        const upd = {}; NB_KEYS.forEach(k => { if ((lookOf(x)[k] || '') !== (look[k] || '')) upd[k] = look[k] || ''; });
+        if (!Object.keys(upd).length) return;
+        if ('layout' in upd && (layoutOf(x) === 'slides' || look.layout === 'slides')) {
+          const box = document.createElement('div'); box.innerHTML = clean(x.html || '');
+          if (look.layout === 'slides') toSlides(box); else fromSlides(box);
+          upd.html = clean(box.innerHTML) || (look.layout === 'slides' ? SLIDE_EMPTY : ''); upd.updatedAt = Date.now();
+        }
+        try {
+          await updateDoc(nbDoc(x.id), upd); Object.assign(x, upd);
+          if (x.shareId) updateDoc(shareDoc(x.shareId), upd).catch(() => {});
+        } catch { bad++; }
+      }));
+      closeDialog(); toast(bad ? `${bad} מחברות לא עודכנו, נסה שוב` : 'כל המחברות עודכנו ✓');
+    };
+    row.append(ok, no); d.appendChild(row);
+  });
+}
 
 
 /* ================= ניווט ================= */
