@@ -2307,3 +2307,9 @@ a.menu-item{display:block;text-decoration:none;color:inherit}
 #forgotBtn,.login-swap .link{min-height:44px;padding:8px 10px}
 .field input:focus,.field input:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 55%,transparent)}
 .login-card .btn:focus-visible,.login-card .link:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+/* לנסות בלי להירשם */
+.demo-btn{width:100%;height:48px;margin-top:10px;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,var(--line));color:var(--accent);background:var(--accent-soft);font-weight:700}
+.demo-btn:hover{border-style:solid}
+.demo-btn svg{width:18px;height:18px}
+#shBody[contenteditable="true"]{outline:none;border-radius:12px;caret-color:var(--accent)}
+#shBody[contenteditable="true"]:focus{box-shadow:0 0 0 3px var(--accent-soft)}

@@ -3495,7 +3495,7 @@ let shareEditOpened = false;
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
   shareParam = id; shareEditOpened = false;
-  shMark(id); shareAsk = null;
+  shMark(id); shareAsk = null; $('shBody').contentEditable = 'false'; $('shClose').querySelector('span').textContent = 'למחברות שלי';
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
   const v = $('shareView'); v.classList.remove('hidden'); document.body.classList.add('viewing-share');
   $('shBody').innerHTML = '<div class="skel-grid"><div class="skel"><i></i><b></b><b></b></div></div>';
@@ -3524,12 +3524,35 @@ function openShare(id) {
 }
 function closeShare(keepUrl) {
   if (unsubView) { unsubView(); unsubView = null; }
+  $('shBody').contentEditable = 'false';
   shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share');
   document.title = 'המחברות שלי';
   if (location.search && !keepUrl) history.replaceState(null, '', location.pathname);
 }
 $('shClose').onclick = closeShare;
-window.addEventListener('popstate', () => { const s = new URLSearchParams(location.search).get('s'); if (s) openShare(s); else if (!$('shareView').classList.contains('hidden')) closeShare(); });
+window.addEventListener('popstate', () => { const q = new URLSearchParams(location.search), s = q.get('s'); if (s) openShare(s); else if (q.has('demo')) openDemo(); else if (!$('shareView').classList.contains('hidden')) closeShare(); });
+/* ===== לנסות בלי להירשם: המחברת לדוגמה, אפשר לכתוב בה, ושום דבר לא נשמר ===== */
+function openDemo() {
+  if (unsubView) { unsubView(); unsubView = null; }
+  shareParam = null;
+  if (!location.search.includes('demo')) history.pushState({ demo: 1 }, '', '?demo=1');
+  const v = $('shareView'); v.classList.remove('hidden', 'view-only'); document.body.classList.add('viewing-share'); v.scrollTop = 0;
+  document.title = 'מחברת לדוגמה · המחברות שלי';
+  $('shClose').querySelector('span').textContent = me ? 'למחברות שלי' : 'חזרה';
+  $('shTitle').textContent = SAMPLE_NOTEBOOK.title;
+  $('shOwner').textContent = 'מחברת לדוגמה · אפשר לכתוב בה ולנסות, שום דבר לא נשמר';
+  $('shColor').style.setProperty('--c', SAMPLE_NOTEBOOK.color);
+  const hint = $('shHint'); hint.classList.remove('hidden');
+  hint.innerHTML = 'ככה נראית מחברת באתר. בחשבון חינמי יש גם: <b>תמונה לטקסט</b> (מצלמים את הלוח והוא מקליד), <b>סיכום למבחן</b> בלחיצה, <b>כרטיסיות שינון</b>, <b>יומן מבחנים</b> ו<b>עוזר לימודי</b> שמסביר.';
+  const b = $('shBody'); b.innerHTML = clean(SAMPLE_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
+  b.contentEditable = 'true'; b.spellcheck = false;
+  $('shCta').classList.toggle('hidden', !!me);
+  const cp = $('shCopy'); cp.classList.remove('hidden'); cp.textContent = me ? 'למחברות שלי' : 'להרשמה בחינם';
+  cp.onclick = () => { closeShare(); if (!me) { setMode('signup'); setTimeout(() => $('name').focus(), 150); } };
+  track('demo_open', {});
+}
+$('demoBtn').onclick = openDemo;
+if (!shareParam && new URLSearchParams(location.search).has('demo')) openDemo();
 
 async function copyShare(id, s) {
   if ((s.mode || 'copy') === 'view') return;
