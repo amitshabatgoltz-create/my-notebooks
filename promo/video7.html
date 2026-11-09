@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>סרטון: מבלגן לסדר 3D – המחברות שלי</title>
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700;800;900&family=Amatic+SC:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0E12;--ink:#F2F2F6;--muted:#9A9AA6;--line:#2A2A33;--accent:#8E8CFF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Rubik',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px;gap:14px}
+h1{font-size:22px;margin:0}
+p{margin:0;color:var(--muted);text-align:center;max-width:560px;font-size:15px;line-height:1.6}
+canvas{height:min(72vh,900px);width:auto;max-width:100%;aspect-ratio:9/16;border-radius:22px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);background:#000}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+button,a.btn{font:inherit;font-weight:700;font-size:15px;border:none;border-radius:999px;padding:11px 20px;cursor:pointer;text-decoration:none}
+.p{background:linear-gradient(135deg,#5E5CE6,#FF5E8A);color:#fff}
+.g{background:#1E1E26;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+#st{min-height:1.6em;color:var(--accent);font-weight:600}
+a.back{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<a class="back" href="./">חזרה לחומרי הפרסום</a>
+<h1>סרטון: מבלגן לסדר, תלת-ממד (20 שניות)</h1>
+<p>מוכן לטיקטוק, לריילס ולשורטס: מסך לאורך, עם מוזיקה. לוחצים "יצירת הסרטון", מחכים 20 שניות, והוא יורד למחשב.</p>
+<canvas id="cv" width="1080" height="1920"></canvas>
+<div class="row"><button class="g" id="play">ניגון</button><button class="p" id="rec">יצירת הסרטון והורדה</button></div>
+<div id="st" role="status"></div>
+<div id="dl" class="row"></div>
+
+<script>
+const W = 1080, H = 1920, DUR = 20, BEAT = 0.5;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const qrImg = new Image(); qrImg.src = 'qr.svg';
+const P = s => new Path2D(s);
+const IC = {
+  book: [P('M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z'), P('M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5')],
+  cam: [P('M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z'), P('M15.5 13a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z')],
+  spark: [P('M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z')],
+  cards: [P('M5.5 7h9A2.5 2.5 0 0 1 17 9.5v9a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 3 18.5v-9A2.5 2.5 0 0 1 5.5 7z'), P('M7 3.5h11.5A2.5 2.5 0 0 1 21 6v11.5')],
+  chat: [P('M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.4-4.1-1L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z')],
+  check: [P('M5 12.5l4.5 4.5L19 7.5')],
+};
+// ---------- עזרים ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, d) => clamp((t - a) / d);
+const eOut = x => 1 - Math.pow(1 - x, 3);
+const eIn = x => x * x * x;
+const eBack = x => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+function rnd(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function icon(name, cx, cy, size, color, lw = 2) {
+  ctx.save(); ctx.translate(cx - size / 2, cy - size / 2); ctx.scale(size / 24, size / 24);
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  IC[name].forEach(p => ctx.stroke(p)); ctx.restore();
+}
+function font(size, w = 800, fam = 'Rubik') { ctx.font = `${w} ${size}px "${fam}"`; }
+// מילה שקופצת פנימה (עם קפיצה קטנה), אפשר עם מרקר מאחוריה
+function pop(str, x, y, size, t0, t, o = {}) {
+  const k = prog(t, t0, .38); if (k <= 0) return 0;
+  const s = lerp(.35, 1, eBack(k)), a = clamp(k * 3);
+  font(size, o.w || 900, o.fam); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(str).width;
+  ctx.save(); ctx.translate(x, y); ctx.rotate((o.rot || 0) * (1 - eOut(k))); ctx.scale(s, s); ctx.globalAlpha *= a;
+  if (o.mark) {
+    const m = eOut(prog(t, t0 + .18, .3));
+    ctx.fillStyle = o.mark; ctx.beginPath(); ctx.roundRect(tw / 2 + 18 - (tw + 36) * m, -size * .42, (tw + 36) * m, size * .9, 14); ctx.fill();
+  }
+  if (o.shadow) { ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10; }
+  ctx.fillStyle = o.color || '#fff'; ctx.fillText(str, 0, 4);
+  ctx.restore(); return tw;
+}
+function confetti(t, t0, cx, cy, n, seed) {
+  const dt = t - t0; if (dt < 0 || dt > 2.6) return;
+  const r = rnd(seed), cols = ['#FFE45C', '#FF5E8A', '#8E8CFF', '#2EC4B6', '#ffffff', '#FFA347'];
+  for (let i = 0; i < n; i++) {
+    const ang = r() * Math.PI * 2, sp = 500 + r() * 1300, vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp - 700;
+    const x = cx + vx * dt * .9, y = cy + vy * dt + 1500 * dt * dt, rot = r() * 6 + dt * (r() * 14 - 7);
+    ctx.save(); ctx.globalAlpha = clamp(1.6 - dt * .7); ctx.translate(x, y); ctx.rotate(rot); ctx.fillStyle = cols[i % cols.length];
+    ctx.fillRect(-9, -15, 18, 30 * (.5 + .5 * Math.abs(Math.sin(dt * 9 + i)))); ctx.restore();
+  }
+}
+function grad(c1, c2, ang = .6) {
+  const g = ctx.createLinearGradient(W * (.5 - ang), 0, W * (.5 + ang), H); g.addColorStop(0, c1); g.addColorStop(1, c2); return g;
+}
+const beatPulse = t => Math.pow(1 - ((t % BEAT) / BEAT), 4);
+
+// ---------- הלוח ----------
+const BOARD = ['מלכים א׳ פרק א׳', '• התוכנית של נתן ובת־שבע', '• יא׳–יב׳: אדוניהו ממליך את עצמו', '• ודוד לא יודע מכך'];
+function board(x, y, w, h, t, reveal) {
+  ctx.save();
+  rr(x - 18, y - 18, w + 36, h + 36, 26); ctx.fillStyle = '#8A5A35'; ctx.fill();
+  rr(x, y, w, h, 12); const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, '#24453A'); g.addColorStop(1, '#16302A'); ctx.fillStyle = g; ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.ellipse(x + w * (.15 + i * .15), y + h * (.3 + (i % 3) * .2), 160, 40, .3, 0, 7); ctx.fill(); }
+  ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  BOARD.forEach((s, i) => {
+    const k = reveal === undefined ? 1 : eOut(prog(reveal, .25 + i * .42, .45)); if (k <= 0) return;
+    font(i ? h * .1 : h * .15, 700, 'Amatic SC');
+    const tw = ctx.measureText(s).width, ly = y + h * (.17 + i * .215) + (i ? 6 : 0), rx = x + w - w * .07;
+    ctx.save(); ctx.beginPath(); ctx.rect(rx - tw * k - 8, ly - h * .12, tw * k + 16, h * .24); ctx.clip();
+    ctx.fillStyle = 'rgba(246,246,236,.93)'; ctx.fillText(s, rx, ly);
+    if (!i) { ctx.strokeStyle = 'rgba(246,246,236,.7)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(rx, ly + h * .09); ctx.lineTo(rx - tw, ly + h * .09); ctx.stroke(); }
+    ctx.restore();
+  });
+  ctx.restore();
+}
+// ---------- טלפון ----------
+function phone(cx, cy, w, rot, sc, drawScreen) {
+  const h = w * 2.05;
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(sc, sc);
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 80; ctx.shadowOffsetY = 40;
+  rr(-w / 2, -h / 2, w, h, w * .14); ctx.fillStyle = '#111116'; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  const bz = w * .035; rr(-w / 2 + bz, -h / 2 + bz, w - bz * 2, h - bz * 2, w * .11); ctx.save(); ctx.clip();
+  ctx.translate(-w / 2 + bz, -h / 2 + bz); drawScreen(w - bz * 2, h - bz * 2); ctx.restore();
+  rr(-w * .14, -h / 2 + bz + 14, w * .28, 34, 17); ctx.fillStyle = '#111116'; ctx.fill();
+  ctx.restore();
+}
+function appTop(sw, title) {
+  ctx.fillStyle = '#FBFBFD'; ctx.fillRect(0, 0, sw, 2000);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, sw, 150);
+  rr(sw - 98, 72, 56, 56, 16); ctx.fillStyle = '#5E5CE6'; ctx.fill(); icon('book', sw - 70, 100, 34, '#fff', 2.2);
+  font(34, 800); ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1D1D1F'; ctx.fillText(title, sw - 118, 102);
+  ctx.fillStyle = '#E7E7EE'; ctx.fillRect(0, 150, sw, 2);
+}
+
+// ---------- הסצנות ----------
+function sceneA(t) {        // 0–3: הלוח מלא
+  const z = 1 + t * .03;
+  ctx.fillStyle = '#0B0B10'; ctx.fillRect(0, 0, W, H);
+  const v = ctx.createRadialGradient(W / 2, 700, 100, W / 2, 700, 1100); v.addColorStop(0, 'rgba(94,92,230,.22)'); v.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(W / 2, 760); ctx.scale(z, z); ctx.rotate(-.02); board(-470, -330, 940, 640, t, t); ctx.restore();
+  pop('סוף השיעור.', W / 2, 1330, 128, .15, t, { shadow: 1 });
+  pop('הלוח', W / 2 + 205, 1500, 150, 1.45, t, { color: '#0B0B10', mark: '#FFE45C', rot: -.15 });
+  pop('מלא.', W / 2 - 195, 1500, 150, 1.75, t, { rot: .15 });
+  pop('ואין זמן להעתיק', W / 2, 1670, 66, 2.2, t, { w: 700, color: '#B9B9C6' });
+}
+function sceneB(t, T) {     // 3–6.5: לוחצים ומצלמים
+  const p = beatPulse(T);
+  ctx.fillStyle = grad('#4D4BD8', '#B24DD6'); ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = .12 + p * .08; ctx.fillStyle = '#fff';
+  for (let i = 0; i < 9; i++) { ctx.beginPath(); ctx.arc(W / 2, 1050, 240 + i * 150 + (T * 120 % 150), 0, 7); ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  const k = eBack(prog(t, 0, .55)), py = lerp(1900, 1080, k);
+  const flash = prog(t, 2.25, .08) * (1 - prog(t, 2.33, .35));
+  const sh = flash > 0 ? Math.sin(T * 90) * 14 * flash : 0;
+  phone(W / 2 + sh, py, 600, lerp(.12, -.04, k), 1, (sw, shh) => {
+    if (t < 1.25) {
+      appTop(sw, 'תנ"ך');
+      ctx.fillStyle = '#E7E7EE'; for (let i = 0; i < 5; i++) { rr(40, 230 + i * 70, sw - 80 - (i % 2) * 120, 22, 11); ctx.fill(); }
+      const tap = prog(t, .85, .3), bs = 1 - Math.sin(tap * Math.PI) * .07;
+      ctx.save(); ctx.translate(sw / 2, 760); ctx.scale(bs, bs);
+      rr(-230, -66, 460, 132, 66); const g = ctx.createLinearGradient(-230, 0, 230, 0); g.addColorStop(0, '#5E5CE6'); g.addColorStop(1, '#8E5CF0'); ctx.fillStyle = g;
+      ctx.shadowColor = 'rgba(94,92,230,.5)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14; ctx.fill(); ctx.shadowColor = 'transparent';
+      icon('cam', 150, 0, 54, '#fff', 2.2);
+      font(42, 800); ctx.fillStyle = '#fff'; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('תמונה לטקסט', -30, 3);
+      ctx.restore();
+      if (tap > 0 && tap < 1) { ctx.globalAlpha = 1 - tap; ctx.beginPath(); ctx.arc(sw / 2 + 60, 770, 40 + tap * 220, 0, 7); ctx.fillStyle = 'rgba(94,92,230,.35)'; ctx.fill(); ctx.globalAlpha = 1; }
+      if (t > .6 && t < 1.2) { const f = eOut(prog(t, .6, .25)); ctx.globalAlpha = f; ctx.beginPath(); ctx.arc(sw / 2 + 60, lerp(980, 780, f), 46, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.stroke(); ctx.globalAlpha = 1; }
+    } else {
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, sw, shh);
+      const zz = 1 + prog(t, 1.25, 1) * .08;
+      ctx.save(); ctx.translate(sw / 2, shh / 2 - 40); ctx.scale(zz, zz); board(-250, -170, 500, 340, t, 9); ctx.restore();
+      const c = eOut(prog(t, 1.35, .4)), L = 70, m = lerp(110, 60, c);
+      ctx.strokeStyle = '#FFE45C'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.globalAlpha = c;
+      [[m, shh / 2 - 260, 1, 1], [sw - m, shh / 2 - 260, -1, 1], [m, shh / 2 + 180, 1, -1], [sw - m, shh / 2 + 180, -1, -1]].forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y + L * dy); ctx.lineTo(x, y); ctx.lineTo(x + L * dx, y); ctx.stroke(); });
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(sw / 2, shh - 150, 58, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.beginPath(); ctx.arc(sw / 2, shh - 150, 74, 0, 7); ctx.stroke();
+    }
+  });
+  pop('לוחצים.', W / 2, 250, 120, .25, t, { shadow: 1 });
+  pop('מצלמים.', W / 2, 400, 120, 1.25, t, { color: '#2A1A55', mark: '#FFE45C', rot: .12 });
+  if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(0, 0, W, H); }
+}
+const NOTE = BOARD.map(s => s.replace('• ', ''));
+function sceneC(t, T) {     // 6.5–10.5: מוקלד
+  ctx.fillStyle = grad('#FF5E8A', '#7B5CF0'); ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalAlpha = .18; ctx.fillStyle = '#fff';
+  const r = rnd(7); for (let i = 0; i < 40; i++) { const x = r() * W, y = (r() * H + T * (80 + r() * 160)) % H; ctx.beginPath(); ctx.arc(x, y, 3 + r() * 6, 0, 7); ctx.fill(); }
+  ctx.restore();
+  const z = lerp(1.18, 1, eOut(prog(t, 0, .5))) + prog(t, .5, 3.5) * .05;
+  phone(W / 2, 1175, 600, -.03, z, (sw, shh) => {
+    appTop(sw, 'תנ"ך');
+    ctx.strokeStyle = '#E3E2F7'; ctx.lineWidth = 2; for (let y = 268; y < shh; y += 64) { ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(sw - 30, y); ctx.stroke(); }
+    const total = NOTE.join('').length, typed = Math.floor(prog(t, .25, 1.7) * total);
+    let left = typed;
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    NOTE.forEach((s, i) => {
+      const n = clamp(left, 0, s.length); left -= s.length; if (n <= 0 && i) return;
+      const part = s.slice(0, n), y = i ? 324 + i * 64 + 40 : 250, x = sw - 44 - (i ? 30 : 0);
+      font(i ? 30 : 50, i ? 500 : 800); ctx.fillStyle = i ? '#2B2B33' : '#1D1D1F'; ctx.fillText(part, x, y);
+      if (i) { ctx.beginPath(); ctx.arc(sw - 52, y - 11, 6, 0, 7); ctx.fillStyle = '#5E5CE6'; ctx.fill(); }
+      if (n < s.length && n > 0 || (n === 0 && !i)) { const cw = ctx.measureText(part).width; if ((T * 4 | 0) % 2 === 0) { ctx.fillStyle = '#5E5CE6'; ctx.fillRect(x - cw - 8, y - 38, 4, 46); } }
+    });
+    const ck = eBack(prog(t, 2.05, .4));
+    if (ck > 0) { ctx.save(); ctx.translate(sw / 2, shh - 330); ctx.scale(ck, ck); ctx.beginPath(); ctx.arc(0, 0, 80, 0, 7); ctx.fillStyle = '#16A34A'; ctx.fill(); icon('check', 0, 0, 90, '#fff', 3.2); ctx.restore(); }
+  });
+  confetti(t, 2.05, W / 2, 1420, 70, 3);
+  pop('מוקלד.', W / 2, 220, 150, 2.1, t, { color: '#3A1550', mark: '#FFE45C', rot: -.12, shadow: 0 });
+  pop('בשתי שניות.', W / 2, 370, 100, 2.5, t, { shadow: 1 });
+}
+const FEATS = [['spark', 'סיכום למבחן', 'מכל המחברת, בלחיצה', '#9B4DE0'], ['cards', 'כרטיסיות שינון', 'מהחומר שלך', '#E09B0B'], ['chat', 'עוזר לימודי', 'מסביר כל שלב', '#2EC4B6']];
+function sceneD(t, T) {     // 10.5–14.5: עוד דברים
+  ctx.fillStyle = '#F5F5FA'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#DCDCE8'; for (let x = 30; x < W; x += 60) for (let y = 30; y < H; y += 60) { ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); }
+  pop('ויש עוד.', W / 2, 330, 130, .1, t, { color: '#1D1D1F' });
+  FEATS.forEach(([ic, a, b, c], i) => {
+    const t0 = .55 + i * .5, k = prog(t, t0, .42); if (k <= 0) return;
+    const dir = i % 2 ? -1 : 1, x = lerp(W * 1.2 * dir, 0, eBack(k)) + W / 2, y = 700 + i * 330;
+    const lift = Math.sin(clamp((t - t0 - .5) * 2.5) * Math.PI) * 8;
+    if (k < 1) { ctx.globalAlpha = .25 * (1 - k); ctx.fillStyle = c; for (let j = 0; j < 4; j++) ctx.fillRect(x + dir * (420 + j * 70), y - 70 + j * 40, 160, 10); ctx.globalAlpha = 1; }
+    ctx.save(); ctx.translate(x, y - lift); ctx.rotate((1 - eOut(k)) * .2 * dir);
+    ctx.shadowColor = 'rgba(30,30,60,.18)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20;
+    rr(-430, -130, 860, 260, 46); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+    rr(250, -70, 140, 140, 36); ctx.fillStyle = c; ctx.fill(); icon(ic, 320, 0, 74, '#fff', 2.2);
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    font(64, 800); ctx.fillStyle = '#1D1D1F'; ctx.fillText(a, 210, -28);
+    font(42, 500); ctx.fillStyle = '#6E6E78'; ctx.fillText(b, 210, 46);
+    ctx.restore();
+  });
+  pop('הכול במקום אחד', W / 2, 1720, 84, 2.5, t, { color: '#fff', mark: '#5E5CE6' });
+}
+function sceneE(t, T) {     // 14.5–18: הלוגו
+  ctx.fillStyle = grad('#5E5CE6', '#FF5E8A', .4); ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(W / 2, 760); ctx.rotate(T * .25); ctx.globalAlpha = .1;
+  for (let i = 0; i < 16; i++) { ctx.rotate(Math.PI / 8); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1600, -120); ctx.lineTo(1600, 120); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); }
+  ctx.restore();
+  const k = eBack(prog(t, .05, .5)), pb = 1 + beatPulse(T) * .04;
+  ctx.save(); ctx.translate(W / 2, 700); ctx.scale(k * pb, k * pb); ctx.rotate((1 - k) * -.6);
+  ctx.shadowColor = 'rgba(40,0,80,.4)'; ctx.shadowBlur = 70; ctx.shadowOffsetY = 30;
+  rr(-150, -150, 300, 300, 80); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+  icon('book', 0, 0, 170, '#5E5CE6', 2.1); ctx.restore();
+  confetti(T, 14.6, W / 2, 700, 90, 11);
+  pop('המחברות שלי', W / 2, 1010, 132, .45, t, { shadow: 1 });
+  pop('מחברות, יומן ועוזר AI לתלמידים', W / 2, 1140, 54, .9, t, { w: 600, color: 'rgba(255,255,255,.92)' });
+  const f = eBack(prog(t, 1.35, .4));
+  if (f > 0) {
+    const wig = Math.sin(T * 10) * .04 * prog(t, 1.75, .2);
+    ctx.save(); ctx.translate(W / 2, 1290); ctx.scale(f, f); ctx.rotate(wig - .04);
+    rr(-150, -56, 300, 112, 56); ctx.fillStyle = '#FFE45C'; ctx.fill();
+    font(64, 900); ctx.fillStyle = '#2A1A55'; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('בחינם', 0, 4); ctx.restore();
+  }
+  const q = eOut(prog(t, 1.8, .45));
+  if (q > 0) {
+    ctx.save(); ctx.globalAlpha = q; ctx.translate(0, (1 - q) * 60);
+    rr(W / 2 - 330, 1470, 660, 250, 40); ctx.fillStyle = 'rgba(255,255,255,.96)'; ctx.fill();
+    if (qrImg.complete && qrImg.naturalWidth) ctx.drawImage(qrImg, W / 2 + 90, 1490, 210, 210);
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    font(54, 900); ctx.fillStyle = '#1D1D1F'; ctx.fillText('סורקים', W / 2 + 50, 1555);
+    font(54, 900); ctx.fillText('ומתחילים', W / 2 + 50, 1620);
+    font(32, 600); ctx.fillStyle = '#6E6E78'; ctx.fillText('או: קישור בביו', W / 2 + 50, 1680);
+    ctx.restore();
+  }
+}
+// ---------- סרטון פתיחה ----------
+IC.cal = [P('M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z'), P('M16 2v4M8 2v4M3 10h18')];
+function rays(T, dir) { ctx.save(); ctx.translate(W / 2, 760); ctx.rotate(dir * T * .25); ctx.globalAlpha = .1; for (let i = 0; i < 16; i++) { ctx.rotate(Math.PI / 8); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1600, -120); ctx.lineTo(1600, 120); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); } ctx.restore(); }
+function pill(s, x, y, k, bg, fg, size = 44) {
+  if (k <= 0) return; font(size, 800); const w = ctx.measureText(s).width + 60;
+  ctx.save(); ctx.translate(x, y); const sc = lerp(.4, 1, eBack(k)); ctx.scale(sc, sc); ctx.globalAlpha = clamp(k * 3);
+  rr(-w / 2, -size * .95, w, size * 1.9, size); ctx.fillStyle = bg; ctx.fill(); ctx.fillStyle = fg; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, 0, 3); ctx.restore();
+}
+function sceneHook(t, T) {     // 0–2.8: הוק
+  ctx.fillStyle = '#0B0B10'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalAlpha = .22; ctx.translate(W / 2, 1450); const z = 1 + t * .04; ctx.scale(z, z); ctx.rotate(-.05); board(-470, -320, 940, 640, t, 9); ctx.restore();
+  const g = ctx.createLinearGradient(0, 1000, 0, H); g.addColorStop(0, '#0B0B10'); g.addColorStop(.35, 'rgba(11,11,16,.55)'); g.addColorStop(1, 'rgba(11,11,16,.2)'); ctx.fillStyle = g; ctx.fillRect(0, 1000, W, H - 1000);
+  const v = ctx.createRadialGradient(W / 2, 800, 60, W / 2, 800, 900); v.addColorStop(0, 'rgba(94,92,230,.25)'); v.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  pop('בניתי אתר', W / 2, 560, 150, .1, t, { shadow: 1 });
+  pop('שמקליד את הלוח', W / 2, 740, 104, .6, t, { color: '#0B0B10', mark: '#FFE45C', rot: -.08 });
+  pop('במקומי.', W / 2, 910, 150, 1.2, t, { rot: .1, shadow: 1 });
+  pop('(ועוד הרבה)', W / 2, 1060, 56, 1.9, t, { w: 600, color: '#A3A3B5' });
+}
+function sceneWhat(t, T) {     // זה נקרא: המחברות שלי
+  ctx.fillStyle = grad('#5E5CE6', '#FF5E8A', .4); ctx.fillRect(0, 0, W, H); rays(T, 1);
+  pop('זה נקרא', W / 2, 300, 76, .05, t, { w: 700, color: 'rgba(255,255,255,.9)' });
+  const k = eBack(prog(t, .2, .5)), pb = 1 + beatPulse(T) * .04;
+  ctx.save(); ctx.translate(W / 2, 640); ctx.scale(k * pb, k * pb); ctx.rotate((1 - k) * -.6);
+  ctx.shadowColor = 'rgba(40,0,80,.4)'; ctx.shadowBlur = 70; ctx.shadowOffsetY = 30;
+  rr(-150, -150, 300, 300, 80); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+  icon('book', 0, 0, 170, '#5E5CE6', 2.1); ctx.restore();
+  confetti(t, .25, W / 2, 640, 80, 41);
+  pop('המחברות שלי', W / 2, 950, 140, .55, t, { shadow: 1 });
+  pop('מחברות, יומן ועוזר AI לתלמידים', W / 2, 1085, 54, 1.0, t, { w: 600, color: 'rgba(255,255,255,.93)' });
+  pill('בעברית', W / 2 + 300, 1300, prog(t, 1.5, .35), '#fff', '#5E5CE6');
+  pill('בטלפון ובמחשב', W / 2 - 30, 1300, prog(t, 1.75, .35), '#fff', '#5E5CE6');
+  pill('בחינם', W / 2 - 360, 1300, prog(t, 2.0, .35), '#FFE45C', '#2A1A55');
+}
+const F4 = [['spark', 'סיכום למבחן', 'מכל המחברת, בלחיצה', '#9B4DE0'], ['cards', 'כרטיסיות שינון', 'מהחומר שלך', '#E09B0B'], ['chat', 'עוזר לימודי', 'מסביר כל שלב', '#2EC4B6'], ['cal', 'יומן ומערכת שעות', 'שיעורי בית ומבחנים', '#5E5CE6']];
+function sceneFeat(t, T) {     // ומה עוד
+  ctx.fillStyle = '#F5F5FA'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#DCDCE8'; for (let x = 30; x < W; x += 60) for (let y = 30; y < H; y += 60) { ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); }
+  pop('ומה עוד יש?', W / 2, 300, 120, .05, t, { color: '#1D1D1F' });
+  F4.forEach(([ic, a, b, c], i) => {
+    const t0 = .35 + i * .38, k = prog(t, t0, .38); if (k <= 0) return;
+    const dir = i % 2 ? -1 : 1, x = lerp(W * 1.2 * dir, 0, eBack(k)) + W / 2, y = 580 + i * 270;
+    if (k < 1) { ctx.globalAlpha = .25 * (1 - k); ctx.fillStyle = c; for (let j = 0; j < 4; j++) ctx.fillRect(x + dir * (420 + j * 70), y - 60 + j * 34, 160, 10); ctx.globalAlpha = 1; }
+    ctx.save(); ctx.translate(x, y); ctx.rotate((1 - eOut(k)) * .2 * dir);
+    ctx.shadowColor = 'rgba(30,30,60,.16)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18;
+    rr(-440, -110, 880, 220, 44); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+    rr(270, -62, 124, 124, 34); ctx.fillStyle = c; ctx.fill(); icon(ic, 332, 0, 66, '#fff', 2.3);
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    font(58, 800); ctx.fillStyle = '#1D1D1F'; ctx.fillText(a, 236, -26);
+    font(38, 500); ctx.fillStyle = '#6E6E78'; ctx.fillText(b, 236, 40);
+    ctx.restore();
+  });
+  pop('הכול במקום אחד.', W / 2, 1720, 84, 2.3, t, { color: '#1D1D1F', mark: '#FFE45C' });
+}
+function sceneCTA(t, T) {      // סוף: נסו בחינם
+  ctx.fillStyle = grad('#4D4BD8', '#FF5E8A', .5); ctx.fillRect(0, 0, W, H); rays(T, -1);
+  const lk = eBack(prog(t, .05, .4));
+  if (lk > 0) { ctx.save(); ctx.translate(W / 2, 250); ctx.scale(lk, lk); rr(-60, -60, 120, 120, 34); ctx.fillStyle = '#fff'; ctx.fill(); icon('book', 0, 0, 70, '#5E5CE6', 2.2); ctx.restore(); }
+  pop('נסו בחינם', W / 2, 470, 150, .2, t, { shadow: 1 });
+  const q = eBack(prog(t, .6, .5));
+  if (q > 0) {
+    ctx.save(); ctx.translate(W / 2, 980); ctx.scale(q, q); ctx.rotate((1 - q) * .3);
+    ctx.shadowColor = 'rgba(40,0,80,.35)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 26;
+    rr(-300, -330, 600, 660, 60); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+    if (qrImg.complete && qrImg.naturalWidth) ctx.drawImage(qrImg, -220, -290, 440, 440);
+    ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; font(64, 900); ctx.fillStyle = '#1D1D1F'; ctx.fillText('סורקים ומתחילים', 0, 230);
+    ctx.restore();
+  }
+  pop('או: קישור בביו', W / 2, 1440, 80, 1.3, t, { color: '#2A1A55', mark: '#FFE45C', rot: -.06 });
+  pop('המחברות שלי', W / 2, 1640, 72, 1.8, t, { w: 800, color: 'rgba(255,255,255,.95)' });
+  confetti(t, .6, W / 2, 980, 70, 51);
+}
+
+// ---------- סרטון 6: מבלגן לסדר ----------
+function T2(s, x, y, size, w, color, align = 'right', fam) { font(size, w, fam); ctx.direction = 'rtl'; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(s, x, y); return ctx.measureText(s).width; }
+function msg(name, text, x, y, k, nameColor) {
+  if (k <= 0) return; font(40, 600); const w = Math.max(ctx.measureText(text).width, 200) + 70, h = 132;
+  ctx.save(); ctx.translate(x, y); const s = lerp(.3, 1, eBack(k)); ctx.scale(s, s); ctx.rotate((1 - eOut(k)) * .2); ctx.globalAlpha = clamp(k * 3);
+  ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
+  rr(-w / 2, -h / 2, w, h, 26); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
+  ctx.beginPath(); ctx.arc(w / 2 - 6, -h / 2 + 6, 22, 0, 7); ctx.fillStyle = '#25D366'; ctx.fill(); icon('chat', w / 2 - 6, -h / 2 + 6, 24, '#fff', 2.4);
+  T2(name, w / 2 - 40, -24, 30, 800, nameColor); T2(text, w / 2 - 34, 26, 40, 600, '#1D1D1F');
+  ctx.restore();
+}
+// ---- המסך של האתר בטלפון ----
+const NB6 = [['תנ״ך', '#9B4DE0'], ['מתמטיקה', '#5E5CE6'], ['היסטוריה', '#2EC4B6']];
+const DAYS = ['יום ג׳', 'יום ד׳', 'יום ה׳'];
+function home6(sw, shh, st) {
+  ctx.fillStyle = '#FBFBFD'; ctx.fillRect(0, 0, sw, shh);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, sw, 150);
+  rr(sw - 98, 72, 56, 56, 16); ctx.fillStyle = '#5E5CE6'; ctx.fill(); icon('book', sw - 70, 100, 34, '#fff', 2.2);
+  T2('המחברות שלי', sw - 118, 102, 34, 800, '#1D1D1F'); ctx.fillStyle = '#E7E7EE'; ctx.fillRect(0, 150, sw, 2);
+  // מחברות
+  T2('המחברות', sw - 36, 200, 30, 800, '#1D1D1F');
+  NB6.forEach(([n, c], i) => { const k = st.nb[i] || 0; if (k <= 0) return; const cw = 158, x = sw - 36 - cw - i * (cw + 16), y = 236;
+    ctx.save(); ctx.globalAlpha = clamp(k * 2); ctx.translate(x + cw / 2, y + 70); const s = lerp(.5, 1, eBack(k)); ctx.scale(s, s);
+    rr(-cw / 2, -70, cw, 140, 18); ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(30,30,60,.12)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; ctx.fill(); ctx.shadowColor = 'transparent';
+    ctx.save(); rr(-cw / 2, -70, cw, 140, 18); ctx.clip(); ctx.fillStyle = c; ctx.fillRect(-cw / 2, -70, cw, 12); ctx.restore();
+    rr(cw / 2 - 52, -44, 36, 36, 10); ctx.fillStyle = c; ctx.fill(); icon('book', cw / 2 - 34, -26, 22, '#fff', 2.2);
+    T2(n, cw / 2 - 16, 30, 26, 800, '#1D1D1F'); ctx.restore(); });
+  // השבוע
+  T2('השבוע', sw - 36, 440, 30, 800, '#1D1D1F');
+  const bw = (sw - 72 - 2 * 14) / 3;
+  DAYS.forEach((d, i) => { const x = sw - 36 - bw - i * (bw + 14), y = 476; rr(x, y, bw, 170, 16); ctx.fillStyle = st.hi === i ? '#EEEEFD' : '#fff'; ctx.fill(); ctx.strokeStyle = st.hi === i ? '#5E5CE6' : '#E7E7EE'; ctx.lineWidth = 2; ctx.stroke(); T2(d, x + bw / 2, y + 30, 26, 800, '#6E6E78', 'center'); });
+  const chipAt = (i, txt, c, k, y) => { if (k <= 0) return; const x = sw - 36 - bw - i * (bw + 14); ctx.save(); ctx.globalAlpha = clamp(k * 2); ctx.translate(x + bw / 2, y); const s = lerp(.4, 1, eBack(k)); ctx.scale(s, s); rr(-bw / 2 + 8, -28, bw - 16, 56, 14); ctx.fillStyle = c; ctx.fill(); font(23, 800); const fs = Math.min(23, 23 * (bw - 30) / ctx.measureText(txt).width); T2(txt, 0, 1, fs, 800, '#fff', 'center'); ctx.restore(); };
+  chipAt(2, 'מבחן תנ״ך', '#E5484D', st.test || 0, 560);
+  chipAt(1, 'ש״ב מתמטיקה', '#5E5CE6', st.hwDay || 0, 600);
+  // שיעורי בית
+  T2('שיעורי בית', sw - 36, 700, 30, 800, '#1D1D1F');
+  [['היסטוריה: לקרוא פרק 3', st.hw1 || 0], ['מתמטיקה עמ׳ 45', st.hw2 || 0]].forEach(([s, k], i) => { if (k <= 0) return; const y = 750 + i * 78; ctx.save(); ctx.globalAlpha = clamp(k * 2); ctx.translate((1 - eOut(k)) * 80, 0); rr(36, y, sw - 72, 64, 16); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#E7E7EE'; ctx.lineWidth = 2; ctx.stroke(); rr(sw - 80, y + 18, 28, 28, 8); ctx.strokeStyle = '#A3A3AF'; ctx.lineWidth = 3; ctx.stroke(); T2(s, sw - 96, y + 33, 26, 600, '#2B2B33'); ctx.restore(); });
+  // תיבת הוספה מהירה
+  if (st.input !== undefined) {
+    const y = shh - 230; rr(30, y, sw - 60, 86, 43); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#5E5CE6'; ctx.lineWidth = 3; ctx.stroke();
+    T2('+', sw - 66, y + 43, 40, 700, '#5E5CE6', 'center');
+    if (st.input) { const w = T2(st.input, sw - 96, y + 44, 30, 600, '#1D1D1F'); if (st.caret) { ctx.fillStyle = '#5E5CE6'; ctx.fillRect(sw - 100 - w, y + 24, 3, 40); } }
+    else T2('שיעורי בית חדשים?', sw - 96, y + 44, 30, 500, '#A3A3AF');
+    if (st.hint > 0) { ctx.save(); ctx.globalAlpha = clamp(st.hint * 2); rr(30, y + 100, sw - 60, 60, 16); ctx.fillStyle = '#EEEEFD'; ctx.fill(); T2('יום רביעי · יש לך מתמטיקה', sw / 2, y + 131, 24, 700, '#4B49C8', 'center'); ctx.restore(); }
+  }
+}
+// ---- תיק ובלגן ----
+function bag(x, y, s, shake) {
+  ctx.save(); ctx.translate(x + shake, y); ctx.scale(s, s);
+  rr(-190, -40, 380, 340, 70); ctx.fillStyle = '#E5484D'; ctx.fill();
+  rr(-150, -120, 300, 140, 60); ctx.fillStyle = '#C43C41'; ctx.fill();
+  rr(-130, 110, 260, 140, 30); ctx.fillStyle = '#F06A6E'; ctx.fill();
+  ctx.strokeStyle = '#8F2A2E'; ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(0, -120, 70, Math.PI, 0); ctx.stroke();
+  ctx.restore();
+}
+const JUNK = (() => { const r = rnd(17), a = []; for (let i = 0; i < 26; i++) a.push({ type: i % 3, ang: -Math.PI / 2 + (r() - .5) * 2.8, sp: 900 + r() * 1300, rot: (r() - .5) * 8, c: ['#FDFCF6', '#FFE45C', '#9B4DE0', '#2EC4B6', '#FF5E8A', '#5E5CE6'][i % 6], x: (r() - .5) * 200 }); return a; })();
+function junkItem(o, x, y, rot, a) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = a;
+  if (o.type === 0) { rr(-70, -90, 140, 180, 6); ctx.fillStyle = '#FDFCF6'; ctx.fill(); ctx.strokeStyle = '#C9D8F2'; ctx.lineWidth = 3; for (let yy = -60; yy < 80; yy += 22) { ctx.beginPath(); ctx.moveTo(-60, yy); ctx.lineTo(60, yy); ctx.stroke(); } }
+  else if (o.type === 1) { rr(-60, -60, 120, 120, 6); ctx.fillStyle = '#FFE45C'; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-40, -15); ctx.lineTo(40, -15); ctx.moveTo(-40, 10); ctx.lineTo(20, 10); ctx.stroke(); }
+  else { rr(-80, -105, 160, 210, 10); ctx.fillStyle = o.c === '#FDFCF6' ? '#5E5CE6' : o.c; ctx.fill(); rr(-40, -60, 100, 40, 6); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill(); }
+  ctx.restore();
+}
+function sceneHook6(t, T) {     // 0–4
+  ctx.fillStyle = '#0D0D14'; ctx.fillRect(0, 0, W, H);
+  const v = ctx.createRadialGradient(W / 2, 900, 60, W / 2, 900, 1000); v.addColorStop(0, 'rgba(46,196,182,.22)'); v.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  pop('AI עונה לך על שאלות.', W / 2, 640, 96, .3, t, { color: '#B9B9C6', w: 800 });
+  pop('אבל מי', W / 2, 860, 140, 1.6, t, { shadow: 1 });
+  pop('מארגן', W / 2, 1030, 170, 2.0, t, { color: '#0D0D14', mark: '#FFE45C', rot: -.1 });
+  pop('לך את הלימודים?', W / 2, 1210, 110, 2.5, t, { shadow: 1 });
+}
+function sceneChaos(t, T) {     // 4–10
+  ctx.fillStyle = grad('#3A1D4E', '#7A2E4E'); ctx.fillRect(0, 0, W, H);
+  pop('תפסיקו לשאול בקבוצה', W / 2, 200, 80, .5, t, { shadow: 1 });
+  pop('"מה יש מחר"', W / 2, 340, 120, .62, t, { color: '#2A1A55', mark: '#FFE45C', rot: -.06 });
+  const boom = 1.0, dt = t - boom, shake = t < boom && t > .4 ? Math.sin(T * 60) * 14 * prog(t, .4, .6) : 0;
+  if (dt < 0) bag(W / 2, 1300, 1.2, shake);
+  else {
+    bag(W / 2, 1300 + eIn(clamp(dt / 1.2)) * 900, 1.2, 0);
+    JUNK.forEach((o, i) => { const tt = Math.min(dt, 1.4), slow = dt > 1.4 ? (dt - 1.4) * .12 : 0;
+      const x = W / 2 + o.x + Math.cos(o.ang) * o.sp * (tt * .6) + Math.sin(T * 1.5 + i) * 30, y = 1250 + Math.sin(o.ang) * o.sp * (tt * .6) + 700 * tt * tt * .5 + Math.cos(T + i) * 20 - slow * 60;
+      junkItem(o, x, Math.min(y, 1750), o.rot * tt + Math.sin(T + i) * .2, 1); });
+    if (dt < .25) { ctx.fillStyle = `rgba(255,255,255,${.7 * (1 - dt / .25)})`; ctx.fillRect(0, 0, W, H); }
+  }
+  msg('נועה', 'מתי המבחן בתנ״ך??', W / 2 + 120, 560, prog(t, 1.7, .4), '#E07A1F');
+  msg('דניאל', 'מה היה ש״ב במתמטיקה?', W / 2 - 80, 800, prog(t, 2.7, .4), '#2E7D32');
+  msg('יואב', 'מישהו צילם את הלוח?', W / 2 + 60, 1040, prog(t, 3.7, .4), '#1565C0');
+}
+function sceneOrder(t, T) {      // 10–16
+  ctx.fillStyle = grad('#EEEEFD', '#E6FBF7'); ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(94,92,230,.1)'; for (let x = 30; x < W; x += 60) for (let y = 30; y < H; y += 60) { ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill(); }
+  const st = { nb: [prog(t, .6, .45), prog(t, 1.2, .45), prog(t, 1.8, .45)], test: prog(t, 2.7, .45), hw1: prog(t, 3.4, .4) };
+  const k = eBack(prog(t, 0, .6));
+  phone(W / 2, lerp(1950, 1150, k), 600, 0, 1, (sw, shh) => home6(sw, shh, st));
+  // דברים שעפים פנימה
+  [[.6, 0, 160, 900], [1.2, 0, 940, 1000], [1.8, 0, 120, 1500], [2.7, 1, 980, 600], [3.4, 0, 150, 700]].forEach(([t0, type, sx, sy], i) => {
+    const f = prog(t, t0 - .5, .5); if (f <= 0 || f >= 1) return;
+    const tx = i < 3 ? 760 - i * 175 : i === 3 ? 380 : 540, ty = i < 3 ? 1000 : i === 3 ? 1210 : 1420;
+    junkItem({ type, c: ['#9B4DE0', '#5E5CE6', '#2EC4B6', '#FFE45C', '#FDFCF6'][i] }, lerp(sx, tx, eIn(f)), lerp(sy, ty, eIn(f)), (1 - f) * 3, 1 - f * .3);
+  });
+  pop('יש אתר שמסדר הכול לבד.', W / 2, 260, 88, 3.2, t, { color: '#1D1D1F' });
+  pop('מחברות · מבחנים · שיעורי בית', W / 2, 400, 56, 3.7, t, { w: 700, color: '#5E5CE6' });
+}
+const Q6 = 'ש״ב במתמטיקה עמ׳ 45';
+function sceneWow(t, T) {        // 16–22
+  ctx.fillStyle = grad('#4D4BD8', '#9B4DE0'); ctx.fillRect(0, 0, W, H); rays(T * .5, 1);
+  const typed = Math.floor(prog(t, .6, 1.6) * Q6.length), sent = t > 2.9, fly = prog(t, 3.0, .7);
+  const st = { nb: [1, 1, 1], test: 1, hw1: 1, hw2: 0, input: sent ? '' : Q6.slice(0, typed), caret: !sent && (T * 4 | 0) % 2 === 0, hint: !sent ? prog(t, 2.3, .3) : 0, hwDay: prog(t, 3.6, .35), hi: t > 3.5 && t < 5.2 ? 1 : -1 };
+  phone(W / 2, 1180, 600, 0, lerp(1, 1.05, prog(t, 0, 6)), (sw, shh) => {
+    home6(sw, shh, st);
+    if (fly > 0 && fly < 1) { const x = lerp(sw / 2, sw - 36 - ((sw - 100) / 3) * 1.5 - 14, eOut(fly)), y = lerp(shh - 190, 600, eOut(fly)); rr(x - 70, y - 24, 140, 48, 12); ctx.fillStyle = '#5E5CE6'; ctx.fill(); T2('ש״ב', x, y + 1, 22, 800, '#fff', 'center'); }
+    if (t > 3.6 && t < 4.6) { const sp = prog(t, 3.6, 1); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = 30 + sp * 70; ctx.fillStyle = `rgba(255,228,92,${1 - sp})`; ctx.beginPath(); ctx.arc(sw - 36 - ((sw - 100) / 3) * 1.5 - 14 + Math.cos(a) * r, 600 + Math.sin(a) * r, 7, 0, 7); ctx.fill(); } }
+  });
+  pop('בלי תאריך.', W / 2, 220, 120, .2, t, { shadow: 1 });
+  pop('הוא יודע מתי יש לך מתמטיקה.', W / 2, 380, 70, 4.0, t, { color: '#2A1A55', mark: '#FFE45C' });
+}
+function sceneTomorrow(t, T) {   // 22–27
+  ctx.fillStyle = grad('#0F5132', '#1F8F6E'); ctx.fillRect(0, 0, W, H);
+  msg('דניאל', 'מה יש מחר??', W / 2, 240, prog(t, .3, .4), '#2E7D32');
+  const k = eOut(prog(t, 1.1, .5));
+  phone(W / 2, lerp(1950, 1160, k), 600, 0, 1, (sw, shh) => {
+    ctx.fillStyle = '#FBFBFD'; ctx.fillRect(0, 0, sw, shh); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, sw, 150);
+    rr(sw - 98, 72, 56, 56, 16); ctx.fillStyle = '#5E5CE6'; ctx.fill(); icon('book', sw - 70, 100, 34, '#fff', 2.2); T2('בית', sw - 118, 102, 34, 800, '#1D1D1F');
+    const c1 = eBack(prog(t, 1.7, .4)), c2 = eBack(prog(t, 2.1, .4));
+    if (c1 > 0) { ctx.save(); ctx.translate(sw / 2, 330); ctx.scale(c1, c1); rr(-sw / 2 + 30, -130, sw - 60, 260, 30); ctx.fillStyle = '#5E5CE6'; ctx.fill(); T2('מחר · יום רביעי', sw / 2 - 60, -80, 30, 700, 'rgba(255,255,255,.85)'); T2('ש״ב במתמטיקה', sw / 2 - 60, -10, 46, 900, '#fff'); T2('עמ׳ 45', sw / 2 - 60, 50, 34, 600, 'rgba(255,255,255,.9)'); ctx.restore(); }
+    if (c2 > 0) { ctx.save(); ctx.translate(sw / 2, 640); ctx.scale(c2, c2); rr(-sw / 2 + 30, -120, sw - 60, 240, 30); ctx.fillStyle = '#FFF0F0'; ctx.fill(); ctx.strokeStyle = '#F5B5B7'; ctx.lineWidth = 3; ctx.stroke(); T2('יום חמישי', sw / 2 - 60, -60, 30, 700, '#B42318'); T2('מבחן בתנ״ך', sw / 2 - 60, 6, 46, 900, '#1D1D1F'); T2('עוד יומיים · יש תוכנית למידה', sw / 2 - 60, 64, 26, 600, '#6E6E78'); ctx.restore(); }
+  });
+  if (t > 2.7) { ctx.save(); const k2 = prog(t, 2.7, .4); ctx.globalAlpha = clamp(k2 * 3); rr(W / 2 - 330, 420, 660, 120, 60); ctx.fillStyle = '#FFE45C'; ctx.fill(); T2('שנייה אחת. בלי לחפש.', W / 2, 482, 56, 900, '#2A1A55', 'center'); ctx.restore(); }
+}
+function sceneEnd6(t, T) {       // 27–31
+  ctx.fillStyle = grad('#2EC4B6', '#5E5CE6', .45); ctx.fillRect(0, 0, W, H); rays(T, -1);
+  const k = eBack(prog(t, .05, .5)), pb = 1 + beatPulse(T) * .03;
+  logoTile(W / 2, 560, k * pb, (1 - k) * .6);
+  confetti(t, .15, W / 2, 560, 90, 91);
+  pop('המחברות שלי', W / 2, 860, 140, .4, t, { shadow: 1 });
+  pop('כל הלימודים במקום אחד.', W / 2, 1000, 72, .9, t, { w: 800, color: '#fff' });
+  pill('בחינם', W / 2, 1170, prog(t, 1.4, .35), '#FFE45C', '#2A1A55', 56);
+  pop('חפשו בגוגל', W / 2, 1390, 88, 1.9, t, { shadow: 1 });
+  pop('או בקשו קישור בפרטי', W / 2, 1520, 66, 2.3, t, { w: 800, color: '#1D1D1F', mark: '#fff' });
+}
+// ---------- סרטון 7: גרסה מהירה בסגנון תלת-ממד (Claymorphism) ----------
+// אור רך מהפינה השמאלית העליונה: צד עליון בהיר, צד תחתון כהה, וצל רך שנופל ימינה-למטה
+function shade(hex, a) { const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const t = a < 0 ? 0 : 255, p = Math.abs(a); r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b); return `rgb(${r},${g},${b})`; }
+function clayRR(x, y, w, h, r, color, o = {}) {
+  const d = o.depth ?? Math.min(18, h * .08), lift = o.lift ?? 1;
+  ctx.save();
+  // צל רך על "הרצפה"
+  ctx.shadowColor = `rgba(25,10,45,${.32 * lift})`; ctx.shadowBlur = 60 * lift; ctx.shadowOffsetX = 22 * lift; ctx.shadowOffsetY = 34 * lift;
+  rr(x, y + d, w, h, r); ctx.fillStyle = shade(color, -.32); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  // עובי (הצד)
+  rr(x, y + d, w, h, r); ctx.fillStyle = shade(color, -.28); ctx.fill();
+  // הפנים
+  const g = ctx.createLinearGradient(x, y, x + w * .6, y + h); g.addColorStop(0, shade(color, .28)); g.addColorStop(.45, color); g.addColorStop(1, shade(color, -.12)); rr(x, y, w, h, r); ctx.fillStyle = g; ctx.fill();
+  // ברק רך למעלה משמאל
+  ctx.save(); rr(x, y, w, h, r); ctx.clip();
+  const hl = ctx.createRadialGradient(x + w * .22, y + h * .12, 2, x + w * .22, y + h * .12, Math.max(w, h) * .7); hl.addColorStop(0, 'rgba(255,255,255,.55)'); hl.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = hl; ctx.fillRect(x, y, w, h);
+  const sh = ctx.createLinearGradient(x, y + h * .6, x, y + h); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(20,10,40,.14)'); ctx.fillStyle = sh; ctx.fillRect(x, y, w, h);
+  ctx.restore();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.beginPath(); ctx.roundRect(x + 3, y + 3, w - 6, h - 6, Math.max(2, r - 3)); ctx.stroke();
+  ctx.restore();
+}
+// תיק גב תלת-ממדי נפוח עם רוכסנים
+function bag(x, y, s, shake) {
+  ctx.save(); ctx.translate(x + shake, y); ctx.scale(s, s);
+  ctx.strokeStyle = '#B23A3F'; ctx.lineWidth = 34; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, -125, 78, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(-6, -132, 78, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke();
+  clayRR(-200, -60, 400, 360, 110, '#E5484D', { depth: 26 });
+  clayRR(-160, -140, 320, 150, 70, '#D94045', { depth: 18, lift: .6 });
+  clayRR(-135, 120, 270, 150, 46, '#F0676B', { depth: 16, lift: .5 });
+  // רוכסנים
+  const zip = (x0, x1, y0) => { for (let xx = x0; xx < x1; xx += 14) { rr(xx, y0 - 5, 8, 10, 2); ctx.fillStyle = '#F4D58D'; ctx.fill(); } };
+  zip(-120, 120, -40); zip(-105, 105, 140);
+  [[118, -40], [95, 140]].forEach(([zx, zy]) => { clayRR(zx - 10, zy - 6, 20, 46, 8, '#F4C95D', { depth: 5, lift: .25 }); });
+  ctx.restore();
+}
+// דף / פתק / מחברת עם עובי, צל וקצה מקופל
+function junkItem(o, x, y, rot, a) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = a;
+  if (o.type === 0) {
+    ctx.shadowColor = 'rgba(25,10,45,.3)'; ctx.shadowBlur = 30; ctx.shadowOffsetX = 14; ctx.shadowOffsetY = 22;
+    rr(-68, -86, 140, 180, 8); ctx.fillStyle = '#D8D9E6'; ctx.fill(); ctx.shadowColor = 'transparent';
+    ctx.beginPath(); ctx.moveTo(-70, -90); ctx.lineTo(70, -90); ctx.lineTo(70, 90); ctx.lineTo(-38, 90); ctx.quadraticCurveTo(-56, 72, -70, 60); ctx.closePath();
+    const g = ctx.createLinearGradient(-70, -90, 70, 90); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, '#ECEDF5'); ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-70, 60); ctx.quadraticCurveTo(-40, 62, -38, 90); ctx.quadraticCurveTo(-60, 80, -70, 60); ctx.fillStyle = '#C9CBDB'; ctx.fill();
+    ctx.strokeStyle = '#C9D8F2'; ctx.lineWidth = 3; for (let yy = -60; yy < 70; yy += 22) { ctx.beginPath(); ctx.moveTo(-58, yy); ctx.lineTo(58, yy); ctx.stroke(); }
+  } else if (o.type === 1) {
+    clayRR(-60, -60, 120, 120, 14, '#FFE45C', { depth: 6, lift: .7 });
+    ctx.strokeStyle = 'rgba(90,70,0,.3)'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-36, -12); ctx.lineTo(36, -12); ctx.moveTo(-36, 14); ctx.lineTo(16, 14); ctx.stroke();
+  } else {
+    const c = o.c === '#FDFCF6' ? '#5E5CE6' : o.c;
+    clayRR(-80, -105, 160, 210, 18, c, { depth: 14, lift: .8 });
+    ctx.fillStyle = shade(c, -.35); ctx.fillRect(-70, -105, 12, 210);
+    clayRR(-34, -62, 96, 40, 10, '#FFFFFF', { depth: 4, lift: .2 });
+  }
+  ctx.restore();
+}
+// בועת וואטסאפ תפוחה ומבריקה
+function msg(name, text, x, y, k, nameColor) {
+  if (k <= 0) return; font(40, 600); const w = Math.max(ctx.measureText(text).width, 200) + 80, h = 140;
+  ctx.save(); ctx.translate(x, y); const s = lerp(.3, 1, eBack(k)); ctx.scale(s, s); ctx.rotate((1 - eOut(k)) * .2); ctx.globalAlpha = clamp(k * 3);
+  clayRR(-w / 2, -h / 2, w, h, 40, '#F4F5FC', { depth: 14 });
+  ctx.save(); rr(-w / 2, -h / 2, w, h, 40); ctx.clip(); const gl = ctx.createLinearGradient(0, -h / 2, 0, -h / 2 + 40); gl.addColorStop(0, 'rgba(255,255,255,.9)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-w / 2 + 20, -h / 2 + 6, w - 40, 34); ctx.restore();
+  ctx.save(); ctx.translate(w / 2 - 4, -h / 2 + 4); ctx.beginPath(); ctx.arc(0, 0, 28, 0, 7); const gg = ctx.createRadialGradient(-8, -8, 2, 0, 0, 28); gg.addColorStop(0, '#6EF0A0'); gg.addColorStop(1, '#16A34A'); ctx.fillStyle = gg; ctx.shadowColor = 'rgba(0,80,30,.4)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; ctx.fill(); ctx.shadowColor = 'transparent'; icon('chat', 0, 0, 28, '#fff', 2.6); ctx.restore();
+  T2(name, w / 2 - 44, -26, 30, 800, nameColor); T2(text, w / 2 - 38, 26, 40, 700, '#1D1D1F');
+  ctx.restore();
+}
+function pill(s, x, y, k, bg, fg, size = 44) {
+  if (k <= 0) return; font(size, 800); const w = ctx.measureText(s).width + 70, h = size * 1.9;
+  ctx.save(); ctx.translate(x, y); const sc = lerp(.4, 1, eBack(k)); ctx.scale(sc, sc); ctx.globalAlpha = clamp(k * 3);
+  clayRR(-w / 2, -h / 2, w, h, h / 2, bg.startsWith('#') ? bg : '#FFFFFF', { depth: 10, lift: .7 });
+  ctx.fillStyle = fg; ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, 0, 3); ctx.restore();
+}
+// אריח הלוגו בתלת-ממד
+function logoTile(x, y, k, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.rotate(rot);
+  clayRR(-150, -150, 300, 300, 84, '#FFFFFF', { depth: 26 });
+  ctx.save(); ctx.translate(6, 8); icon('book', 0, 0, 170, 'rgba(40,20,90,.18)', 2.4); ctx.restore();
+  icon('book', 0, 0, 170, '#5E5CE6', 2.4); ctx.restore();
+}
+// תאורה רכה על כל המסך
+function softLight() {
+  const g = ctx.createRadialGradient(140, 120, 40, 140, 120, 1300); g.addColorStop(0, 'rgba(255,255,255,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .75); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(15,5,30,.28)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+}
+const sp7 = (fn, k, off = 0) => (t, T) => fn(off + t * k, T);
+// סאונד לגרסה המהירה (אותו סגנון מרימבה, לפי הזמנים החדשים)
+function music(at) {
+  ac = ac || new AudioContext(); dest = dest || ac.createMediaStreamDestination();
+  const out = ac.createGain(); out.gain.value = .7; out.connect(ac.destination); out.connect(dest);
+  const noise = (() => { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  const nz = (t, dur, type, f, v, q = 1) => { const s = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + dur); s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * .5); s.stop(t + dur + .02); };
+  const mar = (t, hz, v = .16) => { [[1, v, .5], [4, v * .35, .08], [10, v * .12, .03]].forEach(([m, vv, d]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = hz * m; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vv, t + .004); g.gain.exponentialRampToValueAtTime(.0005, t + d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); }); };
+  const sub = (t, hz, d = .5, v = .4) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(hz * 1.6, t); o.frequency.exponentialRampToValueAtTime(hz, t + .05); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const clap = (t, v = .35) => { [0, .012, .026].forEach(d => nz(t + d, .09, 'bandpass', 1500, v, 1.5)); };
+  const ding = (t, a = 1318.5, b = 1760) => { mar(t, a, .15); mar(t + .08, b, .13); };
+  const whoosh = t => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(300, t - .3); f.frequency.exponentialRampToValueAtTime(4500, t + .05); g.gain.setValueAtTime(.001, t - .3); g.gain.exponentialRampToValueAtTime(.3, t); g.gain.exponentialRampToValueAtTime(.001, t + .2); s.connect(f).connect(g).connect(out); s.start(t - .3); s.stop(t + .25); };
+  const B = .5, KEY = [[196, 246.9, 293.7], [174.6, 220, 261.6], [164.8, 196, 246.9], [174.6, 220, 261.6]], BASS = [49, 43.65, 41.2, 43.65];
+  const MEL = [587.3, 659.3, 784, 659.3, 587.3, 523.3, 587.3, 0, 784, 880, 784, 659.3, 587.3, 659.3, 523.3, 0];
+  for (let b = 0; b * B < 20; b++) {
+    const t = at + b * B, T = b * B, bar = Math.floor(b / 4) % 4;
+    if (T < 3.5) { if (b % 2 === 0) sub(t, BASS[bar], .4, .3); for (let s = 0; s < 2; s++) nz(t + s * B / 2, .03, 'highpass', 8000, .07); continue; }
+    if (b % 4 === 0 || b % 4 === 2) sub(t, BASS[bar], .4, b % 4 ? .3 : .45);
+    if (b % 4 === 1 || b % 4 === 3) clap(t);
+    for (let s = 0; s < 4; s++) nz(t + s * B / 4, .03, 'highpass', 9000, s % 2 ? .04 : .07);
+    const m = MEL[b % 16]; if (m) mar(t, m, .13); if (b % 2) mar(t + B / 2, MEL[(b + 3) % 16] || 659.3, .07);
+    if (b % 4 === 0) KEY[bar].forEach(hz => mar(t, hz / 2, .06));
+  }
+  // פיצוץ התיק בהתחלה + התראות
+  sub(at + .31, 40, 1.1, .9); nz(at + .31, .5, 'lowpass', 900, .6);
+  [.75, 1.38, 2.0].forEach(c => ding(at + c));
+  // כל דבר שנכנס למקום
+  [3.9, 4.3, 4.7, 5.3, 5.77].forEach((c, i) => { nz(at + c, .02, 'highpass', 3000, .4); mar(at + c + .01, [1046.5, 1174.7, 1318.5, 1568, 1760][i], .15); });
+  // הקלדה וקסם
+  for (let c = 8.0; c < 9.3; c += .08) nz(at + c, .025, 'highpass', 5000, .18);
+  [1046.5, 1318.5, 1568, 2093, 2637].forEach((hz, i) => mar(at + 10.38 + i * .06, hz, .14));
+  // מה יש מחר
+  ding(at + 12.75); [13.92, 14.25].forEach(c => mar(at + c, 1568, .1));
+  [3.5, 7.5, 12.5, 16.5].forEach(c => whoosh(at + c));
+  sub(at + 16.5, 49, 1, .7); clap(at + 16.5, .5); [784, 987.8, 1174.7, 1568].forEach((hz, i) => mar(at + 16.55 + i * .08, hz, .16));
+  return out;
+}
+
+const SC = [[0, 3.5, sp7(sceneChaos, 1.6, .5)], [3.5, 7.5, sp7(sceneOrder, 1.5)], [7.5, 12.5, sp7(sceneWow, 1.25)], [12.5, 16.5, sp7(sceneTomorrow, 1.2)], [16.5, 20.2, sceneEnd6]];
+// ---------- סאונד חדש: מרימבה קופצנית, מחיאות כפיים ובס עמוק ----------
+function music(at) {
+  ac = ac || new AudioContext(); dest = dest || ac.createMediaStreamDestination();
+  const out = ac.createGain(); out.gain.value = .7; out.connect(ac.destination); out.connect(dest);
+  const noise = (() => { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  const nz = (t, dur, type, f, v, q = 1) => { const s = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + dur); s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * .5); s.stop(t + dur + .02); };
+  const mar = (t, hz, v = .16) => { [[1, v, .5], [4, v * .35, .08], [10, v * .12, .03]].forEach(([m, vv, d]) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = hz * m; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vv, t + .004); g.gain.exponentialRampToValueAtTime(.0005, t + d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); }); };
+  const sub = (t, hz, d = .5, v = .4) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(hz * 1.6, t); o.frequency.exponentialRampToValueAtTime(hz, t + .05); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const clap = (t, v = .35) => { [0, .012, .026].forEach(d => nz(t + d, .09, 'bandpass', 1500, v, 1.5)); };
+  const ding = (t, a = 1318.5, b = 1760) => { mar(t, a, .14); mar(t + .08, b, .12); };
+  const B = .6, KEY = [[196, 246.9, 293.7], [174.6, 220, 261.6], [164.8, 196, 246.9], [174.6, 220, 261.6]], BASS = [49, 43.65, 41.2, 43.65];
+  const MEL = [587.3, 659.3, 784, 659.3, 587.3, 523.3, 587.3, 0, 784, 880, 784, 659.3, 587.3, 659.3, 523.3, 0];
+  for (let b = 0; b * B < 31; b++) {
+    const t = at + b * B, T = b * B, bar = Math.floor(b / 4) % 4;
+    if (T < 4) { if (b % 2 === 0) KEY[bar].forEach((hz, i) => mar(t + i * .05, hz, .07)); continue; }       // הוק: שקט
+    if (T >= 4 && T < 10) { if (b % 2 === 0) sub(t, BASS[bar], .5, .35); nz(t + B / 2, .04, 'highpass', 8000, .06); continue; }   // בלגן: מתח
+    if (b % 4 === 0 || b % 4 === 2) sub(t, BASS[bar], .45, b % 4 ? .3 : .45);
+    if (b % 4 === 1 || b % 4 === 3) clap(t);
+    for (let s = 0; s < 4; s++) nz(t + s * B / 4, .03, 'highpass', 9000, s % 2 ? .04 : .07);
+    const m = MEL[b % 16]; if (m) mar(t, m, .13); if (b % 2) mar(t + B / 2, MEL[(b + 3) % 16] || 659.3, .07);
+    if (b % 4 === 0) KEY[bar].forEach(hz => mar(t, hz / 2, .06));
+  }
+  // הבלגן: רעד, פיצוץ, התראות
+  { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; s.loop = true; f.type = 'lowpass'; f.frequency.setValueAtTime(200, at + 4.4); f.frequency.exponentialRampToValueAtTime(2500, at + 5); g.gain.setValueAtTime(.001, at + 4.4); g.gain.exponentialRampToValueAtTime(.25, at + 4.98); g.gain.exponentialRampToValueAtTime(.001, at + 5.05); s.connect(f).connect(g).connect(out); s.start(at + 4.4); s.stop(at + 5.1); }
+  sub(at + 5, 40, 1.2, .9); nz(at + 5, .6, 'lowpass', 900, .6);
+  [5.7, 6.7, 7.7].forEach(c => ding(at + c));
+  // הסדר: "קליק" לכל דבר שנכנס
+  [10.6, 11.2, 11.8, 12.7, 13.4].forEach((c, i) => { nz(at + c, .02, 'highpass', 3000, .4); mar(at + c + .01, [1046.5, 1174.7, 1318.5, 1568, 1760][i], .15); });
+  // הוואו: הקלדה וצליל קסם
+  for (let c = 16.6; c < 18.2; c += .1) nz(at + c, .025, 'highpass', 5000, .18);
+  [1046.5, 1318.5, 1568, 2093, 2637].forEach((hz, i) => mar(at + 19.6 + i * .06, hz, .14));
+  // מחר: הודעה ותשובה
+  ding(at + 22.3); [23.7, 24.1].forEach(c => mar(at + c, 1568, .1));
+  // סוף
+  sub(at + 27, 49, 1, .7); clap(at + 27, .5); [784, 987.8, 1174.7, 1568].forEach((hz, i) => mar(at + 27.05 + i * .08, hz, .16));
+  return out;
+}
+
+function frame(T) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  const i = SC.findIndex(s => T < s[1]); const [a, , fn] = SC[i < 0 ? SC.length - 1 : i];
+  const t = T - a, cut = i > 0 ? prog(T, a, .32) : 1;
+  // מעבר: זום-פאנץ' + סיבוב קטן + הבזק
+  ctx.save();
+  if (cut < 1) { const s = lerp(1.35, 1, eOut(cut)), r = lerp(i % 2 ? .08 : -.08, 0, eOut(cut)); ctx.translate(W / 2, H / 2); ctx.rotate(r); ctx.scale(s, s); ctx.translate(-W / 2, -H / 2); }
+  fn(t, T); ctx.restore(); softLight();
+  if (cut < 1) { ctx.fillStyle = `rgba(255,255,255,${.75 * (1 - eOut(cut))})`; ctx.fillRect(0, 0, W, H); }
+  // פס התקדמות קטן למעלה
+  ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(0, 0, W, 8); ctx.fillStyle = '#FFE45C'; ctx.fillRect(W - W * (T / DUR), 0, W * (T / DUR), 8);
+}
+
+// ---------- מוזיקה (נוצרת בדפדפן) ----------
+let ac = null, dest = null;
+function music(at) {
+  ac = ac || new AudioContext(); dest = dest || ac.createMediaStreamDestination();
+  const out = ac.createGain(); out.gain.value = .55; out.connect(ac.destination); out.connect(dest);
+  const noise = (() => { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  const kick = (t, v = 1) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .18); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + .4); o.connect(g).connect(out); o.start(t); o.stop(t + .45); };
+  const hat = (t, v = .18) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'highpass'; f.frequency.value = 7500; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + .06); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + .08); };
+  const snap = (t, v = .45) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'bandpass'; f.frequency.value = 1800; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + .16); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + .2); };
+  const whoosh = t => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(300, t - .35); f.frequency.exponentialRampToValueAtTime(5000, t + .05); g.gain.setValueAtTime(.001, t - .35); g.gain.exponentialRampToValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .2); s.connect(f).connect(g).connect(out); s.start(t - .35); s.stop(t + .25); };
+  const bass = (t, hz, d) => { const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = hz; f.type = 'lowpass'; f.frequency.value = 520; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.22, t + .02); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(f).connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const pluck = (t, hz) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = hz; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.16, t + .01); g.gain.exponentialRampToValueAtTime(.001, t + .35); o.connect(g).connect(out); o.start(t); o.stop(t + .4); };
+  const ROOT = [55, 55, 43.65, 49], MEL = [659.3, 784, 880, 784, 659.3, 587.3, 523.3, 587.3];
+  for (let b = 0; b < DUR / BEAT; b++) {
+    const t = at + b * BEAT, T = b * BEAT;
+    if (T < 2.8) { if (b % 2 === 0) kick(t, .7); continue; }          // התחלה שקטה
+    kick(t); hat(t + BEAT / 2); if (T >= 6) hat(t + BEAT / 4, .1);
+    if (b % 2 === 1) snap(t);
+    bass(t, ROOT[Math.floor(b / 4) % 4], .42);
+    if (T >= 6 && T < 16) pluck(t + BEAT / 2, MEL[b % 8]);
+  }
+  [2.8, 6, 9.5, 12.5, 16].forEach(c => whoosh(at + c));
+  kick(at + 9.5, 1.3); snap(at + 9.5, .8); kick(at + 16, 1.2);                                // הלוגו
+  // "קליק" של מצלמה
+  snap(at + 5.05, .9); hat(at + 5.1, .5);
+  return out;
+}
+
+// ---------- ניגון והקלטה ----------
+let run = 0;
+function play(rec) {
+  const id = ++run, start = performance.now();
+  const tick = () => {
+    if (id !== run) return;
+    const T = (performance.now() - start) / 1000;
+    frame(Math.min(T, DUR));
+    if (T < DUR + .15) requestAnimationFrame(tick); else if (rec) rec();
+  };
+  requestAnimationFrame(tick);
+}
+const st = document.getElementById('st');
+document.getElementById('play').onclick = async () => { await ready; const g = music((ac && ac.currentTime || 0) + .05); play(() => {}); setTimeout(() => g.disconnect(), DUR * 1000 + 600); };
+document.getElementById('rec').onclick = async () => {
+  await ready; const btns = [...document.querySelectorAll('button')]; btns.forEach(b => b.disabled = true);
+  ac = ac || new AudioContext(); await ac.resume();
+  const g = music(ac.currentTime + .05);
+  const types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+  const type = types.find(x => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || '';
+  const stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 10e6 }), parts = [];
+  mr.ondataavailable = e => e.data.size && parts.push(e.data);
+  mr.onstop = async () => {
+    g.disconnect();
+    const ext = type.includes('mp4') ? 'mp4' : 'webm', blob = new Blob(parts, { type: type.split(';')[0] || 'video/webm' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'המחברות-שלי-3D.' + ext; a.className = 'btn p'; a.textContent = 'הורדה שוב';
+    document.getElementById('dl').replaceChildren(a); if (!new URLSearchParams(location.search).get('save')) a.click();
+    st.textContent = ext === 'mp4' ? 'הסרטון ירד ✓ (MP4)' : 'הסרטון ירד ✓ (WEBM: אם האפליקציה לא מקבלת, להמיר ל-MP4 באתר המרה)';
+    btns.forEach(b => b.disabled = false);
+    const save = new URLSearchParams(location.search).get('save');
+    if (save && /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(save)) fetch(save + '?ext=' + ext, { method: 'POST', body: blob }).then(() => { st.textContent += ' · נשמר'; }).catch(() => {});
+  };
+  st.textContent = 'מקליט... 18 שניות'; mr.start(250);
+  play(() => mr.stop());
+};
+const ready = Promise.all([document.fonts.load('900 100px "Rubik"'), document.fonts.load('800 100px "Rubik"'), document.fonts.load('500 100px "Rubik"'), document.fonts.load('700 100px "Amatic SC"'), new Promise(r => { if (qrImg.complete) r(); else { qrImg.onload = r; qrImg.onerror = r; } })]).catch(() => {});
+ready.then(() => frame(16.5));
+</script>
+</body>
+</html>
