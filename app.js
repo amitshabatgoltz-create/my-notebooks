@@ -434,7 +434,7 @@ function newNotebook() {
         setTimeout(() => inp.focus(), 30);
       }],
       ['איך המחברת תיראה?', 'אפשר להחליף אחר כך מראש המחברת.', b => b.append(nbSettingsUI(st, () => paint(), ['layout']))],
-      ['הדף', 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : ''), b => b.append(nbSettingsUI(st, () => paint(), ['bg', 'orient', 'margin'], true))],
+      ['הדף', 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : ''), b => b.append(nbSettingsUI(st, () => paint(), ['bg', 'orient', 'rows', 'margin'], true))],
       ['הכתב', 'גופן וגודל טקסט', b => b.append(nbSettingsUI(st, () => paint(), ['font', 'fs'], true))],
       ['להתחיל עם תבנית?', 'או דף ריק', b => b.append(nbSettingsUI(st, () => {}, ['tpl']))],
     ];
@@ -1682,7 +1682,10 @@ function paginate() {
   const ed = $('editor'); if (curLayout() !== 'pages' || !edOpen()) return;
   const W = ed.offsetWidth; if (!W) return;
   const land = ed.dataset.orient === 'land', mg = { narrow: [.05, 40], wide: [.13, 110] }[ed.dataset.margin] || [.09, 76];
-  const ph = Math.round(W * (land ? 210 / 297 : 297 / 210)), M = Math.round(Math.max(land ? 16 : 20, Math.min(mg[1], W * mg[0]))), G = W < 500 ? 16 : 26, P = ph + G;
+  const M = Math.round(Math.max(land ? 16 : 20, Math.min(mg[1], W * mg[0]))), G = W < 500 ? 16 : 26;
+  // מספר שורות קבוע בעמוד (10 / 20): גובה העמוד = השורות + השוליים
+  const rows = +ed.dataset.rows || 0, lh = parseFloat(getComputedStyle(ed).lineHeight) || 30;
+  const ph = rows ? Math.round(rows * lh + 2 * M) : Math.round(W * (land ? 210 / 297 : 297 / 210)), P = ph + G;
   pgSheets.style.setProperty('--pm', M + 'px');
   if (ed.style.getPropertyValue('--pm') !== M + 'px') ed.style.setProperty('--pm', M + 'px');
   pgUnpush();
@@ -1739,11 +1742,12 @@ function setLayout(lay, convert) {
   checkEmpty();
 }
 /* ---- הגדרות המחברת: רקע, כיוון, שוליים, גופן, גודל (נשמרות על המחברת) ---- */
-const NB_KEYS = ['layout', 'bg', 'orient', 'margin', 'font', 'fs'];
+const NB_KEYS = ['layout', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
 const NB_OPTS = {
   bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות']]],
   orient: ['כיוון הדף', [['', 'לאורך'], ['land', 'לרוחב']]],
   margin: ['שוליים', [['narrow', 'צרים'], ['', 'רגילים'], ['wide', 'רחבים']]],
+  rows: ['שורות בעמוד', [['', 'עמוד מלא'], ['10', '10 שורות'], ['20', '20 שורות']]],
   font: ['גופן', [['', 'רגיל'], ['clean', 'נקי'], ['round', 'עגול'], ['hand', 'כתב יד']]],
   fs: ['גודל טקסט', [['s', 'קטן'], ['', 'רגיל'], ['l', 'גדול']]],
   tpl: ['תבנית', [['', 'ריקה', 'דף ריק'], ['lesson', 'סיכום שיעור', 'מה למדנו, מושגים, שאלות'], ['cornell', 'דף קורנל', 'מילות מפתח וסיכום'], ['lab', 'דוח מעבדה', 'השערה, ניסוי, תוצאות'], ['vocab', 'מילים חדשות', 'מילה, פירוש, משפט'], ['pros', 'בעד ונגד', 'השוואה בטבלה'], ['todo', 'רשימת משימות', 'עם וי']]],
@@ -1757,7 +1761,7 @@ function curLook() { const ed = $('editor'), o = {}; NB_KEYS.forEach(k => { o[k]
 function applyLook(look, convert) {
   const ed = $('editor'); look = lookOf(look);
   setLayout(look.layout, convert);
-  ['bg', 'orient', 'margin', 'font', 'fs'].forEach(k => {
+  ['bg', 'orient', 'margin', 'rows', 'font', 'fs'].forEach(k => {
     if (look[k]) { ed.dataset[k] = look[k]; pageEl.dataset[k] = look[k]; } else { delete ed.dataset[k]; delete pageEl.dataset[k]; }
   });
   pgSchedule();
@@ -1768,7 +1772,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
   const render = () => {
     w.innerHTML = '';
     keys.forEach(k => {
-      if ((k === 'orient' || k === 'margin') && st.layout !== 'pages') return;
+      if ((k === 'orient' || k === 'margin' || k === 'rows') && st.layout !== 'pages') return;
       const sec = document.createElement('div'); sec.className = 'set-sec';
       const lab = document.createElement('div'); lab.className = 'set-lab'; sec.appendChild(lab);
       const pick = (v, el, grid) => { st[k] = v; [...grid.children].forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-checked', String(x === el)); }); onChange(k, v); if (k === 'layout' || preview) render(); };
@@ -1794,7 +1798,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
         opts.forEach(([v, name, sub]) => {
           const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio');
           const on = v === (st[k] || ''); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
-          const vis = k === 'bg' ? `<i class="ov-bg" data-bg="${v}"></i>` : k === 'orient' ? `<i class="ov-or${v ? ' land' : ''}"></i>` : k === 'margin' ? `<i class="ov-mg" data-m="${v}"><i></i></i>`
+          const vis = k === 'rows' ? `<i class="ov-rows" data-r="${v}"></i>` : k === 'bg' ? `<i class="ov-bg" data-bg="${v}"></i>` : k === 'orient' ? `<i class="ov-or${v ? ' land' : ''}"></i>` : k === 'margin' ? `<i class="ov-mg" data-m="${v}"><i></i></i>`
             : k === 'font' ? `<i class="ov-font" data-font="${v}">אבג</i>` : k === 'fs' ? `<i class="ov-fs" data-fs="${v}">א</i>` : '';
           b.innerHTML = `${vis}<b>${name}</b>${sub ? `<small>${sub}</small>` : ''}`;
           b.onclick = () => pick(v, b, g); g.appendChild(b);
@@ -1828,7 +1832,7 @@ function nbSettingsDialog() {
         await updateDoc(nbDoc(n.id), { [k]: v });
         if (n.shareId && k !== 'subject') updateDoc(shareDoc(n.shareId), { [k]: v }).catch(() => {});
       } catch { toast('לא הצלחתי לשמור את ההגדרה'); }
-    }, ['layout', 'bg', 'orient', 'margin', 'font', 'fs', 'color', 'subject'], true));
+    }, ['layout', 'bg', 'orient', 'rows', 'margin', 'font', 'fs', 'color', 'subject'], true));
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
     const all = document.createElement('button'); all.className = 'btn btn-ghost wz-all'; all.textContent = 'ככה לכל המחברות';
     all.title = 'אותה צורה, רקע, גופן וגודל לכל המחברות שלך, וגם למחברות חדשות';

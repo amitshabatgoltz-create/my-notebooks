@@ -2258,3 +2258,8 @@ html[data-theme="dark"] :is(.page,#shBody,.nb-prev,.ov-bg){--rule:color-mix(in s
 .pg-nav.row .pg-item b{position:static;display:grid;place-items:center;height:100%}
 .pg-nav.row .pg-new{flex-direction:row;width:auto;flex:none;padding:8px 10px;white-space:nowrap}
 .wz-all{margin-inline-start:auto}
+.opt-rows{grid-template-columns:repeat(3,1fr)}
+.ov-rows{display:block;width:30px;height:40px;border-radius:4px;border:2px solid var(--muted);background:repeating-linear-gradient(to bottom,transparent 0 4px,var(--muted) 4px 5px) content-box;padding:4px 4px;opacity:.85}
+.ov-rows[data-r="10"]{height:22px;background-image:repeating-linear-gradient(to bottom,transparent 0 3px,var(--muted) 3px 4px)}
+.ov-rows[data-r="20"]{height:32px}
+.on>.ov-rows{border-color:var(--accent)}
