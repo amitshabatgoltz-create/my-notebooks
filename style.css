@@ -2054,3 +2054,44 @@ html[data-theme="dark"]{--tc-red:#FF7A80;--tc-orange:#FFA347;--tc-green:#5BD48F;
 .keys-list{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-bottom:16px;max-height:55vh;overflow:auto}
 .keys-list div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--line);font-size:14px}
 @media (max-width:560px){.keys-list{grid-template-columns:1fr}}
+
+/* ===== הסבר לכפתורים, סרגל שקופץ על סימון, ידית לשורה (כמו Docs / Canva) ===== */
+.tb-tip{position:fixed;z-index:130;max-width:240px;padding:8px 11px;border-radius:12px;background:var(--ink);color:var(--surface);box-shadow:0 10px 28px -10px rgba(0,0,0,.45);pointer-events:none;opacity:0;transform:translateY(-3px);transition:opacity .12s,transform .12s;display:flex;flex-direction:column;gap:2px;line-height:1.35}
+.tb-tip.on{opacity:1;transform:none}
+.tb-tip b{font-size:14px;font-weight:600}
+.tb-tip span{font-size:12.5px;opacity:.78}
+.tb-tip kbd{align-self:flex-start;margin-top:4px;font:600 11px/1 ui-monospace,monospace;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,var(--surface) 18%,transparent)}
+.toolbar .tb-help{color:var(--muted)}
+
+.sel-bub{position:fixed;z-index:105;display:flex;align-items:center;gap:1px;padding:4px;border-radius:14px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-lg);animation:epIn .12s var(--ease)}
+.sel-bub.hidden{display:none}
+.sel-bub button{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;color:var(--ink)}
+.sel-bub button:hover{background:var(--side)}
+.sel-bub button.on{background:var(--accent-soft);color:var(--accent)}
+.sel-bub svg{width:18px;height:18px}
+.sel-bub .sb-h b{font-weight:800;font-size:16px}
+.sel-bub .sb-mark svg{color:#C9A400}
+.sel-bub .sb-style svg{color:var(--tc-purple)}
+.sel-bub .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+html[data-theme="dark"] .sel-bub .sb-mark svg{color:var(--yellow)}
+
+.blk-h{position:absolute;z-index:6;display:flex;gap:1px;transition:top .1s}
+.blk-h.hidden{display:none}
+.blk-h button{display:grid;place-items:center;width:24px;height:28px;border-radius:7px;color:var(--muted);opacity:.75}
+.blk-h button:hover{background:var(--side);color:var(--ink);opacity:1}
+.blk-h svg{width:17px;height:17px}
+.blk-h svg.grip{fill:currentColor;stroke:none}
+.blk-h [data-h="grip"]{cursor:grab}
+body.blk-drag-on,body.blk-drag-on *{cursor:grabbing!important;user-select:none}
+.blk-dragging{opacity:.35}
+.blk-drop{position:absolute;z-index:6;height:3px;border-radius:3px;background:var(--accent);pointer-events:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent)}
+.blk-drop.hidden{display:none}
+.ed-pop .ep-turn{display:flex;flex-wrap:wrap;gap:4px;padding:2px 6px 8px}
+.ed-pop .ep-turn button{padding:5px 10px;border-radius:9px;border:1px solid var(--line);font-size:13.5px}
+.ed-pop .ep-turn button:hover{border-color:var(--accent);color:var(--accent)}
+.ed-pop .ep-turn button.on{background:var(--accent-soft);border-color:transparent;color:var(--accent);font-weight:600}
+.ed-pop .ep-item.danger{color:var(--danger)}
+.ed-pop .ep-item.danger .ic{color:var(--danger)}
+.blk-pop{min-width:250px}
+
+.page.gutter{padding-right:54px}

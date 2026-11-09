@@ -810,7 +810,7 @@ function placePop(p, at) {
   let y = r.bottom + 6; if (y + H > vh - 8 && above > below) y = r.top - H - 6;
   p.style.left = x + 'px'; p.style.top = Math.max(8, Math.min(y, vh - H - 8)) + 'px';
 }
-document.addEventListener('pointerdown', e => { if (edPopEl && !edPopEl.contains(e.target) && !e.target.closest('#styleBtn,#insBtn')) closeEdPop(); }, true);
+document.addEventListener('pointerdown', e => { if (edPopEl && !edPopEl.contains(e.target) && !e.target.closest('#styleBtn,#insBtn,.sel-bub,.blk-h')) closeEdPop(); }, true);
 window.addEventListener('resize', () => closeEdPop());
 document.addEventListener('scroll', e => { if (edPopEl && !edPopEl.contains(e.target)) closeEdPop(); }, true);
 
@@ -867,9 +867,10 @@ function clearFormat() {
 const C_NAMES = { ink: 'רגיל', red: 'אדום', orange: 'כתום', green: 'ירוק', blue: 'כחול', purple: 'סגול', gray: 'אפור' };
 const H_NAMES = { yellow: 'צהוב', green: 'ירוק', blue: 'כחול', pink: 'ורוד', orange: 'כתום', none: 'בלי מרקר' };
 const S_NAMES = { s: 'קטן', m: 'רגיל', l: 'גדול', xl: 'ענק' };
-$('styleBtn').addEventListener('click', () => {
+$('styleBtn').addEventListener('click', () => openStylePop($('styleBtn')));
+function openStylePop(at) {
   if (edPopEl && edPopEl.classList.contains('st-pop')) { closeEdPop(); return; }
-  edPop($('styleBtn'), p => {
+  edPop(at, p => {
     p.innerHTML = `<div class="ep-h">צבע טקסט</div><div class="ep-sw">${TXT_COLORS.slice().sort((a, b) => (b === 'ink') - (a === 'ink')).map(c => `<button type="button" data-tc="${c}" title="${C_NAMES[c]}" aria-label="${C_NAMES[c]}"><i class="tc" data-c="${c}">א</i></button>`).join('')}</div>
       <div class="ep-h">מרקר</div><div class="ep-sw">${['yellow', ...HL_COLORS, 'none'].map(c => `<button type="button" data-hl="${c}" title="${H_NAMES[c]}" aria-label="${H_NAMES[c]}"><i class="hl" data-c="${c}"></i></button>`).join('')}</div>
       <div class="ep-h">גודל</div><div class="ep-sz">${TXT_SIZES.map(z => `<button type="button" data-sz="${z}"><span data-s="${z}">${S_NAMES[z]}</span></button>`).join('')}</div>
@@ -883,7 +884,7 @@ $('styleBtn').addEventListener('click', () => {
       else if (b.hasAttribute('data-clear')) clearFormat();
     };
   }, 'st-pop');
-});
+}
 
 /* ---- ציטוט, קו מפריד, תבניות ---- */
 function convertBlock(tag) {
@@ -1230,6 +1231,261 @@ document.addEventListener('keydown', e => {
   fixNest();
 });
 
+/* ---- הסבר לכל כפתור: בועה עם שם, מה הוא עושה וקיצור (במחשב – מעבר עם העכבר, בטלפון – לחיצה ארוכה) ---- */
+const TIPS = {
+  h1: ['כותרת', 'כותרת גדולה לנושא', 'Ctrl+Alt+1'], h2: ['כותרת משנה', 'מחלקת את הנושא לחלקים', 'Ctrl+Alt+2'], h3: ['כותרת קטנה', 'כותרת קטנה בצבע', 'Ctrl+Alt+3'], p: ['טקסט רגיל', 'מחזיר שורה לטקסט רגיל', 'Ctrl+Alt+0'],
+  bold: ['מודגש', 'מסמנים מילים והן נהיות עבות', 'Ctrl+B'], italic: ['נטוי', 'אותיות משופעות', 'Ctrl+I'], underline: ['קו תחתון', 'קו מתחת למילים', 'Ctrl+U'],
+  strikeThrough: ['קו חוצה', 'קו על המילים, כמו משהו שנמחק', 'Ctrl+Shift+X'], mark: ['מרקר צהוב', 'מדגיש מילים חשובות'],
+  styleBtn: ['צבע וגודל', 'צבע לאותיות, מרקר בעוד צבעים, ואותיות קטנות או גדולות'],
+  'al-right': ['יישור לימין'], 'al-center': ['יישור למרכז'], 'al-left': ['יישור לשמאל'], dirBtn: ['כיוון כתיבה', 'משמאל לימין – לאנגלית ולנוסחאות'],
+  ul: ['רשימה עם נקודות', 'או מקלידים - ורווח', 'Ctrl+Shift+8'], ol: ['רשימה ממוספרת', 'או מקלידים 1. ורווח', 'Ctrl+Shift+7'],
+  check: ['רשימת משימות', 'ריבוע ליד כל שורה – לוחצים עליו ומסמנים וי', 'Ctrl+Shift+9'],
+  insBtn: ['הוספה', 'כותרות, ציטוט, קו מפריד, טבלה, תאריך ותבניות מוכנות. אפשר גם להקליד / בשורה ריקה'],
+  linkBtn: ['קישור', 'קישור לאתר, לסרטון או למסמך', 'Ctrl+K'], ocrBtn: ['תמונה לטקסט', 'מצלמים לוח או דף, והאתר מקליד'],
+  sketchBtn: ['שרבוט', 'ציור חופשי ביד או בעכבר'], fileBtn: ['צירוף קובץ', 'PDF, Word, מצגת ועוד'], imgBtn: ['תמונה', 'מהמחשב או מהטלפון'],
+  tableBtn: ['טבלה', 'בוחרים כמה שורות ועמודות'], boxBtn: ['תיבת טקסט', 'טקסט שמזיזים לכל מקום, או מסגרת צבעונית'], lineBtn: ['קו', 'קו או חץ שמזיזים ומסובבים'],
+  tlBtn: ['ציר זמן', 'אירועים לפי הסדר – להיסטוריה ותנ"ך'], findBtn: ['חיפוש והחלפה', 'מוצא מילה במחברת ומחליף אותה', 'Ctrl+F'],
+  undo: ['ביטול', 'מבטל את מה שעשית עכשיו', 'Ctrl+Z'], redo: ['ביצוע שוב', 'מחזיר את מה שביטלת', 'Ctrl+Y'], tbHelp: ['מה כל כפתור?', 'סיור קצר על הסרגל'],
+};
+const tipKey = b => b.id || b.dataset.cmd || (b.dataset.align && 'al-' + b.dataset.align) || b.dataset.b || '';
+const tbTipEl = document.createElement('div'); tbTipEl.className = 'tb-tip'; tbTipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tbTipEl);
+let tipT = 0, tipLast = 0, tipFor = null;
+function tbTipShow(b) {
+  const T = TIPS[tipKey(b)] || (b.dataset.tip && [b.dataset.tip]); if (!T) return;
+  tbTipEl.innerHTML = `<b>${T[0]}</b>${T[1] ? `<span>${T[1]}</span>` : ''}${T[2] ? `<kbd dir="ltr">${T[2]}</kbd>` : ''}`;
+  tbTipEl.classList.add('on'); tipFor = b;
+  const r = b.getBoundingClientRect(), W = tbTipEl.offsetWidth, H = tbTipEl.offsetHeight, vw = document.documentElement.clientWidth;
+  let top = r.bottom + 8; if (top + H > innerHeight - 8) top = r.top - H - 8;
+  tbTipEl.style.top = top + 'px'; tbTipEl.style.left = Math.min(Math.max(8, r.left + r.width / 2 - W / 2), vw - W - 8) + 'px';
+}
+function tbTipHide() { clearTimeout(tipT); if (tipFor) tipLast = Date.now(); tbTipEl.classList.remove('on'); tipFor = null; }
+function tbTipWire(root) {
+  root.querySelectorAll('button').forEach(b => { if (TIPS[tipKey(b)] && b.title) { if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', b.title); b.removeAttribute('title'); } });
+  root.addEventListener('pointerover', e => {
+    if (e.pointerType !== 'mouse') return; const b = e.target.closest('button'); if (!b || b === tipFor) return;
+    clearTimeout(tipT); tipT = setTimeout(() => tbTipShow(b), Date.now() - tipLast < 700 || tipFor ? 0 : 350);
+  });
+  root.addEventListener('pointerout', e => { if (e.pointerType === 'mouse' && !e.relatedTarget?.closest?.('button')?.isSameNode(tipFor)) tbTipHide(); });
+  // טלפון: לחיצה ארוכה מראה מה הכפתור עושה (ולא לוחצת עליו)
+  let lp = 0, lpFired = false;
+  root.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; const b = e.target.closest('button'); if (!b) return; lpFired = false; clearTimeout(lp); lp = setTimeout(() => { lpFired = true; tbTipShow(b); setTimeout(tbTipHide, 2200); }, 480); });
+  ['pointerup', 'pointercancel', 'pointermove'].forEach(t => root.addEventListener(t, e => { if (t !== 'pointermove' || Math.abs(e.movementX) + Math.abs(e.movementY) > 6) clearTimeout(lp); }));
+  root.addEventListener('click', e => { tbTipHide(); if (lpFired) { lpFired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  root.addEventListener('contextmenu', e => { if (e.target.closest('button')) e.preventDefault(); });
+}
+tbTipWire(tb);
+document.addEventListener('scroll', () => tipFor && tbTipHide(), true);
+
+/* ---- סיור קצר על הסרגל (פעם ראשונה, ובכפתור ?) ---- */
+const TB_TOUR = [
+  { sel: '#styleBtn', e: 'type', t: 'צבע וגודל', x: 'מסמנים מילים ולוחצים כאן: צבע לאותיות, מרקר בכמה צבעים, ואותיות קטנות או ענקיות.' },
+  { sel: '#toolbar [data-cmd="check"]', e: 'checklist', t: 'רשימת משימות', x: 'כל שורה מקבלת ריבוע. לוחצים על הריבוע – וי, והשורה נמחקת בקו.' },
+  { sel: '#insBtn', e: 'plus', t: 'הוספה', x: 'כל מה שאפשר להוסיף: כותרות, טבלה, ציטוט, קו מפריד, תאריך, ותבניות מוכנות כמו "סיכום שיעור" ו"דוח מעבדה". טריק: מקלידים / בשורה ריקה.' },
+  { sel: '#linkBtn', e: 'link', t: 'קישור', x: 'מוסיפים קישור לאתר או לסרטון. לחיצה עליו במחברת פותחת אותו.' },
+  { sel: '#findBtn', e: 'search', t: 'חיפוש והחלפה', x: 'מוצאים כל מילה במחברת, ואפשר גם להחליף אותה בבת אחת.' },
+  { sel: '#notebook .page', e: 'spark', t: 'כמו בקנבה ודוקס', x: 'מסמנים טקסט – קופץ סרגל קטן ליד. במחשב: מעבר עם העכבר על שורה מראה ידית בצד – גוררים אותה כדי להזיז את השורה, או לוחצים לתפריט (שכפול, מחיקה, להפוך לכותרת או לרשימה).' },
+  { sel: '#tbHelp', e: 'help', t: 'שכחת מה כפתור עושה?', x: 'עוברים עליו עם העכבר (בטלפון – לחיצה ארוכה) ורואים הסבר. והכפתור הזה מריץ שוב את הסיור.' },
+];
+function tbTour() { closeEdPop(); selBubHide(); runTour(TB_TOUR, () => { try { localStorage.setItem('tour:tb1', '1'); } catch {} }); }
+$('tbHelp').addEventListener('click', tbTour);
+new MutationObserver(() => {
+  if (!edOpen() || !me) return;
+  let seen = true; try { seen = localStorage.getItem('tour:tb1') === '1'; } catch {}
+  if (seen) return;
+  try { localStorage.setItem('tour:tb1', '1'); } catch {}
+  setTimeout(() => { if (edOpen() && !$('dialogRoot').firstChild && !document.querySelector('.tour-ov')) tbTour(); }, 1200);
+}).observe($('notebook'), { attributes: true, attributeFilter: ['class'] });
+
+/* ---- סרגל קטן שקופץ כשמסמנים טקסט (כמו ב-Docs/Canva) ---- */
+const selBub = document.createElement('div'); selBub.className = 'sel-bub hidden'; selBub.setAttribute('role', 'toolbar'); selBub.setAttribute('aria-label', 'עיצוב הטקסט המסומן');
+selBub.innerHTML = [['bold', 'i-bold', 'מודגש'], ['italic', 'i-italic', 'נטוי'], ['underline', 'i-underline', 'קו תחתון'], ['strikeThrough', 'i-strike', 'קו חוצה'], 0,
+  ['h', '', 'כותרת'], ['mark', 'i-mark', 'מרקר'], ['style', 'i-type', 'צבע וגודל'], ['link', 'i-link', 'קישור'], ['clear', 'i-eraser', 'ניקוי עיצוב']]
+  .map(x => !x ? '<span class="sep"></span>' : `<button type="button" data-b="${x[0]}" class="sb-${x[0]}" aria-label="${x[2]}">${x[1] ? `<svg><use href="#${x[1]}"/></svg>` : '<b>כ</b>'}</button>`).join('');
+document.body.appendChild(selBub);
+Object.assign(TIPS, { h: ['כותרת', 'הופך את השורה לכותרת משנה'], style: TIPS.styleBtn, link: TIPS.linkBtn, clear: ['ניקוי עיצוב', 'מחזיר לטקסט רגיל', 'Ctrl+\\'] });
+tbTipWire(selBub);
+['mousedown', 'pointerdown'].forEach(t => selBub.addEventListener(t, e => e.preventDefault()));
+let selDown = false, sbT = 0;
+$('editor').addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') { selDown = true; selBubHide(); } });
+document.addEventListener('pointerup', () => { if (selDown) { selDown = false; setTimeout(selBubUpdate, 10); } });
+function selBubHide() { selBub.classList.add('hidden'); }
+function selBubUpdate() {
+  const s = getSelection(), ed = $('editor');
+  const ok = !selDown && edOpen() && edCan() && s.rangeCount && !s.isCollapsed && ed.contains(s.anchorNode) && ed.contains(s.focusNode) && s.toString().trim()
+    && !caretEl()?.closest('.cv') && !$('dialogRoot').firstChild && !document.querySelector('.tour-ov');
+  if (!ok) { selBubHide(); return; }
+  const rc = s.getRangeAt(0).getBoundingClientRect(); if (!rc.width && !rc.height) { selBubHide(); return; }
+  selBub.classList.remove('hidden');
+  const q = c => { try { return document.queryCommandState(c); } catch { return false; } };
+  ['bold', 'italic', 'underline', 'strikeThrough'].forEach(c => selBub.querySelector(`[data-b="${c}"]`).classList.toggle('on', q(c)));
+  selBub.querySelector('[data-b="mark"]').classList.toggle('on', !!caretEl()?.closest('mark'));
+  selBub.querySelector('[data-b="link"]').classList.toggle('on', !!caretEl()?.closest('a'));
+  const W = selBub.offsetWidth, H = selBub.offsetHeight, vw = document.documentElement.clientWidth;
+  const tbB = tb.getBoundingClientRect().bottom, touch = matchMedia('(pointer: coarse)').matches;
+  let top = touch ? rc.bottom + 14 : rc.top - H - 10;
+  if (top < tbB + 4) top = rc.bottom + 14;
+  if (top + H > innerHeight - 70) top = Math.max(tbB + 4, rc.top - H - 10);
+  selBub.style.top = top + 'px'; selBub.style.left = Math.min(Math.max(8, rc.left + rc.width / 2 - W / 2), vw - W - 8) + 'px';
+}
+document.addEventListener('selectionchange', () => { clearTimeout(sbT); sbT = setTimeout(selBubUpdate, 160); });
+document.addEventListener('scroll', () => { if (!selBub.classList.contains('hidden')) requestAnimationFrame(selBubUpdate); }, true);
+selBub.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; const k = b.dataset.b;
+  restoreSelection();
+  if (['bold', 'italic', 'underline', 'strikeThrough'].includes(k)) { document.execCommand(k); markDirty(); }
+  else if (k === 'mark') tb.querySelector('[data-cmd="mark"]').click();
+  else if (k === 'h') { setBlock('h2'); markDirty(); }
+  else if (k === 'style') { openStylePop(b); return; }
+  else if (k === 'link') { selBubHide(); linkDialog(); return; }
+  else if (k === 'clear') clearFormat();
+  setTimeout(selBubUpdate, 30);
+});
+
+/* ---- ידית ליד כל שורה (במחשב): גוררים כדי להזיז, לוחצים לתפריט, + לשורה חדשה ---- */
+const HOVER_OK = matchMedia('(hover: hover) and (pointer: fine)').matches;
+const pageEl = document.querySelector('#notebook .page');
+const bh = document.createElement('div'); bh.className = 'blk-h hidden';
+bh.innerHTML = `<button type="button" data-h="add" aria-label="שורה חדשה מתחת" data-tip="שורה חדשה מתחת"><svg><use href="#i-plus"/></svg></button><button type="button" data-h="grip" aria-label="גרירה ותפריט" data-tip="גוררים כדי להזיז · לוחצים לתפריט"><svg viewBox="0 0 24 24" class="grip"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></button>`;
+const blkDrop = document.createElement('div'); blkDrop.className = 'blk-drop hidden';
+pageEl.append(bh, blkDrop);
+tbTipWire(bh);
+let hBlk = null, bhHideT = 0, bDrag = null;
+function blockAt(el) {
+  const ed = $('editor'); if (!el || el === ed || !ed.contains(el)) return null;
+  const li = el.closest('li');
+  if (li && li.parentElement.parentElement === ed && !li.parentElement.classList.contains('tl')) return li;
+  let n = el; while (n.parentElement !== ed) n = n.parentElement;
+  return n.nodeType === 1 ? n : null;
+}
+function blockAtY(y) { return [...$('editor').children].find(c => { const r = c.getBoundingClientRect(); return y >= r.top - 4 && y <= r.bottom + 4; }) || null; }
+function bhPlace(blk) {
+  hBlk = blk; const r = blk.getBoundingClientRect(), pr = pageEl.getBoundingClientRect();
+  const lh = Math.min(r.height, parseFloat(getComputedStyle(blk).lineHeight) || 28);
+  const x = r.right - pr.left + (blk.tagName === 'LI' ? 26 : 6), vw = document.documentElement.clientWidth;
+  bh.style.top = (r.top - pr.top + Math.max(0, lh / 2 - 14)) + 'px'; bh.style.left = Math.min(x, vw - pr.left - 54) + 'px';
+  bh.classList.remove('hidden');
+}
+// אין מקום לידית בצד (מסך צר): מפנים לה רווח קטן בתוך הדף
+function bhGutter() { if (!HOVER_OK || !edOpen()) return; pageEl.classList.remove('gutter'); pageEl.classList.toggle('gutter', pageEl.getBoundingClientRect().right + 58 > document.documentElement.clientWidth); }
+if (HOVER_OK) {
+  window.addEventListener('resize', bhGutter);
+  new MutationObserver(() => setTimeout(bhGutter, 50)).observe($('notebook'), { attributes: true, attributeFilter: ['class'] });
+  pageEl.addEventListener('mouseenter', bhGutter, { once: true });
+  pageEl.addEventListener('mousemove', e => {
+    if (bDrag || !edCan() || bh.contains(e.target)) return;
+    clearTimeout(bhHideT);
+    const ed = $('editor');
+    let blk = e.target === ed || !ed.contains(e.target) ? blockAtY(e.clientY) : blockAt(e.target);
+    if (blk && blk.closest('.cv') && blk !== blk.closest('.cv')) blk = blk.closest('.cv');
+    if (!blk) { bhHideT = setTimeout(() => bh.classList.add('hidden'), 400); return; }
+    if (blk !== hBlk || bh.classList.contains('hidden')) bhPlace(blk);
+  });
+  pageEl.addEventListener('mouseleave', () => { if (!bDrag) bhHideT = setTimeout(() => bh.classList.add('hidden'), 300); });
+  bh.addEventListener('mouseenter', () => clearTimeout(bhHideT));
+  $('editor').addEventListener('keydown', () => { if (!bDrag) bh.classList.add('hidden'); });
+}
+bh.addEventListener('mousedown', e => e.preventDefault());
+bh.querySelector('[data-h="add"]').addEventListener('click', () => {
+  if (!hBlk || !hBlk.isConnected) return;
+  const n = document.createElement(hBlk.tagName === 'LI' ? 'li' : 'p'); n.appendChild(document.createElement('br'));
+  hBlk.after(n); $('editor').focus({ preventScroll: true }); placeCaret(n);
+  bh.classList.add('hidden');
+  if (n.tagName === 'P') document.execCommand('insertText', false, '/');   // פותח את תפריט ההוספה בשורה החדשה
+  markDirty();
+});
+// גרירה
+const grip = bh.querySelector('[data-h="grip"]');
+grip.addEventListener('pointerdown', e => {
+  if (!hBlk || e.button !== 0) return;
+  e.preventDefault(); try { grip.setPointerCapture(e.pointerId); } catch {}
+  bDrag = { blk: hBlk, y0: e.clientY, moved: false, before: undefined };
+});
+function blkDropAt(y) {
+  const sibs = [...bDrag.blk.parentElement.children].filter(x => x !== bDrag.blk);
+  for (const s of sibs) { const r = s.getBoundingClientRect(); if (y < r.top + r.height / 2) return s; }
+  return null;
+}
+document.addEventListener('pointermove', e => {
+  if (!bDrag) return;
+  if (!bDrag.moved && Math.abs(e.clientY - bDrag.y0) < 5) return;
+  if (!bDrag.moved) { bDrag.moved = true; bDrag.blk.classList.add('blk-dragging'); tbTipHide(); document.body.classList.add('blk-bDrag-on'); }
+  if (e.clientY < 90) scrollBy(0, -12); else if (e.clientY > innerHeight - 60) scrollBy(0, 12);
+  const t = blkDropAt(e.clientY); bDrag.before = t;
+  const pr = pageEl.getBoundingClientRect(), par = bDrag.blk.parentElement.getBoundingClientRect();
+  const sibs = [...bDrag.blk.parentElement.children].filter(x => x !== bDrag.blk);
+  const y = t ? t.getBoundingClientRect().top - 3 : (sibs.length ? sibs[sibs.length - 1].getBoundingClientRect().bottom + 3 : par.bottom);
+  Object.assign(blkDrop.style, { top: (y - pr.top) + 'px', left: (par.left - pr.left) + 'px', width: par.width + 'px' });
+  blkDrop.classList.remove('hidden');
+  bh.style.top = (e.clientY - pr.top - 14) + 'px';
+});
+const dragEnd = () => {
+  if (!bDrag) return; const d = bDrag; bDrag = null;
+  blkDrop.classList.add('hidden'); d.blk.classList.remove('blk-dragging'); document.body.classList.remove('blk-bDrag-on');
+  if (!d.moved) { blockMenu(d.blk); return; }
+  if (d.before !== undefined && d.before !== d.blk.nextElementSibling) { d.blk.parentElement.insertBefore(d.blk, d.before); markDirty(); }
+  bhPlace(d.blk);
+};
+document.addEventListener('pointerup', () => bDrag && dragEnd());
+document.addEventListener('pointercancel', () => { if (bDrag) { bDrag.moved = true; bDrag.before = bDrag.blk.nextElementSibling; dragEnd(); } });
+// הזזה במקלדת: Alt+Shift+חץ למעלה / למטה
+$('editor').addEventListener('keydown', e => {
+  if (!e.altKey || !e.shiftKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  const blk = blockAt(caretEl()); if (!blk) return;
+  e.preventDefault(); moveBlock(blk, e.key === 'ArrowUp' ? -1 : 1);
+});
+function moveBlock(blk, d) {
+  const s = getSelection(), r = s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+  if (d < 0 && blk.previousElementSibling) blk.previousElementSibling.before(blk);
+  else if (d > 0 && blk.nextElementSibling) blk.nextElementSibling.after(blk);
+  else return;
+  if (r) { try { s.removeAllRanges(); s.addRange(r); } catch {} }
+  blk.scrollIntoView({ block: 'nearest' }); markDirty();
+}
+// תפריט של שורה: להפוך ל..., שכפול, הזזה, מחיקה
+const TURN = [['p', 'טקסט'], ['h1', 'כותרת'], ['h2', 'משנה'], ['h3', 'קטנה'], ['ul', 'נקודות'], ['ol', 'מספרים'], ['check', 'משימות'], ['blockquote', 'ציטוט']];
+function turnInto(blk, k) {
+  if (blk.tagName === 'LI') blk = blk.parentElement;
+  const isList = /^(UL|OL)$/.test(blk.tagName);
+  const lines = isList ? [...blk.children].filter(x => x.tagName === 'LI') : [blk];
+  let out;
+  if (['ul', 'ol', 'check'].includes(k)) {
+    const L = document.createElement(k === 'ol' ? 'ol' : 'ul'); if (k === 'check') L.setAttribute('data-check', '');
+    lines.forEach(x => { const li = document.createElement('li'); if (x.tagName === 'LI' && x.hasAttribute('data-done') && k === 'check') li.setAttribute('data-done', ''); li.append(...x.childNodes); if (!li.firstChild) li.appendChild(document.createElement('br')); L.appendChild(li); });
+    blk.replaceWith(L); out = L.firstElementChild;
+  } else {
+    const made = lines.map(x => { const n = document.createElement(k); ['dir', 'data-a'].forEach(a => x.hasAttribute(a) && n.setAttribute(a, x.getAttribute(a))); n.append(...x.childNodes); if (!n.firstChild) n.appendChild(document.createElement('br')); return n; });
+    blk.replaceWith(...made); out = made[0];
+  }
+  $('editor').focus({ preventScroll: true });
+  const r = document.createRange(); r.selectNodeContents(out); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  markDirty();
+}
+function blockMenu(blk) {
+  const textual = /^(P|H1|H2|H3|BLOCKQUOTE|UL|OL|LI)$/.test(blk.tagName) && !blk.classList.contains('tl');
+  const cur = blk.tagName === 'LI' ? (blk.parentElement.hasAttribute('data-check') ? 'check' : blk.parentElement.tagName.toLowerCase()) : blk.tagName === 'UL' && blk.hasAttribute('data-check') ? 'check' : blk.tagName.toLowerCase();
+  edPop(grip, p => {
+    p.innerHTML = (textual ? `<div class="ep-h">להפוך ל...</div><div class="ep-turn">${TURN.map(([k, t]) => `<button type="button" data-t="${k}"${k === cur ? ' class="on"' : ''}>${t}</button>`).join('')}</div>` : '')
+      + [['dup', 'copy', 'שכפול'], ['up', '', 'הזזה למעלה', 'Alt+Shift+↑'], ['down', '', 'הזזה למטה', 'Alt+Shift+↓'], ['del', 'trash', 'מחיקה']]
+        .map(([k, i, t, kb]) => `<button type="button" class="ep-item${k === 'del' ? ' danger' : ''}" data-a="${k}"><span class="ic">${i ? `<svg><use href="#i-${i}"/></svg>` : `<svg viewBox="0 0 24 24"><path d="${k === 'up' ? 'M12 19V5M6 11l6-6 6 6' : 'M12 5v14M6 13l6 6 6-6'}"/></svg>`}</span><span class="tx"><b>${t}</b></span>${kb ? `<kbd dir="ltr">${kb}</kbd>` : ''}</button>`).join('');
+    p.onclick = ev => {
+      const b = ev.target.closest('button'); if (!b) return; closeEdPop();
+      if (!blk.isConnected) return;
+      if (b.dataset.t) { turnInto(blk, b.dataset.t); return; }
+      const a = b.dataset.a;
+      if (a === 'dup') { const c = blk.cloneNode(true); blk.after(c); renderCanvases(c.parentElement === $('editor') ? wrapOne(c) : c); markDirty(); }
+      else if (a === 'up' || a === 'down') moveBlock(blk, a === 'up' ? -1 : 1);
+      else if (a === 'del') {
+        const par = blk.parentElement, next = blk.nextSibling; blk.remove();
+        const emptyList = /^(UL|OL)$/.test(par.tagName) && !par.children.length, lp = emptyList && par.parentElement, ln = emptyList && par.nextSibling;
+        if (emptyList) par.remove();
+        bh.classList.add('hidden'); markDirty();
+        toastAction('נמחק', 'ביטול', () => { if (emptyList) lp.insertBefore(par, ln && ln.parentNode === lp ? ln : null); par.insertBefore(blk, next && next.parentNode === par ? next : null); markDirty(); });
+      }
+    };
+  }, 'blk-pop');
+}
+function wrapOne(c) { const w = document.createElement('div'); return { querySelectorAll: s => c.matches(s) ? [c] : w.querySelectorAll(s) }; }
+
 
 /* ================= ניווט ================= */
 function showTab(t) {
@@ -1274,10 +1530,15 @@ function autoPlanNewTests(snap) {
   if (!fresh.length || fresh.length > 2) return;   // ייבוא של לוח מבחנים שלם – לא ממלאים את היומן לבד
   fresh.forEach(e => setTimeout(() => autoPlan(e), 900));
 }
+// מבחן חדש: לא מוסיפים חזרות ליומן לבד (המשתמש ביקש – זה מילא את היומן). רק מציעים, ומי שרוצה לוחץ
 async function autoPlan(e) {
   if (!me || events.some(x => x.planFor === e.id)) return;
   const daysLeft = Math.round((fromKey(e.date) - fromKey(todayKey())) / 864e5);
   if (daysLeft < 2 || daysLeft > 30) return;
+  const subj0 = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
+  toastAction(`נוסף מבחן ב${subj0}. רוצה תוכנית למידה?`, 'בניית תוכנית', () => planDialog(e), 6000);
+}
+async function autoPlanOld(e) {
   const plan = buildPlan(e, nbsForTest(e)); if (!plan.length) return;
   const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות)\s*(ב|על)?\s*/, '') || e.title).slice(0, 40);
   const ids = [];
@@ -4246,9 +4507,9 @@ const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכית
 - טקסט רגיל: <p>. רשימות: <ul>/<ol> עם <li>. טבלה: <table> עם <tr>/<td>.
 - הדגשה במקור (קו תחתון, מסגרת, צבע בולט): <b>.
 - חצים וקשרים בין רעיונות: כתוב כטקסט עם "←".
-- מילה שלא ברורה: כתוב את הניחוש הכי טוב ואחריו [?].
+- מילה שלא ברורה: כתוב את הניחוש הכי טוב שלך לפי ההקשר. לעולם אל תכתוב [?] או סימני שאלה במקום מילה.
 - אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.
-- העתק מילה במילה. לעולם אל תנסח מחדש, אל תחליף מילה במילה נרדפת ואל "תשפר" ניסוח. עדיף לכתוב [?] מאשר לנחש מילה אחרת.`;
+- העתק מילה במילה. לעולם אל תנסח מחדש, אל תחליף מילה במילה נרדפת ואל "תשפר" ניסוח. אם מילה לא ברורה – הניחוש הכי קרוב למה שכתוב, לא מילה אחרת.`;
 const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
 const OCR_HW = () => { const d = new Date(); return `
 שיעורי בית: אם כתובים על הלוח/בדף שיעורי בית, מטלה, עבודה להגשה או מבחן (למשל "ש"ב", "שיעורי בית", "להגיש עד", "לקרוא עד", "מבחן ב..."), השאר אותם גם בטקסט, ובנוסף הוסף שורה נפרדת בסוף:
@@ -4352,7 +4613,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
     box.innerHTML = html.replace(/⁅([^⁆]+)⁆\[\?\|([^\]]+)\]/g, (m, w, a) => `<mark class="doubt">${w}</mark><button type="button" class="alt-chip" contenteditable="false" data-alt="${a.replace(/"/g, '&quot;')}">אולי: ${a}</button>`).replace(/⁅([^⁆]+)⁆\[\?\]/g, '<mark class="doubt">$1</mark>').replace(/[⁅⁆]/g, '').replace(/\[\?\]/g, '<mark>[?]</mark>');
     box.addEventListener('click', e => { const b = e.target.closest('.alt-chip'); if (!b) return; e.preventDefault(); const mk = b.previousElementSibling; if (mk && mk.classList.contains('doubt')) { const tail = (mk.textContent.match(/[.,:;!?]+$/) || [''])[0]; mk.replaceWith(document.createTextNode(b.dataset.alt + tail)); } b.remove(); });
     const row = document.createElement('div'); row.className = 'row';
-    const final = () => { const t = box.cloneNode(true); t.querySelectorAll('.alt-chip').forEach(x => x.remove()); t.querySelectorAll('mark.doubt').forEach(x => x.replaceWith(document.createTextNode(x.textContent + ' [?]'))); return clean(t.innerHTML.replace(/<mark>\[\?\]<\/mark>/g, '[?]')); };
+    const final = () => { const t = box.cloneNode(true); t.querySelectorAll('.alt-chip').forEach(x => x.remove()); t.querySelectorAll('mark.doubt').forEach(x => x.replaceWith(document.createTextNode(x.textContent))); return clean(t.innerHTML.replace(/\s*<mark>\[\?\]<\/mark>/g, '').replace(/\s*\[\?\]/g, '')); };   // למחברת נכנס רק הניחוש, בלי [?]
     // שיעורי בית שנמצאו בתמונה
     let hwBox = null;
     if (hw.length) {
@@ -6759,20 +7020,19 @@ function tourChip() {
   const c = document.createElement('button'); c.id = 'tourChip'; c.type = 'button'; c.className = 'tour-chip'; c.textContent = 'סיור של 30 שניות';
   c.onclick = () => runTour(); document.body.appendChild(c);
 }
-function runTour() {
-  $('tourChip')?.remove(); closeDialog();
-  if ($('home').classList.contains('hidden')) showTab('home');
-  const steps = TOUR;
+function runTour(custom, onEnd) {           // custom = סיור אחר (למשל על סרגל המחברת)
+  if (!custom) { $('tourChip')?.remove(); closeDialog(); if ($('home').classList.contains('hidden')) showTab('home'); }
+  const steps = custom || TOUR;
   let i = 0, alive = true;
   const ov = document.createElement('div'); ov.className = 'tour-ov';
   const spot = document.createElement('div'); spot.className = 'tour-spot';
   const bub = document.createElement('div'); bub.className = 'tour-bub'; bub.setAttribute('role', 'dialog'); bub.setAttribute('aria-live', 'polite');
   document.body.append(ov, spot, bub);
   const end = finished => {
-    if (!alive) return; alive = false; tourDone();
+    if (!alive) return; alive = false; if (!custom) tourDone();
     removeEventListener('resize', place); removeEventListener('scroll', place, true); removeEventListener('keydown', key);
     ov.remove(); spot.remove(); bub.remove();
-    if (finished) tourFinish();
+    if (custom) onEnd && onEnd(finished); else if (finished) tourFinish();
   };
   let el = null;
   function place() {
@@ -6804,7 +7064,7 @@ function runTour() {
   ov.onclick = () => step(1);
   const key = e => { if (e.key === 'Escape') end(false); else if (e.key === 'ArrowLeft' || e.key === 'Enter') { e.preventDefault(); step(1); } else if (e.key === 'ArrowRight') step(-1); };
   addEventListener('resize', place); addEventListener('scroll', place, true); addEventListener('keydown', key);
-  track('tour_start', {});
+  if (!custom) track('tour_start', {});
   show();
 }
 function tourFinish() {
