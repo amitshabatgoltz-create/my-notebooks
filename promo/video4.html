@@ -93,7 +93,7 @@ function grad(c1, c2, ang = .6) {
 const beatPulse = t => Math.pow(1 - ((t % BEAT) / BEAT), 4);
 
 // ---------- הלוח ----------
-const BOARD = ['המהפכה התעשייתית', '• מכונת הקיטור – 1769', '• מעבר מהכפר לעיר', '• מפעלים ועבודת ילדים'];
+const BOARD = ['מלכים א׳ פרק א׳', '• התוכנית של נתן ובת־שבע', '• יא׳–יב׳: אדוניהו ממליך את עצמו', '• ודוד לא יודע מכך'];
 function board(x, y, w, h, t, reveal) {
   ctx.save();
   rr(x - 18, y - 18, w + 36, h + 36, 26); ctx.fillStyle = '#8A5A35'; ctx.fill();
@@ -103,7 +103,7 @@ function board(x, y, w, h, t, reveal) {
   ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
   BOARD.forEach((s, i) => {
     const k = reveal === undefined ? 1 : eOut(prog(reveal, .25 + i * .42, .45)); if (k <= 0) return;
-    font(i ? h * .115 : h * .15, 700, 'Amatic SC');
+    font(i ? h * .1 : h * .15, 700, 'Amatic SC');
     const tw = ctx.measureText(s).width, ly = y + h * (.17 + i * .215) + (i ? 6 : 0), rx = x + w - w * .07;
     ctx.save(); ctx.beginPath(); ctx.rect(rx - tw * k - 8, ly - h * .12, tw * k + 16, h * .24); ctx.clip();
     ctx.fillStyle = 'rgba(246,246,236,.93)'; ctx.fillText(s, rx, ly);
@@ -154,7 +154,7 @@ function sceneB(t, T) {     // 3–6.5: לוחצים ומצלמים
   const sh = flash > 0 ? Math.sin(T * 90) * 14 * flash : 0;
   phone(W / 2 + sh, py, 600, lerp(.12, -.04, k), 1, (sw, shh) => {
     if (t < 1.25) {
-      appTop(sw, 'היסטוריה');
+      appTop(sw, 'תנ"ך');
       ctx.fillStyle = '#E7E7EE'; for (let i = 0; i < 5; i++) { rr(40, 230 + i * 70, sw - 80 - (i % 2) * 120, 22, 11); ctx.fill(); }
       const tap = prog(t, .85, .3), bs = 1 - Math.sin(tap * Math.PI) * .07;
       ctx.save(); ctx.translate(sw / 2, 760); ctx.scale(bs, bs);
@@ -188,7 +188,7 @@ function sceneC(t, T) {     // 6.5–10.5: מוקלד
   ctx.restore();
   const z = lerp(1.18, 1, eOut(prog(t, 0, .5))) + prog(t, .5, 3.5) * .05;
   phone(W / 2, 1175, 600, -.03, z, (sw, shh) => {
-    appTop(sw, 'היסטוריה');
+    appTop(sw, 'תנ"ך');
     ctx.strokeStyle = '#E3E2F7'; ctx.lineWidth = 2; for (let y = 268; y < shh; y += 64) { ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(sw - 30, y); ctx.stroke(); }
     const total = NOTE.join('').length, typed = Math.floor(prog(t, .25, 1.7) * total);
     let left = typed;
@@ -196,7 +196,7 @@ function sceneC(t, T) {     // 6.5–10.5: מוקלד
     NOTE.forEach((s, i) => {
       const n = clamp(left, 0, s.length); left -= s.length; if (n <= 0 && i) return;
       const part = s.slice(0, n), y = i ? 324 + i * 64 + 40 : 250, x = sw - 44 - (i ? 30 : 0);
-      font(i ? 34 : 50, i ? 500 : 800); ctx.fillStyle = i ? '#2B2B33' : '#1D1D1F'; ctx.fillText(part, x, y);
+      font(i ? 30 : 50, i ? 500 : 800); ctx.fillStyle = i ? '#2B2B33' : '#1D1D1F'; ctx.fillText(part, x, y);
       if (i) { ctx.beginPath(); ctx.arc(sw - 52, y - 11, 6, 0, 7); ctx.fillStyle = '#5E5CE6'; ctx.fill(); }
       if (n < s.length && n > 0 || (n === 0 && !i)) { const cw = ctx.measureText(part).width; if ((T * 4 | 0) % 2 === 0) { ctx.fillStyle = '#5E5CE6'; ctx.fillRect(x - cw - 8, y - 38, 4, 46); } }
     });
