@@ -5051,7 +5051,10 @@ function chatImage(box, url, name) {
 // ממירים לתמונת PNG (בשביל הורדה ומחברת)
 function chatPng(url) {
   return new Promise((res, rej) => {
-    const im = new Image(); im.onload = () => { const w = Math.min(1600, im.naturalWidth || 800), h = Math.round(w * ((im.naturalHeight || 600) / (im.naturalWidth || 800))); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); res(c.toDataURL('image/png')); };
+    // ציור SVG קטן (למשל 400 פיקסלים) – מציירים אותו מחדש בגודל גדול, כדי שיהיה חד ולא מטושטש
+    const svg = /^data:image\/svg|\.svg$/i.test(url);
+    let vb = null; if (svg) { try { vb = decodeURIComponent(url).match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/); } catch {} }
+    const im = new Image(); im.onload = () => { const w = svg ? 1400 : Math.min(1600, im.naturalWidth || 800), h = Math.round(w * (vb && +vb[1] ? vb[2] / vb[1] : (im.naturalHeight || 600) / (im.naturalWidth || 800))); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h); res(c.toDataURL('image/png')); };
     im.onerror = rej; im.src = url;
   });
 }
