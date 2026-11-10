@@ -8167,12 +8167,16 @@ function renderFriends() {
       </div>
       <div class="fr-ring" style="--p:${nx ? Math.round(n / nx.n * 100) : 100}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-${nx ? nx.ic : 'crown'}"/></svg><small>${nx ? `${n}/${nx.n}` : 'הכול'}</small></span></div>
     </div>
-    <div class="card fr-road-card"><h3>המסלול שלך</h3>
-      <div class="fr-road" style="--me:${pos(n)}">
-        <div class="fr-line"><i></i></div>
-        <div class="fr-me" title="אתה כאן"><span>${esc((firstName && firstName()) || 'אתה').slice(0, 1)}</span><em>אתה כאן</em></div>
-        ${REF_TIERS.map(t => { const st = n >= t.n ? 'got' : t === nx ? 'next' : 'lock'; return `<div class="fr-stop ${st}" style="--p:${pos(t.n)}"><span class="fr-dot"><svg aria-hidden="true"><use href="#i-${st === 'got' ? 'check' : t.ic}"/></svg></span><div class="fr-lab"><small>${t.n} ${t.n === 1 ? 'חבר' : 'חברים'}</small><b>${esc(t.t)}</b><span>${esc(t.d)}</span></div></div>`; }).join('')}
-      </div>
+    <div class="card bp">
+      <div class="bp-head"><div><small>מסלול החברים</small><h3>כל חבר = שלב אחד קדימה</h3></div><div class="bp-lvl"><span>שלב</span><b>${Math.min(n, REF_MAX)}</b><span>מתוך ${REF_MAX}</span></div></div>
+      <div class="bp-scroll" id="bpScroll"><div class="bp-track" style="--cols:${REF_MAX};--fill:${n <= 0 ? 0 : Math.min(1, (Math.min(n, REF_MAX) - .5) / REF_MAX)}">
+        ${Array.from({ length: REF_MAX }, (_, k) => { const lv = k + 1, t = REF_TIERS.find(x => x.n === lv), st = n >= lv ? 'got' : lv === n + 1 ? 'next' : 'lock';
+          return `<div class="bp-col ${st}${lv === n ? ' me' : ''}" data-lv="${lv}">
+            ${t ? `<div class="bp-card"><span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `${lv} ${lv === 1 ? 'חבר' : 'חברים'}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i></div>`}
+            <div class="bp-node"><span>${lv}</span>${lv === n ? '<em>אתה</em>' : ''}</div>
+          </div>`; }).join('')}
+        <div class="bp-bar"><i></i></div>
+      </div></div>
     </div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
@@ -8186,6 +8190,8 @@ function renderFriends() {
       </div>
     </div>`;
   const url = inviteLink(), inp = $('frLinkInp'); inp.value = url; inp.onclick = () => inp.select();
+  // באטל פאס: גוללים לבד לשלב שלך
+  requestAnimationFrame(() => { const sc = $('bpScroll'), c = sc && (sc.querySelector('.bp-col.next') || sc.querySelector('.bp-col.me')); if (sc && c) { const r = c.getBoundingClientRect(), R = sc.getBoundingClientRect(); sc.scrollLeft += (r.left + r.width / 2) - (R.left + R.width / 2); } });
   const copy = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
   $('frCopy').onclick = copy; $('frCopy2').onclick = copy;
   $('frGuide').onclick = () => refGuide();
