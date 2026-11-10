@@ -271,7 +271,7 @@ function clean(html) {
       if (ch.tagName === 'LI' && dn) ch.setAttribute('data-done', '');
       if (dr === 'ltr' && /^(P|H1|H2|H3|LI|UL|OL|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('dir', 'ltr');   // כיוון כתיבה
       if (isTl) ch.className = 'tl';
-      if ((al === 'center' || al === 'left') && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור
+      if ((al === 'center' || al === 'left' || (al === 'right' && dr === 'ltr')) && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור (right רק לטקסט באנגלית שהודבק)
       walk(ch);
     } else if (ch.nodeType === 3) {                  // טקסט עם "&#39;" כתוב כמו שהוא (מהעתקה מ-PDF/אתר) – מציגים את התו האמיתי
       if (/&(#\d{2,6}|#x[\da-f]{2,5}|quot|apos|amp|lt|gt|nbsp);/i.test(ch.nodeValue)) ch.nodeValue = decodeEnt(ch.nodeValue);
@@ -738,11 +738,27 @@ $('editor').addEventListener('paste', e => {
   const files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
   if (files.length) { addImages(files); return; }
   const html = e.clipboardData.getData('text/html'), plain = e.clipboardData.getData('text/plain');
+  const start = blockOf(getSelection().anchorNode);
   // טקסט שהועתק מ-PDF: כל שורה נשברת באמצע משפט. מחברים שורות לפסקאות אמיתיות
-  if (plain && (!html || looksLikeLines(html)) && plain.split(/\r?\n/).filter(l => l.trim()).length >= 3) { document.execCommand('insertHTML', false, clean(textToHtml(plain))); return; }
-  if (html) document.execCommand('insertHTML', false, clean(html));
+  if (plain && (!html || looksLikeLines(html)) && plain.split(/\r?\n/).filter(l => l.trim()).length >= 3) document.execCommand('insertHTML', false, pasteRight(clean(textToHtml(plain))));
+  else if (html) document.execCommand('insertHTML', false, pasteRight(clean(html)));
   else document.execCommand('insertText', false, decodeEnt(plain));
+  pasteRightFix(start);
 });
+// מה שמדביקים תמיד מיושר לימין: בלי מרכז ובלי שמאל. טקסט באנגלית נשאר משמאל לימין (כדי שהנקודות לא יתהפכו) אבל מיושר לימין
+function pasteRightOne(b) {
+  b.style.removeProperty('text-align'); b.style.removeProperty('direction'); if (!b.getAttribute('style')) b.removeAttribute('style');
+  if (b.getAttribute('dir') === 'ltr' && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(b.tagName)) b.setAttribute('data-a', 'right'); else b.removeAttribute('data-a');
+  if (b.getAttribute('align')) b.removeAttribute('align');
+}
+function pasteRight(html) { const d = document.createElement('div'); d.innerHTML = html; d.querySelectorAll('*').forEach(pasteRightOne); return d.innerHTML; }
+function pasteRightFix(start) {
+  const ed = $('editor'), end = blockOf(getSelection().anchorNode), all = [...ed.querySelectorAll('p,h1,h2,h3,li,blockquote')];
+  let i0 = start ? all.indexOf(start) : -1, i1 = end ? all.indexOf(end) : -1; if (i0 < 0) i0 = i1; if (i1 < 0) i1 = i0;
+  if (i0 >= 0) for (let i = Math.min(i0, i1); i <= Math.max(i0, i1); i++) pasteRightOne(all[i]);
+  ed.querySelectorAll('[style*="text-align"]').forEach(x => { x.style.removeProperty('text-align'); if (!x.getAttribute('style')) x.removeAttribute('style'); });
+  markDirty();
+}
 function decodeEnt(t) { return String(t).replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16))).replace(/&(quot|apos|amp|lt|gt|nbsp);/g, (_, k) => ({ quot: '"', apos: "'", amp: '&', lt: '<', gt: '>', nbsp: ' ' })[k]); }
 // HTML שהוא בעצם שורות (מ-PDF): בלי פסקאות, רשימות או טבלאות אמיתיות
 function looksLikeLines(html) { return !/<(p|li|table|h[1-6]|ul|ol)\b/i.test(html) || /<meta[^>]+pdf|pdf\.js|class="?textLayer/i.test(html); }

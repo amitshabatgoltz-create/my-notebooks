@@ -2328,3 +2328,7 @@ a.menu-item{display:block;text-decoration:none;color:inherit}
 html[data-theme="dark"] .ce-row span{color:#4ADE80}
 #editor .ai-flash{animation:aiFlash 2.4s ease-out}
 @keyframes aiFlash{0%,30%{background:color-mix(in srgb,#16A34A 22%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,#16A34A 22%,transparent);border-radius:6px}100%{background:transparent;box-shadow:none}}
+/* טקסט באנגלית שהודבק: משמאל לימין, אבל מיושר לימין */
+:is(#editor,#shareBody) [dir="ltr"][data-a="right"]{text-align:right}
+/* טקסט באנגלית שהודבק: משמאל לימין, אבל מיושר לימין */
+:is(#editor,#shareBody) [dir="ltr"][data-a="right"]{text-align:right}
