@@ -13,7 +13,7 @@ const GEMINI_KEY = defineSecret('GEMINI_API_KEY');
 
 // כמה בקריאות ל-AI מותר ביום לכל סוג. זה קצת יותר מהמכסה שרואים באתר,
 // כי פעולה אחת לפעמים צריכה כמה קריאות (ניסיון חוזר, בדיקה כפולה של תמונה).
-const LIMIT = { chat: 45, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30, img: 4 };
+const LIMIT = { chat: 32, sum: 6, qa: 8, pr: 8, fc: 8, ocr: 14, imp: 30, img: 4 };
 // יצירת תמונות: מנסים לפי הסדר עד שאחד עובד (שמות של מודלים משתנים מדי פעם)
 const IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.0-flash-preview-image-generation'];
 const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יחד

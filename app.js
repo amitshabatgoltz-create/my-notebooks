@@ -5171,7 +5171,7 @@ function hwFromOcr(list, n) {
 $('ocrBtn').addEventListener('click', ocrDialog);
 
 /* ===== מכסה יומית לכל חשבון: AI יקר, אז מגבילים את מה שהכי כבד ===== */
-const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 30, cf: 3, kit: 3, pr: 3, wr: 5 };
+const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 21, cf: 3, kit: 3, pr: 3, wr: 5 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
 let unlimitedEmail = null, unlimitedYes = false;
