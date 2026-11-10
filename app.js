@@ -6929,6 +6929,7 @@ ${aiMemPrompt()}
 שינוי של משהו שכבר ביומן (לדחות או להקדים מבחן, לשנות שעה או שם, לסמן שבוצע, לבטל ולמחוק): החזר בתחילת התשובה JSON בפורמט הזה, ואחריו משפט קצר:
 {"action":"UPDATE_CALENDAR","items":[{"id":"הקוד מהסוגריים המרובעים ברשימת היומן","date":"YYYY-MM-DD"}]}
 - כתוב רק את מה שמשתנה: date, time ("HH:MM" או ""), title, done (true/false), או "delete":true כדי למחוק.
+- אם הדבר כבר נמצא ברשימת היומן (גם אם המשתמש אומר "זה לא ב-X, זה ב-Y") – תמיד UPDATE_CALENDAR, ולעולם לא ADD_TO_CALENDAR, אחרת יהיו שניים.
 - id חייב להיות בדיוק אחד מהקודים ברשימה למעלה. אם לא ברור על איזה דבר מדובר – שאל, ואל תחזיר JSON.
 - לעולם אל תגיד ששינית, הוספת או מחקת משהו ביומן בלי להחזיר את ה-JSON המתאים. בלי JSON – שום דבר לא משתנה.
 
@@ -7033,6 +7034,18 @@ function chatSplitSchedule(text, base) {
   });
   return out.length >= 2 ? out : null;
 }
+// דבר שכבר ביומן עם אותו סוג ושם דומה (למשל "מבחן באנגלית" ו"מבחן אנגלית")
+const CAL_MOVE = /דח[וי]|ידחה|נדח|תדח|הזז|תזיז|הזיז|זז|במקום|הקדימ|תקדים|הוקדם|שינ(ו|ית)|תשנה|לשנות|עבר ל|עובר ל|לא ב[-\s]?\d/;
+function calWords(t) {
+  const stop = new Set(['מבחן', 'בוחן', 'בחינה', 'שיעורי', 'בית', 'אירוע', 'של', 'על', 'עם', 'את']);
+  return String(t || '').replace(/["'״׳:.,()\-–]/g, ' ').split(/\s+/).map(w => w.replace(/^[בהלו](?=[֐-׿]{3,})/, '')).filter(w => w.length >= 3 && !stop.has(w));
+}
+function calFindSame(title, type) {
+  const mine = new Set(calWords(title)); if (!mine.size) return null;
+  const today = todayKey();
+  const cands = events.filter(e => !e.done && e.type === type && e.date >= today && calWords(e.title).some(w => mine.has(w)));
+  return cands.length === 1 ? cands[0] : null;   // רק כשברור על איזה מדובר
+}
 async function chatAddEvent(act, userMsg) {
   let list = Array.isArray(act.items) ? act.items : [act];
   // ה-AI לפעמים מכניס את כל הלו"ז לפריט אחד – מפרקים בעצמנו
@@ -7057,6 +7070,18 @@ async function chatAddEvent(act, userMsg) {
     if (!date) { const q = parseQuick(`${list.length > 1 ? '' : userMsg + ' '}${title} ${content}`); date = q.date; written = q.written; if (!time) time = q.time || ''; }
     const note = String(it.note || '').trim().slice(0, 300);
     const weeks = Math.min(12, Math.max(1, parseInt(it.weeks, 10) || 1));
+    // כבר יש את זה ביומן? אם המשתמש ביקש לדחות / להזיז – מזיזים את הקיים במקום להוסיף עוד אחד. כפילות מדויקת – לא מוסיפים
+    if (weeks === 1 && list.length <= 3) {
+      const same = calFindSame(title, type);
+      if (same && same.date === date && (same.time || '') === time) { out.push({ id: same.id, title: same.title, type: same.type, label: dayLabel(date) + (time ? ' · ' + time : ''), dup: true }); continue; }
+      if (same && CAL_MOVE.test(userMsg)) {
+        const before = { title: same.title, date: same.date, time: same.time || '', done: !!same.done };
+        const patch = { date, autoDate: !written, ...(time ? { time } : {}) };
+        await updateDoc(evDoc(same.id), patch);
+        out.push({ id: same.id, title: same.title, type: same.type, label: dayLabel(date), moved: { id: same.id, before, after: { ...before, date, time: time || before.time } } });
+        continue;
+      }
+    }
     for (let w = 0; w < weeks; w++) {
       const d = fromKey(date); d.setDate(d.getDate() + 7 * w); const dk = key(d);
       const ref = await addDoc(evCol(), { title, type, time, date: dk, done: false, createdAt: Date.now(), ...(note ? { note } : {}), ...(type === 'event' && time ? { busy: true } : {}), ...(written ? {} : { autoDate: true }) });
@@ -7369,10 +7394,13 @@ async function chatSend() {
     if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
       let evs = [];
       try { evs = await chatAddEvent(s.action, msg.slice(0, 600)); } catch (e) { console.error(e); }
-      if (evs.length) { if (!text) text = evs.length === 1 ? `הוספתי לך ליומן: ${evs[0].title}` : `הוספתי לך ליומן ${evs.length} דברים.`; }
+      const moved = evs.filter(e => e.moved).map(e => e.moved), dups = evs.filter(e => e.dup), added = evs.filter(e => !e.moved && !e.dup);
+      if (evs.length) { if (!text) text = moved.length ? 'עדכנתי ביומן.' : added.length === 1 ? `הוספתי לך ליומן: ${added[0].title}` : added.length ? `הוספתי לך ליומן ${added.length} דברים.` : 'זה כבר ביומן.'; }
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
+      if (dups.length && !added.length && !moved.length) text = 'זה כבר נמצא ביומן, לא הוספתי שוב.';
       b.classList.remove('typing', 'making'); chatFill(b, text);
-      if (evs.length) chatAddedCard(evs);
+      if (moved.length) chatUpdatedCard(moved);
+      if (added.length) chatAddedCard(added);
     } else if (s.action && s.action.action === 'UPDATE_CALENDAR') {
       let ch = [];
       try { ch = await chatUpdateEvents(s.action); } catch (e) { console.error(e); }
