@@ -34,10 +34,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794317683">
+<link rel="stylesheet" href="style.css?v=1794318177">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794317683"></script>
+<script src="motion.js?v=1794318177"></script>
 </head>
 <body>
 
@@ -58,6 +58,7 @@
   <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 4.5V3h6v1.5M9 11h6M9 15.5h4"/></symbol>
   <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2.5"/><path d="M7 3.5h11.5A2.5 2.5 0 0 1 21 6v11.5"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 10a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10zM10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
   <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8.5h14V12M12 8v12.5M12 8C10.2 4.2 6.4 4.4 7 7c.3 1.2 2.6 1 5 1zm0 0c1.8-3.8 5.6-3.6 5-1-.3 1.2-2.6 1-5 1z"/></symbol>
   <symbol id="i-crown" viewBox="0 0 24 24"><path d="M3.5 8.5 8 12.5 12 5l4 7.5 4.5-4L19 18.5H5z"/><path d="M5.5 21h13"/></symbol>
   <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.3 0 1.9-.9 1.5-2-.5-1.2.3-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7.3 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10" cy="7.3" r="1.1"/><circle cx="15" cy="7.5" r="1.1"/></symbol>
@@ -213,6 +214,7 @@
       <button data-tab="cal"><svg><use href="#i-cal"/></svg>יומן</button>
       <button data-tab="tt"><svg><use href="#i-tt"/></svg>מערכת שעות</button>
       <button data-tab="gr"><svg><use href="#i-grades"/></svg>ציונים</button>
+      <button data-tab="fr" class="nav-fr"><svg><use href="#i-gift"/></svg>חברים</button>
       <button data-tab="admin" class="hidden admin-only"><svg><use href="#i-grades"/></svg>ניהול האתר</button>
     </nav>
     <div class="side-label">המחברות שלי</div>
@@ -278,6 +280,7 @@
               <button class="tile t-ocr" id="homeOcr" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>צילום לוח</b><small>מצלמים והוא מקליד</small></button>
               <button class="tile t-pr" id="homePr" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-doc"/></svg></span><b>דף תרגול דומה</b><small>להתאמן למבחן</small></button>
               <button class="tile t-cal" id="homeCal" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-cal"/></svg></span><b>יומן</b><small>מבחנים ושיעורי בית</small></button>
+              <button class="fr-banner" id="homeFriends" type="button"><span class="fr-banner-ic"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><span class="fr-banner-tx" id="homeFriendsTx"><b>הזמנת חברים</b><small>מביאים חברים ומקבלים פרסים</small></span><svg class="fr-banner-go" aria-hidden="true"><use href="#i-back"/></svg></button>
               <button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">ניהול</button>
             </div>
           </div>
@@ -410,6 +413,13 @@
         <div id="ttBody"></div>
       </section>
 
+      <section id="friendsView" class="view hidden">
+        <div class="lib-head">
+          <div><h2>חברים</h2><div class="sub">מביאים חברים לאתר, ופותחים פרסים בדרך</div></div>
+        </div>
+        <div id="frBody"></div>
+      </section>
+
       <section id="adminView" class="view hidden">
         <div class="lib-head">
           <div><h2>ניהול האתר</h2><div class="sub">מי משתמש באתר וכמה. רק אתה רואה את העמוד הזה.</div></div>
@@ -502,6 +512,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794317683"></script>
+<script type="module" src="app.js?v=1794318177"></script>
 </body>
 </html>

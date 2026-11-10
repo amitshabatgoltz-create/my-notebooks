@@ -363,8 +363,8 @@ function renderSide() {
     b.append(dot, t, o); b.onclick = () => openShare(x.id); sh.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin' };
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView', 'friendsView'];
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin', friendsView: 'fr' };
 function setView(v, crumb) {
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
@@ -419,7 +419,7 @@ function nbColorDialog() {
     SPECIAL_COLORS.forEach(([c, nm]) => {
       const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.title = nm; s.setAttribute('aria-label', nm); if (c === n.color) s.classList.add('on');
       s.onclick = async () => {
-        if (!open) { closeDialog(); setTimeout(inviteDialog, 260); return; }
+        if (!open) { closeDialog(); showTab('fr'); return; }
         n.color = c; d.querySelectorAll('.picker button').forEach(x => x.classList.remove('on')); s.classList.add('on');
         $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
         try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
@@ -1930,6 +1930,7 @@ function showTab(t) {
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
   else if (t === 'chat') { openId = null; setView('chatView'); renderSide(); }
   else if (t === 'admin') { openId = null; setView('adminView'); renderSide(); renderAdmin(); }
+  else if (t === 'fr') { openId = null; setView('friendsView', 'חברים'); renderSide(); renderFriends(); refLoad().then(() => { if (!$('friendsView').classList.contains('hidden')) renderFriends(); }); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -3590,7 +3591,8 @@ function openDemo() {
   $('shOwner').textContent = 'מחברת לדוגמה · אפשר לכתוב בה ולנסות, שום דבר לא נשמר';
   $('shColor').style.setProperty('--c', SAMPLE_NOTEBOOK.color);
   const hint = $('shHint'); hint.classList.remove('hidden');
-  hint.innerHTML = 'ככה נראית מחברת באתר. בחשבון חינמי יש גם: <b>תמונה לטקסט</b> (מצלמים את הלוח והוא מקליד), <b>סיכום למבחן</b> בלחיצה, <b>כרטיסיות שינון</b>, <b>יומן מבחנים</b> ו<b>עוזר לימודי</b> שמסביר.';
+  hint.classList.remove('dv-flash'); void hint.offsetWidth; hint.classList.add('dv-flash');
+  hint.innerHTML = 'הנה דוגמה: ככה נראית מחברת באתר. בחשבון חינמי יש גם: <b>תמונה לטקסט</b> (מצלמים את הלוח והוא מקליד), <b>סיכום למבחן</b> בלחיצה, <b>כרטיסיות שינון</b>, <b>יומן מבחנים</b> ו<b>עוזר לימודי</b> שמסביר.';
   const b = $('shBody'); b.innerHTML = clean(SAMPLE_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
   b.contentEditable = 'true'; b.spellcheck = false;
   $('shCta').classList.toggle('hidden', !!me);
@@ -3598,8 +3600,39 @@ function openDemo() {
   cp.onclick = () => { closeShare(); if (!me) { setMode('signup'); setTimeout(() => $('name').focus(), 150); } };
   track('demo_open', {});
 }
-$('demoBtn').onclick = openDemo;
-if (!shareParam && new URLSearchParams(location.search).has('demo')) openDemo();
+// "לנסות בלי להירשם": קודם הסרטון (הילד שלא כותב ומשה שמצלם), ובסוף או בדילוג – המחברת לדוגמה
+function demoIntro(then) {
+  let seen = false; try { seen = sessionStorage.getItem('demoVid') === '1'; } catch {}
+  if (seen || me) { then(); return; }
+  try { sessionStorage.setItem('demoVid', '1'); } catch {}
+  const o = document.createElement('div'); o.className = 'dv-wrap'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'סרטון על האתר');
+  o.innerHTML = `<div class="dv-box"><video src="promo/video9.mp4" playsinline autoplay preload="auto"></video>
+      <div class="dv-bar"><i></i></div>
+      <button type="button" class="dv-snd hidden"><svg aria-hidden="true"><use href="#i-speak"/></svg>להפעלת סאונד</button>
+    </div>
+    <div class="dv-side"><b>ככה זה נראה בכיתה</b><small>אחרי הסרטון: מחברת לדוגמה שאפשר לנסות</small>
+      <button type="button" class="btn dv-skip">דילוג לדוגמה<svg aria-hidden="true"><use href="#i-back"/></svg></button></div>`;
+  document.body.appendChild(o);
+  const v = o.querySelector('video'), bar = o.querySelector('.dv-bar i'), snd = o.querySelector('.dv-snd');
+  let ended = false;
+  const done = how => {
+    if (ended) return; ended = true;
+    track('demo_video', { how, t: Math.round(v.currentTime || 0) });
+    v.pause(); o.classList.add('out'); setTimeout(() => o.remove(), 320);
+    document.removeEventListener('keydown', esc1); then();
+  };
+  const esc1 = e => { if (e.key === 'Escape') done('esc'); };
+  document.addEventListener('keydown', esc1);
+  v.onended = () => done('end'); v.onerror = () => done('error');
+  v.ontimeupdate = () => { if (v.duration) bar.style.width = (v.currentTime / v.duration * 100) + '%'; };
+  o.querySelector('.dv-skip').onclick = () => done('skip');
+  v.onclick = () => { if (v.muted) { v.muted = false; snd.classList.add('hidden'); } else if (v.paused) v.play(); else v.pause(); };
+  snd.onclick = () => { v.muted = false; snd.classList.add('hidden'); v.play().catch(() => {}); };
+  // בלי לחיצה של המשתמש הדפדפן לא מרשה סאונד: מנגנים בלי, ומציעים להפעיל
+  v.play().catch(() => { v.muted = true; snd.classList.remove('hidden'); v.play().catch(() => done('blocked')); });
+}
+$('demoBtn').onclick = () => demoIntro(openDemo);
+if (!shareParam && new URLSearchParams(location.search).has('demo')) demoIntro(openDemo);
 
 async function copyShare(id, s) {
   if ((s.mode || 'copy') === 'view') return;
@@ -7990,7 +8023,8 @@ function ttNudge() {
   return true;
 }
 // הזמנת חבר: שיתוף מהטלפון (או וואטסאפ במחשב) עם הודעה מוכנה
-$('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); inviteDialog(); });
+$('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); showTab('fr'); });
+$('homeFriends').addEventListener('click', () => showTab('fr'));
 /* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-6 חברים – 7 תמונות לטקסט ביום ===== */
 // refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
 const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, REF_GOAL = 6, REF_OCR = 7;
@@ -8030,6 +8064,7 @@ function refApply() {
   DAILY.ocr = (refHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
   DAILY.sum = SUM_BASE + (fresh ? 1 : 0);
   const amb = refHas(10);
+  paintFriendsBanner();
   $('userBtn').classList.toggle('amb', amb);
   const who = $('who'); if (who) { who.querySelector('.amb-tag')?.remove(); if (amb) { const t = document.createElement('span'); t.className = 'amb-tag'; t.innerHTML = '<svg aria-hidden="true"><use href="#i-crown"/></svg>שגריר'; who.appendChild(t); } }
 }
@@ -8046,7 +8081,7 @@ async function refLoad() {
   if (opened.length) setTimeout(() => refCelebrate(opened[opened.length - 1]), 1500);
 }
 function refCelebrate(t) {
-  toastAction(`חבר חדש הצטרף דרכך! פתחת: ${t.t}`, 'לראות', () => inviteDialog());
+  toastAction(`חבר חדש הצטרף דרכך! פתחת: ${t.t}`, 'לראות', () => showTab('fr'));
   window.Motion?.confetti($('userBtn'));
 }
 let refDeal = false;
@@ -8062,7 +8097,7 @@ async function invitePopMaybe() {
   if (!me || !refDeal || refHas(REF_GOAL)) return;
   const k = 'invPop:' + me.uid, tk = todayKey();
   try { if (localStorage.getItem(k) === tk) return; localStorage.setItem(k, tk); } catch {}
-  setTimeout(() => { if (me && !document.querySelector('.overlay')) inviteDialog(); }, 1800);
+  setTimeout(() => { if (me && !document.querySelector('.overlay')) showTab('fr'); }, 1800);
 }
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
@@ -8102,13 +8137,64 @@ function refGuide() {
       d.querySelector('[data-next]').textContent = last ? 'לקישור שלי' : 'הבא';
       d.querySelector('[data-skip]').textContent = i ? 'חזרה' : 'אחר כך';
     };
-    d.querySelector('[data-next]').onclick = () => { if (i < slides.length - 1) go(i + 1); else { closeDialog(); setTimeout(inviteDialog, 260); } };
+    d.querySelector('[data-next]').onclick = () => { if (i < slides.length - 1) go(i + 1); else { closeDialog(); showTab('fr'); } };
     d.querySelector('[data-skip]').onclick = () => { if (i) go(i - 1); else { closeDialog(); toast('אפשר תמיד דרך העיגול שלך למעלה ← "הזמנת חבר"'); } };
     d.querySelectorAll('.rg-dots i').forEach((x, k) => { x.onclick = () => go(k); });
     // החלקה בטלפון
     let sx = null; d.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
     d.addEventListener('touchend', e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { if (dx > 0 && i < slides.length - 1) go(i + 1); else if (dx < 0 && i) go(i - 1); } }, { passive: true });
   });
+}
+// ===== עמוד "חברים": כמה הבאת, מסלול עם קו עד הפרס הבא, מי הצטרף, והקישור =====
+const REF_MAX = REF_TIERS[REF_TIERS.length - 1].n;
+const refNext = () => REF_TIERS.find(t => refCount() < t.n) || null;
+function paintFriendsBanner() {
+  const b = $('homeFriendsTx'); if (!b) return;
+  const n = refCount(), nx = refNext(), left = nx ? nx.n - n : 0;
+  b.innerHTML = nx ? `<b>הזמנת חברים</b><small>${n ? `הבאת ${n} · ` : ''}עוד ${left === 1 ? 'חבר אחד' : left + ' חברים'} ל: ${esc(nx.t)}</small>` : `<b>שגריר</b><small>הבאת ${n} חברים. פתחת את כל הפרסים</small>`;
+}
+function renderFriends() {
+  const box = $('frBody'); if (!box || !me) return;
+  const n = refCount(), nx = refNext(), left = nx ? nx.n - n : 0;
+  const pos = v => Math.min(1, v / REF_MAX);
+  const ago = t => { if (!t) return ''; const dd = Math.floor((Date.now() - t) / 864e5); return dd <= 0 ? 'היום' : dd === 1 ? 'אתמול' : `לפני ${dd} ימים`; };
+  box.innerHTML = `
+    <div class="fr-hero">
+      <div class="fr-hero-l">
+        <div class="fr-big"><b>${n}</b><span>${n === 1 ? 'חבר הצטרף דרכך' : 'חברים הצטרפו דרכך'}</span></div>
+        <p class="fr-next">${nx ? `עוד <b>${left === 1 ? 'חבר אחד' : left + ' חברים'}</b> ואתה מקבל: <b>${esc(nx.t)}</b>` : 'פתחת את כל הפרסים. אתה שגריר של האתר!'}</p>
+        <div class="fr-cta"><button class="btn fr-share" type="button" id="frShare"><svg aria-hidden="true"><use href="#i-send"/></svg>שליחה לחברים</button><button class="btn fr-copy" type="button" id="frCopy"><svg aria-hidden="true"><use href="#i-copy"/></svg>העתקת הקישור</button></div>
+      </div>
+      <div class="fr-ring" style="--p:${nx ? Math.round(n / nx.n * 100) : 100}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-${nx ? nx.ic : 'crown'}"/></svg><small>${nx ? `${n}/${nx.n}` : 'הכול'}</small></span></div>
+    </div>
+    <div class="card fr-road-card"><h3>המסלול שלך</h3>
+      <div class="fr-road" style="--me:${pos(n)}">
+        <div class="fr-line"><i></i></div>
+        <div class="fr-me" title="אתה כאן"><span>${esc((firstName && firstName()) || 'אתה').slice(0, 1)}</span><em>אתה כאן</em></div>
+        ${REF_TIERS.map(t => { const st = n >= t.n ? 'got' : t === nx ? 'next' : 'lock'; return `<div class="fr-stop ${st}" style="--p:${pos(t.n)}"><span class="fr-dot"><svg aria-hidden="true"><use href="#i-${st === 'got' ? 'check' : t.ic}"/></svg></span><div class="fr-lab"><small>${t.n} ${t.n === 1 ? 'חבר' : 'חברים'}</small><b>${esc(t.t)}</b><span>${esc(t.d)}</span></div></div>`; }).join('')}
+      </div>
+    </div>
+    <div class="fr-cols">
+      <div class="card fr-how"><h3>איך זה עובד</h3>
+        <ol><li><span><svg aria-hidden="true"><use href="#i-send"/></svg></span><div><b>שולחים את הקישור שלך</b><small>בוואטסאפ, בקבוצה של הכיתה, איפה שרוצים</small></div></li>
+        <li><span><svg aria-hidden="true"><use href="#i-users"/></svg></span><div><b>חבר נרשם דרכו</b><small>רק חבר חדש נספר, מי שכבר רשום לא</small></div></li>
+        <li><span><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><b>שניכם מקבלים</b><small>אתה מתקדם במסלול, והוא מקבל ביום הראשון עוד תמונה לטקסט ועוד סיכום</small></div></li></ol>
+        <button type="button" class="btn btn-ghost" id="frGuide">להדרכה המלאה</button>
+      </div>
+      <div class="card fr-who"><h3>מי הצטרף דרכך</h3>${n ? `<div class="fr-list">${refList.slice().reverse().map(x => `<div class="fr-p"><span class="fr-av" style="--c:${colorOf(x.name || 'x')}">${esc(String(x.name || 'ח').trim().charAt(0))}</span><b dir="auto">${esc(x.name || 'חבר')}</b><small>${ago(x.at)}</small></div>`).join('')}</div>` : `<div class="fr-empty"><svg aria-hidden="true"><use href="#i-users"/></svg><p>עוד אף אחד. החבר הראשון כבר פותח לך צבעים מיוחדים למחברות!</p></div>`}
+        <div class="inv-link fr-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך" id="frLinkInp"><button class="btn btn-ghost" type="button" id="frCopy2">העתקה</button></div>
+      </div>
+    </div>`;
+  const url = inviteLink(), inp = $('frLinkInp'); inp.value = url; inp.onclick = () => inp.select();
+  const copy = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
+  $('frCopy').onclick = copy; $('frCopy2').onclick = copy;
+  $('frGuide').onclick = () => refGuide();
+  $('frShare').onclick = async () => {
+    const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם, ומי שנרשם דרך הקישור הזה מקבל מתנה:';
+    track('invite_send', { from: 'page' });
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
+  };
 }
 async function inviteDialog() {
   if (!me) return;
