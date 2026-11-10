@@ -748,6 +748,7 @@ $('editor').addEventListener('paste', e => {
 // מה שמדביקים תמיד מיושר לימין: בלי מרכז ובלי שמאל. טקסט באנגלית נשאר משמאל לימין (כדי שהנקודות לא יתהפכו) אבל מיושר לימין
 function pasteRightOne(b) {
   b.style.removeProperty('text-align'); b.style.removeProperty('direction'); if (!b.getAttribute('style')) b.removeAttribute('style');
+  if (b.getAttribute('dir') === 'ltr' && /[֐-׿]/.test(b.textContent)) b.removeAttribute('dir');   // עברית שהגיעה עם "משמאל לימין" – חוזרת לימין
   if (b.getAttribute('dir') === 'ltr' && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(b.tagName)) b.setAttribute('data-a', 'right'); else b.removeAttribute('data-a');
   if (b.getAttribute('align')) b.removeAttribute('align');
 }
