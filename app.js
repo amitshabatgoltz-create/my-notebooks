@@ -8061,10 +8061,19 @@ try {
   const r = new URLSearchParams(location.search).get('r');
   if (r && /^[A-Za-z0-9]{20,40}$/.test(r)) {
     try { localStorage.setItem('refBy', r); } catch {}
-    const u = new URL(location.href); u.searchParams.delete('r'); history.replaceState(history.state, '', u.pathname + u.search + u.hash);
   }
 } catch {}
+// דפדפן בתוך אפליקציה (אינסטגרם, טיקטוק, פייסבוק): הכניסה עם Google לא עובדת שם. מציעים לפתוח בדפדפן רגיל (הקישור נשאר עם ההזמנה)
+(() => { try {
+  if (!/Instagram|FBAN|FBAV|TikTok|musical_ly|BytedanceWebview|Line\/|Snapchat/i.test(navigator.userAgent)) return;
+  const st = $('loginStatus'); if (!st) return;
+  const b = document.createElement('div'); b.className = 'inapp-tip';
+  b.innerHTML = '<b>פתחו בדפדפן רגיל</b><span>כאן הכניסה עם Google לא עובדת. לוחצים על <b>⋯</b> למעלה ואז "פתיחה בדפדפן" (Chrome או Safari).</span>';
+  st.before(b);
+} catch {} })();
+const refClearUrl = () => { try { if (new URLSearchParams(location.search).has('r')) { const u = new URL(location.href); u.searchParams.delete('r'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } } catch {} };
 async function refJoin() {
+  refClearUrl();
   let r = null; try { r = localStorage.getItem('refBy'); } catch {}
   if (!r || !me) return;
   const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;

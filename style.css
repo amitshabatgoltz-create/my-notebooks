@@ -2700,3 +2700,6 @@ html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
 .rv-end b{font-size:24px;line-height:1.2}.rv-end small{font-size:15px;opacity:.85;margin-bottom:8px}
 .rv-go{background:#fff!important;color:#4F46E5!important;font-weight:800;height:52px;padding:0 28px;font-size:17px}
 .rv-again{background:none;border:0;color:#fff;opacity:.8;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+
+.inapp-tip{display:flex;flex-direction:column;gap:2px;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px;text-align:right}
+html[data-theme="dark"] .inapp-tip{background:#3a2f0c;color:#FDE68A}
