@@ -170,9 +170,9 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad(); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = [];
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; DAILY.ocr = OCR_BASE;
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -7636,7 +7636,7 @@ const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב
       allow read: if request.auth != null && request.auth.uid == '${uid}';
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai']);
+        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref']);
     }`;
 async function renderAdmin() {
   const box = $('admBody');
@@ -7679,6 +7679,8 @@ async function renderAdmin() {
   const ago = ms => { if (!ms) return '–'; const m = Math.round((now - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
   const sorted = list.slice().sort((a, b) => (b.last || 0) - (a.last || 0));
   const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
+  const brought = {}; list.forEach(u => { if (u.ref) brought[u.ref] = (brought[u.ref] || 0) + 1; });
+  const byId = Object.fromEntries(list.map(u => [u.id, u]));
   box.innerHTML = `<div class="adm-kpis">
       <div class="card adm-kpi"><b>${list.length}</b><span>משתמשים</span></div>
       <div class="card adm-kpi"><b>${act1}</b><span>נכנסו היום</span></div>
@@ -7692,8 +7694,8 @@ async function renderAdmin() {
       <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
-    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>מכשיר</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
+    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th></tr></thead><tbody>
+      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? esc((byId[u.ref] && byId[u.ref].name) || 'מישהו') : '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
 }
 
@@ -7854,12 +7856,66 @@ function ttNudge() {
   return true;
 }
 // הזמנת חבר: שיתוף מהטלפון (או וואטסאפ במחשב) עם הודעה מוכנה
-$('inviteBtn').addEventListener('click', async () => {
-  $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false');
-  const url = location.origin + location.pathname, text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם:';
+$('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); inviteDialog(); });
+/* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-6 חברים – 7 תמונות לטקסט ביום ===== */
+// refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
+const OCR_BASE = DAILY.ocr, REF_GOAL = 6, REF_OCR = 7;
+let refList = [];
+try {
+  const r = new URLSearchParams(location.search).get('r');
+  if (r && /^[A-Za-z0-9]{20,40}$/.test(r)) {
+    try { localStorage.setItem('refBy', r); } catch {}
+    const u = new URL(location.href); u.searchParams.delete('r'); history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+  }
+} catch {}
+async function refJoin() {
+  let r = null; try { r = localStorage.getItem('refBy'); } catch {}
+  if (!r || !me) return;
+  const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
+  if (r === me.uid || Date.now() - born > 3 * 864e5) { try { localStorage.removeItem('refBy'); } catch {} return; }   // רק מי שנרשם עכשיו נספר
+  try {
+    await setDoc(doc(db, 'refs', r, 'joined', me.uid), { name: (me.displayName || 'חבר').slice(0, 60), at: Date.now() });
+    await setDoc(statsDoc(me.uid), { ref: r }, { merge: true });
+    try { localStorage.removeItem('refBy'); } catch {}
+    track('ref_join', {});
+  } catch (e) { console.warn('ref', e && e.message); }
+}
+async function refLoad() {
+  if (!me) return;
+  try { const sn = await getDocs(collection(db, 'refs', me.uid, 'joined')); refList = []; sn.forEach(d => refList.push(d.data())); }
+  catch { return; }
+  refList.sort((a, b) => (a.at || 0) - (b.at || 0));
+  DAILY.ocr = refList.length >= REF_GOAL ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE;
+}
+const inviteLink = () => location.origin + location.pathname + '?r=' + me.uid;
+async function inviteDialog() {
+  if (!me) return;
   track('invite', {});
-  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
-});
+  await refLoad();
+  dialog(d => {
+    d.classList.add('inv-dlg');
+    const n = refList.length, done = n >= REF_GOAL;
+    d.innerHTML = `<h3>הזמנת חברים</h3><p>שולחים לחברים את הקישור האישי שלך. כל חבר שנרשם לאתר דרך הקישור נספר לך.</p>
+      <div class="inv-prog${done ? ' done' : ''}"><div class="inv-top"><b>${done ? `הבאת ${n} חברים` : `הבאת ${n} מתוך ${REF_GOAL}`}</b><span>${done ? `יש לך ${REF_OCR} תמונות לטקסט ביום ✓` : `ב-${REF_GOAL} חברים: ${REF_OCR} תמונות לטקסט ביום במקום ${OCR_BASE}`}</span></div>
+        <div class="inv-bar"><i style="width:${Math.min(100, n / REF_GOAL * 100)}%"></i></div></div>
+      <div class="inv-names"></div>
+      <div class="inv-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך"><button class="btn btn-ghost" type="button" data-copy>העתקה</button></div>
+      <p class="muted-s">נספר רק חבר חדש שנרשם דרך הקישור (מי שכבר היה רשום לא נספר).</p>
+      <div class="inv-btns"><button class="btn btn-ghost" type="button" data-close>סגירה</button><button class="btn btn-primary" type="button" data-share>שליחה לחברים</button></div>`;
+    const names = d.querySelector('.inv-names');
+    if (n) { const h = document.createElement('small'); h.textContent = 'הצטרפו דרכך:'; names.appendChild(h); refList.forEach(x => { const c = document.createElement('span'); c.dir = 'auto'; c.textContent = x.name || 'חבר'; names.appendChild(c); }); }
+    else names.remove();
+    const url = inviteLink(), inp = d.querySelector('.inv-link input'); inp.value = url;
+    inp.onclick = () => inp.select();
+    d.querySelector('[data-copy]').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
+    d.querySelector('[data-close]').onclick = closeDialog;
+    d.querySelector('[data-share]').onclick = async () => {
+      const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם:';
+      track('invite_send', {});
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
+    };
+  });
+}
 $('adminMenuBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); });
 $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });

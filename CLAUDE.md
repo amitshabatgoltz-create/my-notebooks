@@ -21,6 +21,7 @@
 - `users/{uid}/notebooks`, `/events` (יומן: title, type test|hw|event|other, date YYYY-MM-DD, time, done, note, files, autoDate, planFor), `/images`, `/files/{id}/chunks/{n}`, `/cards/{nbId}` (כרטיסיות שינון), `/chats/{id}` (שיחות עם העוזר הלימודי: title, history, mem, createdAt, updatedAt).
 - `users/{uid}/meta/`: `timetable` {days, start, times}, `usage` (מכסה יומית), `grades` {items: [{id, s, n, g, t (סוג), d}], cats: {מקצוע: [{n, p}]} – אחוז לכל סוג; ממוצע לפי `subjAvg`}, `activity`.
 - `stats/{uid}` – סטטיסטיקה לעמוד "ניהול האתר" (name, email, first, last, lastDay, nb, device, ai{סוג: מספר}). כל משתמש כותב רק את שלו (`statsPing`, `statsAi`), ורק בעל האתר קורא את כולם (לפי request.auth.token.email בכללים – זה צד-שרת, לא נחשף בדפדפן). Google Analytics פעיל דרך `track(name, params)`.
+- `refs/{refUid}/joined/{newUid}` {name, at} – הזמנת חברים עם קישור אישי (`?r=<uid>` → localStorage `refBy` → `refJoin` בכניסה, רק למשתמש שנוצר ב-3 הימים האחרונים; הכללים מרשים רק כשאין עדיין `stats/{newUid}`). גם `stats.ref`. `inviteDialog` מראה התקדמות; ב-`REF_GOAL`=6 חברים `refLoad` מעלה את `DAILY.ocr` ל-`REF_OCR`=7 (השרת מרשה עד 14). בניהול האתר: עמודות "הביא חברים" ו"הגיע דרך".
 - `shares/{id}` – מחברות משותפות (mode: view | copy | edit), עם `presence`. מחברות ששותפו איתי (`users/{uid}/shared`, `sharedList`) מופיעות ככרטיס גדול במסך המחברות (`renderShared`) וגם בצד (`#sideShared` ב-`renderSide`); מחברת שלי ששיתפתי (`shareId`) מקבלת תווית 👥.
 
 ## מכסה יומית ל-AI

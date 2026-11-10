@@ -2346,3 +2346,18 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
 .am-del svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .am-empty{padding:16px;border-radius:12px;background:var(--accent-soft);color:var(--muted);text-align:center}
 .am-btns{display:flex;gap:8px;justify-content:flex-end}
+
+/* הזמנת חברים */
+.inv-prog{margin:14px 0 10px;padding:14px;border-radius:14px;background:var(--accent-soft)}
+.inv-top{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.inv-top b{font-size:17px}
+.inv-top span{font-size:13.5px;color:var(--muted)}
+.inv-prog.done .inv-top span{color:var(--accent);font-weight:600}
+.inv-bar{height:10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 15%,transparent);overflow:hidden}
+.inv-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent);min-width:4px}
+.inv-names{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.inv-names small{color:var(--muted)}
+.inv-names span{padding:3px 10px;border-radius:999px;background:var(--surface-2,var(--accent-soft));font-size:13px}
+.inv-link{display:flex;gap:8px}
+.inv-link input{flex:1;min-width:0;font-size:13px}
+.inv-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
