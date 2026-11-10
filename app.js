@@ -6758,6 +6758,14 @@ const CHAT_TEACH = `מצב מורה פעיל (המשתמש ביקש ללמוד �
 - כשהוא עונה: אם צדק – תגיד שזה נכון ולמה, ותמשיך לשלב הבא. אם טעה – אל תגיד מה הנכון; תשאל שאלה שתעזור לו למצוא את הטעות בעצמו.
 - כשהוא מגיע לתשובה בעצמו – תפרגן, ותסכם במשפט מה למד.
 - ההסבר קצר, בגובה העיניים. אל תחזיר QUIZ או SHEET במצב הזה, אלא אם ביקש במפורש.`;
+// העוזר יכול להציע שינוי בתוך המחברת הפתוחה. המשתמש רואה מה ישתנה ומאשר בכפתור
+const CHAT_EDIT_RULES = `6. עריכת המחברת: אם המשתמש מבקש לכתוב, להוסיף, לתקן או לשנות משהו בתוך המחברת הפתוחה ("תכתוב את זה ליד הכותרת", "תוסיף הגדרה מתחת ל...", "תתקן את שאלת החקר"), אל תגיד שאתה לא יכול ואל תבקש ממנו להעתיק. החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר שאומר מה שינית:
+{"action":"EDIT_NOTEBOOK","edits":[{"op":"after","find":"טקסט מדויק מהמחברת","text":"הטקסט החדש"}]}
+- op: "after" = שורה חדשה אחרי השורה שמכילה את find. "before" = לפני. "replace" = להחליף את השורה שמכילה את find בטקסט החדש. "append" = בסוף המחברת (בלי find).
+- find: 3 עד 8 מילים שמופיעות בדיוק כך במחברת, מתוך השורה שמשנים או השורה שליד המקום. "ליד הכותרת" / "מתחת לכותרת" = after, עם find מתוך הכותרת.
+- text: רק הטקסט החדש, בלי הסברים. כמה שורות = \\n. שורה שמתחילה ב-"- " = נקודה ברשימה. שורה שמתחילה ב-"## " = כותרת קטנה. אפשר **מודגש**.
+- replace רק כשהמשתמש ביקש לתקן או להחליף. אל תמחק שום דבר אחר.
+`;
 function chatPrompt(noKit) {
   const currentNotebookText = openId ? $('editor').innerText.trim().slice(0, 30000) : '';
   const upcoming = events.filter(e => !e.done && e.date >= todayKey()).slice(0, 30)
@@ -6794,7 +6802,7 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 5. דף חזרה: אם המשתמש מבקש דף חזרה, סיכום או דף למידה, החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר:
 {"action":"SHEET","title":"שם הדף","sections":[{"heading":"כותרת","table":[["מילה","פירוש"]],"items":["נקודה חשובה"]}],"tips":["טיפ לזכירה"]}
 כל חלק יכול לכלול table או items או את שניהם. סדר את כל החומר לפי נושאים, בלי לדלג על מילים.
-אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
+${openId && edCan() ? CHAT_EDIT_RULES : ''}אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
 לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
 
 טבלה: כשמבקשים טבלה (או כשהשוואה או שלבים נראים טוב יותר בטבלה), כתוב טבלה אמיתית בפורמט הזה, עם שורת כותרת ושורת קווים:
@@ -6851,7 +6859,7 @@ function chatSplit(raw) {
   if (end < 0) return { text: before, action: null, partial: true };
   const rest = t.slice(end + 1).replace(/^\s*```/, '').trim();
   const text = [before, rest].filter(Boolean).join('\n\n');
-  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'QUIZ', 'SHEET'].includes(o.action) ? o : null }; }
+  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'QUIZ', 'SHEET', 'EDIT_NOTEBOOK'].includes(o.action) ? o : null }; }
   catch { return { text, action: null, broken: true }; }
 }
 
@@ -6914,6 +6922,81 @@ async function chatAddEvent(act, userMsg) {
     }
   }
   return out;
+}
+// ---- עריכת המחברת מהעוזר ----
+const edNorm = v => String(v || '').replace(/[״"]/g, '"').replace(/[׳']/g, "'").replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+function edFindBlock(find) {
+  const f = edNorm(find); if (!f) return null;
+  const blocks = [...$('editor').querySelectorAll('h1,h2,h3,p,li,blockquote,td,th')];
+  const pick = q => blocks.filter(b => edNorm(b.textContent).includes(q)).sort((a, b) => a.textContent.length - b.textContent.length)[0] || null;
+  return pick(f) || (f.length > 16 ? pick(f.slice(0, 16)) : null);
+}
+function edTextToHtml(t) {
+  const lines = String(t || '').replace(/\r/g, '').split('\n'); let out = '', list = [];
+  const inl = v => esc(v).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const flushList = () => { if (list.length) { out += '<ul>' + list.map(x => `<li>${inl(x)}</li>`).join('') + '</ul>'; list = []; } };
+  for (const raw of lines) {
+    const l = raw.trim(); if (!l) { flushList(); continue; }
+    if (/^[-•*]\s+/.test(l)) { list.push(l.replace(/^[-•*]\s+/, '')); continue; }
+    flushList();
+    if (/^##\s+/.test(l)) out += `<h3>${inl(l.replace(/^##\s+/, ''))}</h3>`;
+    else if (/^#\s+/.test(l)) out += `<h2>${inl(l.replace(/^#\s+/, ''))}</h2>`;
+    else out += `<p>${inl(l)}</p>`;
+  }
+  flushList(); return noEmoji ? clean(noEmoji(out)) : clean(out);
+}
+function chatEditPrep(a) {
+  if (!openId || !edCan()) return [];
+  return (Array.isArray(a.edits) ? a.edits : []).slice(0, 8).map(e => ({ op: ['after', 'before', 'replace', 'append'].includes(e && e.op) ? e.op : 'after', find: String((e && e.find) || '').slice(0, 200), text: String((e && e.text) || '').slice(0, 6000) }))
+    .filter(e => e.text.trim() && (e.op === 'append' || edFindBlock(e.find)));
+}
+function chatEditApply(eds) {
+  const ed = $('editor'); if (!openId || !edCan()) { toast('צריך לפתוח את המחברת כדי לשנות בה'); return false; }
+  const before = ed.innerHTML, added = [];
+  for (const e of eds) {
+    const w = document.createElement('div'); w.innerHTML = edTextToHtml(e.text); let nodes = [...w.childNodes]; if (!nodes.length) continue;
+    if (e.op === 'append') { ed.append(...nodes); added.push(...nodes); continue; }
+    let blk = edFindBlock(e.find); if (!blk) continue;
+    if (blk.tagName === 'LI' && e.op !== 'replace' && nodes.every(n => n.nodeName === 'P')) nodes = nodes.map(n => { const li = document.createElement('li'); li.append(...n.childNodes); return li; });
+    else if (blk.tagName === 'LI' && e.op !== 'replace' && nodes.length === 1 && /^(UL|OL)$/.test(nodes[0].nodeName)) nodes = [...nodes[0].children];
+    else if (/^(LI|TD|TH)$/.test(blk.tagName) && e.op !== 'replace') blk = blk.closest('ul,ol,table') || blk;
+    if (e.op === 'after') blk.after(...nodes);
+    else if (e.op === 'before') blk.before(...nodes);
+    else if (/^(LI|TD|TH)$/.test(blk.tagName)) { blk.innerHTML = ''; nodes.forEach((n, i) => { if (i) blk.append(' '); blk.append(...(/^(P|H\d)$/.test(n.nodeName) ? n.childNodes : [n])); }); nodes = [blk]; }
+    else blk.replaceWith(...nodes);
+    added.push(...nodes);
+  }
+  const els = added.filter(n => n.nodeType === 1); if (!els.length) return false;
+  if (typeof curLayout === 'function' && curLayout() === 'slides') slideFix();
+  markDirty();
+  els.forEach(n => n.classList.add('ai-flash')); setTimeout(() => els.forEach(n => { n.classList.remove('ai-flash'); if (!n.getAttribute('class')) n.removeAttribute('class'); }), 2600);
+  els[0].scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  return before;
+}
+function chatEditCard(eds) {
+  const c = document.createElement('div'); c.className = 'chat-edit';
+  const h = document.createElement('b'); h.textContent = eds.length === 1 ? 'שינוי במחברת' : `${eds.length} שינויים במחברת`;
+  const list = document.createElement('div'); list.className = 'ce-list';
+  eds.forEach(e => {
+    const it = document.createElement('div'); it.className = 'ce-item';
+    const where = document.createElement('small'); where.dir = 'auto'; where.textContent = e.op === 'append' ? 'בסוף המחברת:' : `${e.op === 'replace' ? 'במקום' : e.op === 'before' ? 'לפני' : 'אחרי'} "${e.find.slice(0, 60)}":`;
+    const what = document.createElement('div'); what.className = 'ce-new'; what.innerHTML = edTextToHtml(e.text);
+    it.append(where, what); list.appendChild(it);
+  });
+  const row = document.createElement('div'); row.className = 'ce-row';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn btn-primary'; ok.textContent = 'לשנות במחברת';
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn btn-ghost'; no.textContent = 'לא צריך';
+  ok.onclick = () => {
+    const before = chatEditApply(eds);
+    if (before === false) { toast('לא מצאתי את המקום במחברת. אפשר להעתיק את הטקסט ידנית.'); return; }
+    track('chat_edit', { n: eds.length });
+    row.innerHTML = ''; const done = document.createElement('span'); done.textContent = '✓ שיניתי במחברת';
+    const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn btn-ghost'; undo.textContent = 'ביטול';
+    undo.onclick = () => { const ed = $('editor'); ed.innerHTML = before; renderCanvases(ed); applyBoxSizes(ed); markDirty(); done.textContent = 'בוטל, המחברת חזרה למה שהיה.'; undo.remove(); };
+    row.append(done, undo);
+  };
+  no.onclick = () => c.remove();
+  row.append(ok, no); c.append(h, list, row); $('chatLog').appendChild(c); chatScroll();
 }
 function chatAddedCard(evs) {
   const c = document.createElement('div'); c.className = 'chat-added';
@@ -7105,7 +7188,7 @@ async function chatSend() {
     let text = (s.partial ? s.text || raw.trim() : s.text).replace(/^\s*>>.*$/gm, '').trim(), card = null;
     if (stopped && !text) text = '(עצרת את התשובה)';
     // JSON שבור או חתוך של שאלון לא מוצג למשתמש
-    if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
+    if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET|EDIT_NOTEBOOK)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
     if (s.action && s.action.action === 'ADD_TO_CALENDAR') {
       let evs = [];
       try { evs = await chatAddEvent(s.action, msg.slice(0, 600)); } catch (e) { console.error(e); }
@@ -7113,6 +7196,12 @@ async function chatSend() {
       else text = 'לא הצלחתי להוסיף את זה ליומן. אפשר לנסות שוב.';
       b.classList.remove('typing', 'making'); chatFill(b, text);
       if (evs.length) chatAddedCard(evs);
+    } else if (s.action && s.action.action === 'EDIT_NOTEBOOK') {
+      const eds = chatEditPrep(s.action);
+      if (!eds.length) text = (text ? text + '\n\n' : '') + (openId ? 'לא מצאתי במחברת את המקום שצריך לשנות. אפשר להגיד לי בדיוק איפה, למשל "מתחת לכותרת X".' : 'כדי שאשנה משהו במחברת, צריך לפתוח אותה ולשאול אותי משם.');
+      else if (!text) text = 'הכנתי שינוי במחברת. תסתכל ותאשר:';
+      b.classList.remove('typing', 'making'); chatFill(b, text);
+      if (eds.length) chatEditCard(eds);
     } else {
       if (s.action && kitLeft > 0) card = s.action.action === 'QUIZ' ? chatQuizData(s.action) : chatSheetData(s.action);
       if (card) useOne('kit');

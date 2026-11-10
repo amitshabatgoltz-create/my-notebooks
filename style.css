@@ -2313,3 +2313,18 @@ a.menu-item{display:block;text-decoration:none;color:inherit}
 .demo-btn svg{width:18px;height:18px}
 #shBody[contenteditable="true"]{outline:none;border-radius:12px;caret-color:var(--accent)}
 #shBody[contenteditable="true"]:focus{box-shadow:0 0 0 3px var(--accent-soft)}
+
+/* העוזר משנה את המחברת: כרטיס אישור */
+.chat-edit{align-self:stretch;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:var(--surface);border:1.5px solid color-mix(in srgb,var(--accent) 40%,var(--line));box-shadow:var(--shadow)}
+.chat-edit>b{font-size:14.5px;color:var(--accent)}
+.ce-list{display:flex;flex-direction:column;gap:10px;max-height:300px;overflow:auto}
+.ce-item small{display:block;color:var(--muted);font-size:12.5px;margin-bottom:4px;overflow-wrap:anywhere}
+.ce-new{padding:8px 12px;border-radius:12px;background:color-mix(in srgb,#16A34A 9%,var(--surface));border-inline-start:4px solid #16A34A;font-size:14.5px;line-height:1.6}
+.ce-new>:first-child{margin-top:0}.ce-new>:last-child{margin-bottom:0}
+.ce-new p{margin:0 0 4px}.ce-new ul{margin:2px 0;padding-inline-start:20px}.ce-new h2,.ce-new h3{margin:2px 0;font-size:15.5px}
+.ce-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ce-row .btn{padding:8px 16px;font-size:14px}
+.ce-row span{font-weight:700;color:#16A34A;font-size:14px}
+html[data-theme="dark"] .ce-row span{color:#4ADE80}
+#editor .ai-flash{animation:aiFlash 2.4s ease-out}
+@keyframes aiFlash{0%,30%{background:color-mix(in srgb,#16A34A 22%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,#16A34A 22%,transparent);border-radius:6px}100%{background:transparent;box-shadow:none}}
