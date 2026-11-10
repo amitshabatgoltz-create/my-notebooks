@@ -4,7 +4,7 @@ import {
   updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -7760,6 +7760,44 @@ document.addEventListener('click', async e => {
   const url = location.origin + location.pathname + '?r=' + b.dataset.uid;
   try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { prompt('העתק את הקישור:', url); }
 });
+// שיוך ידני: מי הביא את המשתמש (כשהחבר נרשם בלי הקישור). נספר למזמין כמו הרשמה דרך הקישור
+let admList = [];
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-ref'); if (!b) return;
+  const u = admList.find(x => x.id === b.dataset.uid); if (u) admRefDialog(u);
+});
+function admRefDialog(u) {
+  const others = admList.filter(x => x.id !== u.id).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'he'));
+  dialog(d => {
+    d.innerHTML = `<h3>מי הביא את ${esc(u.name || u.email || 'המשתמש')}?</h3><p>זה ייספר לו כאילו החבר נרשם דרך הקישור האישי שלו: הוא יתקדם במסלול ויקבל את הפרסים.</p>
+      <input class="adm-ref-q" placeholder="חיפוש לפי שם או אימייל" dir="auto" aria-label="חיפוש">
+      <div class="adm-ref-list"></div>
+      <div class="row"><button type="button" class="btn btn-ghost" data-x>ביטול</button>${u.ref ? '<button type="button" class="btn btn-ghost adm-ref-rm" data-rm>להסיר את השיוך</button>' : ''}</div>`;
+    const list = d.querySelector('.adm-ref-list'), q = d.querySelector('.adm-ref-q');
+    const paint = () => {
+      const t = q.value.trim().toLowerCase(); list.innerHTML = '';
+      others.filter(x => !t || String(x.name || '').toLowerCase().includes(t) || String(x.email || '').toLowerCase().includes(t)).slice(0, 40).forEach(x => {
+        const r = document.createElement('button'); r.type = 'button'; r.className = 'adm-ref-row' + (x.id === u.ref ? ' on' : '');
+        r.innerHTML = `<b dir="auto"></b><small dir="ltr"></small>`; r.querySelector('b').textContent = x.name || '–'; r.querySelector('small').textContent = x.email || '';
+        r.onclick = async () => {
+          r.disabled = true;
+          try {
+            if (u.ref && u.ref !== x.id) await deleteDoc(doc(db, 'refs', u.ref, 'joined', u.id)).catch(() => {});
+            await setDoc(doc(db, 'refs', x.id, 'joined', u.id), { name: String(u.name || 'חבר').slice(0, 60), at: Date.now(), manual: true });
+            await updateDoc(statsDoc(u.id), { ref: x.id });
+            closeDialog(); toast(`✓ ${u.name || 'המשתמש'} נספר ל${x.name || 'מזמין'}`); renderAdmin();
+          } catch (err) { console.warn(err); r.disabled = false; toast('לא הצלחתי לשייך. אולי הכללים החדשים עוד לא עלו'); }
+        };
+        list.appendChild(r);
+      });
+      if (!list.children.length) list.innerHTML = '<p class="muted-s">לא נמצא</p>';
+    };
+    q.oninput = paint; paint(); setTimeout(() => q.focus(), 60);
+    d.querySelector('[data-x]').onclick = closeDialog;
+    const rm = d.querySelector('[data-rm]');
+    if (rm) rm.onclick = async () => { try { await deleteDoc(doc(db, 'refs', u.ref, 'joined', u.id)); await updateDoc(statsDoc(u.id), { ref: deleteField() }); closeDialog(); toast('השיוך הוסר'); renderAdmin(); } catch (err) { console.warn(err); toast('לא הצלחתי להסיר'); } };
+  });
+}
 function paintAdmin() { const on = isUnlimited(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
@@ -7841,6 +7879,7 @@ async function renderAdmin() {
   const ago = ms => { if (!ms) return '–'; const m = Math.round((now - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
   const sorted = list.slice().sort((a, b) => (b.last || 0) - (a.last || 0));
   const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
+  admList = list;
   const brought = {}; list.forEach(u => { if (u.ref) brought[u.ref] = (brought[u.ref] || 0) + 1; });
   const byId = Object.fromEntries(list.map(u => [u.id, u]));
   const promoIds = new Set(); await Promise.all(list.map(async u => { if (u.email && INVITE_POP_HASH.includes(await sha256Hex('my-notebooks:' + u.email.toLowerCase()))) promoIds.add(u.id); }));
@@ -7860,7 +7899,7 @@ async function renderAdmin() {
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? esc((byId[u.ref] && byId[u.ref].name) || 'מישהו') : '–'}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
+      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
   // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
   const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);

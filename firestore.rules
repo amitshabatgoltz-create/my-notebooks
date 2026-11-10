@@ -59,6 +59,12 @@ service cloud.firestore {
         && (!('ai' in request.resource.data) || request.resource.data.ai is map)
         && (!('ref' in request.resource.data) || (request.resource.data.ref is string && request.resource.data.ref.size() < 60));
     }
+    // בעל האתר מעדכן רק את השדה "ref" (מי הביא את המשתמש) – שיוך ידני מעמוד הניהול
+    match /stats/{uid} {
+      allow update: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ref'])
+        && (!('ref' in request.resource.data) || (request.resource.data.ref is string && request.resource.data.ref.size() < 60));
+    }
     // הזמנת חברים: refs/<מי שהזמין>/joined/<החבר החדש>. רק משתמש חדש (שעוד אין לו stats) יכול להירשם כחבר, פעם אחת.
     // מי שהזמין רואה רק את החברים שלו, ובעל האתר רואה הכול
     match /refs/{refUid}/joined/{newUid} {
@@ -68,7 +74,13 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['name', 'at'])
         && request.resource.data.name is string && request.resource.data.name.size() < 100
         && request.resource.data.at is int;
-      allow update, delete: if false;
+      // בעל האתר יכול לשייך משתמש לחבר שהביא אותו (מעמוד "ניהול האתר"), ולבטל
+      allow create: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true && newUid != refUid
+        && request.resource.data.keys().hasOnly(['name', 'at', 'manual'])
+        && request.resource.data.name is string && request.resource.data.name.size() < 100
+        && request.resource.data.at is int;
+      allow delete: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true;
+      allow update: if false;
     }
     // 🔒 ספירת ה-AI: רק השרת כותב. בעל האתר יכול לקרוא את הספירה של כל האתר (aiQuota/_site) בעמוד "ניהול האתר"
     match /aiQuota/{id} {

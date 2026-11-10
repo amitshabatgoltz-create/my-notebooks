@@ -2703,3 +2703,12 @@ html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
 
 .inapp-tip{display:flex;flex-direction:column;gap:2px;margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px;text-align:right}
 html[data-theme="dark"] .inapp-tip{background:#3a2f0c;color:#FDE68A}
+
+/* ניהול: שיוך ידני של חבר */
+.adm-ref.btn{height:30px;padding:0 12px;font-size:13px}
+.adm-ref.link{font-size:12px;margin-inline-start:4px}
+.adm-ref-q{width:100%;margin:4px 0 10px}
+.adm-ref-list{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;margin-bottom:14px}
+.adm-ref-row{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 4%,transparent);text-align:right;width:100%}
+.adm-ref-row:hover{background:var(--accent-soft)}.adm-ref-row.on{outline:2px solid var(--accent)}
+.adm-ref-row small{color:var(--muted);font-size:12px}
