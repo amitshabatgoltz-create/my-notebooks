@@ -174,7 +174,7 @@ onAuthStateChanged(auth, user => {
     setTimeout(welcomeMaybe, 1600);
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; $('userBtn').classList.remove('amb');
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -1784,11 +1784,11 @@ function setLayout(lay, convert) {
 /* ---- הגדרות המחברת: רקע, כיוון, שוליים, גופן, גודל (נשמרות על המחברת) ---- */
 const NB_KEYS = ['layout', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
 const NB_OPTS = {
-  bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות']]],
+  bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות'], ['stars', 'כוכבים'], ['gold', 'נקודות זהב'], ['color', 'משבצות צבעוניות']]],
   orient: ['כיוון הדף', [['', 'לאורך'], ['land', 'לרוחב']]],
   margin: ['שוליים', [['narrow', 'צרים'], ['', 'רגילים'], ['wide', 'רחבים']]],
   rows: ['שורות בעמוד', [['', 'עמוד מלא'], ['10', '10 שורות'], ['20', '20 שורות']]],
-  font: ['גופן', [['', 'רגיל'], ['clean', 'נקי'], ['round', 'עגול'], ['hand', 'כתב יד']]],
+  font: ['גופן', [['', 'רגיל'], ['clean', 'נקי'], ['round', 'עגול'], ['hand', 'כתב יד'], ['fun', 'כיפי']]],
   fs: ['גודל טקסט', [['s', 'קטן'], ['', 'רגיל'], ['l', 'גדול']]],
   tpl: ['תבנית', [['', 'ריקה', 'דף ריק'], ['lesson', 'סיכום שיעור', 'מה למדנו, מושגים, שאלות'], ['cornell', 'דף קורנל', 'מילות מפתח וסיכום'], ['lab', 'דוח מעבדה', 'השערה, ניסוי, תוצאות'], ['vocab', 'מילים חדשות', 'מילה, פירוש, משפט'], ['pros', 'בעד ונגד', 'השוואה בטבלה'], ['todo', 'רשימת משימות', 'עם וי']]],
 };
@@ -1840,8 +1840,10 @@ function nbSettingsUI(st, onChange, keys, preview) {
           const on = v === (st[k] || ''); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
           const vis = k === 'rows' ? `<i class="ov-rows" data-r="${v}"></i>` : k === 'bg' ? `<i class="ov-bg" data-bg="${v}"></i>` : k === 'orient' ? `<i class="ov-or${v ? ' land' : ''}"></i>` : k === 'margin' ? `<i class="ov-mg" data-m="${v}"><i></i></i>`
             : k === 'font' ? `<i class="ov-font" data-font="${v}">אבג</i>` : k === 'fs' ? `<i class="ov-fs" data-fs="${v}">א</i>` : '';
-          b.innerHTML = `${vis}<b>${name}</b>${sub ? `<small>${sub}</small>` : ''}`;
-          b.onclick = () => pick(v, b, g); g.appendChild(b);
+          const lk = refOptLock(k, v);
+          b.innerHTML = `${vis}<b>${name}</b>${sub ? `<small>${sub}</small>` : ''}${lk ? `<span class="opt-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg>${lk} חברים</span>` : ''}`;
+          if (lk) b.classList.add('locked');
+          b.onclick = () => { if (refOptLock(k, v)) { toast(`נפתח כשמביאים ${refOptLock(k, v)} חברים. אפשר דרך "חברים" בתפריט`); return; } pick(v, b, g); }; g.appendChild(b);
         });
         sec.appendChild(g);
       }
@@ -8027,14 +8029,33 @@ $('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hi
 $('homeFriends').addEventListener('click', () => showTab('fr'));
 /* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-7 חברים – 7 תמונות לטקסט ביום ===== */
 // refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
-const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, REF_GOAL = 7, REF_OCR = 7;
+const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, FC_BASE = DAILY.fc, REF_GOAL = 7, REF_OCR = 7;
 // מדרגות הפרסים: כמה חברים צריך להביא, ומה מקבלים
 const REF_TIERS = [
-  { n: 1, ic: 'palette', t: 'צבעים מיוחדים למחברות', d: 'זהב, ניאון, גלקסיה ועוד' },
-  { n: 3, ic: 'chat', t: '+5 הודעות לעוזר ביום', d: `${CHAT_BASE + 5} במקום ${CHAT_BASE}` },
-  { n: REF_GOAL, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
-  { n: 10, ic: 'crown', t: 'תג שגריר', d: 'ליד השם שלך, וגישה ראשונה לכל דבר חדש' },
+  { n: 1, big: true, ic: 'palette', t: 'צבעים מיוחדים למחברות', d: 'זהב, ניאון, גלקסיה ועוד' },
+  { n: 2, ic: 'template', t: 'רקעים מיוחדים לדף', d: 'כוכבים, נקודות זהב, משבצות צבעוניות' },
+  { n: 3, big: true, ic: 'chat', t: '+5 הודעות לעוזר ביום', d: `${CHAT_BASE + 5} במקום ${CHAT_BASE}` },
+  { n: 4, ic: 'type', t: 'גופן כיפי למחברת', d: 'בהגדרות של המחברת' },
+  { n: 5, ic: 'doc', t: '+1 סיכום למבחן ביום', d: 'עוד סיכום כל יום' },
+  { n: 6, ic: 'mark', t: 'צבע לכל האתר', d: 'ירוק, כתום, ורוד ועוד' },
+  { n: REF_GOAL, big: true, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
+  { n: 8, ic: 'target', t: 'מסגרת לעיגול הפרופיל', d: 'צבעונית, רואים אותה תמיד' },
+  { n: 9, ic: 'cards', t: '+1 כרטיסיות שינון ביום', d: 'עוד סט כרטיסיות כל יום' },
+  { n: 10, big: true, ic: 'crown', t: 'תג שגריר', d: 'ליד השם שלך, וגישה ראשונה לכל דבר חדש' },
 ];
+const REF_BIG = REF_TIERS.filter(t => t.big);
+// אפשרויות במחברת שנפתחות בשלב מסוים
+const REF_LOCKED_OPT = { bg: { stars: 2, gold: 2, color: 2 }, font: { fun: 4 } };
+const refOptLock = (k, v) => { const lv = REF_LOCKED_OPT[k] && REF_LOCKED_OPT[k][v]; return lv && !(typeof refHas === 'function' && refHas(lv)) ? lv : 0; };
+// צבע לכל האתר (פרס של שלב 6)
+const SITE_ACCENTS = [['', 'סגול', '#5E5CE6'], ['#10B981', 'ירוק', '#10B981'], ['#F97316', 'כתום', '#F97316'], ['#EC4899', 'ורוד', '#EC4899'], ['#0EA5E9', 'תכלת', '#0EA5E9'], ['#E11D48', 'אדום', '#E11D48']];
+function siteAccentGet() { try { return (me && localStorage.getItem('accent:' + me.uid)) || ''; } catch { return ''; } }
+function siteAccentApply() {
+  let st = document.getElementById('accentStyle'); const c = refHas(6) ? siteAccentGet() : '';
+  if (!c) { if (st) st.remove(); return; }
+  if (!st) { st = document.createElement('style'); st.id = 'accentStyle'; document.head.appendChild(st); }
+  st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`;
+}
 let refList = [], refLoaded = false;
 try {
   const r = new URLSearchParams(location.search).get('r');
@@ -8062,7 +8083,10 @@ function refApply() {
   let fresh = false; try { fresh = !!me && localStorage.getItem('refNew:' + me.uid) === todayKey(); } catch {}
   DAILY.chat = refHas(3) ? CHAT_BASE + 5 : CHAT_BASE;
   DAILY.ocr = (refHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
-  DAILY.sum = SUM_BASE + (fresh ? 1 : 0);
+  DAILY.sum = SUM_BASE + (fresh ? 1 : 0) + (refHas(5) ? 1 : 0);
+  DAILY.fc = FC_BASE + (refHas(9) ? 1 : 0);
+  $('userBtn').classList.toggle('framed', refHas(8));
+  siteAccentApply();
   const amb = refHas(10);
   paintFriendsBanner();
   $('userBtn').classList.toggle('amb', amb);
@@ -8120,8 +8144,8 @@ function refGuide() {
     const slides = [
       `<div class="rg-art rg-orbit" aria-hidden="true"><span class="rg-me"><svg><use href="#i-gift"/></svg></span><i style="--a:0deg"></i><i style="--a:120deg"></i><i style="--a:240deg"></i></div>
        <h3>מביאים חברים.<br>מקבלים פרסים.</h3><p>חדש באתר: כל חבר שנרשם דרך הקישור האישי שלך מקרב אותך לפרס הבא.</p>`,
-      `<div class="rg-ladder">${REF_TIERS.map((t, i) => `<div class="rg-step" style="--i:${i}"><span class="rg-n">${t.n}</span><span class="rg-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`).join('')}</div>
-       <h3>4 מדרגות של פרסים</h3><p>המספר זה כמה חברים צריך. כבר מהחבר הראשון מקבלים משהו.</p>`,
+      `<div class="rg-ladder">${REF_BIG.map((t, i) => `<div class="rg-step" style="--i:${i}"><span class="rg-n">${t.n}</span><span class="rg-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`).join('')}</div>
+       <h3>4 פרסים גדולים</h3><p>המספר זה כמה חברים צריך. ובין לבין – <b>פרס קטן על כל חבר</b>: רקעים, גופן, צבע לאתר ועוד.</p>`,
       `<div class="rg-art rg-gift" aria-hidden="true"><span><svg><use href="#i-gift"/></svg></span><span><svg><use href="#i-gift"/></svg></span></div>
        <h3>גם החבר מקבל מתנה</h3><p>מי שנרשם דרך הקישור שלך מקבל ביום הראשון <b>עוד תמונה לטקסט ועוד סיכום</b>. ככה יש לו סיבה טובה להירשם דרכך.</p>`,
     ];
@@ -8172,11 +8196,15 @@ function renderFriends() {
       <div class="bp-scroll" id="bpScroll"><div class="bp-track" style="--cols:${REF_MAX};--fill:${n <= 0 ? 0 : Math.min(1, (Math.min(n, REF_MAX) - .5) / REF_MAX)}">
         ${Array.from({ length: REF_MAX }, (_, k) => { const lv = k + 1, t = REF_TIERS.find(x => x.n === lv), st = n >= lv ? 'got' : lv === n + 1 ? 'next' : 'lock';
           return `<div class="bp-col ${st}${lv === n ? ' me' : ''}" data-lv="${lv}">
-            ${t ? `<div class="bp-card"><span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
+            ${t ? `<div class="bp-card${t.big ? ' big' : ' sm'}">${t.big ? '<span class="bp-bigtag">פרס גדול</span>' : ''}<span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
             <div class="bp-node"><span>${lv}</span>${lv === n ? '<em>אתה</em>' : ''}</div>
           </div>`; }).join('')}
         <div class="bp-bar"><i></i></div>
       </div></div>
+    </div>
+    <div class="card fr-mine"><h3>הפרסים שלך</h3>
+      <div class="fr-acc${refHas(6) ? '' : ' locked'}"><div><b>צבע לכל האתר</b><small>${refHas(6) ? 'בוחרים, והאתר כולו מתחלף' : 'נפתח ב-6 חברים'}</small></div><div class="picker fr-acc-pick">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="background:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>
+      <p class="muted-s">רקעים מיוחדים וגופן כיפי: ב"הגדרות" של כל מחברת. צבעים מיוחדים: בכפתור "צבע" של המחברת.</p>
     </div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
@@ -8195,6 +8223,11 @@ function renderFriends() {
   const copy = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
   $('frCopy').onclick = copy; $('frCopy2').onclick = copy;
   $('frGuide').onclick = () => refGuide();
+  box.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => {
+    if (!refHas(6)) { toast('הצבע לאתר נפתח כשמביאים 6 חברים'); return; }
+    try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); } catch {}
+    box.querySelectorAll('[data-acc]').forEach(x => x.classList.toggle('on', x === b)); siteAccentApply();
+  });
   $('frShare').onclick = async () => {
     const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם, ומי שנרשם דרך הקישור הזה מקבל מתנה:';
     track('invite_send', { from: 'page' });
@@ -8215,7 +8248,7 @@ async function inviteDialog() {
         <div class="iv-next">${next ? `עוד <b>${left === 1 ? 'חבר אחד' : left + ' חברים'}</b> ל: ${esc(next.t)}` : 'פתחת את כל הפרסים. אלוף!'}</div>
         <div class="iv-bar"><i style="width:${Math.max(4, pct)}%"></i></div>
       </div>
-      <div class="iv-tiers">${REF_TIERS.map(t => { const st = n >= t.n ? 'got' : t === next ? 'next' : 'lock'; return `<div class="iv-t ${st}"><span class="iv-tn">${t.n}</span><span class="iv-ti"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div class="iv-tx"><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div><span class="iv-ts">${st === 'got' ? '✓' : '<svg aria-hidden="true"><use href="#i-lock"/></svg>'}</span></div>`; }).join('')}</div>
+      <div class="iv-tiers">${REF_BIG.map(t => { const st = n >= t.n ? 'got' : t === next ? 'next' : 'lock'; return `<div class="iv-t ${st}"><span class="iv-tn">${t.n}</span><span class="iv-ti"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div class="iv-tx"><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div><span class="iv-ts">${st === 'got' ? '✓' : '<svg aria-hidden="true"><use href="#i-lock"/></svg>'}</span></div>`; }).join('')}</div>
       <div class="inv-names"></div>
       <div class="inv-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך"><button class="btn btn-ghost" type="button" data-copy>העתקה</button></div>
       <p class="muted-s iv-note"><svg aria-hidden="true"><use href="#i-gift"/></svg>החבר מקבל מתנה: עוד תמונה לטקסט ועוד סיכום ביום הראשון. נספר רק מי שנרשם עכשיו דרך הקישור.</p>

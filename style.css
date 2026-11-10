@@ -2653,3 +2653,33 @@ html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
 .bp-gap small{font-size:12px;font-weight:800;color:rgba(255,255,255,.55);padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.07)}
 .bp-col.next .bp-gap small{color:#fff;background:linear-gradient(90deg,#8B5CF6,#EC4899)}
 .bp-lvl{white-space:nowrap;flex:none}
+
+/* ===== פרסים קטנים: רקעים, גופן, צבע לאתר, מסגרת ===== */
+[data-bg="stars"]:is(.ov-bg,.nb-prev),.page[data-bg="stars"]:not([data-layout]) #editor,.page[data-bg="stars"] .pg-sheet,.page[data-bg="stars"] #editor[data-layout="slides"]>[data-slide]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Cpath d='M11 4l1.6 4.4L17 10l-4.4 1.6L11 16l-1.6-4.4L5 10l4.4-1.6z' fill='%23F59E0B' fill-opacity='.28'/%3E%3Cpath d='M33 26l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z' fill='%238B5CF6' fill-opacity='.3'/%3E%3C/svg%3E");background-size:44px 44px}
+[data-bg="gold"]:is(.ov-bg,.nb-prev),.page[data-bg="gold"]:not([data-layout]) #editor,.page[data-bg="gold"] .pg-sheet,.page[data-bg="gold"] #editor[data-layout="slides"]>[data-slide]{background-image:radial-gradient(circle,rgba(232,185,49,.75) 1.6px,transparent 2.1px);background-size:22px 22px}
+[data-bg="color"]:is(.ov-bg,.nb-prev),.page[data-bg="color"]:not([data-layout]) #editor,.page[data-bg="color"] .pg-sheet,.page[data-bg="color"] #editor[data-layout="slides"]>[data-slide]{background-image:linear-gradient(rgba(236,72,153,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(79,70,229,.2) 1px,transparent 1px);background-size:24px 24px}
+.ov-bg[data-bg="stars"]{background-size:22px 22px}.ov-bg[data-bg="gold"],.ov-bg[data-bg="color"]{background-size:8px 8px}
+:is(#editor,#shBody,.nb-prev,.ov-font)[data-font="fun"]{font-family:'Secular One',system-ui,sans-serif}
+.opt-grid button{position:relative}
+.opt-grid button.locked{opacity:.55}
+.opt-lock{position:absolute;top:6px;inset-inline-start:6px;display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--surface);color:var(--muted);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.opt-lock svg{width:11px;height:11px}
+.avatar.framed{box-shadow:0 0 0 2.5px var(--surface),0 0 0 5px transparent;background-clip:padding-box;outline:3px solid transparent;position:relative}
+.avatar.framed::after{content:"";position:absolute;inset:-5px;border-radius:50%;padding:3px;background:conic-gradient(#EC4899,#F59E0B,#10B981,#0EA5E9,#8B5CF6,#EC4899);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:frameSpin 6s linear infinite}
+.avatar.amb::after{display:none}
+@keyframes frameSpin{to{transform:rotate(1turn)}}
+.fr-mine h3{margin:0 0 12px}
+.fr-acc{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 14px;border-radius:16px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.fr-acc>div:first-child{display:flex;flex-direction:column}.fr-acc small{color:var(--muted)}
+.fr-acc-pick{margin:0!important}
+.fr-acc.locked .fr-acc-pick{opacity:.4;filter:saturate(.5)}
+.fr-mine .muted-s{margin:10px 0 0!important}
+/* באטל פאס: פרס גדול מול קטן */
+.bp-card.sm{height:128px;margin-top:44px;padding-top:24px}
+.bp-card.sm .bp-ic{width:40px;height:40px;border-radius:12px;margin-bottom:4px}.bp-card.sm .bp-ic svg{width:21px;height:21px}
+.bp-card.sm b{font-size:12.5px}.bp-card.sm small{font-size:10.5px}
+.bp-card.big{border-width:2px;border-color:rgba(245,158,11,.55);box-shadow:0 0 0 1px rgba(245,158,11,.15),0 12px 30px -16px rgba(245,158,11,.6)}
+.bp-card.big .bp-ic{width:60px;height:60px}.bp-card.big .bp-ic svg{width:31px;height:31px}
+.bp-bigtag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:900;letter-spacing:.03em;padding:2px 10px;border-radius:999px;color:#3b2500;background:linear-gradient(90deg,#FCD34D,#F59E0B);box-shadow:0 4px 12px -4px #F59E0B}
+.bp-card.big .bp-ribbon{top:18px}
+.bp-card.big{padding-top:42px}
