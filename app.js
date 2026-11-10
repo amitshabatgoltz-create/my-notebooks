@@ -8126,16 +8126,41 @@ async function invitePopMaybe() {
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
   if (!me || shareParam) return false;
-  const k = 'refGuide1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
+  const k = 'refVid1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
   const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
   if (Date.now() - born < 864e5) return false;
   const tryShow = (left = 6) => {
     if (!me) return;
     if ($('home').classList.contains('hidden') || document.querySelector('.overlay')) { if (left) setTimeout(() => tryShow(left - 1), 4000); return; }
     try { localStorage.setItem(k, '1'); } catch {}
-    refGuide();
+    refVideo();
   };
   setTimeout(tryShow, 2500); return true;
+}
+// פעם ראשונה אחרי שנכנסים: סרטון ההסבר על תוכנית החברים, ובסוף – כפתור לעמוד החברים
+function refVideo() {
+  track('ref_video', {});
+  const o = document.createElement('div'); o.className = 'dv-wrap rv-wrap'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'סרטון: תוכנית החברים');
+  o.innerHTML = `<div class="dv-box"><video src="promo/video12.mp4" playsinline autoplay preload="auto"></video><div class="dv-bar"><i></i></div>
+      <button type="button" class="dv-snd hidden"><svg aria-hidden="true"><use href="#i-speak"/></svg>להפעלת סאונד</button>
+      <div class="rv-end hidden"><span class="rv-ic"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><b>מביאים חברים, מקבלים פרסים</b><small>הקישור האישי שלך מחכה בעמוד "חברים"</small>
+        <button type="button" class="btn rv-go">לעמוד החברים</button><button type="button" class="rv-again">לראות שוב</button></div></div>
+    <div class="dv-side"><b>חדש באתר!</b><small>20 שניות על תוכנית החברים</small><button type="button" class="btn dv-skip">אחר כך</button></div>`;
+  document.body.appendChild(o);
+  const v = o.querySelector('video'), bar = o.querySelector('.dv-bar i'), snd = o.querySelector('.dv-snd'), end = o.querySelector('.rv-end');
+  let closed = false;
+  const close = how => { if (closed) return; closed = true; track('ref_video_' + how, { t: Math.round(v.currentTime || 0) }); v.pause(); o.classList.add('out'); setTimeout(() => o.remove(), 320); document.removeEventListener('keydown', esc1); };
+  const esc1 = e => { if (e.key === 'Escape') close('esc'); };
+  document.addEventListener('keydown', esc1);
+  const showEnd = () => { end.classList.remove('hidden'); snd.classList.add('hidden'); o.querySelector('.dv-skip').textContent = 'סגירה'; };
+  v.onended = showEnd; v.onerror = () => close('error');
+  v.ontimeupdate = () => { if (v.duration) bar.style.width = (v.currentTime / v.duration * 100) + '%'; };
+  v.onclick = () => { if (v.muted) { v.muted = false; snd.classList.add('hidden'); } else if (v.paused) v.play(); else v.pause(); };
+  snd.onclick = () => { v.muted = false; snd.classList.add('hidden'); v.play().catch(() => {}); };
+  o.querySelector('.dv-skip').onclick = () => close('skip');
+  o.querySelector('.rv-go').onclick = () => { close('go'); showTab('fr'); };
+  o.querySelector('.rv-again').onclick = () => { end.classList.add('hidden'); v.currentTime = 0; v.play().catch(() => {}); };
+  v.play().catch(() => { v.muted = true; snd.classList.remove('hidden'); v.play().catch(() => showEnd()); });
 }
 function refGuide() {
   track('ref_guide', {});

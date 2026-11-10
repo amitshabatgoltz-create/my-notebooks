@@ -2691,3 +2691,12 @@ html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
 .fr-vid-tx h3{margin:2px 0 6px;font-size:22px}
 .fr-vid-tx p{margin:0!important}
 @media (max-width:760px){.fr-vid{flex-direction:column;text-align:center}.fr-vid video{width:min(260px,70vw)}}
+
+/* סרטון החברים בכניסה הראשונה: מסך סיום עם כפתור */
+.rv-end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;color:#fff;background:rgba(20,18,46,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:dvIn .35s var(--ease) both}
+.rv-end.hidden{display:none}
+.rv-ic{width:76px;height:76px;border-radius:24px;display:grid;place-items:center;background:linear-gradient(135deg,#F59E0B,#EC4899);box-shadow:0 14px 30px -10px #EC4899;animation:rgBob 2.4s ease-in-out infinite}
+.rv-ic svg{width:38px;height:38px}
+.rv-end b{font-size:24px;line-height:1.2}.rv-end small{font-size:15px;opacity:.85;margin-bottom:8px}
+.rv-go{background:#fff!important;color:#4F46E5!important;font-weight:800;height:52px;padding:0 28px;font-size:17px}
+.rv-again{background:none;border:0;color:#fff;opacity:.8;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
