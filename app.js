@@ -271,7 +271,7 @@ function clean(html) {
       if (ch.tagName === 'LI' && dn) ch.setAttribute('data-done', '');
       if (dr === 'ltr' && /^(P|H1|H2|H3|LI|UL|OL|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('dir', 'ltr');   // כיוון כתיבה
       if (isTl) ch.className = 'tl';
-      if ((al === 'center' || al === 'left' || (al === 'right' && dr === 'ltr')) && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור (right רק לטקסט באנגלית שהודבק)
+      if ((al === 'center' || al === 'left' || al === 'right') && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(ch.tagName)) ch.setAttribute('data-a', al);   // יישור (right רק לטקסט באנגלית שהודבק)
       walk(ch);
     } else if (ch.nodeType === 3) {                  // טקסט עם "&#39;" כתוב כמו שהוא (מהעתקה מ-PDF/אתר) – מציגים את התו האמיתי
       if (/&(#\d{2,6}|#x[\da-f]{2,5}|quot|apos|amp|lt|gt|nbsp);/i.test(ch.nodeValue)) ch.nodeValue = decodeEnt(ch.nodeValue);
@@ -3278,7 +3278,16 @@ function alignBlocks(dir) {
   let blocks = [...ed.querySelectorAll('p,h1,h2,h3,li,blockquote')].filter(el => r.intersectsNode(el) && !el.closest('.cv') && !el.querySelector('p,h1,h2,h3,li,blockquote'));
   if (!blocks.length) { const B = blockOf(r.startContainer); if (B && /^(P|H1|H2|H3|LI|BLOCKQUOTE)$/.test(B.tagName)) blocks = [B]; }
   if (!blocks.length) return;
-  blocks.forEach(b => { if (dir === 'right') b.removeAttribute('data-a'); else b.setAttribute('data-a', dir); });
+  // ימין = באמת ימין: עברית שסומנה "משמאל לימין" חוזרת לימין, ושורה באנגלית נשארת משמאל לימין אבל מיושרת לימין
+  const heb = el => /[֐-׿]/.test(el.textContent);
+  blocks.forEach(b => {
+    b.style.removeProperty('text-align'); if (!b.getAttribute('style')) b.removeAttribute('style');
+    if (dir !== 'right') { b.setAttribute('data-a', dir); return; }
+    const L = b.closest('ul,ol');
+    if (b.getAttribute('dir') === 'ltr' && heb(b)) b.removeAttribute('dir');
+    if (L && ed.contains(L) && L.getAttribute('dir') === 'ltr' && heb(L)) L.removeAttribute('dir');
+    if (b.getAttribute('dir') === 'ltr' || (L && L.getAttribute('dir') === 'ltr')) b.setAttribute('data-a', 'right'); else b.removeAttribute('data-a');
+  });
   updateAlignButtons(); markDirty();
 }
 function updateAlignButtons() {

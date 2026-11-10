@@ -2332,3 +2332,4 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
 :is(#editor,#shareBody) [dir="ltr"][data-a="right"]{text-align:right}
 /* טקסט באנגלית שהודבק: משמאל לימין, אבל מיושר לימין */
 :is(#editor,#shareBody) [dir="ltr"][data-a="right"]{text-align:right}
+:is(#editor,#shareBody) [data-a="right"]{text-align:right}
