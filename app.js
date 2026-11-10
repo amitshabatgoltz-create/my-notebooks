@@ -2328,6 +2328,10 @@ function aiModel(name, generationConfig) {
 // מתנהג כמו המודל של Firebase AI (generateContent / generateContentStream), אבל דרך השרת
 function aiServerModel(name, cfg) {
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
+  // Gemini 3.5 Flash-Lite מתעלם מ-thinkingBudget וחושב "מינימום" כברירת מחדל. מתרגמים לרמה שהוא כן מבין (השרת מעביר אותה, ואם המודל לא מקבל – חוזר לישן)
+  const lvl = b => b <= 0 ? 'minimal' : b <= 512 ? 'low' : b <= 1024 ? 'medium' : 'high';
+  const tc = cfg && cfg.thinkingConfig;
+  if (tc && !tc.thinkingLevel && Number.isInteger(tc.thinkingBudget)) cfg = { ...cfg, thinkingConfig: { ...tc, thinkingLevel: lvl(tc.thinkingBudget) } };
   const body = parts => ({ kind: aiKindNow, search: aiSearchNow, ...(aiUrlsNow ? { urls: true } : {}), model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
   const chunk = c => ({ text: () => c.t || '', candidates: c.f ? [{ finishReason: c.f }] : [], promptFeedback: c.b ? { blockReason: c.b } : undefined });
   return {
