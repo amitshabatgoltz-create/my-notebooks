@@ -2399,3 +2399,81 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
 .adm-mk-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent);min-width:3px}
 .adm-mk-who{display:flex;flex-wrap:wrap;gap:6px}
 .adm-mk-who span{padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--ink) 6%,transparent);font-size:13px}
+
+/* ===== תוכנית החברים: חלון ההזמנה, ההדרכה, צבעים מיוחדים, תג שגריר ===== */
+.inv-dlg{max-width:460px}
+.iv-hero{position:relative;overflow:hidden;margin:-6px -6px 14px;padding:18px 18px 16px;border-radius:20px;color:#fff;background:linear-gradient(135deg,#5E5CE6 0%,#9B5DE5 55%,#FF5E8A 100%);box-shadow:0 16px 34px -18px #7a4fd1}
+.iv-hero::after{content:"";position:absolute;inset:-40% -20% auto auto;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.28),transparent 65%);animation:ivGlow 5s ease-in-out infinite alternate}
+@keyframes ivGlow{to{transform:translate(-40px,30px) scale(1.15)}}
+.iv-num{display:flex;align-items:baseline;gap:10px;position:relative;z-index:1}
+.iv-num b{font-size:52px;line-height:1;font-weight:900;letter-spacing:-.03em;animation:ivPop .6s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes ivPop{from{transform:scale(.4);opacity:0}}
+.iv-num span{font-size:16px;font-weight:700;opacity:.95}
+.iv-next{position:relative;z-index:1;margin:8px 0 10px;font-size:14.5px;opacity:.95}
+.iv-bar{position:relative;z-index:1;height:10px;border-radius:999px;background:rgba(255,255,255,.28);overflow:hidden}
+.iv-bar i{display:block;height:100%;border-radius:inherit;background:#fff;box-shadow:0 0 12px rgba(255,255,255,.8);animation:ivFill 1s .2s cubic-bezier(.2,.8,.2,1) both}
+@keyframes ivFill{from{width:0!important}}
+.iv-tiers{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.iv-t{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;border:1.5px solid var(--line);background:var(--surface);animation:ivIn .45s var(--ease) both}
+.iv-t:nth-child(2){animation-delay:.06s}.iv-t:nth-child(3){animation-delay:.12s}.iv-t:nth-child(4){animation-delay:.18s}
+@keyframes ivIn{from{opacity:0;transform:translateY(8px)}}
+.iv-tn{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--muted)}
+.iv-ti{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--muted)}
+.iv-ti svg{width:21px;height:21px}
+.iv-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.iv-tx b{font-size:15px}.iv-tx small{font-size:12.5px;color:var(--muted)}
+.iv-ts{flex:none;font-weight:800;color:var(--muted)}.iv-ts svg{width:17px;height:17px}
+.iv-t.lock{opacity:.6}
+.iv-t.got{border-color:color-mix(in srgb,#10B981 45%,transparent);background:color-mix(in srgb,#10B981 8%,var(--surface))}
+.iv-t.got .iv-tn{background:#10B981;color:#fff}.iv-t.got .iv-ti{background:color-mix(in srgb,#10B981 16%,transparent);color:#0d9467}.iv-t.got .iv-ts{color:#10B981;font-size:18px}
+.iv-t.next{border-color:var(--accent);box-shadow:0 8px 22px -14px var(--accent)}
+.iv-t.next .iv-tn{background:var(--accent);color:#fff;animation:ivPulse 1.8s ease-in-out infinite}
+.iv-t.next .iv-ti{background:var(--accent-soft);color:var(--accent)}
+@keyframes ivPulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent) 18%,transparent)}}
+.iv-note{display:flex;gap:8px;align-items:flex-start;margin:10px 0 0!important;font-size:13px}
+.iv-note svg{width:17px;height:17px;flex:none;color:var(--accent);margin-top:1px}
+.inv-dlg .inv-btns{flex-wrap:wrap}
+.inv-dlg .iv-help{margin-inline-end:auto}
+/* ההדרכה */
+.rg-dlg{text-align:center;max-width:400px;overflow:hidden}
+.rg-stage{position:relative;min-height:330px}
+.rg-slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transform:translateX(-40px);pointer-events:none;transition:opacity .35s var(--ease),transform .45s var(--ease)}
+.rg-slide.back{transform:translateX(40px)}
+.rg-slide.on{position:relative;opacity:1;transform:none;pointer-events:auto}
+.rg-slide h3{font-size:24px;line-height:1.2;margin-top:14px}
+.rg-slide p{font-size:15.5px;max-width:320px}
+.rg-art{position:relative;width:170px;height:150px;display:grid;place-items:center}
+.rg-me{width:84px;height:84px;border-radius:26px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#5E5CE6,#FF5E8A);box-shadow:0 18px 36px -14px #7a4fd1;animation:rgBob 2.4s ease-in-out infinite}
+.rg-me svg{width:42px;height:42px}
+@keyframes rgBob{50%{transform:translateY(-6px) rotate(-4deg)}}
+.rg-orbit i{position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);box-shadow:0 6px 14px -6px var(--accent);animation:rgOrbit 6s linear infinite;--r:72px}
+.rg-orbit i:nth-of-type(2){border-color:#FF5E8A;animation-delay:-2s}.rg-orbit i:nth-of-type(3){border-color:#10B981;animation-delay:-4s}
+@keyframes rgOrbit{from{transform:rotate(var(--a)) translateX(var(--r)) rotate(calc(-1 * var(--a)))}to{transform:rotate(calc(var(--a) + 360deg)) translateX(var(--r)) rotate(calc(-1 * var(--a) - 360deg))}}
+.rg-ladder{display:flex;flex-direction:column;gap:7px;width:100%;text-align:right}
+.rg-step{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:color-mix(in srgb,var(--accent) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);opacity:0;animation:rgStep .5s calc(var(--i) * .12s + .1s) var(--ease) forwards}
+.rg-slide:not(.on) .rg-step{animation:none}
+@keyframes rgStep{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+.rg-step .rg-n{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;background:linear-gradient(135deg,#5E5CE6,#FF5E8A)}
+.rg-step .rg-ic{flex:none;color:var(--accent)}.rg-step .rg-ic svg{width:20px;height:20px}
+.rg-step div{display:flex;flex-direction:column;min-width:0}.rg-step b{font-size:14px}.rg-step small{font-size:12px;color:var(--muted)}
+.rg-gift{gap:18px;display:flex;align-items:center;justify-content:center}
+.rg-gift span{width:70px;height:70px;border-radius:22px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#F59E0B,#FF5E8A);box-shadow:0 14px 30px -12px #FF5E8A;animation:rgGift 1.8s ease-in-out infinite}
+.rg-gift span:last-child{background:linear-gradient(135deg,#10B981,#5E5CE6);box-shadow:0 14px 30px -12px #5E5CE6;animation-delay:-.9s}
+.rg-gift svg{width:34px;height:34px}
+@keyframes rgGift{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-10px) rotate(-8deg)}60%{transform:translateY(0) rotate(6deg)}}
+.rg-dots{display:flex;justify-content:center;gap:7px;margin:6px 0 16px}
+.rg-dots i{width:8px;height:8px;border-radius:999px;background:color-mix(in srgb,var(--ink) 18%,transparent);cursor:pointer;transition:width .3s var(--ease),background .3s}
+.rg-dots i.on{width:24px;background:var(--accent)}
+.rg-btns{display:flex;gap:10px;justify-content:center}.rg-btns .btn{min-width:120px}
+/* צבעים מיוחדים */
+.sp-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-6px 0 10px;font-size:14px}
+.sp-head span{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:12.5px}.sp-head svg{width:14px;height:14px}
+.sp-picker button{position:relative;box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.sp-picker button::after{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,rgba(255,255,255,.55),transparent 45%,rgba(255,255,255,.18) 70%,transparent)}
+.sp-picker.locked button{filter:saturate(.35) brightness(.95);opacity:.55}
+/* תג שגריר */
+.avatar.amb{box-shadow:0 0 0 2.5px var(--surface),0 0 0 5px #E8B931}
+.amb-tag{display:inline-flex;align-items:center;gap:4px;margin-inline-start:8px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;color:#8a6200;background:#FCEFC4;vertical-align:middle}
+.amb-tag svg{width:13px;height:13px}
+html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
+@media (prefers-reduced-motion:reduce){.iv-hero::after,.iv-num b,.iv-bar i,.iv-t,.iv-t.next .iv-tn,.rg-me,.rg-orbit i,.rg-step,.rg-gift span{animation:none!important}.rg-step{opacity:1}.rg-slide{transition:none}}

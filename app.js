@@ -50,6 +50,8 @@ const $ = id => document.getElementById(id);
 })();
 const ic = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#1f8fa3','#4b5563'];
+// צבעים מיוחדים: פרס על החבר הראשון שמצטרף דרך הקישור האישי
+const SPECIAL_COLORS = [['#C9971C', 'זהב'], ['#FF2E93', 'ניאון ורוד'], ['#3B1E8C', 'גלקסיה'], ['#0FB5A0', 'מנטה'], ['#F2552C', 'שקיעה'], ['#14151F', 'לילה']];
 
 if (firebaseConfig.apiKey === "PASTE_HERE") {
   $('loginStatus').classList.add('err');
@@ -170,9 +172,9 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(invitePopMaybe); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; DAILY.ocr = OCR_BASE;
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; $('userBtn').classList.remove('amb');
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -405,14 +407,27 @@ function nbColorDialog() {
     COLORS.forEach(c => {
       const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === (n.color || COLORS[0])) s.classList.add('on');
       s.onclick = async () => {
-        n.color = c; [...pick.children].forEach(x => x.classList.remove('on')); s.classList.add('on');
+        n.color = c; d.querySelectorAll('.picker button').forEach(x => x.classList.remove('on')); s.classList.add('on');
         $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
         try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
       };
       pick.appendChild(s);
     });
+    const open = typeof refHas === 'function' && refHas(1);
+    const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
+    const sp = document.createElement('div'); sp.className = 'picker sp-picker' + (open ? '' : ' locked');
+    SPECIAL_COLORS.forEach(([c, nm]) => {
+      const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.title = nm; s.setAttribute('aria-label', nm); if (c === n.color) s.classList.add('on');
+      s.onclick = async () => {
+        if (!open) { closeDialog(); setTimeout(inviteDialog, 260); return; }
+        n.color = c; d.querySelectorAll('.picker button').forEach(x => x.classList.remove('on')); s.classList.add('on');
+        $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
+        try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
+      };
+      sp.appendChild(s);
+    });
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
-    d.append(pick, ok);
+    d.append(pick, sh, sp, ok);
   });
 }
 $('nbColor').onclick = nbColorDialog;
@@ -7978,8 +7993,15 @@ function ttNudge() {
 $('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); inviteDialog(); });
 /* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-6 חברים – 7 תמונות לטקסט ביום ===== */
 // refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
-const OCR_BASE = DAILY.ocr, REF_GOAL = 6, REF_OCR = 7;
-let refList = [];
+const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, REF_GOAL = 6, REF_OCR = 7;
+// מדרגות הפרסים: כמה חברים צריך להביא, ומה מקבלים
+const REF_TIERS = [
+  { n: 1, ic: 'palette', t: 'צבעים מיוחדים למחברות', d: 'זהב, ניאון, גלקסיה ועוד' },
+  { n: 3, ic: 'chat', t: '+5 הודעות לעוזר ביום', d: `${CHAT_BASE + 5} במקום ${CHAT_BASE}` },
+  { n: 6, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
+  { n: 10, ic: 'crown', t: 'תג שגריר', d: 'ליד השם שלך, וגישה ראשונה לכל דבר חדש' },
+];
+let refList = [], refLoaded = false;
 try {
   const r = new URLSearchParams(location.search).get('r');
   if (r && /^[A-Za-z0-9]{20,40}$/.test(r)) {
@@ -7995,18 +8017,37 @@ async function refJoin() {
   try {
     await setDoc(doc(db, 'refs', r, 'joined', me.uid), { name: (me.displayName || 'חבר').slice(0, 60), at: Date.now() });
     await setDoc(statsDoc(me.uid), { ref: r }, { merge: true });
-    try { localStorage.removeItem('refBy'); } catch {}
+    try { localStorage.removeItem('refBy'); localStorage.setItem('refNew:' + me.uid, todayKey()); } catch {}   // מתנה לחבר החדש: היום הראשון
     track('ref_join', {});
+    setTimeout(() => toast('ברוך הבא! קיבלת מתנה מהחבר שהזמין אותך: עוד תמונה לטקסט ועוד סיכום היום ✓'), 2500);
   } catch (e) { console.warn('ref', e && e.message); }
+}
+const refCount = () => refList.length;
+const refHas = k => refCount() >= k;
+function refApply() {
+  let fresh = false; try { fresh = !!me && localStorage.getItem('refNew:' + me.uid) === todayKey(); } catch {}
+  DAILY.chat = refHas(3) ? CHAT_BASE + 5 : CHAT_BASE;
+  DAILY.ocr = (refHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
+  DAILY.sum = SUM_BASE + (fresh ? 1 : 0);
+  const amb = refHas(10);
+  $('userBtn').classList.toggle('amb', amb);
+  const who = $('who'); if (who) { who.querySelector('.amb-tag')?.remove(); if (amb) { const t = document.createElement('span'); t.className = 'amb-tag'; t.innerHTML = '<svg aria-hidden="true"><use href="#i-crown"/></svg>שגריר'; who.appendChild(t); } }
 }
 async function refLoad() {
   if (!me) return;
   refDeal = await isDealUser().catch(() => false);
-  try { const sn = await getDocs(collection(db, 'refs', me.uid, 'joined')); refList = []; sn.forEach(d => refList.push(d.data())); }
-  catch { return; }
+  try { const sn = await getDocs(collection(db, 'refs', me.uid, 'joined')); refList = []; sn.forEach(d => refList.push(d.data())); refLoaded = true; }
+  catch { refApply(); return; }
   refList.sort((a, b) => (a.at || 0) - (b.at || 0));
-  // הפרס (7 תמונות ביום) רק למי שסגר עסקה עם בעל האתר (INVITE_POP_HASH), לא לכל משתמש
-  DAILY.ocr = refDeal && refList.length >= REF_GOAL ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE;
+  refApply();
+  // עלית מדרגה מאז הפעם הקודמת? חוגגים
+  const k = 'refSeen:' + me.uid; let prev = refCount(); try { prev = +(localStorage.getItem(k) ?? refCount()); localStorage.setItem(k, refCount()); } catch {}
+  const opened = REF_TIERS.filter(t => prev < t.n && refHas(t.n));
+  if (opened.length) setTimeout(() => refCelebrate(opened[opened.length - 1]), 1500);
+}
+function refCelebrate(t) {
+  toastAction(`חבר חדש הצטרף דרכך! פתחת: ${t.t}`, 'לראות', () => inviteDialog());
+  window.Motion?.confetti($('userBtn'));
 }
 let refDeal = false;
 async function isDealUser() {
@@ -8018,10 +8059,56 @@ const inviteLink = () => location.origin + location.pathname + '?r=' + me.uid;
 // חברים שעשו עסקה עם בעל האתר: בכניסה (פעם ביום, עד שמגיעים ליעד) קופץ להם החלון עם הקישור האישי
 const INVITE_POP_HASH = ['aa9d96ac3cb8f360698244404309411b16cf62fadde1fadda77f0979944b9427'];   // SHA-256 של 'my-notebooks:' + האימייל באותיות קטנות
 async function invitePopMaybe() {
-  if (!me || !refDeal || refList.length >= REF_GOAL) return;
+  if (!me || !refDeal || refHas(REF_GOAL)) return;
   const k = 'invPop:' + me.uid, tk = todayKey();
   try { if (localStorage.getItem(k) === tk) return; localStorage.setItem(k, tk); } catch {}
   setTimeout(() => { if (me && !document.querySelector('.overlay')) inviteDialog(); }, 1800);
+}
+// ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
+function refGuideMaybe() {
+  if (!me || shareParam) return false;
+  const k = 'refGuide1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
+  const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
+  if (Date.now() - born < 864e5) return false;
+  const tryShow = (left = 6) => {
+    if (!me) return;
+    if ($('home').classList.contains('hidden') || document.querySelector('.overlay')) { if (left) setTimeout(() => tryShow(left - 1), 4000); return; }
+    try { localStorage.setItem(k, '1'); } catch {}
+    refGuide();
+  };
+  setTimeout(tryShow, 2500); return true;
+}
+function refGuide() {
+  track('ref_guide', {});
+  dialog(d => {
+    d.classList.add('rg-dlg');
+    const slides = [
+      `<div class="rg-art rg-orbit" aria-hidden="true"><span class="rg-me"><svg><use href="#i-gift"/></svg></span><i style="--a:0deg"></i><i style="--a:120deg"></i><i style="--a:240deg"></i></div>
+       <h3>מביאים חברים.<br>מקבלים פרסים.</h3><p>חדש באתר: כל חבר שנרשם דרך הקישור האישי שלך מקרב אותך לפרס הבא.</p>`,
+      `<div class="rg-ladder">${REF_TIERS.map((t, i) => `<div class="rg-step" style="--i:${i}"><span class="rg-n">${t.n}</span><span class="rg-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div></div>`).join('')}</div>
+       <h3>4 מדרגות של פרסים</h3><p>המספר זה כמה חברים צריך. כבר מהחבר הראשון מקבלים משהו.</p>`,
+      `<div class="rg-art rg-gift" aria-hidden="true"><span><svg><use href="#i-gift"/></svg></span><span><svg><use href="#i-gift"/></svg></span></div>
+       <h3>גם החבר מקבל מתנה</h3><p>מי שנרשם דרך הקישור שלך מקבל ביום הראשון <b>עוד תמונה לטקסט ועוד סיכום</b>. ככה יש לו סיבה טובה להירשם דרכך.</p>`,
+    ];
+    d.innerHTML = `<div class="rg-stage">${slides.map((h, i) => `<section class="rg-slide${i ? '' : ' on'}" data-i="${i}">${h}</section>`).join('')}</div>
+      <div class="rg-dots">${slides.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>
+      <div class="rg-btns"><button type="button" class="btn btn-ghost" data-skip>אחר כך</button><button type="button" class="btn btn-primary" data-next>הבא</button></div>`;
+    let i = 0;
+    const go = j => {
+      i = j;
+      d.querySelectorAll('.rg-slide').forEach((x, k) => { x.classList.toggle('on', k === i); x.classList.toggle('back', k < i); });
+      d.querySelectorAll('.rg-dots i').forEach((x, k) => x.classList.toggle('on', k === i));
+      const last = i === slides.length - 1;
+      d.querySelector('[data-next]').textContent = last ? 'לקישור שלי' : 'הבא';
+      d.querySelector('[data-skip]').textContent = i ? 'חזרה' : 'אחר כך';
+    };
+    d.querySelector('[data-next]').onclick = () => { if (i < slides.length - 1) go(i + 1); else { closeDialog(); setTimeout(inviteDialog, 260); } };
+    d.querySelector('[data-skip]').onclick = () => { if (i) go(i - 1); else { closeDialog(); toast('אפשר תמיד דרך העיגול שלך למעלה ← "הזמנת חבר"'); } };
+    d.querySelectorAll('.rg-dots i').forEach((x, k) => { x.onclick = () => go(k); });
+    // החלקה בטלפון
+    let sx = null; d.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+    d.addEventListener('touchend', e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 50) { if (dx > 0 && i < slides.length - 1) go(i + 1); else if (dx < 0 && i) go(i - 1); } }, { passive: true });
+  });
 }
 async function inviteDialog() {
   if (!me) return;
@@ -8029,25 +8116,28 @@ async function inviteDialog() {
   await refLoad();
   dialog(d => {
     d.classList.add('inv-dlg');
-    const n = refList.length, done = n >= REF_GOAL;
-    // מי שלא סגר עסקה: רק הקישור לשיתוף, בלי פרס ובלי ספירה
-    d.innerHTML = `<h3>הזמנת חברים</h3><p>שולחים לחברים את הקישור האישי שלך. כל חבר שנרשם לאתר דרך הקישור נספר לך.</p>
-      <div class="inv-prog${done ? ' done' : ''}"><div class="inv-top"><b>${done ? `הבאת ${n} חברים` : `הבאת ${n} מתוך ${REF_GOAL}`}</b><span>${done ? `יש לך ${REF_OCR} תמונות לטקסט ביום ✓` : `ב-${REF_GOAL} חברים: ${REF_OCR} תמונות לטקסט ביום במקום ${OCR_BASE}`}</span></div>
-        <div class="inv-bar"><i style="width:${Math.min(100, n / REF_GOAL * 100)}%"></i></div></div>
+    const n = refCount(), next = REF_TIERS.find(t => n < t.n), prevN = [...REF_TIERS].reverse().find(t => n >= t.n)?.n || 0;
+    const pct = next ? Math.round((n - prevN) / (next.n - prevN) * 100) : 100, left = next ? next.n - n : 0;
+    d.innerHTML = `<div class="iv-hero">
+        <div class="iv-num"><b>${n}</b><span>${n === 1 ? 'חבר הצטרף דרכך' : 'חברים הצטרפו דרכך'}</span></div>
+        <div class="iv-next">${next ? `עוד <b>${left === 1 ? 'חבר אחד' : left + ' חברים'}</b> ל: ${esc(next.t)}` : 'פתחת את כל הפרסים. אלוף!'}</div>
+        <div class="iv-bar"><i style="width:${Math.max(4, pct)}%"></i></div>
+      </div>
+      <div class="iv-tiers">${REF_TIERS.map(t => { const st = n >= t.n ? 'got' : t === next ? 'next' : 'lock'; return `<div class="iv-t ${st}"><span class="iv-tn">${t.n}</span><span class="iv-ti"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><div class="iv-tx"><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div><span class="iv-ts">${st === 'got' ? '✓' : '<svg aria-hidden="true"><use href="#i-lock"/></svg>'}</span></div>`; }).join('')}</div>
       <div class="inv-names"></div>
       <div class="inv-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך"><button class="btn btn-ghost" type="button" data-copy>העתקה</button></div>
-      <p class="muted-s">נספר רק חבר חדש שנרשם דרך הקישור (מי שכבר היה רשום לא נספר).</p>
-      <div class="inv-btns"><button class="btn btn-ghost" type="button" data-close>סגירה</button><button class="btn btn-primary" type="button" data-share>שליחה לחברים</button></div>`;
-    if (!refDeal) { d.querySelector('.inv-prog').remove(); d.querySelector('p.muted-s').remove(); d.querySelector('p').textContent = 'שולחים לחברים קישור לאתר, בוואטסאפ או בכל דרך אחרת.'; }
+      <p class="muted-s iv-note"><svg aria-hidden="true"><use href="#i-gift"/></svg>החבר מקבל מתנה: עוד תמונה לטקסט ועוד סיכום ביום הראשון. נספר רק מי שנרשם עכשיו דרך הקישור.</p>
+      <div class="inv-btns"><button class="btn btn-ghost iv-help" type="button" data-help>איך זה עובד?</button><button class="btn btn-ghost" type="button" data-close>סגירה</button><button class="btn btn-primary" type="button" data-share>שליחה לחברים</button></div>`;
     const names = d.querySelector('.inv-names');
-    if (n && refDeal) { const h = document.createElement('small'); h.textContent = 'הצטרפו דרכך:'; names.appendChild(h); refList.forEach(x => { const c = document.createElement('span'); c.dir = 'auto'; c.textContent = x.name || 'חבר'; names.appendChild(c); }); }
+    if (n) { const h = document.createElement('small'); h.textContent = 'הצטרפו דרכך:'; names.appendChild(h); refList.forEach(x => { const c = document.createElement('span'); c.dir = 'auto'; c.textContent = x.name || 'חבר'; names.appendChild(c); }); }
     else names.remove();
     const url = inviteLink(), inp = d.querySelector('.inv-link input'); inp.value = url;
     inp.onclick = () => inp.select();
     d.querySelector('[data-copy]').onclick = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
     d.querySelector('[data-close]').onclick = closeDialog;
+    d.querySelector('[data-help]').onclick = () => { closeDialog(); setTimeout(refGuide, 260); };
     d.querySelector('[data-share]').onclick = async () => {
-      const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם:';
+      const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם, ומי שנרשם דרך הקישור הזה מקבל מתנה:';
       track('invite_send', {});
       if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
       window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
