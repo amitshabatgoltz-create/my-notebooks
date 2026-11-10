@@ -8227,12 +8227,12 @@ function renderFriends() {
         <div class="bp-bar"><i></i></div>
       </div></div>
     </div>
-    <div class="card fr-vid"><video src="promo/video12.mp4#t=0.1" controls playsinline preload="metadata" aria-label="סרטון: איך עובדת תוכנית החברים"></video>
-      <div class="fr-vid-tx"><small>סרטון של 20 שניות</small><h3>איך זה עובד?</h3><p>שולחים קישור, כל חבר שנרשם הוא שלב קדימה, ובכל שלב נפתח פרס. גם החבר מקבל מתנה.</p></div></div>
     <div class="card fr-mine"><h3>הפרסים שלך</h3>
       <div class="fr-acc${refHas(6) ? '' : ' locked'}"><div><b>צבע לכל האתר</b><small>${refHas(6) ? 'בוחרים, והאתר כולו מתחלף' : 'נפתח ב-6 חברים'}</small></div><div class="picker fr-acc-pick">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="background:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>
       <p class="muted-s">רקעים מיוחדים וגופן כיפי: ב"הגדרות" של כל מחברת. צבעים מיוחדים: בכפתור "צבע" של המחברת.</p>
     </div>
+    <div class="card fr-vid"><video src="promo/video12.mp4#t=0.1" controls playsinline preload="metadata" aria-label="סרטון: איך עובדת תוכנית החברים"></video>
+      <div class="fr-vid-tx"><small>סרטון של 20 שניות</small><h3>איך זה עובד?</h3><p>שולחים קישור, כל חבר שנרשם הוא שלב קדימה, ובכל שלב נפתח פרס. גם החבר מקבל מתנה.</p></div></div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
         <ol><li><span><svg aria-hidden="true"><use href="#i-send"/></svg></span><div><b>שולחים את הקישור שלך</b><small>בוואטסאפ, בקבוצה של הכיתה, איפה שרוצים</small></div></li>
