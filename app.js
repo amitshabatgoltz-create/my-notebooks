@@ -7212,7 +7212,7 @@ async function chatAsk(parts, onText, onWait, short, deep) {
   for (let i = 0; ; i++) {
     // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
     aiKindNow = 'chat';
-    aiSearchNow = chatWeb; aiUrlsNow = chatLinks;
+    aiSearchNow = chatWeb || chatAutoWeb; aiUrlsNow = chatLinks;
     try { if (short || AI_VIA_SERVER) return await aiText(models, cfg, parts, onText); const t = await aiText(models, cfg, parts, null); onText(t); return t; }
     catch (e) {
       aiSearchNow = false;
@@ -7272,6 +7272,7 @@ async function chatSend() {
     await chatRestoreMem();
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
     chatLinks = CHAT_URL.test(msg);
+    chatAutoWeb = AI_VIA_SERVER && !long && CHAT_SEARCH.test(msg);
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
     // צילום של מערכת שעות + "תכניס למערכת" – פותחים את מערכת השעות וממלאים אותה מהתמונה (עם בדיקה לפני שמירה)
@@ -7306,7 +7307,7 @@ async function chatSend() {
     const parts = [
       chatPrompt(kitLeft <= 0),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
-      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint + (chatLinks ? CHAT_LINK_HINT : '')}`,
+      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint + (chatLinks ? CHAT_LINK_HINT : '') + (chatWeb || chatAutoWeb ? '\n\n(בהודעה הזאת יש לך חיפוש בגוגל: חפש וענה לפי מה שמצאת, עם המידע העדכני. אל תגיד שאין לך גישה לאינטרנט. אם לא מצאת – אמור שלא מצאת.)' : '\n\n(בהודעה הזאת אין חיפוש באינטרנט. אם צריך מידע עדכני או מהאינטרנט, אל תגיד שאתה לא יכול: ענה מה שאתה יודע, ואמור שאפשר ללחוץ על הזכוכית המגדלת ליד תיבת הכתיבה כדי שתחפש בגוגל.)')}`,
     ];
     const raw = await Promise.race([chatAsk(parts, t => {
       if (stopped) return; lastRaw = t;
@@ -7368,7 +7369,7 @@ async function chatSend() {
       if (!input.value) input.value = msg;
     }
   } finally {
-    chatBusy = false; chatStopper = null; aiSearchNow = false; aiUrlsNow = false; chatLinks = false; chatGoMode(false); if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
+    chatBusy = false; chatStopper = null; aiSearchNow = false; chatAutoWeb = false; aiUrlsNow = false; chatLinks = false; chatGoMode(false); if (!$('chatLog').lastElementChild?.matches('.qz,.sh')) chatScroll(); if (me) chatLeftHint();
   }
 }
 
@@ -7566,7 +7567,9 @@ const HA_IDEAS = ['מה זה פוטוסינתזה?', 'תבחן אותי באנג
     inp.placeholder = t.slice(0, i) + (i < t.length || del ? '|' : '');
   }, 60);
 })();
-let chatStopper = null, chatWeb = false, chatLinks = false;
+let chatStopper = null, chatWeb = false, chatLinks = false, chatAutoWeb = false;
+// בקשה שצריכה מידע מהאינטרנט ("תבדוק באינטרנט", חדשות, תוצאות, מי זה...) – מפעילים חיפוש בגוגל לבד להודעה הזאת
+const CHAT_SEARCH = /באינטרנט|ברשת|בגוגל|גוגל\s*את|(^|\s)(ת?חפש|ת?בדוק\s+(לי\s+)?(מה|מי|אם))|חדשות|עדכני|הכי\s+חדש|מה\s+קורה\s+(עכשיו|היום)|תוצא(ות|ה)\s+(של|ב)|מזג\s+ה?אוויר|מקורות|לינק\s+ל|קישור\s+ל|מתי\s+(יוצא|ייצא|יהיה)|כמה\s+עולה|search|google|latest|news/i;
 const CHAT_URL = /https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/i;
 const CHAT_LINK_HINT = '\n\n(בהודעה יש קישור: קרא את הדף שבקישור וענה לפי מה שכתוב בו. אם לא הצלחת לפתוח אותו או שאין לך את התוכן שלו – אמור את זה בפשטות, ואל תמציא מה כתוב שם.)';
 function chatGoMode(busy) {
