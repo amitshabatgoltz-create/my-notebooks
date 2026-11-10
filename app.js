@@ -8001,19 +8001,24 @@ async function refJoin() {
 }
 async function refLoad() {
   if (!me) return;
+  refDeal = await isDealUser().catch(() => false);
   try { const sn = await getDocs(collection(db, 'refs', me.uid, 'joined')); refList = []; sn.forEach(d => refList.push(d.data())); }
   catch { return; }
   refList.sort((a, b) => (a.at || 0) - (b.at || 0));
-  DAILY.ocr = refList.length >= REF_GOAL ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE;
+  // הפרס (7 תמונות ביום) רק למי שסגר עסקה עם בעל האתר (INVITE_POP_HASH), לא לכל משתמש
+  DAILY.ocr = refDeal && refList.length >= REF_GOAL ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE;
+}
+let refDeal = false;
+async function isDealUser() {
+  if (!me || !me.email || !INVITE_POP_HASH.length) return false;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('my-notebooks:' + me.email.toLowerCase()));
+  return INVITE_POP_HASH.includes([...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join(''));
 }
 const inviteLink = () => location.origin + location.pathname + '?r=' + me.uid;
 // חברים שעשו עסקה עם בעל האתר: בכניסה (פעם ביום, עד שמגיעים ליעד) קופץ להם החלון עם הקישור האישי
 const INVITE_POP_HASH = ['aa9d96ac3cb8f360698244404309411b16cf62fadde1fadda77f0979944b9427'];   // SHA-256 של 'my-notebooks:' + האימייל באותיות קטנות
 async function invitePopMaybe() {
-  if (!me || !me.email || !INVITE_POP_HASH.length || refList.length >= REF_GOAL) return;
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('my-notebooks:' + me.email.toLowerCase()));
-  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  if (!INVITE_POP_HASH.includes(hex)) return;
+  if (!me || !refDeal || refList.length >= REF_GOAL) return;
   const k = 'invPop:' + me.uid, tk = todayKey();
   try { if (localStorage.getItem(k) === tk) return; localStorage.setItem(k, tk); } catch {}
   setTimeout(() => { if (me && !document.querySelector('.overlay')) inviteDialog(); }, 1800);
@@ -8025,6 +8030,7 @@ async function inviteDialog() {
   dialog(d => {
     d.classList.add('inv-dlg');
     const n = refList.length, done = n >= REF_GOAL;
+    // מי שלא סגר עסקה: רק הקישור לשיתוף, בלי פרס ובלי ספירה
     d.innerHTML = `<h3>הזמנת חברים</h3><p>שולחים לחברים את הקישור האישי שלך. כל חבר שנרשם לאתר דרך הקישור נספר לך.</p>
       <div class="inv-prog${done ? ' done' : ''}"><div class="inv-top"><b>${done ? `הבאת ${n} חברים` : `הבאת ${n} מתוך ${REF_GOAL}`}</b><span>${done ? `יש לך ${REF_OCR} תמונות לטקסט ביום ✓` : `ב-${REF_GOAL} חברים: ${REF_OCR} תמונות לטקסט ביום במקום ${OCR_BASE}`}</span></div>
         <div class="inv-bar"><i style="width:${Math.min(100, n / REF_GOAL * 100)}%"></i></div></div>
@@ -8032,8 +8038,9 @@ async function inviteDialog() {
       <div class="inv-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך"><button class="btn btn-ghost" type="button" data-copy>העתקה</button></div>
       <p class="muted-s">נספר רק חבר חדש שנרשם דרך הקישור (מי שכבר היה רשום לא נספר).</p>
       <div class="inv-btns"><button class="btn btn-ghost" type="button" data-close>סגירה</button><button class="btn btn-primary" type="button" data-share>שליחה לחברים</button></div>`;
+    if (!refDeal) { d.querySelector('.inv-prog').remove(); d.querySelector('p.muted-s').remove(); d.querySelector('p').textContent = 'שולחים לחברים קישור לאתר, בוואטסאפ או בכל דרך אחרת.'; }
     const names = d.querySelector('.inv-names');
-    if (n) { const h = document.createElement('small'); h.textContent = 'הצטרפו דרכך:'; names.appendChild(h); refList.forEach(x => { const c = document.createElement('span'); c.dir = 'auto'; c.textContent = x.name || 'חבר'; names.appendChild(c); }); }
+    if (n && refDeal) { const h = document.createElement('small'); h.textContent = 'הצטרפו דרכך:'; names.appendChild(h); refList.forEach(x => { const c = document.createElement('span'); c.dir = 'auto'; c.textContent = x.name || 'חבר'; names.appendChild(c); }); }
     else names.remove();
     const url = inviteLink(), inp = d.querySelector('.inv-link input'); inp.value = url;
     inp.onclick = () => inp.select();
