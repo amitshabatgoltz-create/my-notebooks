@@ -2387,3 +2387,15 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
   .adm-table td:last-child{grid-column:1/-1}
   .adm-table td:last-child .adm-inv{align-self:flex-start}
 }
+
+/* ניהול האתר: משווקים */
+.adm-mk-row{padding:12px 0;border-bottom:1px solid var(--line)}
+.adm-mk-row:last-of-type{border-bottom:0}
+.adm-mk-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.adm-mk-top b{font-size:16px}
+.adm-mk-tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.adm-mk-n{margin-inline-start:auto;font-weight:700;color:var(--accent)}
+.adm-mk-bar{height:8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,transparent);overflow:hidden;margin-bottom:8px}
+.adm-mk-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent);min-width:3px}
+.adm-mk-who{display:flex;flex-wrap:wrap;gap:6px}
+.adm-mk-who span{padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--ink) 6%,transparent);font-size:13px}

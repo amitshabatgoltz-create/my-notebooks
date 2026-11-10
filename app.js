@@ -7659,6 +7659,19 @@ function admSiteAi(g) {
     ${kinds.length ? `<div class="adm-ai">${kinds.map(([k, v]) => `<div><b>${v}</b><span>${esc(USE_NAME[k] || (k === 'img' ? 'יצירת תמונה' : k === 'imp' ? 'ייבוא' : k))}</span></div>`).join('')}</div>` : ''}
     <p class="muted-s">בדקה הזאת: ${nowMin} בקשות (השרת מרשה עד 14 בדקה לכל האתר).${yest && yest.today != null ? ` אתמול: ${yest.today}.` : ''} פעולה אחת יכולה להיות כמה בקשות. מתאפס בחצות.</p></div>`;
 }
+const sha256Hex = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
+// משווקים: מי שעשינו איתו עסקה (INVITE_POP_HASH) וכל מי שהביא לפחות חבר אחד – כמה הביא ומי
+function admMarketers(list, brought, promoIds) {
+  const rows = list.filter(u => promoIds.has(u.id) || brought[u.id]).map(u => ({ u, n: brought[u.id] || 0, deal: promoIds.has(u.id), who: list.filter(x => x.ref === u.id).sort((a, b) => (a.first || 0) - (b.first || 0)) }))
+    .sort((a, b) => b.n - a.n || (b.deal ? 1 : 0) - (a.deal ? 1 : 0));
+  const total = Object.values(brought).reduce((a, v) => a + v, 0);
+  return `<div class="card adm-mk"><h3>משווקים${total ? ` · ${total} הצטרפו דרך קישור` : ''}</h3>${rows.length ? rows.map(r => `<div class="adm-mk-row">
+      <div class="adm-mk-top"><b>${esc(r.u.name || r.u.email || 'משתמש')}</b>${r.deal ? '<span class="adm-mk-tag">עסקה</span>' : ''}<span class="adm-mk-n">צירף ${r.n === 1 ? 'אחד' : r.n}${r.deal || r.n < REF_GOAL ? ` מתוך ${REF_GOAL}` : ''}${r.n >= REF_GOAL ? ' ✓' : ''}</span></div>
+      <div class="adm-mk-bar"><i style="width:${Math.min(100, r.n / REF_GOAL * 100)}%"></i></div>
+      ${r.who.length ? `<div class="adm-mk-who">${r.who.map(x => `<span>${esc(x.name || 'חבר')}</span>`).join('')}</div>` : '<small class="muted-s">עוד אף אחד לא נרשם דרכו.</small>'}
+    </div>`).join('') : '<p class="noev">עוד אף אחד לא הביא חברים דרך קישור אישי.</p>'}
+    <p class="muted-s">כל מי שהביא לפחות חבר אחד מופיע כאן לבד. ב-${REF_GOAL} חברים מקבלים ${REF_OCR} תמונות לטקסט ביום.</p></div>`;
+}
 async function renderAdmin() {
   const box = $('admBody');
   await refreshUnlimited().catch(() => {});
@@ -7703,6 +7716,7 @@ async function renderAdmin() {
   const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
   const brought = {}; list.forEach(u => { if (u.ref) brought[u.ref] = (brought[u.ref] || 0) + 1; });
   const byId = Object.fromEntries(list.map(u => [u.id, u]));
+  const promoIds = new Set(); await Promise.all(list.map(async u => { if (u.email && INVITE_POP_HASH.includes(await sha256Hex('my-notebooks:' + u.email.toLowerCase()))) promoIds.add(u.id); }));
   box.innerHTML = `<div class="adm-kpis">
       <div class="card adm-kpi"><b>${list.length}</b><span>משתמשים</span></div>
       <div class="card adm-kpi"><b>${act1}</b><span>נכנסו היום</span></div>
@@ -7710,6 +7724,7 @@ async function renderAdmin() {
       <div class="card adm-kpi"><b>${new7}</b><span>חדשים השבוע</span></div>
     </div>
     ${admSiteAi(site)}
+    ${admMarketers(list, brought, promoIds)}
     <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
       <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}">${byDay[k] ? `<b>${byDay[k]}</b>` : ''}<i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 86) : 0}%"></i></div>`).join('')}</div>
       <div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days[0]).getTime()))}</span><span>היום</span></div></div>
