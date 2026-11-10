@@ -70,6 +70,10 @@ service cloud.firestore {
         && request.resource.data.at is int;
       allow update, delete: if false;
     }
+    // 🔒 ספירת ה-AI: רק השרת כותב. בעל האתר יכול לקרוא את הספירה של כל האתר (aiQuota/_site) בעמוד "ניהול האתר"
+    match /aiQuota/{id} {
+      allow get: if id == '_site' && request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com';
+    }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
     // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)
     match /shares/{shareId} {

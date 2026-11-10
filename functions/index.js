@@ -62,7 +62,7 @@ function cleanConfig(c) {
   return out;
 }
 
-async function takeGlobal() {
+async function takeGlobal(kind) {
   const ref = db.doc('aiQuota/_site');
   const until = Date.now() + QUEUE_WAIT_MS;
   for (;;) {
@@ -71,7 +71,10 @@ async function takeGlobal() {
       const sn = await tx.get(ref); const g = sn.exists ? sn.data() : {};
       const count = g.min === min ? (g.count || 0) : 0;
       if (count >= GLOBAL_PER_MIN) return false;
-      tx.set(ref, { min, count: count + 1 }); return true;
+      // גם ספירה יומית של כל האתר (לפי סוג), בשביל העמוד "ניהול האתר"
+      const day = israelDay(), same = g.day === day;
+      const kinds = same && g.kinds ? { ...g.kinds } : {}; kinds[kind] = (kinds[kind] || 0) + 1;
+      tx.set(ref, { min, count: count + 1, day, today: (same ? g.today || 0 : 0) + 1, kinds, prevDay: same ? g.prevDay || null : (g.day ? { day: g.day, today: g.today || 0 } : null) }); return true;
     });
     if (ok) return;
     const wait = (min + 1) * 60000 - Date.now() + Math.random() * 1500;   // עד תחילת הדקה הבאה, בפיזור קטן
@@ -129,7 +132,7 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
-  try { await takeGlobal(); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
+  try { await takeGlobal(kind); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
 
   const ai = await gemini();

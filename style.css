@@ -2361,3 +2361,29 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
 .inv-link{display:flex;gap:8px}
 .inv-link input{flex:1;min-width:0;font-size:13px}
 .inv-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+/* ניהול האתר: AI היום בכל האתר */
+.adm-site-n{display:flex;align-items:baseline;gap:8px;margin:4px 0 10px}
+.adm-site-n b{font-size:34px;line-height:1}
+.adm-site-n span{font-size:16px;color:var(--muted)}
+.adm-site-n small{margin-inline-start:auto;color:var(--muted)}
+.adm-site-bar{height:12px;border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,transparent);overflow:hidden;margin-bottom:12px}
+.adm-site-bar i{display:block;height:100%;border-radius:inherit;background:var(--accent);min-width:3px}
+.adm-site.warm .adm-site-bar i{background:#e8a317}
+.adm-site.hot .adm-site-bar i{background:#d93a3a}
+
+/* ניהול האתר בטלפון: כל משתמש כרטיס במקום שורה בטבלה רחבה */
+@media (max-width:700px){
+  .adm-scroll{overflow:visible}
+  .adm-table{min-width:0}
+  .adm-table thead{display:none}
+  .adm-table,.adm-table tbody{display:block}
+  .adm-table tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;padding:12px;margin-bottom:10px;border-radius:14px;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+  .adm-table td,.adm-table td:nth-child(3){display:flex;flex-direction:column;gap:1px;padding:0;border:0;text-align:right;font-size:14px;min-width:0;overflow-wrap:anywhere}
+  .adm-table td::before{content:attr(data-l);font-size:11.5px;color:var(--muted);font-weight:600}
+  .adm-table td:first-child{grid-column:1/-1;font-size:16px;font-weight:700}
+  .adm-table td:first-child::before{display:none}
+  .adm-table td.adm-mail{grid-column:1/-1}
+  .adm-table td:last-child{grid-column:1/-1}
+  .adm-table td:last-child .adm-inv{align-self:flex-start}
+}

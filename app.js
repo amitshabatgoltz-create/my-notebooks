@@ -7643,12 +7643,29 @@ const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref']);
     }`;
+// כמה בקשות ל-Gemini נשלחו היום מכל האתר יחד, מתוך המכסה היומית (Flash Lite, Free tier: 500 ביום, 15 בדקה)
+const SITE_AI_DAY = 500;
+function admSiteAi(g) {
+  const day = Math.floor((Date.now() + 10800000) / 864e5);
+  if (!g) return '<div class="card adm-site"><h3>AI היום בכל האתר</h3><p class="muted-s">עוד אין נתונים. זה מתחיל להיספר מהבקשה הבאה ל-AI.</p></div>';
+  const n = g.day === day ? g.today || 0 : 0, pct = Math.min(100, n / SITE_AI_DAY * 100);
+  const min = Math.floor(Date.now() / 60000), nowMin = g.min === min ? g.count || 0 : 0;
+  const kinds = g.day === day && g.kinds ? Object.entries(g.kinds).sort((a, b) => b[1] - a[1]) : [];
+  const yest = g.day === day ? g.prevDay : (g.day === day - 1 ? { today: g.today } : null);
+  const lvl = pct >= 90 ? 'hot' : pct >= 70 ? 'warm' : '';
+  return `<div class="card adm-site ${lvl}"><h3>AI היום בכל האתר</h3>
+    <div class="adm-site-n"><b>${n}</b><span>מתוך ${SITE_AI_DAY}</span><small>נשארו ${Math.max(0, SITE_AI_DAY - n)}</small></div>
+    <div class="adm-site-bar"><i style="width:${pct}%"></i></div>
+    ${kinds.length ? `<div class="adm-ai">${kinds.map(([k, v]) => `<div><b>${v}</b><span>${esc(USE_NAME[k] || (k === 'img' ? 'יצירת תמונה' : k === 'imp' ? 'ייבוא' : k))}</span></div>`).join('')}</div>` : ''}
+    <p class="muted-s">בדקה הזאת: ${nowMin} בקשות (השרת מרשה עד 14 בדקה לכל האתר).${yest && yest.today != null ? ` אתמול: ${yest.today}.` : ''} פעולה אחת יכולה להיות כמה בקשות. מתאפס בחצות.</p></div>`;
+}
 async function renderAdmin() {
   const box = $('admBody');
   await refreshUnlimited().catch(() => {});
   if (!isUnlimited()) { box.innerHTML = '<p class="noev">העמוד הזה רק לבעל האתר.</p>'; return; }
   box.innerHTML = '<div class="card"><p class="muted-s">טוען...</p></div>';
-  let list;
+  let list, site = null;
+  try { const sq = await getDoc(doc(db, 'aiQuota', '_site')); if (sq.exists()) site = sq.data(); } catch (e) { console.warn('site ai', e && e.message); }
   try { const sn = await getDocs(collection(db, 'stats')); list = []; sn.forEach(d => list.push({ id: d.id, ...d.data() })); }
   catch (e) {
     console.warn(e);
@@ -7692,6 +7709,7 @@ async function renderAdmin() {
       <div class="card adm-kpi"><b>${act7}</b><span>פעילים השבוע</span></div>
       <div class="card adm-kpi"><b>${new7}</b><span>חדשים השבוע</span></div>
     </div>
+    ${admSiteAi(site)}
     <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
       <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}">${byDay[k] ? `<b>${byDay[k]}</b>` : ''}<i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 86) : 0}%"></i></div>`).join('')}</div>
       <div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days[0]).getTime()))}</span><span>היום</span></div></div>
@@ -7701,7 +7719,11 @@ async function renderAdmin() {
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
       ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? esc((byId[u.ref] && byId[u.ref].name) || 'מישהו') : '–'}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
-    </tbody></table></div><p class="muted-s">"העתקה" בעמודה האחרונה = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+    </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+  // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
+  const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);
+  box.querySelectorAll('.adm-table tbody tr').forEach(tr => [...tr.children].forEach((td, i) => td.setAttribute('data-l', ths[i] || '')));
+  box.querySelectorAll('.gs-wait').forEach(x => x.classList.remove('gs-wait'));
 }
 
 /* ---- הסבר עם חצים בתוך חלון: מדגישים כל חלק בתורו, ובועה עם חץ מסבירה מה הוא עושה ---- */
