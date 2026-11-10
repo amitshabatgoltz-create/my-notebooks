@@ -170,7 +170,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad(); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(invitePopMaybe); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; DAILY.ocr = OCR_BASE;
     notebooks = []; events = []; openId = null;
@@ -7628,6 +7628,11 @@ function statsAi(k, count) {
   if (!me) return;
   setDoc(statsDoc(me.uid), { last: Date.now(), lastDay: todayKey(), ai: { [k]: increment(count) } }, { merge: true }).catch(() => {});
 }
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('.adm-inv'); if (!b) return;
+  const url = location.origin + location.pathname + '?r=' + b.dataset.uid;
+  try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { prompt('העתק את הקישור:', url); }
+});
 function paintAdmin() { const on = isUnlimited(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
@@ -7694,9 +7699,9 @@ async function renderAdmin() {
       <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
-    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? esc((byId[u.ref] && byId[u.ref].name) || 'מישהו') : '–'}</td><td>${esc(u.device || '')}</td></tr>`).join('')}
-    </tbody></table></div><p class="muted-s">פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
+      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? esc((byId[u.ref] && byId[u.ref].name) || 'מישהו') : '–'}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
+    </tbody></table></div><p class="muted-s">"העתקה" בעמודה האחרונה = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
 }
 
 /* ---- הסבר עם חצים בתוך חלון: מדגישים כל חלק בתורו, ובועה עם חץ מסבירה מה הוא עושה ---- */
@@ -7888,6 +7893,17 @@ async function refLoad() {
   DAILY.ocr = refList.length >= REF_GOAL ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE;
 }
 const inviteLink = () => location.origin + location.pathname + '?r=' + me.uid;
+// חברים שעשו עסקה עם בעל האתר: בכניסה (פעם ביום, עד שמגיעים ליעד) קופץ להם החלון עם הקישור האישי
+const INVITE_POP_HASH = ['aa9d96ac3cb8f360698244404309411b16cf62fadde1fadda77f0979944b9427'];   // SHA-256 של 'my-notebooks:' + האימייל באותיות קטנות
+async function invitePopMaybe() {
+  if (!me || !me.email || !INVITE_POP_HASH.length || refList.length >= REF_GOAL) return;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('my-notebooks:' + me.email.toLowerCase()));
+  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (!INVITE_POP_HASH.includes(hex)) return;
+  const k = 'invPop:' + me.uid, tk = todayKey();
+  try { if (localStorage.getItem(k) === tk) return; localStorage.setItem(k, tk); } catch {}
+  setTimeout(() => { if (me && !document.querySelector('.overlay')) inviteDialog(); }, 1800);
+}
 async function inviteDialog() {
   if (!me) return;
   track('invite', {});
