@@ -44,6 +44,8 @@
 
 העוזר זוכר אותך (10.11.2026): עובדות קבועות שהמשתמש סיפר (כיתה, מה קשה לו) – העוזר כותב שורה `@@ ...` בסוף התשובה (מוסתרת ב-`chatFill`), `aiMemFrom` → `aiMemAdd` שומר ב-`users/{uid}/meta/aimem` {items: [{id, t, at}]}, עד 40. בפרומפט דרך `aiMemPrompt`. מתחת לתשובה "זכרתי: ..." עם "לשכוח" (`aiMemNote`), וניהול מתפריט החשבון (`#aiMemBtn` → `aiMemDialog`).
 
+שינוי ביומן מהעוזר (10.11.2026): ברשימת היומן בפרומפט לכל דבר יש `[id]`; פעולה `UPDATE_CALENDAR` (`items: [{id, date?, time?, title?, done?, delete?}]`) → `chatUpdateEvents` → `chatUpdatedCard` עם ביטול. הפרומפט אוסר להגיד "שיניתי ביומן" בלי JSON. חיפוש אוטומטי: `CHAT_SEARCH` מדליק `chatAutoWeb` להודעה אחת.
+
 עריכת המחברת מהעוזר (10.11.2026): פעולה `EDIT_NOTEBOOK` (`edits: [{op: after|before|replace|append, find, text}]`, ההוראות ב-`CHAT_EDIT_RULES` – רק כשיש מחברת פתוחה שאפשר לערוך). `chatEditPrep` מסנן מה שלא נמצא (`edFindBlock`), `chatEditCard` מראה מה ישתנה עם "לשנות במחברת", `chatEditApply` משנה ומהבהב (`.ai-flash`), ויש ביטול. הטקסט עובר `edTextToHtml` ו-`clean`.
 
 מערכת שעות מהעוזר: צילום/PDF + הודעה שמתאימה ל-`CHAT_TT` ("תכניס למערכת שעות") → `timetableDialog(file)` נפתח וקורא את הקובץ מיד (`readTT`), והמשתמש בודק ושומר. הקובץ עצמו שמור ב-`chatPending[].file`.
