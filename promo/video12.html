@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>סרטון: מביאים חברים, מקבלים פרסים – המחברות שלי</title>
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0E12;--ink:#F2F2F6;--muted:#9A9AA6;--line:#2A2A33;--accent:#8E8CFF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Rubik',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px;gap:14px}
+h1{font-size:22px;margin:0}
+p{margin:0;color:var(--muted);text-align:center;max-width:560px;font-size:15px;line-height:1.6}
+canvas{height:min(72vh,900px);width:auto;max-width:100%;aspect-ratio:9/16;border-radius:22px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);background:#000}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+button{font:inherit;font-weight:700;font-size:15px;border:none;border-radius:999px;padding:11px 20px;cursor:pointer}
+.p{background:linear-gradient(135deg,#5E5CE6,#FF5E8A);color:#fff}
+.g{background:#1E1E26;color:var(--ink);border:1px solid var(--line)}
+#st{min-height:1.6em;color:var(--accent);font-weight:600}
+a.back{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<a class="back" href="./">חזרה לחומרי הפרסום</a>
+<h1>סרטון: מביאים חברים, מקבלים פרסים (21 שניות)</h1>
+<p>מסביר את תוכנית החברים: שולחים קישור, כל חבר הוא שלב, ופותחים פרסים בדרך.</p>
+<canvas id="cv" width="1080" height="1920"></canvas>
+<div class="row"><button class="g" id="play">ניגון</button></div>
+<div id="st" role="status"></div>
+<script>
+const W = 1080, H = 1920, DUR = 21, FPS = 30, BEAT = 60 / 120;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const P = s => new Path2D(s);
+const IC = {
+  gift: [P('M3.5 8h17v4h-17z'), P('M5 12v8.5h14V12M12 8v12.5M12 8C10.2 4.2 6.4 4.4 7 7c.3 1.2 2.6 1 5 1zm0 0c1.8-3.8 5.6-3.6 5-1-.3 1.2-2.6 1-5 1z')],
+  crown: [P('M3.5 8.5 8 12.5 12 5l4 7.5 4.5-4L19 18.5H5z'), P('M5.5 21h13')],
+  palette: [P('M12 3a9 9 0 0 0 0 18c1.3 0 1.9-.9 1.5-2-.5-1.2.3-2.4 1.6-2.4H17a4 4 0 0 0 4-4C21 7.3 17 3 12 3z'), P('M8.6 11.5a1.1 1.1 0 1 1-2.2 0a1.1 1.1 0 1 1 2.2 0zM11.1 7.3a1.1 1.1 0 1 1-2.2 0a1.1 1.1 0 1 1 2.2 0zM16.1 7.5a1.1 1.1 0 1 1-2.2 0a1.1 1.1 0 1 1 2.2 0z')],
+  chat: [P('M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.4-4.1-1L3 21l1.5-5.2A8.5 8.5 0 1 1 21 12z')],
+  cam: [P('M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z'), P('M15.5 13a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z')],
+  send: [P('M21 3 3 10.5l7 3 3 7.5zM21 3 10 13.5')],
+  lock: [P('M7.5 11h9a2.5 2.5 0 0 1 2.5 2.5v5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18.5v-5A2.5 2.5 0 0 1 7.5 11z'), P('M8 11V7.5a4 4 0 0 1 8 0V11')],
+  check: [P('M5 12.5l4.5 4.5L19 7.5')],
+  book: [P('M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z'), P('M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5')],
+  link: [P('M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1')],
+};
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, d) => clamp((t - a) / d);
+const eOut = x => 1 - Math.pow(1 - x, 3);
+const eInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eBack = x => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+function rnd(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function icon(name, cx, cy, size, color, lw = 2) {
+  ctx.save(); ctx.translate(cx - size / 2, cy - size / 2); ctx.scale(size / 24, size / 24);
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  IC[name].forEach(p => ctx.stroke(p)); ctx.restore();
+}
+function font(size, w = 800) { ctx.font = `${w} ${size}px "Rubik"`; }
+function T(s, x, y, size, w = 800, color = '#fff', align = 'center') { font(size, w); ctx.direction = 'rtl'; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(s, x, y); }
+function grad(x0, y0, x1, y1, stops) { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+const PINK = '#EC4899', VIO = '#8B5CF6', IND = '#4F46E5', GREEN = '#10B981', GOLD = '#F59E0B';
+// טקסט שקופץ פנימה
+function popT(s, x, y, size, t0, t, o = {}) {
+  const k = prog(t, t0, .45); if (k <= 0) return;
+  ctx.save(); ctx.translate(x, y); const sc = lerp(.3, 1, eBack(k)); ctx.scale(sc, sc); ctx.globalAlpha = clamp(k * 2);
+  if (o.pill) { font(size, 900); const w = ctx.measureText(s).width + size * .9; rr(-w / 2, -size * .78, w, size * 1.56, size * .78); ctx.fillStyle = o.pill; ctx.fill(); }
+  T(s, 0, 0, size, o.w || 900, o.color || '#fff'); ctx.restore();
+}
+function sparkles(t, cx, cy, rad, n, seed) {
+  const r = rnd(seed);
+  for (let i = 0; i < n; i++) {
+    const a = r() * Math.PI * 2, d = rad * (.6 + r() * .6), ph = r() * 6, s = 6 + r() * 10;
+    const k = (Math.sin(t * 3 + ph) + 1) / 2;
+    ctx.save(); ctx.translate(cx + Math.cos(a) * d, cy + Math.sin(a) * d); ctx.rotate(Math.PI / 4); ctx.globalAlpha = .3 + k * .7;
+    ctx.fillStyle = ['#FDE68A', '#F9A8D4', '#C4B5FD', '#A7F3D0'][i % 4]; ctx.fillRect(-s * k / 2, -s * k / 2, s * k, s * k); ctx.restore();
+  }
+}
+function confetti(t, t0, cx, cy, n, seed) {
+  const k = (t - t0); if (k < 0 || k > 1.6) return;
+  const r = rnd(seed), cols = [PINK, VIO, GREEN, GOLD, '#60A5FA'];
+  for (let i = 0; i < n; i++) {
+    const a = r() * Math.PI * 2, v = 300 + r() * 600, rot = r() * 10;
+    const x = cx + Math.cos(a) * v * k, y = cy + Math.sin(a) * v * k + 900 * k * k;
+    ctx.save(); ctx.globalAlpha = clamp(1.6 - k); ctx.translate(x, y); ctx.rotate(rot + k * 8); ctx.fillStyle = cols[i % 5]; ctx.fillRect(-9, -5, 18, 10); ctx.restore();
+  }
+}
+function bg(T0) {
+  ctx.fillStyle = '#14122E'; ctx.fillRect(0, 0, W, H);
+  const b = (x, y, r, c) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, c); g.addColorStop(1, 'rgba(20,18,46,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); };
+  b(900 + Math.sin(T0 * .5) * 80, 300, 900, 'rgba(91,63,214,.75)');
+  b(150 + Math.cos(T0 * .4) * 80, 1650, 900, 'rgba(190,40,130,.55)');
+  b(540, 1000 + Math.sin(T0 * .3) * 120, 700, 'rgba(79,70,229,.25)');
+}
+function tile(x, y, s, name, c1, c2, rot = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.shadowColor = c2; ctx.shadowBlur = 60; ctx.shadowOffsetY = 20;
+  rr(-s / 2, -s / 2, s, s, s * .3); ctx.fillStyle = grad(-s / 2, -s / 2, s / 2, s / 2, [[0, c1], [1, c2]]); ctx.fill();
+  ctx.shadowColor = 'transparent'; icon(name, 0, 0, s * .52, '#fff', 2.1); ctx.restore();
+}
+function avatar(x, y, r, letter, color, k = 1) {
+  if (k <= 0) return; ctx.save(); ctx.translate(x, y); const sc = eBack(clamp(k)); ctx.scale(sc, sc);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 8; ctx.strokeStyle = '#fff'; ctx.stroke();
+  T(letter, 0, 4, r * 1.05, 900, '#fff'); ctx.restore();
+}
+
+// ---------- סצנות ----------
+function sHook(t, T0) {          // 0–3.2
+  const k = prog(t, .05, .6), bob = Math.sin(T0 * 3) * 18;
+  sparkles(T0, 540, 640, 330, 22, 3);
+  if (k > 0) { ctx.save(); ctx.globalAlpha = clamp(k * 2); tile(540, 640 + bob, lerp(80, 300, eBack(k)), 'gift', '#F59E0B', PINK, Math.sin(T0 * 2) * .08); ctx.restore(); }
+  popT('מביאים חברים', 540, 1050, 118, .5, t);
+  popT('מקבלים פרסים', 540, 1230, 104, 1.1, t, { pill: grad(200, 0, 880, 0, [[0, VIO], [1, PINK]]) });
+  popT('בחינם, באתר "המחברות שלי"', 540, 1420, 46, 1.8, t, { w: 600, color: 'rgba(255,255,255,.8)' });
+}
+function sShare(t, T0) {         // 3.2–7.4
+  popT('שולחים קישור אישי', 540, 230, 76, .05, t);
+  // טלפון
+  const k = eOut(prog(t, .1, .5)); ctx.save(); ctx.translate(0, lerp(400, 0, k)); ctx.globalAlpha = k;
+  rr(250, 360, 580, 860, 70); ctx.fillStyle = '#0B0B17'; ctx.fill(); rr(268, 378, 544, 824, 56); ctx.fillStyle = '#ECE5DD'; ctx.fill();
+  rr(268, 378, 544, 120, [56, 56, 0, 0]); ctx.fillStyle = '#075E54'; ctx.fill();
+  avatar(740, 438, 32, 'כ', '#25D366'); T('הקבוצה של הכיתה', 690, 438, 34, 700, '#fff', 'right');
+  // בועה עם הקישור
+  const b = eBack(prog(t, .8, .45));
+  if (b > 0) {
+    ctx.save(); ctx.translate(780, 560); ctx.scale(b, b); ctx.translate(-780, -560);
+    rr(320, 560, 460, 330, 26); ctx.fillStyle = '#DCF8C6'; ctx.fill();
+    T('מצאתי אתר שחוסך', 750, 610, 34, 600, '#1d1d1f', 'right'); T('המון זמן בלימודים.', 750, 655, 34, 600, '#1d1d1f', 'right');
+    T('מי שנרשם דרך הקישור', 750, 700, 34, 600, '#1d1d1f', 'right'); T('מקבל מתנה:', 750, 745, 34, 600, '#1d1d1f', 'right');
+    rr(345, 780, 410, 80, 16); ctx.fillStyle = '#fff'; ctx.fill(); icon('link', 715, 820, 40, '#2563EB', 2.4);
+    ctx.save(); ctx.direction = 'ltr'; font(30, 700); ctx.textAlign = 'left'; ctx.fillStyle = '#2563EB'; ctx.fillText('my-notebooks/?r=amit', 362, 822); ctx.restore();
+    ctx.restore();
+  }
+  // נשלח
+  const s = prog(t, 1.6, .5); if (s > 0) { ctx.save(); ctx.globalAlpha = clamp(s * 2); icon('check', 345, 930, 34, '#34B7F1', 3); icon('check', 362, 930, 34, '#34B7F1', 3); ctx.restore(); }
+  ctx.restore();
+  // החברים מצטרפים
+  const fr = [['ד', '#F59E0B'], ['נ', '#10B981'], ['י', '#3B82F6']];
+  fr.forEach(([l, c], i) => {
+    const kk = prog(t, 2.1 + i * .45, .45), x = 330 + i * 210, y = 1430;
+    avatar(x, y, 78, l, c, kk);
+    const pl = prog(t, 2.3 + i * .45, .8); if (pl > 0 && pl < 1) { ctx.save(); ctx.globalAlpha = 1 - pl; font(64, 900); ctx.direction = 'ltr'; ctx.textAlign = 'center'; ctx.fillStyle = '#FDE68A'; ctx.fillText('+1', x, y - 120 - pl * 90); ctx.restore(); }
+  });
+  popT('חברים נרשמים דרכו', 540, 1640, 64, 2.4, t, { color: '#E9D5FF' });
+}
+const TIERS = [[1, 'palette', 'צבעים מיוחדים', 'למחברות שלך'], [3, 'chat', 'עוד 5 הודעות', 'לעוזר הלימודי, כל יום'], [7, 'cam', '7 תמונות לטקסט', 'ביום, במקום 3'], [10, 'crown', 'תג שגריר', 'ליד השם שלך']];
+const SMALL = [[2, 'רקעים'], [4, 'גופן'], [5, 'סיכום'], [6, 'צבע לאתר'], [8, 'מסגרת'], [9, 'כרטיסיות']];
+const TT = [[.3, 1.0, 0, 1], [1.8, 2.9, 1, 3], [3.6, 5.2, 3, 7], [5.9, 7.0, 7, 10]];   // [מתי מתחיל, מתי נגמר, משלב, לשלב]
+function lvlAt(t) { let n = 0; for (const [a, b, f, to] of TT) { if (t >= b) n = to; else if (t >= a) return lerp(f, to, eInOut((t - a) / (b - a))); } return n; }
+function sPass(t, T0) {          // 7.4–15
+  popT('כל חבר = שלב קדימה', 540, 230, 76, .05, t);
+  popT('פרס קטן על כל חבר, ופרסים גדולים בדרך', 540, 330, 40, .5, t, { w: 600, color: '#E9D5FF' });
+  const n = lvlAt(t), X = i => 975 - (i - 1) * 97, Y = 1500;
+  // הקו
+  rr(70, Y - 9, 940, 18, 9); ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fill();
+  if (n > 0) { const xe = X(Math.max(1, n)); rr(xe, Y - 9, 1010 - xe, 18, 9); ctx.fillStyle = grad(1010, 0, xe, 0, [[0, GREEN], [.5, VIO], [1, PINK]]); ctx.fill(); }
+  for (let i = 1; i <= 10; i++) {
+    const got = n >= i - .02, tier = TIERS.find(x => x[0] === i), r = tier ? 34 : 24;
+    ctx.beginPath(); ctx.arc(X(i), Y, r, 0, 7); ctx.fillStyle = got ? (tier ? GREEN : '#7C6CF0') : '#2A2752'; ctx.fill(); ctx.lineWidth = 5; ctx.strokeStyle = got ? '#fff' : 'rgba(255,255,255,.25)'; ctx.stroke();
+    T(String(i), X(i), Y + 3, tier ? 34 : 26, 900, got ? '#fff' : 'rgba(255,255,255,.6)');
+  }
+  // פרסים קטנים שקופצים כשעוברים שלב
+  SMALL.forEach(([lv, s]) => { const d = n - lv; if (d < 0 || d > .9) return; const x = X(lv), y = Y - 70 - d * 160; ctx.save(); ctx.globalAlpha = clamp(1.4 - d * 1.4); font(36, 800); const w = ctx.measureText('+ ' + s).width + 40; rr(x - w / 2, y - 30, w, 60, 30); ctx.fillStyle = 'rgba(167,139,250,.9)'; ctx.fill(); T('+ ' + s, x, y + 2, 36, 800, '#fff'); ctx.restore(); });
+  // "אתה"
+  if (n > 0) { const x = X(n), y = Y - 120 + Math.sin(T0 * 6) * 6; avatar(x, y, 52, 'א', PINK); ctx.beginPath(); ctx.moveTo(x - 16, y + 50); ctx.lineTo(x + 16, y + 50); ctx.lineTo(x, y + 72); ctx.fillStyle = '#fff'; ctx.fill(); }
+  // כמה נשאר
+  const nx = TIERS.find(x => n < x[0] - .02);
+  if (nx && t > .2) { const left = Math.ceil(nx[0] - n - .001); rr(240, 1640, 600, 100, 50); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fill(); T(`עוד ${left} למטרה הבאה`, 540, 1692, 50, 800, '#FDE68A'); }
+  // כרטיס הפרס שנפתח (גדול באמצע) + קונפטי
+  let cur = -1; TT.forEach(([, b], i) => { if (t >= b) cur = i; });
+  if (cur >= 0) {
+    const [, ic, ti, de] = TIERS[cur], k = prog(t, TT[cur][1], .5);
+    ctx.save(); ctx.translate(540, 760); const sc = lerp(.4, 1, eBack(k)); ctx.scale(sc, sc); ctx.globalAlpha = clamp(k * 2);
+    ctx.shadowColor = GREEN; ctx.shadowBlur = 80; rr(-330, -300, 660, 600, 60); ctx.fillStyle = grad(-330, -300, 330, 300, [[0, 'rgba(16,185,129,.55)'], [1, 'rgba(16,185,129,.12)']]); ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.lineWidth = 5; ctx.strokeStyle = '#34D399'; ctx.stroke();
+    rr(-120, -260, 240, 64, 32); ctx.fillStyle = GREEN; ctx.fill(); T('נפתח!', 0, -226, 40, 900, '#fff');
+    tile(0, -40, 210, ic, '#34D399', '#059669');
+    T(ti, 0, 150, 70, 900, '#fff'); T(de, 0, 225, 40, 600, 'rgba(255,255,255,.8)');
+    ctx.restore();
+    confetti(t, TT[cur][1], 540, 760, 70, cur + 5);
+  } else { tile(540, 760, 220, 'lock', '#3B2F7A', '#2A2752'); T('הפרס הראשון מחכה...', 540, 960, 50, 700, 'rgba(255,255,255,.7)'); }
+  // הפרסים שכבר נפתחו – בשורה קטנה
+  TIERS.forEach(([lv, ic], i) => { const got = n >= lv - .02, x = 780 - i * 160, y = 1180; rr(x - 60, y - 60, 120, 120, 34); ctx.fillStyle = got ? 'rgba(16,185,129,.35)' : 'rgba(255,255,255,.07)'; ctx.fill(); icon(got ? ic : 'lock', x, y, 56, got ? '#fff' : 'rgba(255,255,255,.4)', 2.2); });
+}
+function sFriend(t, T0) {        // 15–17.8
+  popT('גם החבר מקבל מתנה', 540, 300, 76, .05, t);
+  [[380, '#F59E0B', PINK, 0], [700, GREEN, IND, .9]].forEach(([x, c1, c2, ph], i) => { const k = eBack(prog(t, .3 + i * .25, .5)); if (k <= 0) return; ctx.save(); ctx.translate(x, 800 + Math.sin(T0 * 4 + ph) * 22); ctx.scale(k, k); tile(0, 0, 260, 'gift', c1, c2, Math.sin(T0 * 3 + ph) * .12); ctx.restore(); });
+  sparkles(T0, 540, 800, 380, 26, 9);
+  popT('ביום הראשון שלו:', 540, 1150, 56, .9, t, { w: 700, color: '#E9D5FF' });
+  popT('עוד תמונה לטקסט', 540, 1270, 78, 1.2, t, { pill: grad(200, 0, 880, 0, [[0, VIO], [1, PINK]]) });
+  popT('עוד סיכום למבחן', 540, 1420, 78, 1.5, t, { pill: grad(200, 0, 880, 0, [[0, IND], [1, VIO]]) });
+}
+function sCTA(t, T0) {           // 17.8–21
+  const k = eBack(prog(t, .05, .6));
+  sparkles(T0, 540, 640, 300, 18, 21);
+  ctx.save(); ctx.translate(540, 640); ctx.scale(k, k); tile(0, 0, 260, 'book', '#6366F1', '#4338CA'); ctx.restore();
+  popT('המחברות שלי', 540, 920, 110, .4, t);
+  popT('בתפריט: חברים', 540, 1110, 72, 1.0, t, { pill: grad(200, 0, 880, 0, [[0, VIO], [1, PINK]]) });
+  popT('שולחים קישור, ופותחים פרסים', 540, 1270, 52, 1.5, t, { w: 600, color: 'rgba(255,255,255,.85)' });
+  const g = prog(t, 2.0, .5); if (g > 0) { ctx.save(); ctx.globalAlpha = g; T('amitshabatgoltz-create.github.io/my-notebooks', 540, 1700, 34, 600, 'rgba(255,255,255,.6)'); ctx.restore(); }
+}
+const SC = [[0, 3.2, sHook], [3.2, 7.4, sShare], [7.4, 15, sPass], [15, 17.8, sFriend], [17.8, DUR, sCTA]];
+function frame(T0) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  const i = SC.findIndex(s => T0 < s[1]); const [a, , fn] = SC[i < 0 ? SC.length - 1 : i];
+  const t = T0 - a, cut = i > 0 ? prog(T0, a, .35) : 1;
+  bg(T0);
+  ctx.save();
+  if (cut < 1) { const s = lerp(1.25, 1, eOut(cut)); ctx.translate(W / 2, H / 2); ctx.rotate(lerp(i % 2 ? .06 : -.06, 0, eOut(cut))); ctx.scale(s, s); ctx.translate(-W / 2, -H / 2); }
+  fn(t, T0); ctx.restore();
+  if (cut < 1) { ctx.fillStyle = `rgba(255,255,255,${.7 * (1 - eOut(cut))})`; ctx.fillRect(0, 0, W, H); }
+  ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(0, 0, W, 8); ctx.fillStyle = '#FDE68A'; ctx.fillRect(W - W * (T0 / DUR), 0, W * (T0 / DUR), 8);
+}
+
+// ---------- מוזיקה ----------
+function music(ac, out, at) {
+  const noise = (() => { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  const env = (g, t, v, a, d) => { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + d); };
+  const kick = (t, v = 1) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .18); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + .4); o.connect(g).connect(out); o.start(t); o.stop(t + .45); };
+  const nz = (t, d, type, hz, v) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = type; f.frequency.value = hz; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + d + .02); };
+  const tone = (t, hz, d, v, type = 'triangle') => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = hz; env(g, t, v, .01, d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const bass = (t, hz, d) => { const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = hz; f.type = 'lowpass'; f.frequency.value = 480; env(g, t, .2, .02, d); o.connect(f).connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const whoosh = t => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(300, t - .35); f.frequency.exponentialRampToValueAtTime(5000, t + .05); g.gain.setValueAtTime(.001, t - .35); g.gain.exponentialRampToValueAtTime(.35, t); g.gain.exponentialRampToValueAtTime(.001, t + .2); s.connect(f).connect(g).connect(out); s.start(t - .35); s.stop(t + .25); };
+  const chime = (t) => [1046.5, 1318.5, 1568, 2093].forEach((hz, i) => tone(t + i * .06, hz, .5, .12, 'sine'));
+  const ROOT = [55, 43.65, 49, 41.2], MEL = [659.3, 784, 880, 987.8, 880, 784, 659.3, 587.3];
+  for (let b = 0; b < DUR / BEAT; b++) {
+    const t = at + b * BEAT, T0 = b * BEAT;
+    if (T0 < 3.2) { if (b % 2 === 0) kick(t, .6); tone(t, MEL[b % 8], .25, .06, 'sine'); continue; }
+    kick(t); nz(t + BEAT / 2, .06, 'highpass', 7500, .16); if (b % 2 === 1) nz(t, .16, 'bandpass', 1800, .4);
+    bass(t, ROOT[Math.floor(b / 4) % 4], .42);
+    if (T0 >= 7.4 && T0 < 17.8) tone(t + BEAT / 2, MEL[b % 8], .3, .1);
+  }
+  [3.2, 7.4, 15, 17.8].forEach(c => whoosh(at + c));
+  // צליל "פתחת" בכל פרס, ו"+1" בכל חבר
+  TT.forEach(([, b]) => chime(at + 7.4 + b));
+  [2.3, 2.75, 3.2].forEach(x => tone(at + 3.2 + x, 1318.5, .18, .14, 'square'));
+  kick(at + 17.8, 1.2); chime(at + 18.2);
+  // סוף רך
+  const g = ac.createGain(); return g;
+}
+function wav(buf) {
+  const ch = buf.numberOfChannels, len = buf.length * ch * 2 + 44, a = new ArrayBuffer(len), v = new DataView(a); let p = 0;
+  const s = str => { for (const c of str) v.setUint8(p++, c.charCodeAt(0)); }, u32 = x => { v.setUint32(p, x, true); p += 4; }, u16 = x => { v.setUint16(p, x, true); p += 2; };
+  s('RIFF'); u32(len - 8); s('WAVE'); s('fmt '); u32(16); u16(1); u16(ch); u32(buf.sampleRate); u32(buf.sampleRate * ch * 2); u16(ch * 2); u16(16); s('data'); u32(buf.length * ch * 2);
+  const d = [...Array(ch)].map((_, i) => buf.getChannelData(i));
+  for (let i = 0; i < buf.length; i++) for (let c = 0; c < ch; c++) { const x = Math.max(-1, Math.min(1, d[c][i])); v.setInt16(p, x < 0 ? x * 0x8000 : x * 0x7FFF, true); p += 2; }
+  return new Blob([a], { type: 'audio/wav' });
+}
+const ready = Promise.all(['900', '800', '700', '600'].map(w => document.fonts.load(`${w} 100px "Rubik"`))).catch(() => {});
+ready.then(() => frame(11));
+let ac = null;
+document.getElementById('play').onclick = async () => {
+  await ready; ac = ac || new AudioContext(); await ac.resume();
+  const out = ac.createGain(); out.gain.value = .55; out.connect(ac.destination); music(ac, out, ac.currentTime + .05);
+  const start = performance.now(); const tick = () => { const t0 = (performance.now() - start) / 1000; frame(Math.min(t0, DUR)); if (t0 < DUR) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+};
+// ייצוא פריים-פריים לשרת מקומי (רק כשמבקשים ?save=http://127.0.0.1:PORT/)
+window.renderAll = async (save, prefix = 'f12_') => {
+  await ready; const st = document.getElementById('st');
+  const N = Math.round(DUR * FPS);
+  for (let f = 0; f < N; f++) {
+    frame(f / FPS);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .9));
+    await fetch(`${save}${prefix}${String(f).padStart(4, '0')}.jpg`, { method: 'POST', body: blob });
+    if (f % 30 === 0) st.textContent = `פריים ${f}/${N}`;
+  }
+  const oac = new OfflineAudioContext(2, Math.ceil(44100 * (DUR + .5)), 44100), out = oac.createGain(); out.gain.value = .55; out.connect(oac.destination);
+  music(oac, out, .05); const buf = await oac.startRendering();
+  await fetch(`${save}${prefix}audio.wav`, { method: 'POST', body: wav(buf) });
+  await fetch(`${save}${prefix}done.txt`, { method: 'POST', body: String(N) });
+  st.textContent = 'נשמר ✓'; return N;
+};
+</script>
+</body>
+</html>

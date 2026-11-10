@@ -2683,3 +2683,11 @@ html[data-theme="dark"] .amb-tag{color:#F5D46A;background:#3a2f0c}
 .bp-bigtag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:900;letter-spacing:.03em;padding:2px 10px;border-radius:999px;color:#3b2500;background:linear-gradient(90deg,#FCD34D,#F59E0B);box-shadow:0 4px 12px -4px #F59E0B}
 .bp-card.big .bp-ribbon{top:18px}
 .bp-card.big{padding-top:42px}
+
+/* סרטון ההסבר בעמוד חברים */
+.fr-vid{display:flex;align-items:center;gap:22px;padding:16px!important}
+.fr-vid video{flex:none;width:200px;aspect-ratio:9/16;border-radius:18px;background:#14122E;object-fit:cover;box-shadow:0 14px 30px -16px #2a1f6b}
+.fr-vid-tx small{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.04em}
+.fr-vid-tx h3{margin:2px 0 6px;font-size:22px}
+.fr-vid-tx p{margin:0!important}
+@media (max-width:760px){.fr-vid{flex-direction:column;text-align:center}.fr-vid video{width:min(260px,70vw)}}
