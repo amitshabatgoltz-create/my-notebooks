@@ -8025,14 +8025,14 @@ function ttNudge() {
 // הזמנת חבר: שיתוף מהטלפון (או וואטסאפ במחשב) עם הודעה מוכנה
 $('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); showTab('fr'); });
 $('homeFriends').addEventListener('click', () => showTab('fr'));
-/* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-6 חברים – 7 תמונות לטקסט ביום ===== */
+/* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-7 חברים – 7 תמונות לטקסט ביום ===== */
 // refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
-const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, REF_GOAL = 6, REF_OCR = 7;
+const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, REF_GOAL = 7, REF_OCR = 7;
 // מדרגות הפרסים: כמה חברים צריך להביא, ומה מקבלים
 const REF_TIERS = [
   { n: 1, ic: 'palette', t: 'צבעים מיוחדים למחברות', d: 'זהב, ניאון, גלקסיה ועוד' },
   { n: 3, ic: 'chat', t: '+5 הודעות לעוזר ביום', d: `${CHAT_BASE + 5} במקום ${CHAT_BASE}` },
-  { n: 6, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
+  { n: REF_GOAL, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
   { n: 10, ic: 'crown', t: 'תג שגריר', d: 'ליד השם שלך, וגישה ראשונה לכל דבר חדש' },
 ];
 let refList = [], refLoaded = false;
@@ -8168,11 +8168,11 @@ function renderFriends() {
       <div class="fr-ring" style="--p:${nx ? Math.round(n / nx.n * 100) : 100}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-${nx ? nx.ic : 'crown'}"/></svg><small>${nx ? `${n}/${nx.n}` : 'הכול'}</small></span></div>
     </div>
     <div class="card bp">
-      <div class="bp-head"><div><small>מסלול החברים</small><h3>כל חבר = שלב אחד קדימה</h3></div><div class="bp-lvl"><span>שלב</span><b>${Math.min(n, REF_MAX)}</b><span>מתוך ${REF_MAX}</span></div></div>
+      <div class="bp-head"><div><small>מסלול החברים</small><h3>כל חבר = שלב אחד קדימה</h3>${nx ? `<p class="bp-left">עוד <b>${left}</b> ${left === 1 ? 'חבר' : 'חברים'} למטרה הבאה: ${esc(nx.t)}</p>` : '<p class="bp-left">סיימת את כל המסלול!</p>'}</div><div class="bp-lvl"><span>שלב</span><b>${Math.min(n, REF_MAX)}</b><span>מתוך ${REF_MAX}</span></div></div>
       <div class="bp-scroll" id="bpScroll"><div class="bp-track" style="--cols:${REF_MAX};--fill:${n <= 0 ? 0 : Math.min(1, (Math.min(n, REF_MAX) - .5) / REF_MAX)}">
         ${Array.from({ length: REF_MAX }, (_, k) => { const lv = k + 1, t = REF_TIERS.find(x => x.n === lv), st = n >= lv ? 'got' : lv === n + 1 ? 'next' : 'lock';
           return `<div class="bp-col ${st}${lv === n ? ' me' : ''}" data-lv="${lv}">
-            ${t ? `<div class="bp-card"><span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `${lv} ${lv === 1 ? 'חבר' : 'חברים'}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i></div>`}
+            ${t ? `<div class="bp-card"><span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
             <div class="bp-node"><span>${lv}</span>${lv === n ? '<em>אתה</em>' : ''}</div>
           </div>`; }).join('')}
         <div class="bp-bar"><i></i></div>
