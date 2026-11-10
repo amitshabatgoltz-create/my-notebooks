@@ -2333,3 +2333,16 @@ html[data-theme="dark"] .ce-row span{color:#4ADE80}
 /* טקסט באנגלית שהודבק: משמאל לימין, אבל מיושר לימין */
 :is(#editor,#shareBody) [dir="ltr"][data-a="right"]{text-align:right}
 :is(#editor,#shareBody) [data-a="right"]{text-align:right}
+
+/* העוזר זוכר אותך */
+.cm-mem{display:flex;flex-direction:column;gap:4px;align-self:flex-start;margin:-2px 40px 6px 0;max-width:calc(86% - 40px);font-size:12.5px;color:var(--muted)}
+.cm-mem-i{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 10px;border-radius:999px;background:var(--accent-soft)}
+.cm-mem-i button{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;cursor:pointer;padding:2px 4px}
+.am-list{display:flex;flex-direction:column;gap:6px;margin:12px 0;max-height:50vh;overflow:auto}
+.am-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2,var(--accent-soft))}
+.am-row span{flex:1;min-width:0;overflow-wrap:anywhere}
+.am-del{flex:none;width:34px;height:34px;border:0;border-radius:10px;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.am-del:hover{color:#d33;background:color-mix(in srgb,#d33 10%,transparent)}
+.am-del svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.am-empty{padding:16px;border-radius:12px;background:var(--accent-soft);color:var(--muted);text-align:center}
+.am-btns{display:flex;gap:8px;justify-content:flex-end}

@@ -170,8 +170,9 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); setTimeout(statsPing, 4000); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = [];
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -6296,7 +6297,7 @@ function chatInline(parent, text) {
 const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F1E6}-\u{1F1FF}]/gu;
 const noEmoji = t => String(t || '').replace(/[\u2705\u2714]/g, '✓').replace(/\u274C/g, '✕').replace(EMOJI_RE, '').replace(/[ \t]{2,}/g, ' ');
 function chatFill(el, text) {
-  const lines = noEmoji(text).replace(/\r/g, '').split('\n').filter(l => !/^\s*>>/.test(l));
+  const lines = noEmoji(text).replace(/\r/g, '').split('\n').filter(l => !/^\s*(>>|@@)/.test(l));
   const cells = l => { const t = l.trim().replace(/^\|/, '').replace(/\|$/, ''); return t.split('|').map(x => x.trim()); };
   const isRow = l => l.includes('|') && cells(l).filter(Boolean).length >= 2;
   const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l) && l.includes('-');
@@ -6771,6 +6772,79 @@ function chatPlace(v) {
 }
 
 // מה העוזר יודע על התלמיד: מערכת שעות וממוצעים
+// ===== העוזר זוכר אותך: עובדות קבועות שהמשתמש סיפר (כיתה, מה קשה לו...), נשמרות בין שיחות =====
+let aiMem = [], unsubAiMem = null;
+const AIMEM_MAX = 40;
+const aiMemDoc = () => doc(db, 'users', me.uid, 'meta', 'aimem');
+function subscribeAiMem() {
+  if (unsubAiMem) unsubAiMem();
+  unsubAiMem = onSnapshot(aiMemDoc(), sn => { const it = sn.exists() && sn.data().items; aiMem = Array.isArray(it) ? it.filter(x => x && x.t).slice(0, AIMEM_MAX) : []; }, () => {});
+}
+function aiMemPrompt() {
+  if (!aiMem.length) return '';
+  return 'מה שאתה זוכר על המשתמש משיחות קודמות (הוא סיפר לך):\n' + aiMem.map(x => '- ' + x.t).join('\n') + '\nהתאם את ההסברים לזה (למשל לרמה של הכיתה שלו), בלי להזכיר כל פעם שאתה זוכר.\n';
+}
+const aiMemNorm = t => String(t || '').replace(/["'״׳.,]/g, '').replace(/\s+/g, ' ').trim();
+function aiMemFrom(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(/^\s*@@\s*(.+?)\s*$/gm)) {
+    const t = noEmoji(m[1]).replace(/[*_`#]/g, '').trim().slice(0, 140);
+    if (t.length >= 4 && !/סיסמ|password|\d{6,}|@\w/i.test(t)) out.push(t);
+  }
+  return out.slice(0, 3);
+}
+async function aiMemAdd(list) {
+  if (!me) return [];
+  const have = new Set(aiMem.map(x => aiMemNorm(x.t)));
+  const added = list.filter(t => { const k = aiMemNorm(t); if (!k || have.has(k)) return false; have.add(k); return true; })
+    .map(t => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, at: Date.now() }));
+  if (!added.length) return [];
+  const items = [...added, ...aiMem].slice(0, AIMEM_MAX);
+  try { await setDoc(aiMemDoc(), { items, updatedAt: Date.now() }); aiMem = items; track('ai_mem', { n: added.length }); return added; }
+  catch (e) { console.warn('aimem', e); return []; }
+}
+async function aiMemDel(id) {
+  const items = aiMem.filter(x => x.id !== id);
+  try { await setDoc(aiMemDoc(), { items, updatedAt: Date.now() }); aiMem = items; return true; } catch { toast('לא הצלחתי למחוק. בדוק שיש אינטרנט'); return false; }
+}
+// שורה קטנה מתחת לתשובה: "זכרתי: ..." עם אפשרות לשכוח
+function aiMemNote(b, added) {
+  const box = document.createElement('div'); box.className = 'cm-mem';
+  added.forEach(x => {
+    const r = document.createElement('span'); r.className = 'cm-mem-i';
+    const t = document.createElement('span'); t.dir = 'auto'; t.textContent = 'זכרתי: ' + x.t;
+    const f = document.createElement('button'); f.type = 'button'; f.textContent = 'לשכוח';
+    f.onclick = async () => { if (await aiMemDel(x.id)) { r.textContent = 'שכחתי.'; } };
+    r.append(t, f); box.appendChild(r);
+  });
+  (b.nextElementSibling && b.nextElementSibling.classList.contains('cm-next') ? b.nextElementSibling : b).after(box);
+}
+function aiMemDialog() {
+  dialog(d => {
+    d.classList.add('aimem-dlg');
+    d.innerHTML = '<h3>מה העוזר זוכר עליי</h3><p>דברים שסיפרת לעוזר הלימודי, כדי שיתאים את ההסברים אליך גם בשיחות הבאות. אפשר למחוק כל דבר.</p>';
+    const list = document.createElement('div'); list.className = 'am-list';
+    const paint = () => {
+      list.innerHTML = '';
+      if (!aiMem.length) { const e = document.createElement('div'); e.className = 'am-empty'; e.textContent = 'העוזר עוד לא זוכר כלום. אפשר לספר לו, למשל: "אני בכיתה ח\' וקשה לי בשברים".'; list.appendChild(e); return; }
+      aiMem.forEach(x => {
+        const row = document.createElement('div'); row.className = 'am-row';
+        const t = document.createElement('span'); t.dir = 'auto'; t.textContent = x.t;
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'am-del'; del.setAttribute('aria-label', 'מחיקה'); del.innerHTML = '<svg aria-hidden="true"><use href="#i-trash"/></svg>';
+        del.onclick = async () => { if (await aiMemDel(x.id)) paint(); };
+        row.append(t, del); list.appendChild(row);
+      });
+    };
+    paint();
+    const row = document.createElement('div'); row.className = 'am-btns';
+    const all = document.createElement('button'); all.type = 'button'; all.className = 'btn btn-ghost'; all.textContent = 'למחוק הכול';
+    all.onclick = async () => { if (!aiMem.length) return; const prev = aiMem.slice(); try { await setDoc(aiMemDoc(), { items: [], updatedAt: Date.now() }); aiMem = []; paint(); toastAction('נמחק', 'ביטול', async () => { await setDoc(aiMemDoc(), { items: prev, updatedAt: Date.now() }); aiMem = prev; }); } catch { toast('לא הצלחתי למחוק'); } };
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'btn btn-primary'; close.textContent = 'סגירה'; close.onclick = closeDialog;
+    row.append(all, close);
+    d.append(list, row);
+  });
+}
+$('aiMemBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); aiMemDialog(); });
 function chatAboutMe() {
   const out = [];
   const days = (timetable && timetable.days) || {};
@@ -6838,6 +6912,7 @@ ${chatAllNotebooks()}
 ${upcoming || '(אין)'}
 אירוע עם שעה ביומן (אימון, חוג וכו') = המשתמש עסוק אז. כשאתה מציע מתי ללמוד, אל תציע את הזמנים האלה.
 ${chatAboutMe()}
+${aiMemPrompt()}
 
 התפקידים שלך:
 1. עזור למשתמש בכל שאלה ובקשה, גם אם אין לה קשר למחברת: להסביר חומר, לפתור ולבדוק תרגילים, לתרגל למבחן, לעזור בכתיבה ולתת עצות. אם השאלה קשורה למחברת, הסתמך עליה. בכל מקרה אחר השתמש בידע הכללי הרחב שלך, והסבר בצורה מעולה ותמציתית. אם אתה לא בטוח במשהו, אמור זאת.
@@ -6889,6 +6964,10 @@ ${chatTeach ? CHAT_TEACH + '\n\n' : ''}${noKit ? 'נגמרו למשתמש השא
 - אם אתה לא בטוח – תגיד שאתה לא בטוח. אל תמציא עובדות, ציטוטים או מקורות.
 - בסוף תשובה רגילה (לא כשיש JSON), הוסף שורה אחרונה שמתחילה ב->> ובה 2–3 הצעות קצרות מאוד להמשך מנקודת המבט של המשתמש, מופרדות ב- | . למשל:
 >> תן לי תרגיל דומה | תסביר שוב בפשטות | מה יכול להופיע במבחן?
+
+זיכרון: אם המשתמש סיפר משהו קבוע על עצמו שיעזור לך גם בשיחות הבאות (באיזו כיתה הוא, מגמה, בית ספר, מה קשה לו, איך הוא אוהב שמסבירים לו, מטרה שלו, מבחן גדול שמתקרב) או ביקש במפורש שתזכור – הוסף בסוף התשובה (אחרי שורת ה->>) שורה שמתחילה ב-@@ ובה העובדה בקצרה, בגוף שלישי. למשל:
+@@ לומד בכיתה ח'
+עובדה אחת בכל שורה, רק דברים חדשים שעוד לא כתובים ב"מה שאתה זוכר", ורק כשבאמת נאמר משהו כזה (ברוב התשובות לא יהיה). לא דברים של השיחה הזאת בלבד, ולא מידע רגיש (סיסמאות, כתובת, טלפון, בריאות). אם המשתמש מבקש לשכוח משהו – אמור לו שאפשר למחוק דרך "מה העוזר זוכר" בתפריט החשבון.
 
 בלי אימוג'ים בכלל.
 ענה תמיד בעברית (אלא אם המשתמש כותב באנגלית או מתרגל אנגלית). בלי HTML.`;
@@ -7243,7 +7322,8 @@ async function chatSend() {
     const s = chatSplit(raw);
     const src = (aiLastSrc || []).filter(x => x && x.uri).slice(0, 5).map(x => ({ t: x.title || '', u: x.uri }));
     const next = stopped ? [] : chatNextIdeas(s.text);
-    let text = (s.partial ? s.text || raw.trim() : s.text).replace(/^\s*>>.*$/gm, '').trim(), card = null;
+    const memNew = stopped ? [] : aiMemFrom(s.text || raw);
+    let text = (s.partial ? s.text || raw.trim() : s.text).replace(/^\s*(>>|@@).*$/gm, '').trim(), card = null;
     if (stopped && !text) text = '(עצרת את התשובה)';
     // JSON שבור או חתוך של שאלון לא מוצג למשתמש
     if ((s.partial || s.broken) && /"action"\s*:\s*"(QUIZ|SHEET|EDIT_NOTEBOOK)"/.test(raw)) text = 'לא הצלחתי להכין את זה הפעם. נסה שוב.';
@@ -7274,6 +7354,7 @@ async function chatSend() {
     document.querySelectorAll('#chatLog .cm-next').forEach(x => x.remove());
     chatTools(b, botItem, !card);
     if (!card) chatNextChips(b, next);
+    if (memNew.length) aiMemAdd(memNew).then(added => { if (added.length) aiMemNote(b, added); });
     const note = files.length ? `(צירף: ${files.map(f => f.name).join(', ')}) ` : '';
     chatHistory.push({ role: 'me', text: note + (long ? `(הדביק חומר ארוך שמתחיל ב: ${msg.slice(0, 80)})` : msg), ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
     if (card) chatCardEl(botItem);
