@@ -48,7 +48,7 @@ service cloud.firestore {
     // 📊 ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם.
     // את הקטע עם הקוד של בעל האתר מעתיקים מהעמוד "ניהול האתר" באתר (ADMIN_UID מוחלף שם בקוד האמיתי)
     match /stats/{uid} {
-      allow read: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com';
+      allow read: if request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true;
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref'])
@@ -62,7 +62,7 @@ service cloud.firestore {
     // הזמנת חברים: refs/<מי שהזמין>/joined/<החבר החדש>. רק משתמש חדש (שעוד אין לו stats) יכול להירשם כחבר, פעם אחת.
     // מי שהזמין רואה רק את החברים שלו, ובעל האתר רואה הכול
     match /refs/{refUid}/joined/{newUid} {
-      allow read: if request.auth != null && (request.auth.uid == refUid || request.auth.token.email == 'amitshabatgoltz@gmail.com');
+      allow read: if request.auth != null && (request.auth.uid == refUid || request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true);
       allow create: if request.auth != null && request.auth.uid == newUid && newUid != refUid
         && !exists(/databases/$(database)/documents/stats/$(newUid))
         && request.resource.data.keys().hasOnly(['name', 'at'])
@@ -72,7 +72,7 @@ service cloud.firestore {
     }
     // 🔒 ספירת ה-AI: רק השרת כותב. בעל האתר יכול לקרוא את הספירה של כל האתר (aiQuota/_site) בעמוד "ניהול האתר"
     match /aiQuota/{id} {
-      allow get: if id == '_site' && request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com';
+      allow get: if id == '_site' && request.auth != null && request.auth.token.email == 'amitshabatgoltz@gmail.com' && request.auth.token.email_verified == true;
     }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
     // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)

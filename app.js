@@ -3525,6 +3525,7 @@ $('shareBtn').onclick = shareDialog;
 let shareEditOpened = false;
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
+  if (!/^[\w-]{6,64}$/.test(String(id || ''))) { toast('הקישור לא תקין'); return; }   // אבטחה: רק קוד של שיתוף, לא נתיב אחר
   shareParam = id; shareEditOpened = false;
   shMark(id); shareAsk = null; $('shBody').contentEditable = 'false'; $('shClose').querySelector('span').textContent = 'למחברות שלי';
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
