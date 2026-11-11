@@ -2712,3 +2712,5 @@ html[data-theme="dark"] .inapp-tip{background:#3a2f0c;color:#FDE68A}
 .adm-ref-row{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 4%,transparent);text-align:right;width:100%}
 .adm-ref-row:hover{background:var(--accent-soft)}.adm-ref-row.on{outline:2px solid var(--accent)}
 .adm-ref-row small{color:var(--muted);font-size:12px}
+/* מסך מלא: רואים את כל הסרטון, בלי חיתוך */
+.fr-vid video:fullscreen,.fr-vid video:-webkit-full-screen{object-fit:contain;background:#000;border-radius:0}
