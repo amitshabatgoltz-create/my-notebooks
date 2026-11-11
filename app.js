@@ -8189,7 +8189,7 @@ function refGuideMaybe() {
 function refVideo() {
   track('ref_video', {});
   const o = document.createElement('div'); o.className = 'dv-wrap rv-wrap'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'סרטון: תוכנית החברים');
-  o.innerHTML = `<div class="dv-box"><video src="promo/video12.mp4" playsinline autoplay preload="auto"></video><div class="dv-bar"><i></i></div>
+  o.innerHTML = `<div class="dv-box"><video src="promo/video12.mp4" poster="promo/video12.jpg" playsinline autoplay preload="auto"></video><div class="dv-bar"><i></i></div>
       <button type="button" class="dv-snd hidden"><svg aria-hidden="true"><use href="#i-speak"/></svg>להפעלת סאונד</button>
       <div class="rv-end hidden"><span class="rv-ic"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><b>מביאים חברים, מקבלים פרסים</b><small>הקישור האישי שלך מחכה בעמוד "חברים"</small>
         <button type="button" class="btn rv-go">לעמוד החברים</button><button type="button" class="rv-again">לראות שוב</button></div></div>
@@ -8279,7 +8279,7 @@ function renderFriends() {
       <div class="fr-acc${refHas(6) ? '' : ' locked'}"><div><b>צבע לכל האתר</b><small>${refHas(6) ? 'בוחרים, והאתר כולו מתחלף' : 'נפתח ב-6 חברים'}</small></div><div class="picker fr-acc-pick">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="background:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>
       <p class="muted-s">רקעים מיוחדים וגופן כיפי: ב"הגדרות" של כל מחברת. צבעים מיוחדים: בכפתור "צבע" של המחברת.</p>
     </div>
-    <div class="card fr-vid"><video src="promo/video12.mp4#t=0.1" controls playsinline preload="metadata" aria-label="סרטון: איך עובדת תוכנית החברים"></video>
+    <div class="card fr-vid"><video src="promo/video12.mp4" poster="promo/video12.jpg" controls playsinline preload="none" aria-label="סרטון: איך עובדת תוכנית החברים"></video>
       <div class="fr-vid-tx"><small>סרטון של 20 שניות</small><h3>איך זה עובד?</h3><p>שולחים קישור, כל חבר שנרשם הוא שלב קדימה, ובכל שלב נפתח פרס. גם החבר מקבל מתנה.</p></div></div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
