@@ -6986,6 +6986,7 @@ ${aiMemPrompt()}
 שינוי של משהו שכבר ביומן (לדחות או להקדים מבחן, לשנות שעה או שם, לסמן שבוצע, לבטל ולמחוק): החזר בתחילת התשובה JSON בפורמט הזה, ואחריו משפט קצר:
 {"action":"UPDATE_CALENDAR","items":[{"id":"הקוד מהסוגריים המרובעים ברשימת היומן","date":"YYYY-MM-DD"}]}
 - כתוב רק את מה שמשתנה: date, time ("HH:MM" או ""), title, done (true/false), או "delete":true כדי למחוק.
+- UPDATE_CALENDAR רק לדבר שמופיע ברשימת היומן למעלה עם הקוד שלו. שיעורי בית או מבחן חדשים שהמשתמש שולח = ADD_TO_CALENDAR.
 - אם הדבר כבר נמצא ברשימת היומן (גם אם המשתמש אומר "זה לא ב-X, זה ב-Y") – תמיד UPDATE_CALENDAR, ולעולם לא ADD_TO_CALENDAR, אחרת יהיו שניים.
 - id חייב להיות בדיוק אחד מהקודים ברשימה למעלה. אם לא ברור על איזה דבר מדובר – שאל, ואל תחזיר JSON.
 - לעולם אל תגיד ששינית, הוספת או מחקת משהו ביומן בלי להחזיר את ה-JSON המתאים. בלי JSON – שום דבר לא משתנה.
@@ -7223,10 +7224,16 @@ function chatEditCard(eds) {
   row.append(ok, no); c.append(h, list, row); $('chatLog').appendChild(c); chatScroll();
 }
 // שינוי של דברים שכבר ביומן (לדחות מבחן, לשנות שעה, למחוק). שומרים את מה שהיה כדי שאפשר לבטל
+function calFindByTitle(title) {
+  const mine = new Set(calWords(title)); if (!mine.size) return null;
+  const from = key(new Date(Date.now() - 7 * 864e5));
+  const c = events.filter(e => !e.done && e.date >= from && calWords(e.title).some(w => mine.has(w)));
+  return c.length === 1 ? c[0] : null;
+}
 async function chatUpdateEvents(a) {
   const out = [];
   for (const it of (Array.isArray(a.items) ? a.items : []).slice(0, 15)) {
-    const ev = it && events.find(e => e.id === String(it.id || '').replace(/^\[|\]$/g, '').trim());
+    const ev = it && (events.find(e => e.id === String(it.id || '').replace(/^\[|\]$/g, '').trim()) || (it.title ? calFindByTitle(it.title) : null));
     if (!ev) continue;
     const before = { title: ev.title, date: ev.date, time: ev.time || '', done: !!ev.done };
     if (it.delete === true) { const { id, ...data } = ev; await deleteDoc(evDoc(ev.id)); out.push({ id: ev.id, del: true, before, data }); continue; }
@@ -7463,9 +7470,16 @@ async function chatSend() {
       let ch = [];
       try { ch = await chatUpdateEvents(s.action); } catch (e) { console.error(e); }
       if (ch.length) { if (!text) text = ch.length === 1 ? 'עדכנתי ביומן.' : `עדכנתי ביומן ${ch.length} דברים.`; }
-      else text = 'לא מצאתי ביומן את מה שצריך לשנות, אז לא שיניתי כלום. אפשר להגיד לי בדיוק מה ומתי?';
+      let added = [];
+      if (!ch.length) {
+        const items = (Array.isArray(s.action.items) ? s.action.items : []).filter(x => x && x.title && !x.delete).map(x => ({ taskType: x.taskType || (/מבחן|בוחן/.test(x.title) ? 'מבחן' : 'שיעורי בית'), title: x.title, date: x.date || '', time: x.time || '' }));
+        if (items.length) { try { added = await chatAddEvent({ items }, msg.slice(0, 600)); } catch (e) { console.error(e); } }
+        text = added.length ? (added.length === 1 ? `הוספתי לך ליומן: ${added[0].title}` : `הוספתי לך ליומן ${added.length} דברים.`) : 'לא מצאתי ביומן את מה שצריך לשנות, אז לא שיניתי כלום. אפשר להגיד לי בדיוק מה ומתי?';
+      }
       b.classList.remove('typing', 'making'); chatFill(b, text);
       if (ch.length) chatUpdatedCard(ch);
+      const mv = added.filter(e => e.moved).map(e => e.moved), ad = added.filter(e => !e.moved && !e.dup);
+      if (mv.length) chatUpdatedCard(mv); if (ad.length) chatAddedCard(ad);
     } else if (s.action && s.action.action === 'EDIT_NOTEBOOK') {
       const eds = chatEditPrep(s.action);
       if (!eds.length) text = (text ? text + '\n\n' : '') + (openId ? 'לא מצאתי במחברת את המקום שצריך לשנות. אפשר להגיד לי בדיוק איפה, למשל "מתחת לכותרת X".' : 'כדי שאשנה משהו במחברת, צריך לפתוח אותה ולשאול אותי משם.');
