@@ -5341,7 +5341,12 @@ async function aiText(models, cfg, parts, onText) {
           const r = await m.generateContentStream(parts); let acc = '', stop = '';
           for await (const ch of r.stream) { stop = ch.promptFeedback?.blockReason || ch.candidates?.[0]?.finishReason || stop; try { acc += ch.text(); } catch {} onText(acc); }
           if (acc) return acc;
-          if (stop && stop !== 'STOP') { lastErr = Object.assign(new Error('blocked: ' + stop), { blocked: stop }); break; }
+          if (stop && stop !== 'STOP') {
+            lastErr = Object.assign(new Error('blocked: ' + stop), { blocked: stop });
+            // תקלה של Gemini (תשובה שבורה) ולא סירוב אמיתי: מנסים שוב פעם אחת בלי "חשיבה" – זה כמעט תמיד עובר
+            if (/MALFORMED|UNEXPECTED|OTHER|MAX_TOKENS/.test(stop) && c === cfg) { console.warn('retry after', stop); continue; }
+            break;
+          }
         } else { const r = await m.generateContent(parts); const t = r.response.text(); if (t) return t; }
       } catch (e0) {
         let e = e0;
@@ -7345,6 +7350,7 @@ function chatWhy(e) {
   if (chatStatus(e) === 404) why = 'המודל של Gemini שהאתר משתמש בו כבר לא זמין. צריך לעדכן את האתר.';
   else if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
   else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
+  else if (e && /MALFORMED|UNEXPECTED/.test(e.blocked || '')) why = 'Gemini התבלבל בתשובה הזאת. נסה לשלוח שוב, זה בדרך כלל עובר בפעם השנייה.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';
   else if (/site-busy|gemini-quota/.test(m)) why = 'העוזר עמוס עכשיו – הרבה תלמידים שואלים בבת אחת. נסה שוב בעוד דקה. ההודעה לא נספרה לך.';
   else if (/daily-limit/.test(m)) why = 'נגמרו ההודעות לעוזר להיום. מחר אפשר שוב.';
