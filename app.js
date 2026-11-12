@@ -219,6 +219,20 @@ $('sampleBtn').onclick = async () => {
   await setDoc(doc(nbCol()), { ...SAMPLE_NOTEBOOK, createdAt: now, updatedAt: now });
 };
 
+/* ===== טלפון: הסרגל התחתון לא "נתקע" באמצע המסך (iPhone עם המקלדת) ===== */
+// בזמן הקלדה מסתירים את הסרגל והכפתור הצף. אחרי שהמקלדת נסגרת – מצמידים אותם שוב לתחתית המסך שרואים
+(() => {
+  const touch = matchMedia('(pointer: coarse)').matches; if (!touch) return;
+  const isField = el => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) && !(el.type && /^(checkbox|radio|button|submit|file|range|color)$/.test(el.type));
+  document.addEventListener('focusin', e => { if (isField(e.target)) document.body.classList.add('kb-on'); });
+  document.addEventListener('focusout', () => setTimeout(() => { if (!isField(document.activeElement)) { document.body.classList.remove('kb-on'); pin(); } }, 120));
+  const vv = window.visualViewport; if (!vv) return;
+  const pin = () => {
+    const d = Math.round(vv.offsetTop + vv.height - innerHeight);   // 0 כשהכול תקין; שלילי כשהמסך "זז"
+    document.documentElement.style.setProperty('--vv-fix', (document.body.classList.contains('kb-on') ? 0 : d) + 'px');
+  };
+  vv.addEventListener('resize', pin); vv.addEventListener('scroll', pin); addEventListener('scroll', pin, { passive: true });
+})();
 /* ================= עזרים ================= */
 const BOX_COLORS = ['yellow', 'blue', 'green', 'purple', 'red', 'gray'];
 const LN_RE = /^\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,3}\|\d{1,2}\|#[0-9a-fA-F]{6}\|[01]\|[01]$/;

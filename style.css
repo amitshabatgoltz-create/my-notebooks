@@ -2776,3 +2776,9 @@ span[data-frac]>span[data-d]{padding:.05em .25em 0;min-width:.8em;text-align:cen
 
 button.adm-tool{width:100%;text-align:right;border-radius:10px;padding:4px 6px;cursor:pointer}
 button.adm-tool:hover{background:var(--accent-soft)}
+
+/* טלפון: בזמן הקלדה – בלי סרגל תחתון ובלי כפתור צף (הם קפצו לאמצע המסך באייפון), ואחר כך מוצמדים לתחתית שרואים */
+@media (max-width:900px){
+  .tabbar,.chat-fab{transform:translateY(var(--vv-fix,0px))}
+  body.kb-on .tabbar,body.kb-on .chat-fab{display:none!important}
+}
