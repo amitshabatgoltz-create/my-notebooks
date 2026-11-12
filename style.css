@@ -2733,3 +2733,6 @@ span[data-frac]>span[data-d]{padding:.05em .25em 0;min-width:.8em;text-align:cen
 .mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:4px;margin-bottom:4px}
 .mp-grid button{height:38px;border-radius:10px;font-size:17px;font-weight:600;font-family:'Times New Roman',serif;background:color-mix(in srgb,var(--ink) 4%,transparent)}
 .mp-grid button:hover{background:var(--accent-soft);color:var(--accent)}
+
+.remember{display:flex;align-items:center;gap:8px;margin:2px 0 12px;font-size:14px;color:var(--muted);cursor:pointer;user-select:none}
+.remember input{width:18px;height:18px;accent-color:var(--accent);margin:0;flex:none}

@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut
+  updateProfile, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signOut,
+  setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField
@@ -117,11 +118,20 @@ $('swapMode').onclick = () => setMode(mode === 'login' ? 'signup' : 'login');
 $('tabLogin').onclick = () => setMode('login');
 $('tabSignup').onclick = () => setMode('signup');
 
+// "זכור אותי במכשיר הזה": מסומן – נשארים מחוברים גם אחרי שסוגרים (ונכנסים ישר). לא מסומן – מתנתקים כשסוגרים את הדפדפן
+function rememberApply() {
+  const on = $('rememberMe').checked;
+  try { localStorage.setItem('rememberMe', on ? '1' : '0'); if (!on) localStorage.removeItem('lastEmail'); } catch {}
+  return setPersistence(auth, on ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
+}
+try { $('rememberMe').checked = localStorage.getItem('rememberMe') !== '0'; const le = localStorage.getItem('lastEmail'); if (le && !$('email').value) $('email').value = le; } catch {}
 $('authForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email = $('email').value.trim(), pass = $('password').value;
   $('authBtn').disabled = true; status('');
   try {
+    await rememberApply();
+    try { if ($('rememberMe').checked) localStorage.setItem('lastEmail', email); } catch {}
     if (mode === 'login') await signInWithEmailAndPassword(auth, email, pass);
     else {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
@@ -134,6 +144,7 @@ $('authForm').addEventListener('submit', async e => {
 
 $('googleBtn').onclick = async () => {
   status('');
+  rememberApply();   // בלי await: החלון של Google חייב להיפתח מיד בלחיצה
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (err) { status(errMsg(err)); }
 };
