@@ -65,10 +65,14 @@ let analytics = null;
 if (firebaseConfig.measurementId) analyticsSupported().then(ok => { if (ok) analytics = getAnalytics(fb); }).catch(() => {});
 const track = (name, params) => { try { if (analytics) logEvent(analytics, name, params || {}); } catch {} };
 // App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
-if (recaptchaSiteKey && !recaptchaSiteKey.startsWith('PASTE')) {
+// נטען רק כשצריך (מחובר / לוחץ להתחבר / מחברת משותפת), כדי שמי שרק מנסה את הדוגמה לא יוריד כמעט 1MB
+let appCheckOn = false;
+function ensureAppCheck() {
+  if (appCheckOn || !recaptchaSiteKey || recaptchaSiteKey.startsWith('PASTE')) return; appCheckOn = true;
   try { initializeAppCheck(fb, { provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey), isTokenAutoRefreshEnabled: true }); }
   catch (e) { console.error('App Check', e); }
 }
+try { if (Object.keys(localStorage).some(k => k.startsWith('firebase:authUser:')) || new URLSearchParams(location.search).has('s')) ensureAppCheck(); } catch { ensureAppCheck(); }
 const auth = getAuth(fb);
 // Realtime Database: ערוץ מהיר לעכבר, לסמן ולטקסט בזמן עריכה משותפת (אם הוגדר)
 let rtdb = null; try { if (firebaseConfig.databaseURL) rtdb = getDatabase(fb); } catch (e) { console.warn('rtdb', e); }
@@ -125,8 +129,9 @@ function rememberApply() {
   return setPersistence(auth, on ? browserLocalPersistence : browserSessionPersistence).catch(() => {});
 }
 try { $('rememberMe').checked = localStorage.getItem('rememberMe') !== '0'; const le = localStorage.getItem('lastEmail'); if (le && !$('email').value) $('email').value = le; } catch {}
+['pointerdown', 'focusin'].forEach(t => $('login').addEventListener(t, e => { if (e.target.closest('#authForm, #googleBtn')) ensureAppCheck(); }, { passive: true }));
 $('authForm').addEventListener('submit', async e => {
-  e.preventDefault();
+  e.preventDefault(); ensureAppCheck();
   const email = $('email').value.trim(), pass = $('password').value;
   // שדות ריקים: אומרים בדיוק מה חסר (ולא סתם כפתור אפור)
   if (!email) { status('צריך למלא אימייל'); $('email').focus(); return; }
@@ -149,7 +154,7 @@ $('authForm').addEventListener('submit', async e => {
 
 $('googleBtn').onclick = async () => {
   status('');
-  rememberApply();   // בלי await: החלון של Google חייב להיפתח מיד בלחיצה
+  ensureAppCheck(); rememberApply();   // בלי await: החלון של Google חייב להיפתח מיד בלחיצה
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
   catch (err) { status(errMsg(err)); }
 };
@@ -176,6 +181,7 @@ $('userBtn').addEventListener('click', e => {
 document.addEventListener('click', e => { if (!e.target.closest('.user')) { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); } });
 
 onAuthStateChanged(auth, user => {
+  if (user) ensureAppCheck();
   if (unsub) { unsub(); unsub = null; }
   if (unsubEv) { unsubEv(); unsubEv = null; }
   if (unsubSh) { unsubSh(); unsubSh = null; }
@@ -3710,6 +3716,7 @@ $('shareBtn').onclick = shareDialog;
 let shareEditOpened = false;
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
+  ensureAppCheck();
   if (!/^[\w-]{6,64}$/.test(String(id || ''))) { toast('הקישור לא תקין'); return; }   // אבטחה: רק קוד של שיתוף, לא נתיב אחר
   shareParam = id; shareEditOpened = false;
   shMark(id); shareAsk = null; $('shBody').contentEditable = 'false'; $('shClose').querySelector('span').textContent = 'למחברות שלי';
@@ -3742,7 +3749,7 @@ function openShare(id) {
 function closeShare(keepUrl) {
   if (unsubView) { unsubView(); unsubView = null; }
   $('shBody').contentEditable = 'false';
-  shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share');
+  shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share'); document.querySelector('.demo-board')?.remove();
   document.title = 'המחברות שלי';
   $('login').inert = false;
   if (location.search && !keepUrl) history.replaceState(null, '', location.pathname);
@@ -3759,15 +3766,21 @@ function openDemo() {
   $('shClose').querySelector('span').textContent = me ? 'למחברות שלי' : 'חזרה';
   $('shClose').setAttribute('aria-label', me ? 'חזרה למחברות שלי' : 'חזרה למסך הכניסה'); $('login').inert = true;
   $('shTitle').textContent = DEMO_NOTEBOOK.title;
-  $('shOwner').textContent = 'מחברת לדוגמה · אפשר לכתוב בה ולנסות, שום דבר לא נשמר';
+  $('shOwner').textContent = 'מחברת לדוגמה · לוחצים על הטקסט ומתחילים לכתוב. שום דבר לא נשמר';
+  document.querySelector('.demo-board')?.remove();
+  const board = document.createElement('div'); board.className = 'demo-board'; board.setAttribute('aria-label', 'דוגמה: צילום של הלוח שהפך לטקסט');
+  board.innerHTML = `<div class="db-photo"><span class="db-tag"><svg aria-hidden="true"><use href="#i-camera"/></svg>הצילום מהלוח</span><div class="db-chalk"><b>מחזור המים</b><span>1. אידוי – השמש מחממת</span><span>2. עיבוי – עננים</span><span>3. משקעים – גשם / שלג</span><span>4. זרימה וחלחול</span></div></div>
+    <div class="db-arrow" aria-hidden="true"><svg><use href="#i-back"/></svg><small>שנייה אחת</small></div>
+    <div class="db-typed"><span class="db-tag"><svg aria-hidden="true"><use href="#i-doc"/></svg>מה שהאתר הקליד</span><p><b>מחזור המים</b></p><p>1. <b>אידוי:</b> השמש מחממת את המים...</p><p>2. <b>עיבוי:</b> נוצרים עננים...</p><p class="db-more">והשאר – במחברת למטה</p></div>`;
+  $('shHint').after(board);
   $('shColor').style.setProperty('--c', DEMO_NOTEBOOK.color);
   const hint = $('shHint'); hint.classList.remove('hidden');
   hint.classList.remove('dv-flash'); void hint.offsetWidth; hint.classList.add('dv-flash');
   hint.innerHTML = 'הנה דוגמה: ככה נראית מחברת באתר. בחשבון חינמי יש גם: <b>תמונה לטקסט</b> (מצלמים את הלוח והוא מקליד), <b>סיכום למבחן</b> בלחיצה, <b>כרטיסיות שינון</b>, <b>יומן מבחנים</b> ו<b>עוזר לימודי</b> שמסביר.';
   // כפתורים שמראים את הכלים בפעולה (דוגמה מוכנה, בלי AI אמיתי)
   const tools = document.createElement('div'); tools.className = 'demo-tools';
-  tools.innerHTML = '<span>לנסות:</span><button type="button" class="btn" data-demo="sum"><svg aria-hidden="true"><use href="#i-spark"/></svg>סיכום למבחן</button><button type="button" class="btn" data-demo="fc"><svg aria-hidden="true"><use href="#i-cards"/></svg>כרטיסיות שינון</button>';
-  tools.onclick = e => { const x = e.target.closest('[data-demo]'); if (x) demoTool(x.dataset.demo); };
+  tools.innerHTML = '<span>לנסות:</span><button type="button" class="btn" data-demo="sum"><svg aria-hidden="true"><use href="#i-spark"/></svg>סיכום למבחן</button><button type="button" class="btn" data-demo="fc"><svg aria-hidden="true"><use href="#i-cards"/></svg>כרטיסיות שינון</button><button type="button" class="btn" data-demo="vid"><svg aria-hidden="true"><use href="#i-play"/></svg>סרטון של 30 שניות</button>';
+  tools.onclick = e => { const x = e.target.closest('[data-demo]'); if (!x) return; if (x.dataset.demo === 'vid') demoIntro(() => {}, true); else demoTool(x.dataset.demo); };
   hint.appendChild(tools);
   const b = $('shBody'); b.innerHTML = clean(DEMO_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
   b.contentEditable = 'true'; b.spellcheck = false;
@@ -3805,7 +3818,7 @@ function demoTool(k) {
       <button type="button" class="demo-card"></button><div class="demo-nav"><button type="button" class="btn btn-ghost" data-p>הקודם</button><span></span><button type="button" class="btn btn-ghost" data-n>הבא</button></div>
       <div class="row"><button type="button" class="btn btn-primary" data-s>להרשמה בחינם</button><button type="button" class="btn btn-ghost" data-x>סגירה</button></div>`;
     const c = d.querySelector('.demo-card'), n = d.querySelector('.demo-nav span');
-    const paint = () => { c.classList.toggle('back', flip); c.innerHTML = flip ? `<small>התשובה</small><b>${cards[i][1]}</b>` : `<small>מה זה?</small><b>${cards[i][0]}</b>`; n.textContent = `${i + 1} / ${cards.length}`; };
+    const paint = () => { c.classList.toggle('back', flip); c.innerHTML = flip ? `<small>התשובה</small><b>${cards[i][1]}</b>` : `<small>מה זה?</small><b>${cards[i][0]}</b>`; n.textContent = `${i + 1} מתוך ${cards.length}`; };
     c.onclick = () => { flip = !flip; paint(); };
     d.querySelector('[data-n]').onclick = () => { i = (i + 1) % cards.length; flip = false; paint(); };
     d.querySelector('[data-p]').onclick = () => { i = (i + cards.length - 1) % cards.length; flip = false; paint(); };
@@ -3814,12 +3827,12 @@ function demoTool(k) {
   });
 }
 // "לנסות בלי להירשם": קודם הסרטון (הילד שלא כותב ומשה שמצלם), ובסוף או בדילוג – המחברת לדוגמה
-function demoIntro(then) {
+function demoIntro(then, force) {
   let seen = false; try { seen = sessionStorage.getItem('demoVid') === '1'; } catch {}
-  if (seen || me) { then(); return; }
+  if (!force && (seen || me)) { then(); return; }
   try { sessionStorage.setItem('demoVid', '1'); } catch {}
   const o = document.createElement('div'); o.className = 'dv-wrap'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-label', 'סרטון על האתר');
-  o.innerHTML = `<div class="dv-box"><video src="promo/video9.mp4" playsinline autoplay preload="auto"></video>
+  o.innerHTML = `<div class="dv-box"><video src="promo/video9-sm.mp4" poster="promo/video9.jpg" playsinline autoplay preload="auto"></video>
       <div class="dv-bar"><i></i></div>
       <button type="button" class="dv-snd hidden"><svg aria-hidden="true"><use href="#i-speak"/></svg>להפעלת סאונד</button>
     </div>
@@ -3844,8 +3857,8 @@ function demoIntro(then) {
   // בלי לחיצה של המשתמש הדפדפן לא מרשה סאונד: מנגנים בלי, ומציעים להפעיל
   v.play().catch(() => { v.muted = true; snd.classList.remove('hidden'); v.play().catch(() => done('blocked')); });
 }
-$('demoBtn').onclick = () => demoIntro(openDemo);
-if (!shareParam && new URLSearchParams(location.search).has('demo')) demoIntro(openDemo);
+$('demoBtn').onclick = () => openDemo();
+if (!shareParam && new URLSearchParams(location.search).has('demo')) openDemo();
 
 async function copyShare(id, s) {
   if ((s.mode || 'copy') === 'view') return;

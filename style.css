@@ -2805,3 +2805,22 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .demo-card:active{transform:scale(.97)}
 .demo-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .demo-nav span{color:var(--muted);font-weight:700}
+
+/* ביקורת 2: כפתורים נוחים לאצבע, כפתור חזרה עם טקסט, וצילום לוח → טקסט בדוגמה */
+.demo-tools .btn{height:44px;padding:0 16px}
+.login-mail{display:inline-block;padding:10px 4px;margin:-10px 0}
+@media (max-width:600px){.sh-top #shClose span{display:inline}}
+.demo-board{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;max-width:820px;margin:14px auto 6px;padding:0 24px}
+.db-photo,.db-typed{position:relative;border-radius:16px;padding:30px 14px 14px;min-height:150px}
+.db-photo{background:#1f4d3a;border:7px solid #8a5a35;box-shadow:inset 0 0 30px rgba(0,0,0,.35),0 10px 24px -14px rgba(0,0,0,.5)}
+.db-chalk{display:flex;flex-direction:column;gap:2px;color:#f3f7f2;font-family:'Amatic SC',system-ui,sans-serif;font-weight:700;font-size:21px;line-height:1.15;transform:rotate(-1.2deg)}
+.db-chalk b{font-size:25px;text-decoration:underline}
+.db-typed{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);font-size:14px}
+.db-typed p{margin:0 0 4px}.db-more{color:var(--muted);font-size:12.5px}
+.db-tag{position:absolute;top:-12px;inset-inline-start:12px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:800;background:var(--accent);color:#fff;box-shadow:0 4px 10px -4px var(--accent)}
+.db-photo .db-tag{background:#F59E0B}
+.db-tag svg{width:14px;height:14px}
+.db-arrow{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--accent)}
+.db-arrow svg{width:30px;height:30px;transform:scaleX(-1);stroke-width:2.6}
+.db-arrow small{font-size:11px;font-weight:700;white-space:nowrap}
+@media (max-width:640px){.demo-board{grid-template-columns:1fr;padding:0 16px;gap:16px}.db-arrow svg{transform:rotate(90deg)}.db-arrow{flex-direction:row;justify-content:center}}
