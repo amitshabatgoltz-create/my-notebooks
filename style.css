@@ -2782,3 +2782,12 @@ button.adm-tool:hover{background:var(--accent-soft)}
   .tabbar,.chat-fab{transform:translateY(var(--vv-fix,0px))}
   body.kb-on .tabbar,body.kb-on .chat-fab{display:none!important}
 }
+
+.adm-user{font:inherit;font-weight:700;color:inherit;text-align:right;padding:0;background:none;border:0;cursor:pointer;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 40%,transparent);text-underline-offset:3px}
+.adm-user:hover{color:var(--accent)}
+.adm-user-dlg{max-width:520px}
+.adm-user-dlg h4{margin:18px 0 8px;font-size:15px}
+.adm-u-mail{margin:-2px 0 12px!important;font-size:13px;text-align:right}
+.adm-u-kpis>div{display:flex;flex-direction:column;align-items:center;padding:12px 6px;border-radius:14px;background:var(--accent-soft);text-align:center}
+.adm-u-kpis b{font-size:18px;color:var(--accent)}.adm-u-kpis span{font-size:12px;color:var(--muted)}
+.adm-u-bars{height:110px}

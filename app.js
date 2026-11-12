@@ -8033,6 +8033,38 @@ function admMarketers(list, brought, promoIds) {
 }
 // "היום באתר": מי נכנס, כמה זמן היה, ובאילו כלים השתמש
 let admTodayData = null;
+// לחיצה על משתמש: מה הוא עשה בכל יום ב-3 השבועות האחרונים (כמה זמן ובאילו כלים – בלי התוכן עצמו)
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-user'); if (!b) return;
+  const u = admList.find(x => x.id === b.dataset.uid); if (u) { closeDialog(); setTimeout(() => admUserDialog(u), 0); }
+});
+function admUserDialog(u) {
+  const toolName = k => USE_NAME[k] || (k === 'img' ? 'יצירת תמונה' : k === 'imp' ? 'ייבוא' : k);
+  const fmtMin = m => !m ? '–' : m < 60 ? `${m} דק׳` : `${Math.floor(m / 60)} שע׳${m % 60 ? ` ${m % 60} דק׳` : ''}`;
+  const dm = d => Math.round((+d.m || 0) + (+d.s || 0) / 60);
+  const days = Object.entries(u.days || {}).sort((a, b) => b[0].localeCompare(a[0]));
+  const totMin = days.reduce((a, [, d]) => a + dm(d), 0);
+  const tot = {}; days.forEach(([, d]) => Object.entries(d.ai || {}).forEach(([k, v]) => { tot[k] = (tot[k] || 0) + (+v || 0); }));
+  const totRows = Object.entries(tot).sort((a, b) => b[1] - a[1]);
+  // גרף של 14 הימים האחרונים
+  const last14 = Array.from({ length: 14 }, (_, i) => key(new Date(Date.now() - (13 - i) * 864e5)));
+  const byDay = Object.fromEntries(days), mx = Math.max(1, ...last14.map(k => byDay[k] ? dm(byDay[k]) : 0));
+  const ago = ms => { if (!ms) return '–'; const m = Math.round((Date.now() - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
+  dialog(d => {
+    d.classList.add('adm-user-dlg');
+    d.innerHTML = `<h3 dir="auto">${esc(u.name || 'משתמש')}</h3><p dir="ltr" class="adm-u-mail">${esc(u.email || '')}</p>
+      <div class="adm-t-kpis adm-u-kpis"><div><b>${fmtMin(totMin)}</b><span>זמן ב-3 שבועות</span></div><div><b>${days.length}</b><span>ימים שנכנס</span></div><div><b>${ago(u.last)}</b><span>נכנס לאחרונה</span></div></div>
+      <h4>זמן באתר – 14 הימים האחרונים</h4>
+      <div class="adm-bars adm-u-bars" role="img" aria-label="דקות באתר לפי יום">${last14.map(k => { const v = byDay[k] ? dm(byDay[k]) : 0; return `<div class="adm-bar" title="${esc(dayLabel(k))}: ${v} דק׳">${v ? `<b>${v}</b>` : ''}<i style="height:${v ? Math.max(6, v / mx * 86) : 0}%"></i></div>`; }).join('')}</div>
+      <h4>במה הוא השתמש (3 שבועות)</h4>
+      ${totRows.length ? `<div class="adm-p-tools">${totRows.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<p class="noev">עוד לא השתמש בכלים.</p>'}
+      <h4>יום אחרי יום</h4>
+      <div class="adm-ppl">${days.length ? days.map(([k, dd]) => { const ai = Object.entries(dd.ai || {}).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b>${esc(dayLabel(k))}</b><span class="adm-p-min">${dm(dd) ? fmtMin(dm(dd)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('') : '<p class="noev">אין עדיין נתונים לפי יום (נספר מ-12 בנובמבר).</p>'}</div>
+      <p class="muted-s">רואים רק כמה זמן ובאילו כלים – לא מה כתוב במחברות או מה שאל. סך הכול AI מאז ההתחלה: ${Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0)}.</p>
+      <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button></div>`;
+    d.querySelector('[data-x]').onclick = closeDialog;
+  });
+}
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('.adm-t-kpis [data-tk]'); if (!b || !admTodayData) return;
   const { today, dMin, dAi, fmtMin, toolName } = admTodayData, k = b.dataset.tk;
@@ -8074,7 +8106,7 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
     <h4>כמה השתמשו בכל כלי</h4>
     ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<button type="button" class="adm-dev-row adm-tool" data-tool="${esc(k)}" title="מי השתמש"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></button>`).join('')}</div><p class="muted-s">לוחצים על כלי ורואים מי השתמש בו.</p>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
-    ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
+    ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><button type="button" class="link adm-user" data-uid="${esc(u.id)}" dir="auto"><b>${esc(u.name || u.email || 'משתמש')}</b></button><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
     <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 30 שניות, ומה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
 }
 async function renderAdmin() {
@@ -8144,7 +8176,7 @@ async function renderAdmin() {
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td>${esc(u.name || '–')}</td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
+      ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
   // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
   const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);
