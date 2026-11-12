@@ -8033,6 +8033,17 @@ document.addEventListener('click', e => {
     d.querySelector('[data-x]').onclick = closeDialog;
   });
 });
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-tool'); if (!b || !admTodayData) return;
+  const { today, dAi, toolName } = admTodayData, k = b.dataset.tool;
+  const rows = today.filter(u => +dAi(u)[k]).sort((a, c) => (+dAi(c)[k]) - (+dAi(a)[k]));
+  dialog(d => {
+    d.innerHTML = `<h3>מי השתמש היום ב${esc(toolName(k))}</h3>
+      <div class="adm-ppl">${rows.map(u => `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${+dAi(u)[k]} ${+dAi(u)[k] === 1 ? 'פעם' : 'פעמים'}</span></div></div>`).join('') || '<p class="noev">אף אחד.</p>'}</div>
+      <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button></div>`;
+    d.querySelector('[data-x]').onclick = closeDialog;
+  });
+});
 function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
   const today = list.filter(u => u.lastDay === tk || dMin(u) || Object.keys(dAi(u)).length);
   const mins = today.reduce((a, u) => a + dMin(u), 0);
@@ -8044,7 +8055,7 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
   return `<div class="card adm-today"><h3>היום באתר</h3>
     <div class="adm-t-kpis"><button type="button" data-tk="in"><b>${today.length}</b><span>נכנסו</span><small>לחיצה = מי</small></button><button type="button" data-tk="min"><b>${fmtMin(mins)}</b><span>זמן באתר (כולם)</span><small>לחיצה = מי כמה</small></button><button type="button" data-tk="ai"><b>${uses}</b><span>שימושים בכלים</span><small>לחיצה = מי במה</small></button></div>
     <h4>כמה השתמשו בכל כלי</h4>
-    ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></div>`).join('')}</div>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
+    ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<button type="button" class="adm-dev-row adm-tool" data-tool="${esc(k)}" title="מי השתמש"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></button>`).join('')}</div><p class="muted-s">לוחצים על כלי ורואים מי השתמש בו.</p>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
     ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
     <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 2 דקות, אז מה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
