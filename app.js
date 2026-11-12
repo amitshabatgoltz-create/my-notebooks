@@ -7169,17 +7169,27 @@ function chatAllNotebooks(msg = '', max = 9000) {
   const name = n => `"${n.title || 'מחברת'}"${n.subject ? ` (${n.subject})` : ''}`;
   const head = `${openId ? 'עוד מחברות של המשתמש' : 'המחברות של המשתמש'} (${list.length}): ${list.map(name).join(', ')}.`;
   if (openId) return head;
-  const words = typeof calWords === 'function' ? calWords(msg) : String(msg).split(/\s+/).filter(w => w.length >= 3);
+  // מילים מהשאלה: בלי גרשיים (תנ"ך = תנך) ועם/בלי אות בהתחלה (בתנ"ך → תנך)
+  const nbNorm = x => String(x || '').replace(/["'״׳“”‘’`]/g, '').toLowerCase();
+  const NB_STOP = new Set(['מה', 'מי', 'איך', 'למה', 'מתי', 'למדנו', 'למדתי', 'לומדים', 'מחברת', 'במחברת', 'המחברת', 'של', 'על', 'עם', 'את', 'זה', 'יש', 'אני', 'לי', 'תסביר', 'תסכם', 'סיכום', 'מבחן', 'למבחן']);
+  const words = [...new Set(nbNorm(msg).split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 2 && !NB_STOP.has(w)))]
+    .map(w => { const v = [w]; if (/^[בהלוכמש][֐-׿]{2,}$/.test(w)) v.push(w.slice(1)); if (/^(וב|וה|ול|שב|שה|מה|כש)[֐-׿]{2,}$/.test(w)) v.push(w.slice(2)); return v; });
   if (!words.length) return head + '\nאם המשתמש שואל על חומר ממחברת מסוימת, אמור לו שאפשר לפתוח אותה ולשאול משם, או לכתוב את שם המחברת או הנושא.';
   const scored = list.map(n => {
-    const nm = `${n.title || ''} ${n.subject || ''}`, t = nbPlain(n);
-    let sc = 0; for (const w of words) { if (nm.includes(w)) sc += 10; if (t.includes(w)) sc += 1; }
+    const nm = nbNorm(`${n.title || ''} ${n.subject || ''}`), t = nbPlain(n), tn = nbNorm(t);
+    const nmW = nm.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    let sc = 0; for (const v of words) { if (v.some(w => nmW.includes(w))) sc += 20; else if (v.some(w => w.length >= 3 && nm.includes(w))) sc += 8; if (v.some(w => w.length >= 3 && tn.includes(w))) sc += 1; }
     return { n, t, sc };
-  }).filter(x => x.sc > 0 && x.t).sort((a, b) => b.sc - a.sc);
-  const pick = scored.length ? scored.slice(0, 2) : (CHAT_NB_GENERAL.test(msg) ? list.slice(0, 1).map(n => ({ n, t: nbPlain(n) })).filter(x => x.t) : []);
+  }).filter(x => x.sc >= 8 || (x.sc > 0 && x.t)).sort((a, b) => b.sc - a.sc);
+  // אם יש מחברת שהשם שלה מתאים – רק היא (ולא מחברת אחרת שבמקרה מזכירה את המילה)
+  const byName = scored.filter(x => x.sc >= 8);
+  const pick = byName.length ? byName.slice(0, 2) : scored.length ? scored.slice(0, 2) : (CHAT_NB_GENERAL.test(msg) ? list.slice(0, 1).map(n => ({ n, t: nbPlain(n) })).filter(x => x.t) : []);
   if (!pick.length) return head;
   let left = max, out = '';
   for (const { n, t } of pick) {
+    if (!t) { out += `
+--- מחברת ${name(n)}: (המחברת ריקה, עוד לא כתוב בה כלום)
+`; continue; }
     if (left < 400) break;
     const part = t.slice(0, Math.min(Math.floor(max / pick.length), left)); left -= part.length;
     out += `\n--- מחברת ${name(n)}${t.length > part.length ? ' (קטע מההתחלה)' : ''}:\n${part}\n`;
