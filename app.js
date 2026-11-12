@@ -8015,6 +8015,24 @@ function admMarketers(list, brought, promoIds) {
     <p class="muted-s">כל מי שהביא לפחות חבר אחד מופיע כאן לבד. ב-${REF_GOAL} חברים מקבלים ${REF_OCR} תמונות לטקסט ביום.</p></div>`;
 }
 // "היום באתר": מי נכנס, כמה זמן היה, ובאילו כלים השתמש
+let admTodayData = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-t-kpis [data-tk]'); if (!b || !admTodayData) return;
+  const { today, dMin, dAi, fmtMin, toolName } = admTodayData, k = b.dataset.tk;
+  const ago = ms => { if (!ms) return ''; const m = Math.round((Date.now() - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : `לפני ${Math.round(m / 60)} שע׳`; };
+  let rows = today.slice();
+  if (k === 'in') rows.sort((a, b) => (b.last || 0) - (a.last || 0));
+  else if (k === 'min') rows = rows.filter(u => dMin(u)).sort((a, b) => dMin(b) - dMin(a));
+  else rows = rows.filter(u => Object.keys(dAi(u)).length).sort((a, b) => Object.values(dAi(b)).reduce((x, y) => x + y, 0) - Object.values(dAi(a)).reduce((x, y) => x + y, 0));
+  dialog(d => {
+    d.innerHTML = `<h3>${k === 'in' ? `מי נכנס היום (${rows.length})` : k === 'min' ? 'כמה זמן כל אחד היה היום' : 'מי השתמש במה היום'}</h3>
+      <div class="adm-ppl">${rows.length ? rows.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]);
+        return `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${k === 'in' ? esc(ago(u.last)) : k === 'min' ? fmtMin(dMin(u)) : ai.reduce((x, y) => x + y[1], 0) + ' שימושים'}</span></div>
+          ${k === 'in' ? `<small class="muted-s" dir="ltr">${esc(u.email || '')}</small>` : ''}${k !== 'in' && ai.length ? `<div class="adm-p-tools">${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : ''}${k === 'in' ? `<div class="adm-p-tools"><span>זמן היום <b>${fmtMin(dMin(u))}</b></span>${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : ''}</div>`; }).join('') : '<p class="noev">עוד אין.</p>'}</div>
+      <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button></div>`;
+    d.querySelector('[data-x]').onclick = closeDialog;
+  });
+});
 function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
   const today = list.filter(u => u.lastDay === tk || dMin(u) || Object.keys(dAi(u)).length);
   const mins = today.reduce((a, u) => a + dMin(u), 0);
@@ -8022,8 +8040,9 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
   const tRows = Object.entries(tools).sort((a, b) => b[1] - a[1]), tMax = Math.max(1, ...tRows.map(r => r[1]));
   const uses = tRows.reduce((a, r) => a + r[1], 0);
   const people = today.slice().sort((a, b) => dMin(b) - dMin(a) || (b.last || 0) - (a.last || 0));
+  admTodayData = { today, dMin, dAi, fmtMin, toolName };
   return `<div class="card adm-today"><h3>היום באתר</h3>
-    <div class="adm-t-kpis"><div><b>${today.length}</b><span>נכנסו</span></div><div><b>${fmtMin(mins)}</b><span>זמן באתר (כולם)</span></div><div><b>${uses}</b><span>שימושים בכלים</span></div></div>
+    <div class="adm-t-kpis"><button type="button" data-tk="in"><b>${today.length}</b><span>נכנסו</span><small>לחיצה = מי</small></button><button type="button" data-tk="min"><b>${fmtMin(mins)}</b><span>זמן באתר (כולם)</span><small>לחיצה = מי כמה</small></button><button type="button" data-tk="ai"><b>${uses}</b><span>שימושים בכלים</span><small>לחיצה = מי במה</small></button></div>
     <h4>כמה השתמשו בכל כלי</h4>
     ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></div>`).join('')}</div>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
