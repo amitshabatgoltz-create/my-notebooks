@@ -7182,13 +7182,14 @@ function chatAllNotebooks(msg = '', max = 9000) {
     return { n, t, sc };
   }).filter(x => x.sc >= 8 || (x.sc > 0 && x.t)).sort((a, b) => b.sc - a.sc);
   // אם יש מחברת שהשם שלה מתאים – רק היא (ולא מחברת אחרת שבמקרה מזכירה את המילה)
-  const byName = scored.filter(x => x.sc >= 8);
-  const pick = byName.length ? byName.slice(0, 2) : scored.length ? scored.slice(0, 2) : (CHAT_NB_GENERAL.test(msg) ? list.slice(0, 1).map(n => ({ n, t: nbPlain(n) })).filter(x => x.t) : []);
+  // אם המחברת עם השם המתאים ריקה – מוסיפים גם מחברות אחרות שהחומר כתוב בהן
+  const byName = scored.filter(x => x.sc >= 8), byNameFull = byName.filter(x => x.t);
+  const pick = byNameFull.length ? byNameFull.slice(0, 2) : byName.length ? [...byName.slice(0, 1), ...scored.filter(x => x.t && !byName.includes(x)).slice(0, 2)] : scored.length ? scored.slice(0, 2) : (CHAT_NB_GENERAL.test(msg) ? list.slice(0, 1).map(n => ({ n, t: nbPlain(n) })).filter(x => x.t) : []);
   if (!pick.length) return head;
   let left = max, out = '';
   for (const { n, t } of pick) {
     if (!t) { out += `
---- מחברת ${name(n)}: (המחברת ריקה, עוד לא כתוב בה כלום)
+--- מחברת ${name(n)}: (המחברת הזאת קיימת אבל ריקה – עוד לא כתוב בה כלום. אל תגיד שהיא "לא פתוחה"; אמור שהיא ריקה, ואם החומר כתוב במחברת אחרת למטה – ענה משם ואמור מאיזו)
 `; continue; }
     if (left < 400) break;
     const part = t.slice(0, Math.min(Math.floor(max / pick.length), left)); left -= part.length;
