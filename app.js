@@ -7923,7 +7923,7 @@ $('chatInput').addEventListener('input', () => { const i = $('chatInput'); i.sty
 const statsDoc = uid => doc(db, 'stats', uid);
 function deviceName() { const u = navigator.userAgent; return /iPhone|iPad/.test(u) ? 'iPhone/iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'אחר'; }
 async function statsPing() {
-  if (!me) return;
+  if (!me || isUnlimited()) return;   // בעל האתר לא נספר בניהול האתר
   const tk = todayKey();
   try { if (localStorage.getItem('statsDay:' + me.uid) === tk) return; } catch {}
   try {
@@ -7944,12 +7944,12 @@ setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now
 addEventListener('pagehide', () => statsFlush());
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') statsFlush(); });
 function statsFlush() {
-  if (!me || !statsMinBuf) return; const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
+  if (!me || !statsMinBuf || isUnlimited()) { statsMinBuf = 0; return; } const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
   statsCarry += n; const full = Math.floor(statsCarry / 60); statsCarry -= full * 60;
   setDoc(statsDoc(me.uid), { ...(full ? { mins: increment(full) } : {}), last: Date.now(), lastDay: tk, days: { [tk]: { s: increment(n) } } }, { merge: true }).catch(() => { statsMinBuf += n; statsCarry -= n - full * 60; });
 }
 function statsAi(k, count) {
-  if (!me) return;
+  if (!me || isUnlimited()) return;
   setDoc(statsDoc(me.uid), { days: { [todayKey()]: { ai: { [k]: increment(count) } } } }, { merge: true }).catch(() => {});
   setDoc(statsDoc(me.uid), { last: Date.now(), lastDay: todayKey(), ai: { [k]: increment(count) } }, { merge: true }).catch(() => {});
 }
@@ -8121,7 +8121,7 @@ async function renderAdmin() {
   box.innerHTML = '<div class="card"><p class="muted-s">טוען...</p></div>';
   let list, site = null;
   try { const sq = await getDoc(doc(db, 'aiQuota', '_site')); if (sq.exists()) site = sq.data(); } catch (e) { console.warn('site ai', e && e.message); }
-  try { const sn = await getDocs(collection(db, 'stats')); list = []; sn.forEach(d => list.push({ id: d.id, ...d.data() })); }
+  try { const sn = await getDocs(collection(db, 'stats')); list = []; sn.forEach(d => { if (d.id !== me.uid) list.push({ id: d.id, ...d.data() }); }); }   // בלי בעל האתר עצמו
   catch (e) {
     console.warn(e);
     // עוד לא הודבקו הכללים: מראים בדיוק מה להדביק
