@@ -7920,12 +7920,15 @@ async function statsPing() {
 // זמן באתר: סופרים דקות שבהן האתר פתוח מול העיניים ומישהו עשה משהו ב-2 הדקות האחרונות. נשמר כל 5 דקות וכשיוצאים
 let statsMinBuf = 0, statsLastAct = Date.now();
 ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t => addEventListener(t, () => { statsLastAct = Date.now(); }, { passive: true, capture: true }));
-setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf++; if (statsMinBuf >= 2) statsFlush(); } }, 60000);
+// נשמר כל 30 שניות: שניות היום ב-days[יום].s, ודקות שלמות לסך הכול ב-mins
+let statsCarry = 0;
+setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf += 30; statsFlush(); } }, 30000);
 addEventListener('pagehide', () => statsFlush());
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') statsFlush(); });
 function statsFlush() {
   if (!me || !statsMinBuf) return; const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
-  setDoc(statsDoc(me.uid), { mins: increment(n), last: Date.now(), lastDay: tk, days: { [tk]: { m: increment(n) } } }, { merge: true }).catch(() => { statsMinBuf += n; });
+  statsCarry += n; const full = Math.floor(statsCarry / 60); statsCarry -= full * 60;
+  setDoc(statsDoc(me.uid), { ...(full ? { mins: increment(full) } : {}), last: Date.now(), lastDay: tk, days: { [tk]: { s: increment(n) } } }, { merge: true }).catch(() => { statsMinBuf += n; statsCarry -= n - full * 60; });
 }
 function statsAi(k, count) {
   if (!me) return;
@@ -8058,7 +8061,7 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
     ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<button type="button" class="adm-dev-row adm-tool" data-tool="${esc(k)}" title="מי השתמש"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></button>`).join('')}</div><p class="muted-s">לוחצים על כלי ורואים מי השתמש בו.</p>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
     ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
-    <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 2 דקות, אז מה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
+    <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 30 שניות, ומה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
 }
 async function renderAdmin() {
   statsFlush();
@@ -8103,7 +8106,7 @@ async function renderAdmin() {
   const ago = ms => { if (!ms) return '–'; const m = Math.round((now - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
   const sorted = list.slice().sort((a, b) => (b.last || 0) - (a.last || 0));
   const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
-  const dayOf = u => (u.days && u.days[tk]) || {}, dMin = u => +dayOf(u).m || 0, dAi = u => dayOf(u).ai || {};
+  const dayOf = u => (u.days && u.days[tk]) || {}, dMin = u => Math.round((+dayOf(u).m || 0) + (+dayOf(u).s || 0) / 60), dAi = u => dayOf(u).ai || {};
   const fmtMin = m => !m ? '–' : m < 60 ? `${m} דק׳` : `${Math.floor(m / 60)} שע׳${m % 60 ? ` ${m % 60} דק׳` : ''}`;
   const toolName = k => USE_NAME[k] || (k === 'img' ? 'יצירת תמונה' : k === 'imp' ? 'ייבוא' : k);
   admList = list;
