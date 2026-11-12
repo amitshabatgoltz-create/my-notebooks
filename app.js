@@ -259,6 +259,7 @@ function clean(html) {
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
       const sl = ch.tagName === 'DIV' && ch.hasAttribute('data-slide'), pb = ch.tagName === 'HR' && ch.hasAttribute('data-pb');
+      const fr = ch.tagName === 'SPAN' ? (ch.hasAttribute('data-frac') ? 'data-frac' : ch.hasAttribute('data-n') ? 'data-n' : ch.hasAttribute('data-d') ? 'data-d' : '') : '';
       const dc = ch.getAttribute('data-c'), ds = ch.getAttribute('data-s'), chk = ch.hasAttribute('data-check'), dn = ch.hasAttribute('data-done'), href = ch.getAttribute('href') || '';
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
       if (ch.tagName === 'A') {                       // קישור: רק http/https/mailto
@@ -267,6 +268,7 @@ function clean(html) {
       }
       if (sl) ch.setAttribute('data-slide', '');
       if (pb) ch.setAttribute('data-pb', '');                                                  // מעבר לדף הבא (במחברת של דפים)                                               // שקופית (מחברת של שקופיות)
+      if (fr) ch.setAttribute(fr, '');                                                          // שבר (מתמטיקה)
       if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
       if (ch.tagName === 'SPAN' && TXT_SIZES.includes(ds)) ch.setAttribute('data-s', ds);    // גודל טקסט
       if (ch.tagName === 'MARK' && HL_COLORS.includes(dc)) ch.setAttribute('data-c', dc);    // צבע מרקר
@@ -1015,6 +1017,10 @@ INS.push(
   { t: 'קובץ מצורף', i: 'clip', k: 'file pdf word', f: run('fileBtn') },
   { t: 'קישור', i: 'link', k: 'link url אתר', f: () => linkDialog() },
   { t: 'התאריך של היום', i: 'cal', k: 'date today תאריך', f: () => document.execCommand('insertText', false, todayHe()) },
+  { g: 'מתמטיקה' },
+  { t: 'משוואה', d: 'שורה משמאל לימין, באמצע', x: 'x=', k: 'math equation משוואה מתמטיקה נוסחה', f: mathLine },
+  { t: 'שבר', d: 'מונה ומכנה', x: '½', k: 'fraction שבר מתמטיקה', f: () => setTimeout(() => { mathOpen(); edPopEl && edPopEl.querySelector('[data-a="frac"]').click(); }, 30) },
+  { t: 'סימנים למתמטיקה', d: 'x², √, π, ≤ ועוד', i: 'sigma', k: 'math symbols סימנים מתמטיקה שורש חזקה', f: () => setTimeout(mathOpen, 30) },
   { g: 'תבניות' },
   { t: 'סיכום שיעור', d: 'נושא, מה למדנו, מושגים', i: 'template', k: 'template lesson summary תבנית', f: () => insertTpl('lesson') },
   { t: 'דף קורנל', d: 'מילות מפתח מול רשימות', i: 'template', k: 'cornell template תבנית', f: () => insertTpl('cornell') },
@@ -1040,6 +1046,78 @@ $('insBtn').addEventListener('click', () => {
     p.innerHTML = `<p class="ep-tip">טיפ: בשורה ריקה מקלידים <kbd>/</kbd> ומקבלים את התפריט הזה</p>` + INS.map((it, i) => it.g ? `<div class="ep-h">${it.g}</div>` : insItemHtml(it, i)).join('');
     p.onclick = ev => { const b = ev.target.closest('button[data-i]'); if (b) insRun(INS[+b.dataset.i]); };
   }, 'ins-pop');
+});
+
+/* ===== מתמטיקה: סימנים, חזקה, אינדקס, שבר ושורת משוואה ===== */
+const MATH_SYMS = [
+  ['משתנים', ['x', 'y', 'z', 'a', 'b', 'n']],
+  ['פעולות', ['+', '−', '×', '÷', '=', '±', '≠', '≈', '<', '>', '≤', '≥', '(', ')', '|x|']],
+  ['חזקות ושורשים', ['²', '³', 'ⁿ', '⁻¹', '√', '∛', '½', '⅓', '¼', '¾']],
+  ['גאומטריה', ['π', '°', '∠', '△', '⊥', '∥', '≅', '∼']],
+  ['עוד', ['∞', '%', 'α', 'β', 'θ', 'Δ', 'Σ', '→', '⇒', '⇔', '∈', '∪', '∩', '∅']],
+];
+function mathIns(t) { if (!edCan()) return; restoreSelection(); document.execCommand('insertText', false, t === '|x|' ? '|x|' : t); markDirty(); }
+function mathFrac(n, d) {
+  if (!edCan()) return; restoreSelection();
+  // הכנסה ישירה (insertHTML של כרום מפרק את השבר לחתיכות)
+  const sel = getSelection(); if (!sel.rangeCount) return;
+  const r = sel.getRangeAt(0); if (!$('editor').contains(r.commonAncestorContainer)) return;
+  r.deleteContents();
+  const f = document.createElement('span'); f.setAttribute('data-frac', '');
+  const nn = document.createElement('span'); nn.setAttribute('data-n', ''); nn.textContent = n || 'a';
+  const dd = document.createElement('span'); dd.setAttribute('data-d', ''); dd.textContent = d || 'b';
+  f.append(nn, dd); const sp = document.createTextNode(' ');
+  r.insertNode(sp); r.insertNode(f);
+  const after = document.createRange(); after.setStart(sp, 1); after.collapse(true); sel.removeAllRanges(); sel.addRange(after);
+  markDirty();
+}
+function mathLine() {
+  if (!edCan()) return; restoreSelection();
+  const ed = $('editor'), cur = blockOf(getSelection().anchorNode);
+  const p = document.createElement('p'); p.setAttribute('dir', 'ltr'); p.setAttribute('data-a', 'center'); p.innerHTML = '<br>';
+  if (cur && ed.contains(cur) && cur !== ed) { (cur.closest('li') ? cur.closest('ul,ol') : cur).after(p); } else ed.appendChild(p);
+  const r = document.createRange(); r.setStart(p, 0); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  markDirty();
+}
+function mathOpen() {
+  if (edPopEl && edPopEl.classList.contains('math-pop')) { closeEdPop(); return; }
+  if (!edCan()) return;
+  edPop($('mathBtn'), p => {
+    p.innerHTML = `<div class="mp-acts">
+        <button type="button" data-a="sup" title="חזקה: מה שמקלידים אחרי זה יהיה למעלה (לחיצה שוב מחזירה)"><span>x<sup>2</sup></span>חזקה</button>
+        <button type="button" data-a="sub" title="אינדקס: מה שמקלידים יהיה למטה"><span>x<sub>1</sub></span>אינדקס</button>
+        <button type="button" data-a="frac" title="שבר עם מונה ומכנה"><span class="mp-fr"><i>a</i><i>b</i></span>שבר</button>
+        <button type="button" data-a="line" title="שורה חדשה למשוואה: משמאל לימין ובאמצע"><span dir="ltr">x=</span>משוואה</button>
+      </div>
+      <div class="mp-frac hidden"><input class="mp-n" dir="ltr" placeholder="מונה" aria-label="מונה"><span>⁄</span><input class="mp-d" dir="ltr" placeholder="מכנה" aria-label="מכנה"><button type="button" class="btn btn-primary" data-a="frac-ok">הוספה</button></div>
+      ${MATH_SYMS.map(([h, list]) => `<div class="ep-h">${h}</div><div class="mp-grid">${list.map(t => `<button type="button" data-s="${esc(t)}" dir="ltr">${esc(t)}</button>`).join('')}</div>`).join('')}
+      <p class="ep-tip">טיפ: כותבים x^2 ורווח והוא נהיה x²</p>`;
+    const fr = p.querySelector('.mp-frac');
+    p.onclick = ev => {
+      const s = ev.target.closest('[data-s]'); if (s) { mathIns(s.dataset.s); return; }
+      const a = ev.target.closest('[data-a]'); if (!a) return;
+      if (a.dataset.a === 'sup' || a.dataset.a === 'sub') { restoreSelection(); document.execCommand(a.dataset.a === 'sup' ? 'superscript' : 'subscript'); markDirty(); }
+      else if (a.dataset.a === 'frac') { fr.classList.toggle('hidden'); if (!fr.classList.contains('hidden')) setTimeout(() => fr.querySelector('.mp-n').focus(), 30); }
+      else if (a.dataset.a === 'frac-ok') { const n = fr.querySelector('.mp-n').value.trim(), d = fr.querySelector('.mp-d').value.trim(); closeEdPop(); $('editor').focus(); mathFrac(n, d); }
+      else if (a.dataset.a === 'line') { closeEdPop(); mathLine(); }
+    };
+    fr.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); p.querySelector('[data-a="frac-ok"]').click(); } });
+  }, 'math-pop');
+}
+$('mathBtn').addEventListener('mousedown', e => e.preventDefault());
+$('mathBtn').addEventListener('click', mathOpen);
+// x^2 + רווח → x²   (גם ^3, ^n, ^-1, ^0-9)
+const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', '-': '⁻', '+': '⁺', 'x': 'ˣ' };
+$('editor').addEventListener('input', e => {
+  if (e.inputType !== 'insertText' || e.data !== ' ') return;
+  const sel = getSelection(); if (!sel.rangeCount || !sel.isCollapsed) return;
+  const n = sel.anchorNode; if (!n || n.nodeType !== 3) return;
+  const before = n.data.slice(0, sel.anchorOffset);
+  const m = /\^([0-9n+\-x]{1,4})\s$/.exec(before); if (!m || ![...m[1]].every(c => SUPS[c])) return;
+  const at = sel.anchorOffset - m[0].length;
+  n.data = n.data.slice(0, at) + [...m[1]].map(c => SUPS[c]).join('') + ' ' + n.data.slice(sel.anchorOffset);
+  const r = document.createRange(); r.setStart(n, at + m[1].length + 1); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+  markDirty();
 });
 
 /* ---- "/" בתחילת שורה: תפריט הוספה מהיר, ממשיכים להקליד כדי לסנן ---- */
@@ -1306,7 +1384,7 @@ const TIPS = {
   ul: ['רשימה עם נקודות', 'או מקלידים - ורווח', 'Ctrl+Shift+8'], ol: ['רשימה ממוספרת', 'או מקלידים 1. ורווח', 'Ctrl+Shift+7'],
   check: ['רשימת משימות', 'ריבוע ליד כל שורה – לוחצים עליו ומסמנים וי', 'Ctrl+Shift+9'],
   insBtn: ['הוספה', 'כותרות, ציטוט, קו מפריד, טבלה, תאריך ותבניות מוכנות. אפשר גם להקליד / בשורה ריקה'],
-  linkBtn: ['קישור', 'קישור לאתר, לסרטון או למסמך', 'Ctrl+K'], ocrBtn: ['תמונה לטקסט', 'מצלמים לוח או דף, והאתר מקליד'],
+  linkBtn: ['קישור', 'קישור לאתר, לסרטון או למסמך', 'Ctrl+K'], mathBtn: ['מתמטיקה', 'איקסים, חזקות, שורשים, שברים ומשוואות'], ocrBtn: ['תמונה לטקסט', 'מצלמים לוח או דף, והאתר מקליד'],
   sketchBtn: ['שרבוט', 'ציור חופשי ביד או בעכבר'], fileBtn: ['צירוף קובץ', 'PDF, Word, מצגת ועוד'], imgBtn: ['תמונה', 'מהמחשב או מהטלפון'],
   tableBtn: ['טבלה', 'בוחרים כמה שורות ועמודות'], boxBtn: ['תיבת טקסט', 'טקסט שמזיזים לכל מקום, או מסגרת צבעונית'], lineBtn: ['קו', 'קו או חץ שמזיזים ומסובבים'],
   tlBtn: ['ציר זמן', 'אירועים לפי הסדר – להיסטוריה ותנ"ך'], findBtn: ['חיפוש והחלפה', 'מוצא מילה במחברת ומחליף אותה', 'Ctrl+F'],

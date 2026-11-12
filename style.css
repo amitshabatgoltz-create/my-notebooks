@@ -2714,3 +2714,22 @@ html[data-theme="dark"] .inapp-tip{background:#3a2f0c;color:#FDE68A}
 .adm-ref-row small{color:var(--muted);font-size:12px}
 /* מסך מלא: רואים את כל הסרטון, בלי חיתוך */
 .fr-vid video:fullscreen,.fr-vid video:-webkit-full-screen{object-fit:contain;background:#000;border-radius:0}
+
+/* ===== מתמטיקה ===== */
+span[data-frac]{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 .2em;font-size:.88em;line-height:1.2;direction:ltr}
+span[data-frac]>span[data-n]{border-bottom:1.6px solid currentColor;padding:0 .25em .05em;min-width:.8em;text-align:center}
+span[data-frac]>span[data-d]{padding:.05em .25em 0;min-width:.8em;text-align:center}
+.math-pop{width:min(340px,calc(100vw - 16px));max-width:none}
+.mp-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+.mp-acts button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700}
+.mp-acts button>span{font-size:17px;font-weight:800;color:var(--ink);font-family:'Times New Roman',serif;font-style:italic;line-height:1.1}
+.mp-acts button:hover{filter:brightness(.96)}
+.mp-fr{display:inline-flex;flex-direction:column;align-items:center;font-size:12px!important;line-height:1!important}
+.mp-fr i:first-child{border-bottom:1.5px solid currentColor;padding:0 3px}
+.mp-frac{display:flex;align-items:center;gap:6px;margin:4px 0 8px}
+.mp-frac.hidden{display:none}
+.mp-frac input{flex:1;min-width:0;height:36px;text-align:center}
+.mp-frac .btn{height:36px;padding:0 12px}
+.mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:4px;margin-bottom:4px}
+.mp-grid button{height:38px;border-radius:10px;font-size:17px;font-weight:600;font-family:'Times New Roman',serif;background:color-mix(in srgb,var(--ink) 4%,transparent)}
+.mp-grid button:hover{background:var(--accent-soft);color:var(--accent)}
