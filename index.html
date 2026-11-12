@@ -34,10 +34,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Suez+One&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794483466">
+<link rel="stylesheet" href="style.css?v=1794484516">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794483466"></script>
+<script src="motion.js?v=1794484516"></script>
 </head>
 <body>
 
@@ -184,7 +184,8 @@
   </div>
   <p class="login-foot">בחינם לתלמידים · הכול נשמר בענן · <a class="login-mail" href="privacy.html">פרטיות ותנאים</a><br><a class="login-mail" href="mailto:mynotebooks192013@gmail.com">שאלות? כתבו לנו: <span dir="ltr">mynotebooks192013@gmail.com</span></a></p>
 </section>
-<script>if(window.Motion)Motion.login()</script>
+<!-- בלי אנימציית כניסה לטופס: כשהדף עמוס בטעינה היא נתקעה, והטופס היה שקוף 2-3 שניות -->
+<script>/* מצב כהה עובד מיד, גם לפני שכל האתר נטען (אחר כך app.js לוקח פיקוד) */document.addEventListener('click',function(e){if(window.__appReady)return;var b=e.target.closest&&e.target.closest('[data-theme-toggle]');if(!b)return;var r=document.documentElement,d=r.dataset.theme!=='dark';if(d)r.dataset.theme='dark';else delete r.dataset.theme;try{localStorage.setItem('theme',d?'dark':'light')}catch(x){}});</script>
 
 <!-- ===== האפליקציה ===== -->
 <div id="shareView" class="share-view hidden">
@@ -461,15 +462,15 @@
             <h3 id="dayTitle"></h3>
             <div id="dayList"></div>
             <form id="evForm" class="ev-form">
-              <input id="evTitle" placeholder="מה יש ביום הזה? למשל: מבחן בתנ״ך" required>
+              <input id="evTitle" placeholder="מה יש ביום הזה? למשל: מבחן בתנ״ך" aria-label="מה יש ביום הזה" required>
               <div class="ev-row">
-                <select id="evType">
+                <select id="evType" aria-label="סוג">
                   <option value="test">מבחן</option>
                   <option value="hw">שיעורי בית</option>
                   <option value="event">אירוע</option>
                   <option value="other">אחר</option>
                 </select>
-                <input id="evTime" type="time" title="שעה (לא חובה)">
+                <input id="evTime" type="time" title="שעה (לא חובה)" aria-label="שעה (לא חובה)">
                 <button class="btn btn-primary" type="submit">הוספה</button>
               </div>
             </form>
@@ -515,6 +516,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794483466"></script>
+<script type="module" src="app.js?v=1794484516"></script>
 </body>
 </html>

@@ -2792,3 +2792,16 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .adm-u-kpis b{font-size:18px;color:var(--accent)}.adm-u-kpis span{font-size:12px;color:var(--muted)}
 .adm-u-bars{height:110px}
 .nb-wiz .sp-head{margin-top:6px}
+
+/* מחברת לדוגמה: כפתורים לנסות את הכלים */
+.demo-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.demo-tools>span{font-weight:700;font-size:13.5px}
+.demo-tools .btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;font-size:14px;background:var(--surface);color:var(--accent);border:1.5px solid color-mix(in srgb,var(--accent) 35%,transparent);font-weight:700}
+.demo-tools .btn svg{width:17px;height:17px}
+.demo-sum h3{font-size:17px;margin:4px 0 6px}
+.demo-card{width:100%;min-height:170px;margin:6px 0 10px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;text-align:center;background:linear-gradient(135deg,var(--accent),#9B5DE5);color:#fff;box-shadow:0 14px 30px -16px var(--accent);transition:transform .35s var(--ease)}
+.demo-card.back{background:linear-gradient(135deg,#10B981,#0EA5E9)}
+.demo-card small{opacity:.85;font-size:13px}.demo-card b{font-size:22px;line-height:1.35}
+.demo-card:active{transform:scale(.97)}
+.demo-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.demo-nav span{color:var(--muted);font-weight:700}

@@ -128,6 +128,11 @@ try { $('rememberMe').checked = localStorage.getItem('rememberMe') !== '0'; cons
 $('authForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email = $('email').value.trim(), pass = $('password').value;
+  // שדות ריקים: אומרים בדיוק מה חסר (ולא סתם כפתור אפור)
+  if (!email) { status('צריך למלא אימייל'); $('email').focus(); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { status('האימייל לא נראה תקין. בדוק שיש בו @ ונקודה'); $('email').focus(); return; }
+  if (!pass) { status('צריך למלא סיסמה'); $('password').focus(); return; }
+  if (mode !== 'login' && pass.length < 6) { status('הסיסמה צריכה להיות לפחות 6 תווים'); $('password').focus(); return; }
   $('authBtn').disabled = true; status('');
   try {
     await rememberApply();
@@ -2467,6 +2472,7 @@ $('editor').addEventListener('keydown', e => {
 
 
 /* ================= לבן / כהה ================= */
+window.__appReady = true;
 function applyThemeIcon() {
   const dark = document.documentElement.dataset.theme === 'dark';
   document.querySelectorAll('[data-theme-toggle]').forEach(b => {
@@ -3738,6 +3744,7 @@ function closeShare(keepUrl) {
   $('shBody').contentEditable = 'false';
   shareParam = null; $('shareView').classList.add('hidden'); document.body.classList.remove('viewing-share');
   document.title = 'המחברות שלי';
+  $('login').inert = false;
   if (location.search && !keepUrl) history.replaceState(null, '', location.pathname);
 }
 $('shClose').onclick = closeShare;
@@ -3750,18 +3757,61 @@ function openDemo() {
   const v = $('shareView'); v.classList.remove('hidden', 'view-only'); document.body.classList.add('viewing-share'); v.scrollTop = 0;
   document.title = 'מחברת לדוגמה · המחברות שלי';
   $('shClose').querySelector('span').textContent = me ? 'למחברות שלי' : 'חזרה';
-  $('shTitle').textContent = SAMPLE_NOTEBOOK.title;
+  $('shClose').setAttribute('aria-label', me ? 'חזרה למחברות שלי' : 'חזרה למסך הכניסה'); $('login').inert = true;
+  $('shTitle').textContent = DEMO_NOTEBOOK.title;
   $('shOwner').textContent = 'מחברת לדוגמה · אפשר לכתוב בה ולנסות, שום דבר לא נשמר';
-  $('shColor').style.setProperty('--c', SAMPLE_NOTEBOOK.color);
+  $('shColor').style.setProperty('--c', DEMO_NOTEBOOK.color);
   const hint = $('shHint'); hint.classList.remove('hidden');
   hint.classList.remove('dv-flash'); void hint.offsetWidth; hint.classList.add('dv-flash');
   hint.innerHTML = 'הנה דוגמה: ככה נראית מחברת באתר. בחשבון חינמי יש גם: <b>תמונה לטקסט</b> (מצלמים את הלוח והוא מקליד), <b>סיכום למבחן</b> בלחיצה, <b>כרטיסיות שינון</b>, <b>יומן מבחנים</b> ו<b>עוזר לימודי</b> שמסביר.';
-  const b = $('shBody'); b.innerHTML = clean(SAMPLE_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
+  // כפתורים שמראים את הכלים בפעולה (דוגמה מוכנה, בלי AI אמיתי)
+  const tools = document.createElement('div'); tools.className = 'demo-tools';
+  tools.innerHTML = '<span>לנסות:</span><button type="button" class="btn" data-demo="sum"><svg aria-hidden="true"><use href="#i-spark"/></svg>סיכום למבחן</button><button type="button" class="btn" data-demo="fc"><svg aria-hidden="true"><use href="#i-cards"/></svg>כרטיסיות שינון</button>';
+  tools.onclick = e => { const x = e.target.closest('[data-demo]'); if (x) demoTool(x.dataset.demo); };
+  hint.appendChild(tools);
+  const b = $('shBody'); b.innerHTML = clean(DEMO_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
   b.contentEditable = 'true'; b.spellcheck = false;
   $('shCta').classList.toggle('hidden', !!me);
   const cp = $('shCopy'); cp.classList.remove('hidden'); cp.textContent = me ? 'למחברות שלי' : 'להרשמה בחינם';
   cp.onclick = () => { closeShare(); if (!me) { setMode('signup'); setTimeout(() => $('name').focus(), 150); } };
   track('demo_open', {});
+}
+// מחברת לדוגמה ב"לנסות בלי להירשם": קצרה, נושא ניטרלי, ומראה צילום לוח שהפך לטקסט.
+// בתוך app.js בכוונה: קובץ נפרד בלי מספר גרסה יכול להישאר ישן בדפדפן, ואז האתר כולו נשבר
+const DEMO_NOTEBOOK = {
+  title: 'מדעים – מחזור המים',
+  color: '#1f8fa3',
+  html: `<h2>מחזור המים</h2><p><i>12/11/26 · מדעים</i></p>
+<div data-box="blue"><p><b>מהלוח – צילמתי, והאתר הקליד לבד:</b></p><ol><li><b>אידוי:</b> השמש מחממת את המים בים ובאגמים, והם הופכים לאדים.</li><li><b>עיבוי:</b> האדים עולים למעלה, מתקררים ונוצרים עננים.</li><li><b>משקעים:</b> כשהטיפות בענן כבדות מדי – יורד גשם, שלג או ברד.</li><li><b>זרימה וחלחול:</b> המים זורמים לנהרות ולים, או מחלחלים לאדמה – ומתחילים מחדש.</li></ol></div>
+<h3>מושגים חשובים</h3>
+<table><tbody><tr><th>מושג</th><th>מה זה</th></tr><tr><td>אידוי</td><td>מעבר של מים מנוזל לגז (אדים)</td></tr><tr><td>עיבוי</td><td>מעבר של אדים מגז לנוזל (טיפות)</td></tr><tr><td>משקעים</td><td>מים שיורדים מהעננים לקרקע</td></tr></tbody></table>
+<p><mark>למבחן:</mark> לדעת לסדר את ארבעת השלבים לפי הסדר, ולתת דוגמה מהחיים לכל שלב.</p>
+<ul data-check=""><li data-done="">לקרוא את הסיכום</li><li>לעשות כרטיסיות שינון</li><li>לפתור את דף העבודה</li></ul>`,
+};
+function demoTool(k) {
+  track('demo_tool', { k });
+  const signup = () => { closeDialog(); closeShare(); if (!me) { setMode('signup'); setTimeout(() => $('name').focus(), 150); } };
+  if (k === 'sum') return dialog(d => {
+    d.innerHTML = `<h3>סיכום למבחן – מחזור המים</h3><p class="muted-s">ככה זה נראה: האתר קורא את המחברת ומכין סיכום בלחיצה.</p>
+      <div class="ai-box demo-sum"><h3>4 השלבים</h3><ol><li><b>אידוי</b> – מים הופכים לאדים בגלל חום השמש.</li><li><b>עיבוי</b> – האדים מתקררים ונוצרים עננים.</li><li><b>משקעים</b> – גשם, שלג או ברד.</li><li><b>זרימה וחלחול</b> – המים חוזרים לים ולאדמה.</li></ol>
+      <h3>טיפ לזכירה</h3><p>"<b>א</b>ני <b>ע</b>ולה, <b>מ</b>ים <b>ז</b>ורמים" – אידוי, עיבוי, משקעים, זרימה.</p></div>
+      <div class="row"><button type="button" class="btn btn-primary" data-s>להרשמה בחינם</button><button type="button" class="btn btn-ghost" data-x>סגירה</button></div>`;
+    d.querySelector('[data-x]').onclick = closeDialog; d.querySelector('[data-s]').onclick = signup;
+  });
+  const cards = [['אידוי', 'מים הופכים מנוזל לגז (אדים)'], ['עיבוי', 'אדים הופכים לטיפות ונוצרים עננים'], ['משקעים', 'גשם, שלג או ברד שיורדים מהעננים'], ['חלחול', 'מים שנכנסים לתוך האדמה']];
+  let i = 0, flip = false;
+  dialog(d => {
+    d.innerHTML = `<h3>כרטיסיות שינון</h3><p class="muted-s">לוחצים על הכרטיס כדי להפוך אותו.</p>
+      <button type="button" class="demo-card"></button><div class="demo-nav"><button type="button" class="btn btn-ghost" data-p>הקודם</button><span></span><button type="button" class="btn btn-ghost" data-n>הבא</button></div>
+      <div class="row"><button type="button" class="btn btn-primary" data-s>להרשמה בחינם</button><button type="button" class="btn btn-ghost" data-x>סגירה</button></div>`;
+    const c = d.querySelector('.demo-card'), n = d.querySelector('.demo-nav span');
+    const paint = () => { c.classList.toggle('back', flip); c.innerHTML = flip ? `<small>התשובה</small><b>${cards[i][1]}</b>` : `<small>מה זה?</small><b>${cards[i][0]}</b>`; n.textContent = `${i + 1} / ${cards.length}`; };
+    c.onclick = () => { flip = !flip; paint(); };
+    d.querySelector('[data-n]').onclick = () => { i = (i + 1) % cards.length; flip = false; paint(); };
+    d.querySelector('[data-p]').onclick = () => { i = (i + cards.length - 1) % cards.length; flip = false; paint(); };
+    d.querySelector('[data-x]').onclick = closeDialog; d.querySelector('[data-s]').onclick = signup;
+    paint();
+  });
 }
 // "לנסות בלי להירשם": קודם הסרטון (הילד שלא כותב ומשה שמצלם), ובסוף או בדילוג – המחברת לדוגמה
 function demoIntro(then) {
