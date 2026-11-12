@@ -379,6 +379,7 @@ function renderSide() {
 const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView', 'friendsView'];
 const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin', friendsView: 'fr' };
 function setView(v, crumb) {
+  if (v !== 'notebook' && typeof mathDockHide === 'function') mathDockHide();
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
   window.Motion?.tab();
@@ -408,6 +409,8 @@ function openNotebook(id) {
   document.body.classList.remove('editing-shared');
   stopLive();
   if (n.shareId && n.shareMode === 'edit') startLive(n.shareId, clean(n.html || ''));
+  let off = false; try { off = localStorage.getItem('mathDock:' + id) === 'off'; } catch {}
+  if (isMathNb(n) && !off) setTimeout(mathDockShow, 350); else mathDockHide();
 }
 $('backBtn').onclick = async () => { await flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared'); showLibrary(); };
 $('newBtn').onclick = () => newNotebook();
@@ -1030,8 +1033,8 @@ INS.push(
   { t: 'התאריך של היום', i: 'cal', k: 'date today תאריך', f: () => document.execCommand('insertText', false, todayHe()) },
   { g: 'מתמטיקה' },
   { t: 'משוואה', d: 'שורה משמאל לימין, באמצע', x: 'x=', k: 'math equation משוואה מתמטיקה נוסחה', f: mathLine },
-  { t: 'שבר', d: 'מונה ומכנה', x: '½', k: 'fraction שבר מתמטיקה', f: () => setTimeout(() => { mathOpen(); edPopEl && edPopEl.querySelector('[data-a="frac"]').click(); }, 30) },
-  { t: 'סימנים למתמטיקה', d: 'x², √, π, ≤ ועוד', i: 'sigma', k: 'math symbols סימנים מתמטיקה שורש חזקה', f: () => setTimeout(mathOpen, 30) },
+  { t: 'שבר', d: 'מונה ומכנה', x: '½', k: 'fraction שבר מתמטיקה', f: () => setTimeout(() => { mathDockShow(); const f = mathDockEl && mathDockEl.querySelector('.mp-frac'); if (f && f.classList.contains('hidden')) mathDockEl.querySelector('[data-a="frac"]').click(); }, 30) },
+  { t: 'סימנים למתמטיקה', d: 'x², √, π, ≤ ועוד', i: 'sigma', k: 'math symbols סימנים מתמטיקה שורש חזקה', f: () => setTimeout(mathDockShow, 30) },
   { g: 'תבניות' },
   { t: 'סיכום שיעור', d: 'נושא, מה למדנו, מושגים', i: 'template', k: 'template lesson summary תבנית', f: () => insertTpl('lesson') },
   { t: 'דף קורנל', d: 'מילות מפתח מול רשימות', i: 'template', k: 'cornell template תבנית', f: () => insertTpl('cornell') },
@@ -1090,31 +1093,70 @@ function mathLine() {
   const r = document.createRange(); r.setStart(p, 0); r.collapse(true); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
   markDirty();
 }
-function mathOpen() {
-  if (edPopEl && edPopEl.classList.contains('math-pop')) { closeEdPop(); return; }
-  if (!edCan()) return;
-  edPop($('mathBtn'), p => {
-    p.innerHTML = `<div class="mp-acts">
+// לוח מתמטיקה: חלון גדול שאפשר להזיז (גוררים מהכותרת) ולסגור ב-X. במחברת של מתמטיקה הוא נפתח לבד
+const MATH_NB = /מתמטיקה|חשבון|גאומטריה|גיאומטריה|אלגברה|פיזיקה|math/i;
+const isMathNb = n => !!n && (MATH_NB.test(n.subject || '') || MATH_NB.test(n.title || ''));
+let mathDockEl = null;
+function mathDockBuild() {
+  const d = document.createElement('div'); d.className = 'math-dock hidden'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'לוח מתמטיקה');
+  d.innerHTML = `<div class="md-head"><span class="md-grip" aria-hidden="true"></span><b><svg aria-hidden="true"><use href="#i-sigma"/></svg>מתמטיקה</b><button type="button" class="md-x" aria-label="סגירה" title="סגירה">✕</button></div>
+    <div class="md-body">
+      <div class="mp-acts">
         <button type="button" data-a="sup" title="חזקה: מה שמקלידים אחרי זה יהיה למעלה (לחיצה שוב מחזירה)"><span>x<sup>2</sup></span>חזקה</button>
         <button type="button" data-a="sub" title="אינדקס: מה שמקלידים יהיה למטה"><span>x<sub>1</sub></span>אינדקס</button>
         <button type="button" data-a="frac" title="שבר עם מונה ומכנה"><span class="mp-fr"><i>a</i><i>b</i></span>שבר</button>
         <button type="button" data-a="line" title="שורה חדשה למשוואה: משמאל לימין ובאמצע"><span dir="ltr">x=</span>משוואה</button>
       </div>
       <div class="mp-frac hidden"><input class="mp-n" dir="ltr" placeholder="מונה" aria-label="מונה"><span>⁄</span><input class="mp-d" dir="ltr" placeholder="מכנה" aria-label="מכנה"><button type="button" class="btn btn-primary" data-a="frac-ok">הוספה</button></div>
-      ${MATH_SYMS.map(([h, list]) => `<div class="ep-h">${h}</div><div class="mp-grid">${list.map(t => `<button type="button" data-s="${esc(t)}" dir="ltr">${esc(t)}</button>`).join('')}</div>`).join('')}
-      <p class="ep-tip">טיפ: כותבים x^2 ורווח והוא נהיה x²</p>`;
-    const fr = p.querySelector('.mp-frac');
-    p.onclick = ev => {
-      const s = ev.target.closest('[data-s]'); if (s) { mathIns(s.dataset.s); return; }
-      const a = ev.target.closest('[data-a]'); if (!a) return;
-      if (a.dataset.a === 'sup' || a.dataset.a === 'sub') { restoreSelection(); document.execCommand(a.dataset.a === 'sup' ? 'superscript' : 'subscript'); markDirty(); }
-      else if (a.dataset.a === 'frac') { fr.classList.toggle('hidden'); if (!fr.classList.contains('hidden')) setTimeout(() => fr.querySelector('.mp-n').focus(), 30); }
-      else if (a.dataset.a === 'frac-ok') { const n = fr.querySelector('.mp-n').value.trim(), d = fr.querySelector('.mp-d').value.trim(); closeEdPop(); $('editor').focus(); mathFrac(n, d); }
-      else if (a.dataset.a === 'line') { closeEdPop(); mathLine(); }
-    };
-    fr.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); p.querySelector('[data-a="frac-ok"]').click(); } });
-  }, 'math-pop');
+      ${MATH_SYMS.map(([h, list]) => `<div class="md-h">${h}</div><div class="mp-grid">${list.map(t => `<button type="button" data-s="${esc(t)}" dir="ltr">${esc(t)}</button>`).join('')}</div>`).join('')}
+      <p class="md-tip">טיפ: כותבים x^2 ורווח והוא נהיה x²</p>
+    </div>`;
+  document.body.appendChild(d);
+  // לחיצה על כפתור לא לוקחת את הסמן מהמחברת
+  d.addEventListener('pointerdown', e => { if (!e.target.closest('input')) e.preventDefault(); });
+  const fr = d.querySelector('.mp-frac');
+  d.querySelector('.md-x').onclick = () => { mathDockHide(); try { localStorage.setItem('mathDock:' + (openId || ''), 'off'); } catch {} };
+  d.querySelector('.md-body').onclick = ev => {
+    const s = ev.target.closest('[data-s]'); if (s) { mathIns(s.dataset.s); return; }
+    const a = ev.target.closest('[data-a]'); if (!a) return;
+    if (a.dataset.a === 'sup' || a.dataset.a === 'sub') { restoreSelection(); document.execCommand(a.dataset.a === 'sup' ? 'superscript' : 'subscript'); markDirty(); }
+    else if (a.dataset.a === 'frac') { fr.classList.toggle('hidden'); if (!fr.classList.contains('hidden')) setTimeout(() => fr.querySelector('.mp-n').focus(), 30); }
+    else if (a.dataset.a === 'frac-ok') { const n = fr.querySelector('.mp-n').value.trim(), dd = fr.querySelector('.mp-d').value.trim(); fr.classList.add('hidden'); fr.querySelectorAll('input').forEach(x => { x.value = ''; }); $('editor').focus(); mathFrac(n, dd); }
+    else if (a.dataset.a === 'line') mathLine();
+  };
+  fr.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); d.querySelector('[data-a="frac-ok"]').click(); } });
+  // גרירה מהכותרת
+  const head = d.querySelector('.md-head');
+  head.addEventListener('pointerdown', e => {
+    if (e.target.closest('.md-x')) return;
+    const r = d.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+    head.setPointerCapture(e.pointerId); d.classList.add('drag');
+    const mv = ev => mathDockPlace(ev.clientX - ox, ev.clientY - oy);
+    const up = () => { head.removeEventListener('pointermove', mv); head.removeEventListener('pointerup', up); head.removeEventListener('pointercancel', up); d.classList.remove('drag'); const rr = d.getBoundingClientRect(); try { localStorage.setItem('mathDockPos', JSON.stringify({ x: rr.left, y: rr.top })); } catch {} };
+    head.addEventListener('pointermove', mv); head.addEventListener('pointerup', up); head.addEventListener('pointercancel', up);
+  });
+  return d;
 }
+function mathDockPlace(x, y) {
+  const d = mathDockEl, vw = document.documentElement.clientWidth, vh = innerHeight, w = d.offsetWidth, h = d.offsetHeight;
+  d.style.left = Math.min(Math.max(6, x), vw - w - 6) + 'px'; d.style.top = Math.min(Math.max(6, y), vh - Math.min(h, 120) - 6) + 'px'; d.style.right = 'auto'; d.style.bottom = 'auto';
+}
+function mathDockShow() {
+  if (!edCan()) return;
+  if (!mathDockEl) mathDockEl = mathDockBuild();
+  const d = mathDockEl; d.classList.remove('hidden'); $('mathBtn').classList.add('open');
+  let pos = null; try { pos = JSON.parse(localStorage.getItem('mathDockPos') || 'null'); } catch {}
+  if (pos) mathDockPlace(pos.x, pos.y);
+  else { const vw = document.documentElement.clientWidth; mathDockPlace(vw < 700 ? (vw - d.offsetWidth) / 2 : 24, innerHeight - d.offsetHeight - (vw < 700 ? 84 : 24)); }
+}
+function mathDockHide() { if (mathDockEl) mathDockEl.classList.add('hidden'); $('mathBtn').classList.remove('open'); }
+function mathOpen() {
+  closeEdPop();
+  if (mathDockEl && !mathDockEl.classList.contains('hidden')) { mathDockHide(); try { localStorage.setItem('mathDock:' + (openId || ''), 'off'); } catch {} return; }
+  try { localStorage.removeItem('mathDock:' + (openId || '')); } catch {}
+  mathDockShow();
+}
+addEventListener('resize', () => { if (mathDockEl && !mathDockEl.classList.contains('hidden')) { const r = mathDockEl.getBoundingClientRect(); mathDockPlace(r.left, r.top); } });
 $('mathBtn').addEventListener('mousedown', e => e.preventDefault());
 $('mathBtn').addEventListener('click', mathOpen);
 // x^2 + רווח → x²   (גם ^3, ^n, ^-1, ^0-9)

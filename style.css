@@ -2748,3 +2748,23 @@ span[data-frac]>span[data-d]{padding:.05em .25em 0;min-width:.8em;text-align:cen
 .adm-p-min{font-weight:800;color:var(--accent);white-space:nowrap}
 .adm-p-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .adm-p-tools span{font-size:12.5px;padding:2px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+
+/* לוח מתמטיקה שאפשר להזיז */
+.math-dock{position:fixed;z-index:110;width:min(400px,calc(100vw - 12px));max-height:min(560px,calc(100vh - 100px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 60px -20px rgba(20,18,46,.45),var(--shadow-lg);animation:epIn .18s var(--ease)}
+.math-dock.hidden{display:none}
+.math-dock.drag{opacity:.92;box-shadow:0 30px 70px -18px rgba(20,18,46,.6)}
+.md-head{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 10px;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;user-select:none;background:var(--accent-soft);border-radius:20px 20px 0 0}
+.math-dock.drag .md-head{cursor:grabbing}
+.md-head b{display:inline-flex;align-items:center;gap:6px;font-size:16px;color:var(--accent)}.md-head b svg{width:18px;height:18px}
+.md-grip{width:26px;height:6px;border-radius:9px;background:color-mix(in srgb,var(--accent) 35%,transparent);box-shadow:0 -5px 0 color-mix(in srgb,var(--accent) 20%,transparent),0 5px 0 color-mix(in srgb,var(--accent) 20%,transparent)}
+.md-x{margin-inline-start:auto;width:38px;height:38px;border-radius:12px;font-size:20px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);display:grid;place-items:center}
+.md-x:hover{background:#fee2e2;color:#b91c1c}
+.md-body{overflow:auto;padding:10px 12px 12px}
+.md-h{font-size:12.5px;font-weight:800;color:var(--muted);margin:10px 2px 6px}
+.math-dock .mp-acts button{padding:10px 4px;font-size:13px}
+.math-dock .mp-acts button>span{font-size:21px}
+.math-dock .mp-grid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px}
+.math-dock .mp-grid button{height:46px;font-size:21px;border-radius:12px}
+.md-tip{margin:10px 2px 0;font-size:12.5px;color:var(--muted)}
+#mathBtn.open{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:700px){.math-dock{max-height:46vh}.math-dock .mp-grid{grid-template-columns:repeat(auto-fill,minmax(42px,1fr))}.math-dock .mp-grid button{height:42px}}
