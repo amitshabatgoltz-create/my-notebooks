@@ -479,7 +479,7 @@ function newNotebook() {
       ['מחברת חדשה', 'איך קוראים לה, ובאיזה מקצוע?', b => {
         const inp = document.createElement('input'); inp.placeholder = 'למשל: מחברת היסטוריה'; inp.value = st.title; inp.setAttribute('aria-label', 'שם המחברת');
         inp.oninput = () => { st.title = inp.value; };
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(1); } });
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
         b.append(inp, nbSettingsUI(st, () => {}, ['subject', 'color']));
         setTimeout(() => inp.focus(), 30);
       }],
@@ -493,7 +493,10 @@ function newNotebook() {
       head.innerHTML = `<div class="wz-dots" aria-hidden="true">${STEPS.map((_, i) => `<i${i === step ? ' class="on"' : i < step ? ' class="done"' : ''}></i>`).join('')}</div><small>שלב ${step + 1} מתוך ${STEPS.length}</small><h3></h3><p></p>`;
       head.querySelector('h3').textContent = h; head.querySelector('p').textContent = typeof sub === 'function' ? sub() : (step === 2 ? 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : '') : sub);
       const y = body.scrollTop; body.innerHTML = ''; build(body); body.scrollTop = y;
-      next.textContent = step === STEPS.length - 1 ? 'יצירה' : 'הבא';
+      // בשלב הראשון: "יצירה" יוצרת מיד. מי שרוצה – "עוד אפשרויות" (צורה, רקע, גופן, תבנית)
+      next.textContent = step === 0 ? 'יצירה' : step === STEPS.length - 1 ? 'יצירה' : 'הבא';
+      now.textContent = step === 0 ? 'עוד אפשרויות' : 'יצירה עכשיו';
+      head.querySelector('.wz-dots').classList.toggle('hidden', step === 0); head.querySelector('small').classList.toggle('hidden', step === 0);
       back.classList.toggle('hidden', step === 0); now.classList.toggle('hidden', step === STEPS.length - 1);
     };
     const go = k => { if (step + k >= STEPS.length) return create(); step = Math.max(0, step + k); body.scrollTop = 0; paint(); };
@@ -506,11 +509,12 @@ function newNotebook() {
         const look = {}; NB_KEYS.forEach(k => { if (st[k]) look[k] = st[k]; });
         await setDoc(ref, { title: st.title.trim() || st.subject || 'מחברת חדשה', color: st.color, html, ...look, ...(st.subject ? { subject: st.subject } : {}), createdAt: t, updatedAt: t });
         closeDialog();
-        const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100);
+        const quick = step === 0;
+        const wait = () => { if (!notebooks.find(x => x.id === ref.id)) return setTimeout(wait, 100); openNotebook(ref.id); if (quick) setTimeout(() => toastAction('המחברת מוכנה! רוצה לבחור צורה, רקע לדף או גופן?', 'להתאמה', () => nbSettingsDialog(), 10000), 900); };
         wait();
       } catch (e) { [next, now].forEach(x => { x.disabled = false; }); toast('לא הצלחתי ליצור את המחברת'); }
     };
-    next.onclick = () => go(1); back.onclick = () => go(-1); now.onclick = create;
+    next.onclick = () => step === 0 ? create() : go(1); back.onclick = () => go(-1); now.onclick = () => step === 0 ? go(1) : create();
     row.append(next, back, now); d.append(head, body, row); paint();
   });
 }
