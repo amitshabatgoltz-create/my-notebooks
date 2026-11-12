@@ -1481,7 +1481,12 @@ function selBubUpdate() {
   if (top + H > innerHeight - 70) top = Math.max(tbB + 4, rc.top - H - 10);
   selBub.style.top = top + 'px'; selBub.style.left = Math.min(Math.max(8, rc.left + rc.width / 2 - W / 2), vw - W - 8) + 'px';
 }
-document.addEventListener('selectionchange', () => { clearTimeout(sbT); sbT = setTimeout(selBubUpdate, 160); });
+// הסרגל הצף מופיע רק כשמסמנים עם העכבר או האצבע – לא בזמן קיצורי מקלדת (Ctrl+C, Ctrl+V, Ctrl+A, Shift+חצים)
+let selByKey = false;
+document.addEventListener('keydown', e => { if (e.ctrlKey || e.metaKey || e.shiftKey || /^Arrow/.test(e.key)) { selByKey = true; selBubHide(); } }, true);
+document.addEventListener('pointerdown', () => { selByKey = false; }, true);
+['copy', 'cut', 'paste'].forEach(t => document.addEventListener(t, () => { selByKey = true; selBubHide(); }, true));
+document.addEventListener('selectionchange', () => { clearTimeout(sbT); if (selByKey) { selBubHide(); return; } sbT = setTimeout(selBubUpdate, 160); });
 document.addEventListener('scroll', () => { if (!selBub.classList.contains('hidden')) requestAnimationFrame(selBubUpdate); }, true);
 selBub.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; const k = b.dataset.b;
