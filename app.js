@@ -1820,8 +1820,15 @@ function nbSettingsUI(st, onChange, keys, preview) {
       else if (k === 'color') {
         lab.textContent = 'צבע';
         const g = document.createElement('div'); g.className = 'picker';
-        COLORS.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === st.color) s.classList.add('on'); s.onclick = () => { st.color = c; [...g.children].forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g.appendChild(s); });
+        const all = [];
+        COLORS.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === st.color) s.classList.add('on'); s.onclick = () => { st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g.appendChild(s); all.push(s); });
         sec.appendChild(g);
+        // צבעים מיוחדים (פרס על החבר הראשון)
+        const open = typeof refHas === 'function' && refHas(1);
+        const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
+        const g2 = document.createElement('div'); g2.className = 'picker sp-picker' + (open ? '' : ' locked');
+        SPECIAL_COLORS.forEach(([c, nm]) => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.title = nm; s.setAttribute('aria-label', nm); if (c === st.color) s.classList.add('on'); s.onclick = () => { if (!open) { toast('הצבעים המיוחדים נפתחים כשחבר אחד מצטרף דרך הקישור שלך. אפשר דרך "חברים" בתפריט'); return; } st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g2.appendChild(s); all.push(s); });
+        sec.append(sh, g2);
       } else if (k === 'subject') {
         lab.textContent = 'מקצוע';
         const list = [...new Set([...(typeof ttSubjects === 'function' ? ttSubjects() : []), ...SUBJ_BASE])].slice(0, 18);
