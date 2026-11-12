@@ -7920,7 +7920,8 @@ async function statsPing() {
 // זמן באתר: סופרים דקות שבהן האתר פתוח מול העיניים ומישהו עשה משהו ב-2 הדקות האחרונות. נשמר כל 5 דקות וכשיוצאים
 let statsMinBuf = 0, statsLastAct = Date.now();
 ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t => addEventListener(t, () => { statsLastAct = Date.now(); }, { passive: true, capture: true }));
-setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 120000) { statsMinBuf++; if (statsMinBuf >= 5) statsFlush(); } }, 60000);
+setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf++; if (statsMinBuf >= 2) statsFlush(); } }, 60000);
+addEventListener('pagehide', () => statsFlush());
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') statsFlush(); });
 function statsFlush() {
   if (!me || !statsMinBuf) return; const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
@@ -8027,9 +8028,10 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
     ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></div>`).join('')}</div>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
     ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b dir="auto">${esc(u.name || u.email || 'משתמש')}</b><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
-    <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נספר מ-12 בנובמבר.</p></div>`;
+    <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 2 דקות, אז מה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
 }
 async function renderAdmin() {
+  statsFlush();
   const box = $('admBody');
   await refreshUnlimited().catch(() => {});
   if (!isUnlimited()) { box.innerHTML = '<p class="noev">העמוד הזה רק לבעל האתר.</p>'; return; }
