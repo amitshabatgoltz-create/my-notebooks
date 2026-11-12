@@ -19,6 +19,8 @@ const IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview'
 const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יחד
 // כל האתר יחד: ל-Gemini החינמי יש 15 בקשות בדקה לכל הפרויקט. שומרים מקום אחד ביטחון.
 // בקשה שאין לה מקום בדקה הזו מחכה (תור) עד הדקה הבאה, ולא נכשלת מיד.
+// תקרה יומית לכל האתר יחד: מעליה ה-AI לא עונה עד חצות (בעל האתר לא מוגבל). שומרת שהעלות לא תעבור סכום קבוע
+const SITE_DAY_CAP = +process.env.AI_SITE_DAY_CAP || 500;
 const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +process.env.AI_QUEUE_WAIT_MS || 25000;
 const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
@@ -62,7 +64,7 @@ function cleanConfig(c) {
   return out;
 }
 
-async function takeGlobal(kind) {
+async function takeGlobal(kind, owner) {
   const ref = db.doc('aiQuota/_site');
   const until = Date.now() + QUEUE_WAIT_MS;
   for (;;) {
@@ -70,12 +72,14 @@ async function takeGlobal(kind) {
     const ok = await db.runTransaction(async tx => {
       const sn = await tx.get(ref); const g = sn.exists ? sn.data() : {};
       const count = g.min === min ? (g.count || 0) : 0;
+      const day = israelDay(), same = g.day === day;
+      if (!owner && same && (g.today || 0) >= SITE_DAY_CAP) return 'cap';
       if (count >= GLOBAL_PER_MIN) return false;
       // גם ספירה יומית של כל האתר (לפי סוג), בשביל העמוד "ניהול האתר"
-      const day = israelDay(), same = g.day === day;
       const kinds = same && g.kinds ? { ...g.kinds } : {}; kinds[kind] = (kinds[kind] || 0) + 1;
       tx.set(ref, { min, count: count + 1, day, today: (same ? g.today || 0 : 0) + 1, kinds, prevDay: same ? g.prevDay || null : (g.day ? { day: g.day, today: g.today || 0 } : null) }); return true;
     });
+    if (ok === 'cap') throw new HttpsError('resource-exhausted', 'site-cap');
     if (ok) return;
     const wait = (min + 1) * 60000 - Date.now() + Math.random() * 1500;   // עד תחילת הדקה הבאה, בפיזור קטן
     if (Date.now() + wait > until) throw new HttpsError('resource-exhausted', 'site-busy');
@@ -132,7 +136,7 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
-  try { await takeGlobal(kind); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
+  try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
 
   const ai = await gemini();
