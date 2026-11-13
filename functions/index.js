@@ -198,3 +198,23 @@ exports.ai = onCall({
     throw new HttpsError('internal', 'gemini: ' + msg);
   }
 });
+
+// 🛑 מתג חירום לחיוב: תקציב ב-Google Cloud שולח הודעה לנושא billing-kill (Pub/Sub) כמה פעמים ביום.
+// אם ההוצאה החודשית הגיעה לסכום של התקציב – מנתקים את כרטיס החיוב מהפרויקט, וכל השירותים בתשלום נעצרים.
+// מחזירים ידנית: Billing → My projects → לחבר שוב את חשבון החיוב. (ההרשאה: Billing Account Administrator לחשבון השירות של הפונקציה)
+const { onMessagePublished } = require('firebase-functions/v2/pubsub');
+const { GoogleAuth } = require('google-auth-library');
+exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europe-west1', retry: false }, async event => {
+  const d = event.data.message.json || {};
+  const cost = +d.costAmount || 0, budget = +d.budgetAmount || 0;
+  console.log(`billing: ${cost} / ${budget} ${d.currencyCode || ''} (${d.budgetDisplayName || ''})`);
+  if (!budget || cost < budget) return;
+  const project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-billing'] });
+  const client = await auth.getClient();
+  const url = `https://cloudbilling.googleapis.com/v1/projects/${project}/billingInfo`;
+  const cur = await client.request({ url });
+  if (!cur.data.billingEnabled) { console.log('billing already disabled'); return; }
+  await client.request({ url, method: 'PUT', data: { billingAccountName: '' } });
+  console.error(`BILLING DISABLED for ${project}: cost ${cost} >= budget ${budget}`);
+});
