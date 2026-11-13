@@ -208,7 +208,8 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
   const d = event.data.message.json || {};
   const cost = +d.costAmount || 0, budget = +d.budgetAmount || 0;
   console.log(`billing: ${cost} / ${budget} ${d.currencyCode || ''} (${d.budgetDisplayName || ''})`);
-  if (!budget || cost < budget) return;
+  const test = d.test === true;   // בדיקה: רק בודקים שיש הרשאות, בלי לנתק כלום
+  if (!test && (!budget || cost < budget)) return;
   const own = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
   const acct = (event.data.message.attributes || {}).billingAccountId;
   const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-billing'] });
@@ -220,6 +221,7 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
       const r = await client.request({ url: `https://cloudbilling.googleapis.com/v1/billingAccounts/${acct}/projects?pageSize=100` });
       const list = (r.data.projectBillingInfo || []).filter(x => x.billingEnabled).map(x => x.projectId);
       projects = [...list.filter(x => x !== own), own];   // הפרויקט הזה אחרון
+      if (test) console.log(`TEST ok: billing account ${acct} has ${list.length} active projects: ${list.join(', ')}`);
     } catch (e) { console.error('list projects failed', e.message); }
   }
   for (const project of projects) {
@@ -227,6 +229,7 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
     try {
       const cur = await client.request({ url });
       if (!cur.data.billingEnabled) { console.log(`billing already disabled: ${project}`); continue; }
+      if (test) { console.log(`TEST ok: ${project} billing=${cur.data.billingEnabled} (can read)`); continue; }
       await client.request({ url, method: 'PUT', data: { billingAccountName: '' } });
       console.error(`BILLING DISABLED for ${project}: cost ${cost} >= budget ${budget}`);
     } catch (e) { console.error(`disable failed for ${project}`, e.message); }
