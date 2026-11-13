@@ -212,7 +212,7 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
   if (!test && (!budget || cost < budget)) return;
   const own = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
   const acct = (event.data.message.attributes || {}).billingAccountId;
-  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-billing'] });
+  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
   const client = await auth.getClient();
   // כל הפרויקטים בחשבון החיוב (גם Maps). אם לא מצליחים לקבל את הרשימה – לפחות הפרויקט הזה
   let projects = [own];
@@ -224,14 +224,18 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
       if (test) console.log(`TEST ok: billing account ${acct} has ${list.length} active projects: ${list.join(', ')}`);
     } catch (e) { console.error('list projects failed', e.message); }
   }
+  // בלי לקרוא קודם (לתפקיד Project Billing Manager אין רשות קריאה על הפרויקט) – מנתקים ישר.
+  // בבדיקה: שואלים את גוגל אם יש רשות לנתק, בלי לנתק.
   for (const project of projects) {
-    const url = `https://cloudbilling.googleapis.com/v1/projects/${project}/billingInfo`;
     try {
-      const cur = await client.request({ url });
-      if (!cur.data.billingEnabled) { console.log(`billing already disabled: ${project}`); continue; }
-      if (test) { console.log(`TEST ok: ${project} billing=${cur.data.billingEnabled} (can read)`); continue; }
-      await client.request({ url, method: 'PUT', data: { billingAccountName: '' } });
+      if (test) {
+        const r = await client.request({ url: `https://cloudresourcemanager.googleapis.com/v1/projects/${project}:testIamPermissions`, method: 'POST', data: { permissions: ['resourcemanager.projects.deleteBillingAssignment'] } });
+        const ok = (r.data.permissions || []).length > 0;
+        console.log(`TEST ${ok ? 'ok' : 'NO PERMISSION'}: ${project} ${ok ? 'can disable billing' : 'cannot disable billing'}`);
+        continue;
+      }
+      await client.request({ url: `https://cloudbilling.googleapis.com/v1/projects/${project}/billingInfo`, method: 'PUT', data: { billingAccountName: '' } });
       console.error(`BILLING DISABLED for ${project}: cost ${cost} >= budget ${budget}`);
-    } catch (e) { console.error(`disable failed for ${project}`, e.message); }
+    } catch (e) { console.error(`${test ? 'TEST ' : ''}disable failed for ${project}`, e.message); }
   }
 });
