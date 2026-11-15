@@ -2846,3 +2846,5 @@ button.adm-tool:hover{background:var(--accent-soft)}
   body.printing-nb #editor .file-chip button,body.printing-nb .blk-h,body.printing-nb .sel-bub,body.printing-nb .pg-sheets,body.printing-nb .slide-add{display:none!important}
 }
 @media print{html:has(body.printing-nb){background:#fff!important}}
+/* בהדפסה: בתחתית כל דף "כל הזכויות שמורות" ומספר עמוד, במקום הכתובת של האתר שהדפדפן שם */
+@media print{@page{margin:15mm 14mm 16mm;@bottom-center{content:"כל הזכויות שמורות ל״המחברות שלי״";font:10px system-ui,sans-serif;color:#666}@bottom-left{content:counter(page) "/" counter(pages);font:10px system-ui,sans-serif;color:#666}}}
