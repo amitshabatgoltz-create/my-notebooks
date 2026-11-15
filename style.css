@@ -2876,3 +2876,11 @@ button.adm-tool:hover{background:var(--accent-soft)}
   body.print-compact #editor td,body.print-compact #editor th{padding:2pt 5pt!important}
   body.print-compact #editor img{max-height:8cm!important;width:auto!important}
 }
+
+/* מעבר דף חכם בהדפסה: כותרת נשארת עם מה שמתחתיה, רשימה קצרה לא נחתכת, ולא נשארות שורות בודדות */
+@media print{
+  body.printing-nb #editor .pr-h{break-after:avoid!important;page-break-after:avoid!important;break-inside:avoid}
+  body.printing-nb #editor .pr-keep{break-inside:avoid;page-break-inside:avoid}
+  body.printing-nb #editor .pr-h+*{break-before:avoid!important;page-break-before:avoid!important}
+  body.printing-nb #editor p,body.printing-nb #editor li{orphans:3;widows:3}
+}

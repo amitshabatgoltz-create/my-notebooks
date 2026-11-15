@@ -8750,5 +8750,22 @@ function printNotebook() {
 }
 $('nbPrint').addEventListener('click', printAsk);
 // גם Ctrl+P בתוך מחברת מדפיס רק את המחברת
-addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) { document.body.classList.add('printing-nb'); document.body.classList.toggle('print-compact', printCompactOn()); } });
-addEventListener('afterprint', () => document.body.classList.remove('printing-nb', 'print-compact'));
+// מעבר דף חכם: כותרת (גם שורה קצרה מודגשת/עם קו תחתון שמשמשת ככותרת) לא נשארת לבד בסוף דף –
+// היא עוברת לדף הבא יחד עם מה שמתחתיה. גם רשימה קצרה, טבלה ותמונה לא נחתכות באמצע
+function prSmart(on) {
+  const ed = $('editor'); if (!ed) return;
+  if (!on) { ed.querySelectorAll('.pr-h,.pr-keep').forEach(x => x.classList.remove('pr-h', 'pr-keep')); return; }
+  const kids = [...ed.querySelectorAll(':scope > *, :scope > [data-slide] > *')];
+  for (const el of kids) {
+    const t = (el.textContent || '').trim();
+    if (/^H[1-6]$/.test(el.tagName)) { el.classList.add('pr-h'); continue; }
+    if ((el.tagName === 'P' || el.tagName === 'DIV') && t && t.length <= 90 && !el.querySelector('img,table')) {
+      // כל הטקסט בשורה מודגש / עם קו תחתון / בגודל גדול = כותרת
+      const styled = [...el.querySelectorAll('b,strong,u,[data-s]')].reduce((n, x) => x.closest('b,strong,u,[data-s]') === x ? n + (x.textContent || '').trim().length : n, 0);
+      if (styled >= t.replace(/[:\s]+$/, '').length * .9) el.classList.add('pr-h');
+    }
+    if ((el.tagName === 'UL' || el.tagName === 'OL') && el.children.length <= 12) el.classList.add('pr-keep');
+  }
+}
+addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) { document.body.classList.add('printing-nb'); document.body.classList.toggle('print-compact', printCompactOn()); prSmart(true); } });
+addEventListener('afterprint', () => { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); });
