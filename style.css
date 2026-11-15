@@ -2824,3 +2824,25 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .db-arrow svg{width:30px;height:30px;transform:scaleX(-1);stroke-width:2.6}
 .db-arrow small{font-size:11px;font-weight:700;white-space:nowrap}
 @media (max-width:640px){.demo-board{grid-template-columns:1fr;padding:0 16px;gap:16px}.db-arrow svg{transform:rotate(90deg)}.db-arrow{flex-direction:row;justify-content:center}}
+
+/* ===== הדפסת מחברת ===== */
+.nb-print{display:inline-flex;align-items:center;gap:6px}
+@media (max-width:700px){.nb-print span{display:none}}
+@media print{
+  @page{margin:16mm 14mm}
+  body.printing-nb,body.printing-nb #app,body.printing-nb .main-wrap,body.printing-nb main,body.printing-nb #notebook,body.printing-nb #notebook .doc,body.printing-nb #notebook .page{
+    display:block!important;background:#fff!important;color:#111!important;box-shadow:none!important;border:0!important;margin:0!important;padding:0!important;max-width:none!important;width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important;position:static!important;transform:none!important}
+  body.printing-nb>:not(#app),body.printing-nb #app>:not(.main-wrap),body.printing-nb .main-wrap>:not(main),body.printing-nb main>:not(#notebook),
+  body.printing-nb #notebook>:not(.doc),body.printing-nb #notebook .doc>:not(.page):not(.ed-title),body.printing-nb #notebook .page>:not(#editor){display:none!important}
+  body.printing-nb .ed-title{display:block!important;width:100%;font-size:26pt!important;font-weight:800;color:#111!important;border:0!important;padding:0!important;margin:0 0 10pt!important;background:none!important}
+  body.printing-nb #editor{color:#111!important;background:#fff!important;font-size:12pt;line-height:1.55;padding:0!important;margin:0!important;min-height:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.printing-nb #editor>*[style*="margin-top"]{margin-top:0!important}
+  body.printing-nb #editor [data-slide]{break-after:page;page-break-after:always;border:0!important;box-shadow:none!important}
+  body.printing-nb #editor [data-slide]:last-child{break-after:auto;page-break-after:auto}
+  body.printing-nb #editor img,body.printing-nb #editor table,body.printing-nb #editor tr,body.printing-nb #editor blockquote,body.printing-nb #editor [data-box],body.printing-nb #editor [data-cv]{break-inside:avoid;page-break-inside:avoid}
+  body.printing-nb #editor h1,body.printing-nb #editor h2,body.printing-nb #editor h3{break-after:avoid;page-break-after:avoid}
+  body.printing-nb #editor img{max-width:100%!important}
+  body.printing-nb #editor a{color:#111!important}
+  body.printing-nb #editor .file-chip button,body.printing-nb .blk-h,body.printing-nb .sel-bub,body.printing-nb .pg-sheets,body.printing-nb .slide-add{display:none!important}
+}
+@media print{html:has(body.printing-nb){background:#fff!important}}

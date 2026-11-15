@@ -34,16 +34,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1794516672">
+<link rel="stylesheet" href="style.css?v=1794744139">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <script src="gsap.min.js"></script>
-<script src="motion.js?v=1794516672"></script>
+<script src="motion.js?v=1794744139"></script>
 </head>
 <body>
 
 <!-- סמלים (אייקונים) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3.5h10V9M7 17.5H5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="7" rx="1"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-7A2.5 2.5 0 0 0 4 5.5v9A2.5 2.5 0 0 0 6.5 17H8"/></symbol>
   <symbol id="i-speak" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
@@ -335,6 +336,7 @@
           <span class="presence hidden" id="presence"></span><span class="shared-by" id="sharedBy"></span>
           <button class="btn btn-ghost nb-color" id="nbColor" type="button" title="שינוי הצבע של המחברת"><i class="nbc-dot" id="nbColorDot"></i><span>צבע</span></button>
           <button class="btn btn-ghost nb-layout" id="nbLayout" type="button" title="הגדרות המחברת: צורה, רקע, גופן ועוד"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>הגדרות</span></button>
+          <button class="btn btn-ghost nb-print" id="nbPrint" type="button" title="הדפסה או שמירה כ-PDF"><svg aria-hidden="true"><use href="#i-print"/></svg><span>הדפסה</span></button>
           <button class="btn btn-ghost nb-timer" id="nbTimer" type="button" title="טיימר לימוד"><svg><use href="#i-timer"/></svg><span>טיימר</span></button>
           <button class="btn btn-ghost share-btn" id="shareBtn" title="שיתוף עם חברים"><svg><use href="#i-share"/></svg><span>שיתוף</span></button>
           <button class="btn btn-sum" id="sumBtn" title="סיכום למבחן"><svg><use href="#i-spark"/></svg><span>סיכום למבחן</span></button>
@@ -516,6 +518,6 @@
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1794516672"></script>
+<script type="module" src="app.js?v=1794744139"></script>
 </body>
 </html>

@@ -8716,3 +8716,21 @@ async function inviteDialog() {
 }
 $('adminMenuBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); });
 $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); runTour(); });
+
+
+/* ===== הדפסה / שמירה כ-PDF: רק הכותרת והתוכן של המחברת, בלי תפריטים וכפתורים ===== */
+function printNotebook() {
+  if (!openId) return;
+  try { flush(); } catch {}
+  document.body.classList.add('printing-nb');
+  const old = document.title;
+  document.title = ($('title').value || 'מחברת').replace(/[\\/:*?"<>|]/g, '').slice(0, 80);   // שם הקובץ כששומרים PDF
+  const done = () => { document.body.classList.remove('printing-nb'); document.title = old; removeEventListener('afterprint', done); };
+  addEventListener('afterprint', done);
+  track('print', {});
+  setTimeout(() => window.print(), 60);
+}
+$('nbPrint').addEventListener('click', printNotebook);
+// גם Ctrl+P בתוך מחברת מדפיס רק את המחברת
+addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) document.body.classList.add('printing-nb'); });
+addEventListener('afterprint', () => document.body.classList.remove('printing-nb'));
