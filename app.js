@@ -8719,18 +8719,36 @@ $('tourBtn').addEventListener('click', () => { $('userMenu').classList.add('hidd
 
 
 /* ===== הדפסה / שמירה כ-PDF: רק הכותרת והתוכן של המחברת, בלי תפריטים וכפתורים ===== */
+// "מכווץ": כתב קטן יותר ופחות רווחים – נכנס יותר על כל דף. הבחירה נזכרת (גם ל-Ctrl+P)
+const printCompactOn = () => { try { return localStorage.getItem('printCompact') === '1'; } catch { return false; } };
+function printAsk() {
+  if (!openId) return;
+  dialog(d => {
+    d.innerHTML = `<h3>הדפסה</h3><p>איך להדפיס את המחברת?</p>
+      <div class="pr-opts">
+        <button type="button" class="pr-opt" data-c="0"><span class="pr-pv"><i></i><i></i><i></i><i></i></span><b>רגיל</b><small>כמו שרואים במחברת</small></button>
+        <button type="button" class="pr-opt cmp" data-c="1"><span class="pr-pv"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><b>מכווץ</b><small>כתב קטן ופחות רווחים: יותר על כל דף, פחות דפים</small></button>
+      </div>`;
+    const on = printCompactOn() ? '1' : '0';
+    d.querySelectorAll('.pr-opt').forEach(b => {
+      if (b.dataset.c === on) b.classList.add('on');
+      b.onclick = () => { try { localStorage.setItem('printCompact', b.dataset.c); } catch {} closeDialog(); setTimeout(printNotebook, 80); };
+    });
+  });
+}
 function printNotebook() {
   if (!openId) return;
   try { flush(); } catch {}
   document.body.classList.add('printing-nb');
+  document.body.classList.toggle('print-compact', printCompactOn());
   const old = document.title;
   document.title = ($('title').value || 'מחברת').replace(/[\\/:*?"<>|]/g, '').slice(0, 80);   // שם הקובץ כששומרים PDF
-  const done = () => { document.body.classList.remove('printing-nb'); document.title = old; removeEventListener('afterprint', done); };
+  const done = () => { document.body.classList.remove('printing-nb', 'print-compact'); document.title = old; removeEventListener('afterprint', done); };
   addEventListener('afterprint', done);
   track('print', {});
   setTimeout(() => window.print(), 60);
 }
-$('nbPrint').addEventListener('click', printNotebook);
+$('nbPrint').addEventListener('click', printAsk);
 // גם Ctrl+P בתוך מחברת מדפיס רק את המחברת
-addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) document.body.classList.add('printing-nb'); });
-addEventListener('afterprint', () => document.body.classList.remove('printing-nb'));
+addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) { document.body.classList.add('printing-nb'); document.body.classList.toggle('print-compact', printCompactOn()); } });
+addEventListener('afterprint', () => document.body.classList.remove('printing-nb', 'print-compact'));

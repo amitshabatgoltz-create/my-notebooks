@@ -2848,3 +2848,31 @@ button.adm-tool:hover{background:var(--accent-soft)}
 @media print{html:has(body.printing-nb){background:#fff!important}}
 /* בהדפסה: בתחתית כל דף "כל הזכויות שמורות" ומספר עמוד, במקום הכתובת של האתר שהדפדפן שם */
 @media print{@page{margin:15mm 14mm 16mm;@bottom-center{content:"כל הזכויות שמורות ל״המחברות שלי״";font:10px system-ui,sans-serif;color:#666}@bottom-left{content:counter(page) "/" counter(pages);font:10px system-ui,sans-serif;color:#666}}}
+
+/* חלון ההדפסה: רגיל / מכווץ */
+.pr-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 4px}
+.pr-opt{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 10px;border-radius:16px;border:2px solid var(--line);background:var(--surface);color:var(--ink);text-align:center;cursor:pointer}
+.pr-opt:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.pr-opt.on{border-color:var(--accent);background:var(--accent-soft)}
+.pr-opt b{font-size:16px}.pr-opt small{font-size:12.5px;color:var(--muted);line-height:1.35}
+.pr-pv{display:flex;flex-direction:column;gap:7px;width:64px;height:84px;padding:10px 9px;border-radius:6px;background:#fff;border:1px solid #d8d8e0;box-shadow:0 4px 10px -6px rgba(0,0,0,.3);margin-bottom:6px}
+.pr-pv i{display:block;height:4px;border-radius:2px;background:#b9b9c8}.pr-pv i:first-child{width:70%;height:6px;background:#7c7c90}
+.pr-opt.cmp .pr-pv{gap:3px;padding:7px}.pr-opt.cmp .pr-pv i{height:3px}.pr-opt.cmp .pr-pv i:first-child{height:4px}
+/* הדפסה מכווצת: כתב קטן, שורות צפופות, שוליים קטנים */
+@media print{@page cmp{margin:9mm 10mm 12mm;@bottom-center{content:"כל הזכויות שמורות ל״המחברות שלי״";font:9px system-ui,sans-serif;color:#666}@bottom-left{content:counter(page) "/" counter(pages);font:9px system-ui,sans-serif;color:#666}}}
+@media print{
+  body.print-compact{page:cmp}
+  body.print-compact .ed-title{font-size:16pt!important;margin:0 0 5pt!important}
+  body.print-compact #editor{font-size:10pt!important;line-height:1.3!important}
+  body.print-compact #editor *{line-height:1.3!important}
+  body.print-compact #editor p,body.print-compact #editor li,body.print-compact #editor div{margin-top:0!important;margin-bottom:2pt!important}
+  body.print-compact #editor h1{font-size:15pt!important;margin:6pt 0 3pt!important;padding:0!important}
+  body.print-compact #editor h2{font-size:12.5pt!important;margin:5pt 0 2pt!important;padding:0!important}
+  body.print-compact #editor h3{font-size:11pt!important;margin:4pt 0 2pt!important;padding:0!important}
+  body.print-compact #editor ul,body.print-compact #editor ol{margin:1pt 0 3pt!important;padding-inline-start:14pt!important}
+  body.print-compact #editor blockquote{margin:3pt 0!important;padding:2pt 8pt!important}
+  body.print-compact #editor hr:not([data-pb]){margin:4pt 0!important}
+  body.print-compact #editor table{margin:3pt 0!important}
+  body.print-compact #editor td,body.print-compact #editor th{padding:2pt 5pt!important}
+  body.print-compact #editor img{max-height:8cm!important;width:auto!important}
+}
