@@ -252,6 +252,7 @@ const ALLOWED = new Set(['P','H1','H2','H3','B','STRONG','I','EM','U','S','STRIK
 const TXT_COLORS = ['red', 'orange', 'green', 'blue', 'purple', 'gray', 'ink'], HL_COLORS = ['green', 'blue', 'pink', 'orange'], TXT_SIZES = ['s', 'm', 'l', 'xl'];
 function clean(html) {
   const d = new DOMParser().parseFromString('<div>' + (html || '') + '</div>', 'text/html');
+  d.querySelectorAll('div.pr-sec').forEach(w => w.replaceWith(...w.childNodes));   // עטיפות זמניות של הדפסה לא נשמרות
   const walk = node => [...node.childNodes].forEach(ch => {
     if (ch.nodeType === 1) {
       if (!ALLOWED.has(ch.tagName)) {
@@ -8754,7 +8755,8 @@ $('nbPrint').addEventListener('click', printAsk);
 // היא עוברת לדף הבא יחד עם מה שמתחתיה. גם רשימה קצרה, טבלה ותמונה לא נחתכות באמצע
 function prSmart(on) {
   const ed = $('editor'); if (!ed) return;
-  if (!on) { ed.querySelectorAll('.pr-h,.pr-keep').forEach(x => x.classList.remove('pr-h', 'pr-keep')); return; }
+  if (!on) { prUnwrap(); ed.querySelectorAll('.pr-h,.pr-keep').forEach(x => x.classList.remove('pr-h', 'pr-keep')); return; }
+  if (ed.querySelector('.pr-sec')) return;
   const kids = [...ed.querySelectorAll(':scope > *, :scope > [data-slide] > *')];
   for (const el of kids) {
     const t = (el.textContent || '').trim();
@@ -8766,6 +8768,25 @@ function prSmart(on) {
     }
     if ((el.tagName === 'UL' || el.tagName === 'OL') && el.children.length <= 12) el.classList.add('pr-keep');
   }
+  // כל כותרת עם כל מה שמתחתיה (עד הכותרת הבאה באותה רמה או גבוהה יותר) = "פרק". פרק שנכנס בדף אחד לא נחתך:
+  // אם הוא מתחיל בסוף דף – כולו עובר לדף הבא. (עוטפים רק בזמן ההדפסה ומחזירים מיד אחרי)
+  if (ed.querySelector(':scope > [data-slide]')) return;
+  const rank = el => /^H([1-6])$/.test(el.tagName) ? +el.tagName[1] : el.classList.contains('pr-h') ? 7 : 0;
+  const stack = [{ el: ed, r: 0 }];
+  for (const k of [...ed.children]) {
+    const r = rank(k);
+    if (r) {
+      while (stack.length > 1 && stack[stack.length - 1].r >= r) stack.pop();
+      const w = document.createElement('div'); w.className = 'pr-sec';
+      stack[stack.length - 1].el.appendChild(w); w.appendChild(k); stack.push({ el: w, r });
+    } else stack[stack.length - 1].el.appendChild(k);
+  }
+  // רק פרק שנכנס בדף אחד (הערכה לפי היחס של דף A4 לרוחב המחברת) – פרק ארוך יותר נחתך כרגיל, אחרת היה משאיר דף ריק
+  const pageH = ed.offsetWidth * 1.45 * .8;
+  ed.querySelectorAll('.pr-sec').forEach(w => { if (w.offsetHeight && w.offsetHeight < pageH) w.classList.add('pr-fit'); });
 }
+function prUnwrap() { const ed = $('editor'); let w; while ((w = ed && ed.querySelector('.pr-sec'))) w.replaceWith(...w.childNodes); }
 addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('hidden')) { document.body.classList.add('printing-nb'); document.body.classList.toggle('print-compact', printCompactOn()); prSmart(true); } });
 addEventListener('afterprint', () => { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); });
+// ליתר ביטחון (טלפונים שלא שולחים afterprint): כשחוזרים לכתוב – מחזירים את המחברת למצב הרגיל
+$('editor').addEventListener('focusin', () => { if ($('editor').querySelector('.pr-sec')) { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); } });

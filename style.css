@@ -2884,3 +2884,4 @@ button.adm-tool:hover{background:var(--accent-soft)}
   body.printing-nb #editor .pr-h+*{break-before:avoid!important;page-break-before:avoid!important}
   body.printing-nb #editor p,body.printing-nb #editor li{orphans:3;widows:3}
 }
+@media print{body.printing-nb #editor .pr-sec{display:block}body.printing-nb #editor .pr-fit{break-inside:avoid;page-break-inside:avoid}}
