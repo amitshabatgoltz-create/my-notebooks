@@ -96,7 +96,10 @@ service cloud.firestore {
       return exists(m) ? get(m).data.mode : resource.data.mode;
     }
     match /shares/{shareId} {
-      allow get: if true;
+      // כל מי שיש לו את הקישור – חוץ ממי שבעל המחברת הסיר (mode: none)
+      allow get: if request.auth == null
+        || !exists(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid))
+        || get(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid)).data.mode != 'none';
       allow list: if request.auth != null && resource.data.owner == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
       allow update: if request.auth != null && (
@@ -118,11 +121,11 @@ service cloud.firestore {
         allow update: if request.auth != null && (
           (get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode'])
-            && request.resource.data.mode in ['view', 'copy', 'edit'])
+            && request.resource.data.mode in ['view', 'copy', 'edit', 'none'])
           || (request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'at'])
             && request.resource.data.name is string && request.resource.data.name.size() < 80));
-        allow delete: if request.auth != null && (request.auth.uid == uid || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+        allow delete: if request.auth != null && ((request.auth.uid == uid && resource.data.mode != 'none') || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
       }
       // מי נמצא עכשיו במחברת
       match /presence/{uid} {

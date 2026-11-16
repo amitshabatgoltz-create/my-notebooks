@@ -2907,3 +2907,8 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .pp-t small{font-size:12.5px;color:var(--muted)}.pp-t small.on{color:#16a34a;font-weight:700}
 .pp-row select{flex:none;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 8px;font:inherit;font-size:14px}
 #presence{cursor:pointer}
+
+.pp-rm{flex:none;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--muted);background:none;border:1px solid transparent}
+.pp-rm:hover{color:#b91c1c;background:#fee2e2}.pp-rm svg{width:18px;height:18px}
+.pp-gone{margin-top:10px}.pp-gone summary{cursor:pointer;font-weight:700;color:var(--muted);padding:6px 2px}
+.pp-gone .pp-row{margin-top:6px}.pp-row.off .pp-av{background:var(--muted)}

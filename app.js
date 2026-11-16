@@ -3692,7 +3692,7 @@ async function shareDialog() {
           try {
             await updateDoc(shareDoc(cur.shareId), { mode: m }); await updateDoc(nbDoc(cur.id), { shareMode: m }); cur.shareMode = m;
             // לכולם: גם מי שכבר נכנס מקבל את ההרשאה החדשה (אחר כך אפשר לשנות לכל אחד ב"אנשים")
-            try { const ms = await getDocs(collection(db, 'shares', cur.shareId, 'members')); await Promise.all(ms.docs.filter(x => x.data().mode !== m).map(x => updateDoc(x.ref, { mode: m }))); } catch (e) { console.warn('members mode', e); }
+            try { const ms = await getDocs(collection(db, 'shares', cur.shareId, 'members')); await Promise.all(ms.docs.filter(x => x.data().mode !== m && x.data().mode !== 'none').map(x => updateDoc(x.ref, { mode: m }))); } catch (e) { console.warn('members mode', e); }
             toast({ view: 'עכשיו לכולם: צפייה בלבד', copy: 'עכשיו לכולם: צפייה + שמירת עותק', edit: 'עכשיו לכולם: עריכה משותפת' }[m]);
             stopLive(); if (m === 'edit' && openId === cur.id) startLive(cur.shareId, clean($('editor').innerHTML));
           }
@@ -3777,7 +3777,7 @@ function paintPeopleBtn() {
   const b = $('nbPeople'); if (!b) return;
   const on = !!ownerMem && !document.body.classList.contains('editing-shared');
   b.classList.toggle('hidden', !on);
-  const k = on ? ownerMem.list.filter(ppOnline).length : 0;
+  const k = on ? ownerMem.list.filter(p => p.mode !== 'none' && ppOnline(p)).length : 0;
   const nEl = $('nbPeopleN'); nEl.textContent = k; nEl.classList.toggle('hidden', !k);
   b.title = on ? `מי במחברת (${ownerMem.list.length})${k ? ` · ${k} מחוברים עכשיו` : ''}` : '';
 }
@@ -3788,13 +3788,28 @@ function peopleDialog() {
     d.classList.add('people-dlg');
     const paint = () => {
       if (!d.isConnected) { if (ownerMem) ownerMem.onChange = null; return; }
-      const list = (ownerMem ? ownerMem.list : []).slice().sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0)));
+      const all = (ownerMem ? ownerMem.list : []).slice().sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0)));
+      const list = all.filter(p => p.mode !== 'none'), gone = all.filter(p => p.mode === 'none');
       const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
       d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד. מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.</p>
         ${list.length ? `<div class="pp-list">${list.map(p => `<div class="pp-row"><span class="pp-av${ppOnline(p) ? ' on' : ''}">${esc(String(p.name || '?').trim().charAt(0))}</span>
           <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b><small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
-          <select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}</div>`
-        : '<p class="noev">עוד אף אחד לא נכנס דרך הקישור. כשחבר יפתח אותו, הוא יופיע כאן.</p>'}`;
+          <select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <button type="button" class="pp-rm" data-rm="${esc(p.id)}" title="הסרה מהמחברת" aria-label="הסרת ${esc(String(p.name || 'חבר'))} מהמחברת"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></div>`).join('')}</div>`
+        : '<p class="noev">עוד אף אחד לא נכנס דרך הקישור. כשחבר יפתח אותו, הוא יופיע כאן.</p>'}
+        ${gone.length ? `<details class="pp-gone"><summary>הוסרו (${gone.length})</summary>${gone.map(p => `<div class="pp-row off"><span class="pp-av">${esc(String(p.name || '?').trim().charAt(0))}</span><div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b><small>לא יכול לפתוח את המחברת</small></div><button type="button" class="btn btn-ghost" data-back="${esc(p.id)}">להחזיר</button></div>`).join('')}</details>` : ''}`;
+      d.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+        const p = all.find(x => x.id === b.dataset.rm); if (!p) return;
+        if (!confirm(`להסיר את ${p.name || 'החבר'} מהמחברת? הוא לא יוכל לפתוח אותה יותר (גם עם הקישור).`)) return;
+        b.disabled = true;
+        try { await updateDoc(memberDoc(n.shareId, p.id), { mode: 'none' }); toast(`${p.name || 'החבר'} הוסר מהמחברת`); }
+        catch (e) { console.error(e); toast('לא הצלחתי להסיר'); b.disabled = false; }
+      });
+      d.querySelectorAll('[data-back]').forEach(b => b.onclick = async () => {
+        const p = all.find(x => x.id === b.dataset.back); b.disabled = true;
+        try { await updateDoc(memberDoc(n.shareId, b.dataset.back), { mode: n.shareMode || 'copy' }); toast(`${(p && p.name) || 'החבר'} הוחזר`); }
+        catch (e) { console.error(e); toast('לא הצלחתי להחזיר'); b.disabled = false; }
+      });
       d.querySelectorAll('select[data-u]').forEach(sel => sel.onchange = async () => {
         const p = list.find(x => x.id === sel.dataset.u); sel.disabled = true;
         try { await updateDoc(memberDoc(n.shareId, sel.dataset.u), { mode: sel.value }); toast(`${p ? p.name : 'החבר'}: עכשיו ${PP_MODES.find(x => x[0] === sel.value)[1]}`); }
@@ -3805,7 +3820,7 @@ function peopleDialog() {
       const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); };
       row.append(ok, sh); d.appendChild(row);
     };
-    if (ownerMem) ownerMem.onChange = () => { if (!d.querySelector('select:focus')) paint(); };
+    if (ownerMem) ownerMem.onChange = () => { if (!d.querySelector('select:focus') && !d.querySelector('.pp-gone[open]')) paint(); };
     paint();
   });
 }
@@ -3831,6 +3846,7 @@ function watchMember(sid) {
     const now = memberModes.get(sid);
     if (now === before && !first) return;
     // עורך את המחברת ובעל המחברת העביר אותי לצפייה
+    if (now === 'none') { shareRemoved(sid); return; }
     if (openId === 'share:' + sid && now && now !== 'edit') { toast('בעל המחברת שינה לך לצפייה'); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     if (shareParam === sid && shareLast) shareRender(sid, shareLast);
   }, e => { console.warn('member watch', e); if (memWatch === W && !W.loaded) { W.loaded = true; if (shareParam === sid && shareLast) shareRender(sid, shareLast); } });
@@ -3838,6 +3854,15 @@ function watchMember(sid) {
   W.timer = setInterval(() => { if (document.hidden || !memberModes.has(sid) || !(shareParam === sid || openId === 'share:' + sid)) return; updateDoc(memberDoc(sid, me.uid), { at: Date.now() }).catch(() => {}); }, 60000);
 }
 let shareLast = null;
+// בעל המחברת הסיר אותי
+function shareRemoved(sid) {
+  if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', sid)).catch(() => {});
+  if (openId === 'share:' + sid) { stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
+  if (shareParam !== sid) return;
+  if (unsubView) { unsubView(); unsubView = null; }
+  $('shTitle').textContent = 'אין לך גישה למחברת הזו'; $('shOwner').textContent = ''; $('shCopy').classList.add('hidden'); $('shHint')?.classList.add('hidden');
+  $('shBody').innerHTML = '<p class="sh-empty">מי ששיתף את המחברת הסיר אותך ממנה. אם זו טעות – בקש ממנו להחזיר אותך.</p>';
+}
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
   ensureAppCheck();
@@ -3850,13 +3875,14 @@ function openShare(id) {
   $('shTitle').textContent = ''; $('shOwner').textContent = '';
   if (unsubView) unsubView();
   shareLast = null; watchMember(id);
-  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
+  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); if (memberModes.get(id) === 'none') { shareRemoved(id); return; } $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
 }
 function shareRender(id, snap) {
   {
     if (!snap.exists()) { $('shTitle').textContent = 'המחברת לא זמינה'; $('shOwner').textContent = ''; $('shBody').innerHTML = '<p class="sh-empty">הקישור הזה בוטל, או שהמחברת נמחקה.</p>'; $('shCopy').classList.add('hidden'); if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {}); return; }
     const s = snap.data(); const mine = me && s.owner === me.uid;
     if (me && !mine && memWatch && memWatch.id === id && !memWatch.loaded) return;   // מחכים לדעת מה ההרשאה שלי לפני שמציגים
+    if (me && !mine && memberModes.get(id) === 'none') { shareRemoved(id); return; }
     if (me && !mine) {
       // נרשמים פעם אחת עם ההרשאה של הקישור; אחר כך בעל המחברת יכול לשנות לי. ובכל כניסה – "נכנס עכשיו"
       if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); setDoc(memberDoc(id, me.uid), { name: myName(), mode: (s.mode || 'copy'), at: Date.now() }).catch(e => console.warn('member', e)); }
@@ -5504,7 +5530,7 @@ async function ocrDialog() {
       if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
       go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
       const exact = ocMode === 'exact';
-      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? 'קורא בעיון ובודק את עצמו... (בערך 25 שניות)' : 'מקליד מהר... (בערך 5 שניות)');
+      const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? 'קורא בעיון ובודק את עצמו... (עד חצי דקה)' : 'מקליד מהר... (בערך 5 שניות)');
       try {
         const parts = [];
         for (const f of files) parts.push(await ocrPart(f, exact));
@@ -5535,10 +5561,16 @@ async function ocrDialog() {
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
         const strong = exact && ocrStrongLeft() > 0;
-        try { txt = await aiText(strong ? [MODEL_STRONG] : aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
-        catch (e) { lastErr = e; }
+        // Flash קורא טוב גם עם מעט "חשיבה" – עם high הוא חשב יותר מדקה לפני שכתב מילה
+        const mainP = aiText(strong ? [MODEL_STRONG] : aiModels(true), strong ? ocCfg(2048, 'low') : ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }).catch(e => { lastErr = e; return ''; });
+        txt = await Promise.race([mainP, new Promise(r => setTimeout(() => r(null), exact ? 40000 : 20000))]);
+        let fromSecond = false;
+        if (txt === null) {   // מתעכב: אם הקריאה השנייה כבר מוכנה – משתמשים בה, ואם לא – ממשיכים לחכות לראשונה
+          const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), 500))]);
+          if (t2) { txt = t2; fromSecond = true; } else txt = await mainP;
+        }
         stop();
-        if (txt) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
+        if (txt && !fromSecond) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 15000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
         if (!txt) throw lastErr || new Error('empty');
         const tm = txt.match(/<!--\s*title:\s*([^>]*?)\s*-->/); const title = tm ? tm[1].trim().slice(0, 80) : '';
         let hw = []; const hm = txt.match(/<!--\s*hw:\s*(\[[\s\S]*?\])\s*-->/);
