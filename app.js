@@ -3982,7 +3982,7 @@ async function askAccess(id) {
       b.disabled = true; b.textContent = 'שולח...';
       const base = { name: myName(), at: Date.now() };
       try { await setDoc(rq, { ...base, ...myEmail() }).catch(() => setDoc(rq, base)); sent = true; paint(); }
-      catch (e) { console.error(e); toast('לא הצלחתי לשלוח. אולי הקישור בוטל, או שהוסרת מהמחברת'); b.disabled = false; b.textContent = 'לבקש גישה'; }
+      catch (e) { console.error(e); if (e && e.code === 'permission-denied') { toast('המחברת הזו כבר לא זמינה'); dropShared(id); closeShare(); return; } toast('לא הצלחתי לשלוח. בדוק שיש אינטרנט ונסה שוב'); b.disabled = false; b.textContent = 'לבקש גישה'; }
     };
   };
   paint();
@@ -4198,7 +4198,8 @@ function syncSharedWatch() {
       if (m) shModeNow.set(id, m); else shModeNow.delete(id);
       renderShared();
     }, () => {}));
-    getDoc(shareDoc(id)).then(sn => { if (!sn.exists()) dropShared(id); }).catch(e => { if (e && e.code === 'permission-denied') dropShared(id); });
+    // אין גישה אבל לא הועפתי (המחברת נעולה ואני עוד לא ברשימה) – נשארת ברשימה, כדי שאוכל לבקש גישה
+    getDoc(shareDoc(id)).then(sn => { if (!sn.exists()) dropShared(id); }).catch(() => {});
   });
 }
 function renderShared() {
