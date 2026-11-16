@@ -2912,3 +2912,9 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .pp-rm:hover{color:#b91c1c;background:#fee2e2}.pp-rm svg{width:18px;height:18px}
 .pp-gone{margin-top:10px}.pp-gone summary{cursor:pointer;font-weight:700;color:var(--muted);padding:6px 2px}
 .pp-gone .pp-row{margin-top:6px}.pp-row.off .pp-av{background:var(--muted)}
+
+/* הסרגל בראש המחברת קצר יותר: הדפסה, טיימר ואנשים – רק אייקון (השם בבועה במעבר עכבר) */
+#notebook .ed-top .nb-print span,#notebook .ed-top .nb-timer span,#notebook .ed-top .nb-people span{display:none}
+#notebook .ed-top .nb-print,#notebook .ed-top .nb-timer,#notebook .ed-top .nb-people{padding-inline:10px}
+#notebook .ed-top .presence{white-space:nowrap}
+#notebook .ed-top .presence .ptxt{white-space:nowrap}

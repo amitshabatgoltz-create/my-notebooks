@@ -3786,8 +3786,10 @@ function peopleDialog() {
   ownerPeopleWatch(n);
   dialog(d => {
     d.classList.add('people-dlg');
+    let shown = false;
     const paint = () => {
-      if (!d.isConnected) { if (ownerMem) ownerMem.onChange = null; return; }
+      if (shown && !d.isConnected) { if (ownerMem) ownerMem.onChange = null; return; }   // החלון נסגר
+      shown = true;
       const all = (ownerMem ? ownerMem.list : []).slice().sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0)));
       const list = all.filter(p => p.mode !== 'none'), gone = all.filter(p => p.mode === 'none');
       const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
