@@ -3923,8 +3923,8 @@ function shareRender(id, snap) {
     if (me && !mine && memberModes.get(id) === 'none') { shareRemoved(id); return; }
     if (me && !mine) {
       // נרשמים פעם אחת עם ההרשאה של הקישור; אחר כך בעל המחברת יכול לשנות לי. ובכל כניסה – "נכנס עכשיו"
-      if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); setDoc(memberDoc(id, me.uid), { name: myName(), ...myEmail(), mode: (s.mode || 'copy'), at: Date.now() }).catch(e => console.warn('member', e)); }
-      else if (memberModes.has(id) && memWatch && !memWatch.touched) { memWatch.touched = true; updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName(), ...myEmail() }).catch(() => {}); }
+      if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); { const base = { name: myName(), mode: (s.mode || 'copy'), at: Date.now() }; setDoc(memberDoc(id, me.uid), { ...base, ...myEmail() }).catch(() => setDoc(memberDoc(id, me.uid), base)).catch(e => console.warn('member', e)); } }
+      else if (memberModes.has(id) && memWatch && !memWatch.touched) { memWatch.touched = true; updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName(), ...myEmail() }).catch(() => updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName() })).catch(() => {}); }
       s.mode = myShareMode(id, s);
     }
     const viewOnly = (s.mode || 'copy') === 'view';
