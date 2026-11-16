@@ -184,7 +184,7 @@ onAuthStateChanged(auth, user => {
   if (user) ensureAppCheck();
   if (unsub) { unsub(); unsub = null; }
   if (unsubEv) { unsubEv(); unsubEv = null; }
-  if (unsubSh) { unsubSh(); unsubSh = null; }
+  if (unsubSh) { unsubSh(); unsubSh = null; } stopSharedWatch();
   if (typeof unsubAct !== 'undefined' && unsubAct) { unsubAct(); unsubAct = null; }
   me = user;
   if (!shareParam && user) { try { const ps = sessionStorage.getItem('pendingShare'); if (ps) { sessionStorage.removeItem('pendingShare'); shareParam = ps; history.replaceState(null, '', '?s=' + ps); } } catch {} }
@@ -196,6 +196,7 @@ onAuthStateChanged(auth, user => {
     setTimeout(welcomeMaybe, 1600);
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); thanksMaybe(); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
+    try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -3912,20 +3913,21 @@ function watchMember(sid) {
   W.timer = setInterval(() => { if (document.hidden || !memberModes.has(sid) || !(shareParam === sid || openId === 'share:' + sid)) return; updateDoc(memberDoc(sid, me.uid), { at: Date.now() }).catch(() => {}); }, 60000);
 }
 let shareLast = null;
-// בעל המחברת הסיר אותי
+// בעל המחברת הסיר אותי: כאילו לא הייתה לי המחברת הזו אף פעם – נעלמת מהרשימה, ואם היא פתוחה חוזרים למחברות שלי
 function shareRemoved(sid) {
-  if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', sid)).catch(() => {});
-  if (openId === 'share:' + sid) { stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
+  dropShared(sid);
+  if (openId === 'share:' + sid) { dirty = false; stopLive(); openId = null; document.body.classList.remove('editing-shared'); showLibrary(); toast('המחברת הזו כבר לא זמינה'); return; }
   if (shareParam !== sid) return;
-  if (unsubView) { unsubView(); unsubView = null; }
-  $('shTitle').textContent = 'אין לך גישה למחברת הזו'; $('shOwner').textContent = ''; $('shCopy').classList.add('hidden'); $('shHint')?.classList.add('hidden');
-  $('shBody').innerHTML = '<p class="sh-empty">מי ששיתף את המחברת הסיר אותך ממנה. אם זו טעות – בקש ממנו להחזיר אותך.</p>';
+  if (memWatch && memWatch.id === sid) { memWatch.unsub(); clearInterval(memWatch.timer); memWatch = null; }
+  closeShare(); toast('המחברת הזו כבר לא זמינה');
 }
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
   ensureAppCheck();
   if (!/^[\w-]{6,64}$/.test(String(id || ''))) { toast('הקישור לא תקין'); return; }   // אבטחה: רק קוד של שיתוף, לא נתיב אחר
-  shareParam = id; shareEditOpened = false;
+  // 🔒 כל קישור למחברת דורש התחברות: שומרים את הקישור, ואחרי ההתחברות הוא נפתח לבד
+  if (!me) { pendingShare(id); if (!$('shareView').classList.contains('hidden')) closeShare(true); shareParam = null; return; }
+  shareParam = id; shareEditOpened = false; shGone.delete(id);   // אולי בעל המחברת החזיר אותי
   shMark(id); shareAsk = null; $('shBody').contentEditable = 'false'; $('shClose').querySelector('span').textContent = 'למחברות שלי';
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
   const v = $('shareView'); v.classList.remove('hidden'); document.body.classList.add('viewing-share');
@@ -4102,9 +4104,36 @@ async function copyShare(id, s) {
 // ---- רשימת "שותפו איתי"
 function subscribeShared() {
   unsubSh = onSnapshot(collection(db, 'users', me.uid, 'shared'), snap => {
-    sharedList = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
-    renderShared();
+    sharedList = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => !shGone.has(x.id)).sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
+    syncSharedWatch(); renderShared();
   }, err => console.warn('shared', err));
+}
+// כל מחברת ברשימה "שיתפו איתי": בודקים בלייב מה בעל המחברת קבע לי – גם אם הוא שינה כשלא הייתי באתר.
+// הועפתי / הקישור בוטל / המחברת ננעלה ואני לא ברשימה → המחברת נעלמת לגמרי
+const shWatch = new Map(), shModeNow = new Map(), shGone = new Set();
+function dropShared(id) {
+  shGone.add(id);
+  if (shWatch.has(id)) { shWatch.get(id)(); shWatch.delete(id); }
+  const had = sharedList.some(x => x.id === id);
+  sharedList = sharedList.filter(x => x.id !== id);
+  if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {});
+  if (had) renderShared();
+}
+function stopSharedWatch() { shWatch.forEach(u => u()); shWatch.clear(); shModeNow.clear(); shGone.clear(); }
+function syncSharedWatch() {
+  if (!me) return;
+  const ids = new Set(sharedList.map(x => x.id));
+  for (const [id, u] of shWatch) if (!ids.has(id)) { u(); shWatch.delete(id); }
+  ids.forEach(id => {
+    if (shWatch.has(id)) return;
+    shWatch.set(id, onSnapshot(memberDoc(id, me.uid), ms => {
+      const m = ms.exists() ? ms.data().mode : null;
+      if (m === 'none') { dropShared(id); return; }
+      if (m) shModeNow.set(id, m); else shModeNow.delete(id);
+      renderShared();
+    }, () => {}));
+    getDoc(shareDoc(id)).then(sn => { if (!sn.exists()) dropShared(id); }).catch(e => { if (e && e.code === 'permission-denied') dropShared(id); });
+  });
 }
 function renderShared() {
   renderSide();
@@ -4116,7 +4145,7 @@ function renderShared() {
     const b = document.createElement('button'); b.className = 'nb sh-card'; b.style.setProperty('--c', x.color || COLORS[0]); b.style.setProperty('--i', i);
     const cover = document.createElement('div'); cover.className = 'nb-cover';
     const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (x.title || '?').trim()[0] || '?';
-    const badge = document.createElement('span'); badge.className = 'nb-share'; badge.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg><span>${x.mode === 'edit' ? 'עריכה משותפת' : 'שותפה איתך'}</span>`;
+    const badge = document.createElement('span'); badge.className = 'nb-share'; badge.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg><span>${{ edit: 'עריכה משותפת', view: 'צפייה בלבד' }[shModeNow.get(x.id) || x.mode] || 'שותפה איתך'}</span>`;
     cover.append(letter, badge);
     const body = document.createElement('div'); body.className = 'nb-body';
     const l = document.createElement('div'); l.className = 'label'; l.textContent = x.title || 'מחברת';

@@ -97,11 +97,11 @@ service cloud.firestore {
       return exists(m) ? get(m).data.mode : (resource.data.get('locked', false) == true ? 'none' : resource.data.mode);
     }
     match /shares/{shareId} {
-      // כל מי שיש לו את הקישור – חוץ ממי שבעל המחברת הסיר (mode: none)
+      // רק מי שמחובר לאתר ויש לו את הקישור – חוץ ממי שבעל המחברת הסיר (mode: none)
       // נעולה – רק בעל המחברת ומי שברשימה (ולא הוסר)
       allow get: if (request.auth != null && resource.data.owner == request.auth.uid)
-        || (resource.data.get('locked', false) != true && (request.auth == null
-          || !exists(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid))
+        || (resource.data.get('locked', false) != true && request.auth != null && (
+          !exists(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid))
           || get(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid)).data.mode != 'none'))
         || (resource.data.get('locked', false) == true && request.auth != null
           && exists(/databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid))
