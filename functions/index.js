@@ -25,7 +25,7 @@ const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +pr
 const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
 // תמונה לטקסט (מצב "מדויק"): המודל החזק קורא כתב יד הרבה יותר טוב. ל-Flash יש מכסה קטנה (20 ביום לכל הפרויקט),
 // אז סופרים כאן, ואחרי OCR_FLASH_DAY ביום – או אם Gemini אומר שנגמר – עוברים לבד ל-Lite
-const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_DAY || 18;
+const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_DAY || 18, OCR_FLASH_USER = +process.env.AI_OCR_FLASH_USER || 2;   // לכל האתר / לכל משתמש ביום
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];
@@ -146,10 +146,15 @@ exports.ai = onCall({
   if (flashOcr) {
     try {
       const ok = await db.runTransaction(async tx => {
-        const ref = db.doc('aiQuota/_site'); const sn = await tx.get(ref); const g = sn.exists ? sn.data() : {};
+        const ref = db.doc('aiQuota/_site'), uref = db.doc(`aiQuota/${req.auth.uid}`);
+        const sn = await tx.get(ref), un = await tx.get(uref);
+        const g = sn.exists ? sn.data() : {}, u = un.exists ? un.data() : {};
         const day = israelDay(), used = g.flashDay === day ? (g.flashToday || 0) : 0;
-        if (used >= OCR_FLASH_DAY) return false;
-        tx.set(ref, { flashDay: day, flashToday: used + 1 }, { merge: true }); return true;
+        const mine = u.day === day ? ((u.counts && u.counts.flash) || 0) : 0;   // נשמר בתוך counts, ש-takeOne שומר עליו
+        if (used >= OCR_FLASH_DAY || (!owner && mine >= OCR_FLASH_USER)) return false;
+        tx.set(ref, { flashDay: day, flashToday: used + 1 }, { merge: true });
+        if (!owner) tx.set(uref, { day, counts: { flash: mine + 1 } }, { merge: true });
+        return true;
       });
       if (!ok) model = MODELS[0];
     } catch { model = MODELS[0]; }

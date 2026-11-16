@@ -5354,6 +5354,15 @@ async function ocrPart(f, exact) {
     throw new Error(k === 'heic' ? 'heic' : 'bad-image');
   }
 }
+// קריאה חזקה (Flash) בתמונה לטקסט: 2 ביום לכל חשבון (השרת סופר ובודק; כאן רק בשביל להראות כמה נשאר)
+const OCR_STRONG_DAY = 2;
+function ocrStrongLeft() {
+  if (isUnlimited()) return Infinity;
+  try { const o = JSON.parse(localStorage.getItem('ocrStrong:' + (me && me.uid)) || '{}'); return Math.max(0, OCR_STRONG_DAY - (o.d === todayKey() ? o.n || 0 : 0)); } catch { return OCR_STRONG_DAY; }
+}
+function ocrStrongUse() {
+  try { const k = 'ocrStrong:' + (me && me.uid), o = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ d: todayKey(), n: (o.d === todayKey() ? o.n || 0 : 0) + 1 })); } catch {}
+}
 async function ocrDialog() {
   let n = notebooks.find(x => x.id === openId) || null;
   if (openId && !n && !String(openId).startsWith('share:')) return;
@@ -5367,7 +5376,7 @@ async function ocrDialog() {
       ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
         <button type="button" class="oc-mode" data-m="fast" role="radio"><b>מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
-        <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ</em><b>מדויק</b><span>בערך 25 שניות</span><small>קורא לאט ובודק את עצמו</small></button>
+        <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ</em><b>מדויק</b><span>בערך 25 שניות</span><small>${(() => { const sl = ocrStrongLeft(); return sl === Infinity ? 'קורא לאט ובודק את עצמו' : sl > 0 ? `עם הקריאה החזקה: נשארו ${sl === 1 ? 'אחת' : sl} היום` : 'קורא לאט ובודק את עצמו (הקריאה החזקה נגמרה להיום)'; })()}</small></button>
       </div>
       <button type="button" class="tt-up" id="ocUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>בחירת תמונות</b><span>או צילום עכשיו מהטלפון · גם PDF</span></button>
       <input type="file" id="ocFile" accept="image/*,.heic,.heif,application/pdf" multiple hidden>
@@ -5426,7 +5435,8 @@ async function ocrDialog() {
           : aiText(aiModels(false), ocCfg(0, 'minimal'), [...parts, OCR_PROMPT + ctx]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(exact ? [MODEL_STRONG] : aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        const strong = exact && ocrStrongLeft() > 0;
+        try { txt = await aiText(strong ? [MODEL_STRONG] : aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
         if (txt) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
@@ -5438,7 +5448,7 @@ async function ocrDialog() {
         const html = dropRoster(clean(txt.replace(/<!--[\s\S]*?-->/g, '').replace(/<mark class="chk"(?: data-alt="([^"]*)")?>([^<]*)<\/mark>/g, (m, a, w) => `⁅${w}⁆[?${a ? '|' + a : ''}]`).replace(/(\[\?[^\]]*\])\s*\[\?\]/g, '$1').replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')));
         if (!html.replace(/<[^>]+>/g, '').trim()) { st.textContent = 'לא מצאתי טקסט בתמונה. נסה צילום ברור יותר.'; liveBox.remove(); go.disabled = false; d.querySelector('#ocUp').disabled = false; return; }
         files.forEach(f => URL.revokeObjectURL(f.url));
-        useOne('ocr', files.length);
+        useOne('ocr', files.length); if (strong) ocrStrongUse();
         closeDialog(); ocrResult(n, html, title, hw, mode);
       } catch (e) { stop(); console.error(e); showAiError(e, 'לא הצלחתי לקרוא את התמונה'); }
     };
