@@ -3816,7 +3816,7 @@ function paintMemStrip(on) {
     <div class="nm-list">${list.map(p => { const ed = p.mode === 'edit'; return `<div class="nm-p" data-u="${esc(p.id)}">
       <span class="pp-av${ppOnline(p) ? ' on' : ''}" title="${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + esc(timeAgo(p.at))}">${esc(String(p.name || '?').trim().charAt(0))}</span>
       <span class="nm-t"><b dir="auto">${nm(p)}</b><small dir="ltr">${p.email ? esc(String(p.email)) : 'אימייל יופיע בכניסה הבאה שלו'}</small></span>
-      ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צופה</span>' : `<button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" `role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>`}
+      ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צופה</span>' : `<button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>`}
       <button type="button" class="nm-x" data-rm="${esc(p.id)}" data-s="${esc(p.sid)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
   box.querySelector('.nm-all').onclick = peopleDialog;
   box.querySelector('.nm-lock').onclick = async e => { const b = e.currentTarget; if (!nbk) return; b.disabled = true; box.dataset.busy = '1'; await setShareLock(nbk, !nbk.shareLocked); delete box.dataset.busy; paintMemStrip(true); };
