@@ -2977,3 +2977,9 @@ body.editing-shared .nb-mem{display:none}
 .nm-ok:disabled,.nm-no:disabled{opacity:.5;cursor:wait}
 :root[data-theme="dark"] .nm-req{background:color-mix(in srgb,#3b82f6 14%,transparent);border-color:color-mix(in srgb,#3b82f6 35%,transparent)}
 :root[data-theme="dark"] .nm-req>b{color:#93c5fd}
+
+/* שיתוף: שני קישורים – לעריכה ולצפייה */
+.sh-lbl{font-weight:800;font-size:15px;margin:12px 0 -2px}
+.sh-both{display:flex;align-items:flex-start;gap:10px;margin:10px 0 2px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);cursor:pointer}
+.sh-both input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent);flex:none}
+.sh-both>span{display:flex;flex-direction:column;gap:2px}.sh-both small{font-size:12.5px;color:var(--muted)}

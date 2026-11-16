@@ -3656,6 +3656,15 @@ function modePicker(cur, onPick) {
   });
   return g;
 }
+// קישור שני – לצפייה בלבד (מעבר לקישור הראשי). השרת (shareMirror) מעתיק אליו כל שינוי
+async function makeViewLink(cur) {
+  const vref = doc(collection(db, 'shares'));
+  await setDoc(vref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: cur.id, title: $('title').value.trim() || cur.title || 'מחברת', html: clean($('editor').innerHTML), color: cur.color || COLORS[0], ...lookOf(cur), mode: 'view', src: cur.shareId, createdAt: Date.now(), updatedAt: Date.now() });
+  await updateDoc(shareDoc(cur.shareId), { viewId: vref.id });
+  if (cur.shareLocked) await updateDoc(vref, { locked: true }).catch(() => {});
+  await updateDoc(nbDoc(cur.id), { viewId: vref.id }); cur.viewId = vref.id; ownerPeopleWatch(cur);
+}
+const LINK_LBL = { edit: '✏️ קישור לעריכה', copy: '📋 קישור לצפייה + שמירת עותק', view: '👁️ קישור לצפייה בלבד' };
 async function shareDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n) return;
   if (!n.shareId && !(await introOnce('share'))) return;
@@ -3664,7 +3673,11 @@ async function shareDialog() {
       const cur = notebooks.find(x => x.id === openId) || n;
       if (!cur.shareId) {
         d.innerHTML = '<h3>שיתוף עם חברים</h3><p>יוצרים קישור ושולחים אותו לחברים. מה מותר להם?</p>';
-        let mode = 'view'; d.appendChild(modePicker(mode, m => mode = m));
+        let mode = 'view';
+        const both = document.createElement('label'); both.className = 'sh-both hidden';
+        both.innerHTML = '<input type="checkbox" checked><span><b>גם קישור נפרד לצפייה בלבד</b><small>שני קישורים: אחד שולחים למי שעורך, ואחד למי שרק קורא</small></span>';
+        d.appendChild(modePicker(mode, m => { mode = m; both.classList.toggle('hidden', m === 'view'); }));
+        d.appendChild(both);
         d.insertAdjacentHTML('beforeend', '<p class="muted-s">בצפייה ובשמירת עותק אף אחד לא יכול לשנות את המחברת שלך. כל שינוי שתעשה יופיע אצלם לבד.</p>');
         const row = document.createElement('div'); row.className = 'row';
         const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'יצירת קישור';
@@ -3678,7 +3691,9 @@ async function shareDialog() {
             nn.shareMode = mode;
             if (mode === 'edit') startLive(ref.id, clean($('editor').innerHTML));
             await updateDoc(nbDoc(nn.id), { shareId: ref.id, shareMode: mode });
-            nn.shareId = ref.id; paint();
+            nn.shareId = ref.id;
+            if (mode !== 'view' && both.querySelector('input').checked) await makeViewLink(nn).catch(e => { console.error(e); toast('הקישור לצפייה לא נוצר. אפשר ליצור אותו כאן למטה'); });
+            paint();
           } catch (e) { console.error(e); go.disabled = false; go.textContent = 'יצירת קישור'; toast(e && e.code === 'permission-denied' ? 'צריך לעדכן את כללי האבטחה ב-Firebase (ראה README)' : 'לא הצלחתי ליצור קישור'); }
         };
         const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
@@ -3699,6 +3714,7 @@ async function shareDialog() {
           }
           catch (e) { console.error(e); toast('לא הצלחתי לשנות'); }
         }));
+        d.insertAdjacentHTML('beforeend', `<div class="sh-lbl">${LINK_LBL[cm] || 'הקישור'}</div>`);
         const box = document.createElement('div'); box.className = 'share-link';
         const inp = document.createElement('input'); inp.readOnly = true; inp.value = url; inp.dir = 'ltr'; inp.onclick = () => inp.select();
         const cp = document.createElement('button'); cp.className = 'btn btn-primary'; cp.textContent = 'העתקה';
@@ -3708,23 +3724,19 @@ async function shareDialog() {
         if (cm !== 'view') {
           const vw = document.createElement('div'); vw.className = 'share-view2';
           if (!cur.viewId) {
-            vw.innerHTML = `<b>רוצה שחבר אחר רק יצפה?</b><span>קישור נוסף, שמי שמקבל אותו יכול רק לקרוא (בלי לשנות ובלי לשמור עותק).</span>`;
+            vw.innerHTML = `<b>👁️ רוצה גם קישור לצפייה בלבד?</b><span>קישור נוסף, שמי שמקבל אותו יכול רק לקרוא (בלי לשנות ובלי לשמור עותק). ככה יש קישור אחד לעריכה ואחד לצפייה.</span>`;
             const mk = document.createElement('button'); mk.type = 'button'; mk.className = 'btn btn-ghost'; mk.textContent = 'יצירת קישור לצפייה בלבד';
             mk.onclick = async () => {
               mk.disabled = true; mk.textContent = 'יוצר...';
               try {
                 if (dirty) await flush();
-                const vref = doc(collection(db, 'shares'));
-                await setDoc(vref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: cur.id, title: $('title').value.trim() || cur.title || 'מחברת', html: clean($('editor').innerHTML), color: cur.color || COLORS[0], ...lookOf(cur), mode: 'view', src: cur.shareId, createdAt: Date.now(), updatedAt: Date.now() });
-                await updateDoc(shareDoc(cur.shareId), { viewId: vref.id });
-                if (cur.shareLocked) await updateDoc(vref, { locked: true }).catch(() => {});
-                await updateDoc(nbDoc(cur.id), { viewId: vref.id }); cur.viewId = vref.id; ownerPeopleWatch(cur); paint();
+                await makeViewLink(cur); paint();
               } catch (e) { console.error(e); mk.disabled = false; mk.textContent = 'יצירת קישור לצפייה בלבד'; toast('לא הצלחתי ליצור קישור'); }
             };
             vw.appendChild(mk);
           } else {
             const vurl = shareUrl(cur.viewId);
-            vw.innerHTML = `<b>קישור לצפייה בלבד</b><span>מי שמקבל את הקישור הזה יכול רק לקרוא.</span>`;
+            vw.innerHTML = `<b>👁️ קישור לצפייה בלבד</b><span>מי שמקבל את הקישור הזה יכול רק לקרוא.</span>`;
             const vb = document.createElement('div'); vb.className = 'share-link';
             const vi = document.createElement('input'); vi.readOnly = true; vi.value = vurl; vi.dir = 'ltr'; vi.onclick = () => vi.select();
             const vc = document.createElement('button'); vc.className = 'btn btn-primary'; vc.textContent = 'העתקה';
