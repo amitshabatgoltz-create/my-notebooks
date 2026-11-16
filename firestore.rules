@@ -127,7 +127,8 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'at', 'email'])
             && request.resource.data.name is string && request.resource.data.name.size() < 80
             && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email)));
-        allow delete: if request.auth != null && ((request.auth.uid == uid && resource.data.mode != 'none') || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+        // רק מי שיצר את המחברת מוחק רשומה. (אם החבר היה מוחק את עצמו, הוא היה נכנס מחדש עם ההרשאה של הקישור ועוקף את מה שבעל המחברת קבע לו)
+        allow delete: if request.auth != null && get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid;
       }
       // מי נמצא עכשיו במחברת
       match /presence/{uid} {
