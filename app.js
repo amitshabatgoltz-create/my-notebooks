@@ -3811,13 +3811,14 @@ function paintMemStrip(on) {
   box.dataset.sid = O.sid;
   const nm = p => esc(String(p.name || 'חבר'));
   const nbk = notebooks.find(x => x.id === O.nb), lk = !!(nbk && nbk.shareLocked);
-  box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span>${lk ? '<em class="nm-lk">🔒 נעולה</em>' : ''}<button type="button" class="nm-all">ניהול</button></div>
+  box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span><button type="button" class="nm-lock${lk ? ' on' : ''}" role="switch" aria-checked="${lk}" title="${lk ? 'נעולה: רק מי שברשימה יכול לפתוח. לחיצה תפתח אותה לכל מי שיש לו את הקישור' : 'לנעול: רק מי שברשימה יוכל לפתוח (לא מי שלא מחובר ולא מי שקיבל את הקישור ממישהו אחר)'}">${lk ? '🔒 נעולה' : '🔓 לנעול'}</button><button type="button" class="nm-all" title="כל האנשים, כולל מי שהוסר, והרשאה מפורטת">כל האנשים</button></div>
     <div class="nm-list">${list.map(p => { const ed = p.mode === 'edit'; return `<div class="nm-p" data-u="${esc(p.id)}">
       <span class="pp-av${ppOnline(p) ? ' on' : ''}" title="${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + esc(timeAgo(p.at))}">${esc(String(p.name || '?').trim().charAt(0))}</span>
       <span class="nm-t"><b dir="auto">${nm(p)}</b><small dir="ltr">${p.email ? esc(String(p.email)) : 'אימייל יופיע בכניסה הבאה שלו'}</small></span>
       ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צופה</span>' : `<button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" `role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>`}
       <button type="button" class="nm-x" data-rm="${esc(p.id)}" data-s="${esc(p.sid)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
   box.querySelector('.nm-all').onclick = peopleDialog;
+  box.querySelector('.nm-lock').onclick = async e => { const b = e.currentTarget; if (!nbk) return; b.disabled = true; box.dataset.busy = '1'; await setShareLock(nbk, !nbk.shareLocked); delete box.dataset.busy; paintMemStrip(true); };
   box.querySelectorAll('[data-ed]').forEach(b => b.onclick = async () => {
     const p = list.find(x => x.id === b.dataset.ed && !x.viaView); if (!p) return;
     const to = p.mode === 'edit' ? 'view' : 'edit';
@@ -3827,7 +3828,7 @@ function paintMemStrip(on) {
   });
   box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
     const p = list.find(x => x.id === b.dataset.rm && x.sid === b.dataset.s); if (!p) return;
-    if (!confirm(`להעיף את ${p.name || 'החבר'}${p.email ? ` (${p.email})` : ''} מהמחברת? הוא לא יוכל לפתוח אותה יותר, גם עם הקישור. אפשר להחזיר אותו ב"ניהול".`)) return;
+    if (!confirm(`להעיף את ${p.name || 'החבר'}${p.email ? ` (${p.email})` : ''} מהמחברת? הוא לא יוכל לפתוח אותה יותר, גם עם הקישור. אפשר להחזיר אותו ב"כל האנשים".`)) return;
     b.disabled = true; box.dataset.busy = '1';
     if (await setMemberMode(O.sid, p, 'none', `${p.name || 'החבר'} הוסר מהמחברת`)) p.mode = 'none';
     delete box.dataset.busy; paintMemStrip(true);

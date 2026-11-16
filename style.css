@@ -2935,7 +2935,7 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .nm-h{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px}
 .nm-h svg{width:18px;height:18px;color:var(--muted)}
 .nm-h span{min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:800;background:var(--accent);color:#fff}
-.nm-all{margin-inline-start:auto;background:none;border:0;color:var(--accent);font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:4px 6px;border-radius:8px}
+.nm-all{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:4px 6px;border-radius:8px}
 .nm-all:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .nm-list{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto}
 .nm-p{flex:0 1 auto;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:12px;background:var(--surface);border:1px solid var(--line);min-width:0;max-width:100%}
@@ -2963,3 +2963,7 @@ body.editing-shared .nb-mem{display:none}
 .pp-lock i::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-start .15s}
 .pp-lock.on{border-color:#f59e0b;background:#fffbeb}.pp-lock.on i{background:#f59e0b}.pp-lock.on i::after{inset-inline-start:19px}
 .pp-lock:disabled{opacity:.6;cursor:wait}
+
+.nm-lock{margin-inline-start:auto;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.nm-lock.on{color:#92400e;background:#fef3c7;border-color:#f59e0b}
+.nm-lock:disabled{opacity:.5;cursor:wait}
