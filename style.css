@@ -2928,3 +2928,42 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .thx-badge b{font-size:40px;line-height:1;font-weight:900}.thx-badge span{font-size:13px;font-weight:800}
 @keyframes thxPop{from{transform:scale(.3) rotate(-20deg);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.thx-badge{animation:none}}
+
+/* שורת "מחוברים למחברת" בתוך המחברת (רק לבעל המחברת) */
+.pp-t small.pp-mail{text-align:end;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-mem{margin:2px 0 14px;padding:10px 12px;border-radius:16px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 3%,var(--surface))}
+.nm-h{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:8px}
+.nm-h svg{width:18px;height:18px;color:var(--muted)}
+.nm-h span{min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:800;background:var(--accent);color:#fff}
+.nm-all{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;font-size:13.5px;cursor:pointer;padding:4px 6px;border-radius:8px}
+.nm-all:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.nm-list{display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto}
+.nm-p{flex:0 1 auto;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:12px;background:var(--surface);border:1px solid var(--line);min-width:0;max-width:100%}
+.nm-p .pp-av{width:30px;height:30px;font-size:13px}
+.nm-t{flex:1;display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1.25}
+.nm-t b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.nm-t small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.nm-sw{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 6px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.nm-sw i{position:relative;width:26px;height:16px;border-radius:999px;background:color-mix(in srgb,var(--ink) 18%,transparent);transition:background .15s}
+.nm-sw i::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:inset-inline-start .15s}
+.nm-sw.on{color:#0B8A5E;border-color:color-mix(in srgb,#10B981 40%,transparent);background:color-mix(in srgb,#10B981 10%,transparent)}
+.nm-sw.on i{background:#10B981}.nm-sw.on i::after{inset-inline-start:12px}
+.nm-sw:disabled,.nm-x:disabled{opacity:.5;cursor:wait}
+.nm-x{flex:none;width:30px;height:30px;border-radius:9px;border:0;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+.nm-x:hover{color:#b91c1c;background:#fee2e2}
+body.editing-shared .nb-mem{display:none}
+@media (max-width:600px){.nm-p{flex:1 1 100%}.nm-t b,.nm-t small{max-width:100%}}
+
+/* נעילת המחברת + מי שנכנס דרך קישור הצפייה */
+.nm-lk{font-style:normal;font-size:12px;font-weight:700;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px}
+.nm-vv{flex:none;font-size:12px;font-weight:700;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px dashed var(--line)}
+.pp-lock{display:flex;align-items:center;gap:12px;width:100%;text-align:start;padding:12px 14px;margin:4px 0 12px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;cursor:pointer}
+.pp-lock>span{display:flex;flex-direction:column;gap:2px}.pp-lock small{font-size:12.5px;color:var(--muted)}
+.pp-lock i{flex:none;position:relative;width:38px;height:22px;border-radius:999px;background:color-mix(in srgb,var(--ink) 18%,transparent);transition:background .15s}
+.pp-lock i::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-start .15s}
+.pp-lock.on{border-color:#f59e0b;background:#fffbeb}.pp-lock.on i{background:#f59e0b}.pp-lock.on i::after{inset-inline-start:19px}
+.pp-lock:disabled{opacity:.6;cursor:wait}
+
+.nm-lock{margin-inline-start:auto;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.nm-lock.on{color:#92400e;background:#fef3c7;border-color:#f59e0b}
+.nm-lock:disabled{opacity:.5;cursor:wait}
