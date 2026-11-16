@@ -3769,22 +3769,61 @@ function ownerPeopleWatch(n) {
   paintPeopleBtn();
   if (!sid || !me) return;
   // גם מי שנכנס דרך קישור הצפייה בלבד מופיע ברשימה (p.sid אומר לאיזה קישור הוא שייך)
-  const O = ownerMem = { sid, vid, nb: n.id, unsub: () => {}, list: [], onChange: null, t: 0, parts: {} };
+  const O = ownerMem = { sid, vid, nb: n.id, unsub: () => {}, list: [], reqs: [], onChange: null, t: 0, parts: {}, rparts: {} };
   const watch = id => onSnapshot(collection(db, 'shares', id, 'members'), snap => {
     if (ownerMem !== O) return;
     O.parts[id] = snap.docs.map(d => ({ id: d.id, sid: id, viaView: id !== sid, ...d.data() })).filter(p => p.id !== me.uid);
     O.list = Object.values(O.parts).flat();
     paintPeopleBtn(); if (O.onChange) O.onChange();
   }, e => console.warn('people', e));
-  const uns = [watch(sid)]; if (vid) uns.push(watch(vid));
+  // 🙋 בקשות הצטרפות (למחברת נעולה)
+  const watchReq = id => onSnapshot(collection(db, 'shares', id, 'requests'), snap => {
+    if (ownerMem !== O) return;
+    O.rparts[id] = snap.docs.map(d => ({ id: d.id, sid: id, viaView: id !== sid, ...d.data() }));
+    O.reqs = Object.values(O.rparts).flat().sort((a, b) => (a.at || 0) - (b.at || 0));
+    paintPeopleBtn(); if (O.onChange) O.onChange();
+  }, e => console.warn('requests', e));
+  const uns = [watch(sid), watchReq(sid)]; if (vid) uns.push(watch(vid), watchReq(vid));
   O.unsub = () => uns.forEach(u => u());
+  findOldPeople(sid, vid);
   O.t = setInterval(() => { if (ownerMem === O) { paintPeopleBtn(); if (O.onChange) O.onChange(); } }, 30000);   // "מחובר עכשיו" מתעדכן גם בלי שינוי
+}
+// מי שנכנס למחברת לפני שהייתה רשימה (גם לפני שנים): השרת מוצא אותם ומוסיף לרשימה. פעם אחת לכל מחברת בכל כניסה לאתר
+const oldPeopleDone = new Set();
+let peopleCall = null;
+function findOldPeople(sid, vid) {
+  const key = sid + '|' + (vid || '');
+  if (oldPeopleDone.has(key)) return; oldPeopleDone.add(key);
+  if (!peopleCall) peopleCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'sharePeople', { timeout: 60000 });
+  peopleCall({ ids: [sid, vid].filter(Boolean) }).then(r => { const k = r && r.data && r.data.added; if (k) toast(k === 1 ? 'נמצא עוד אדם אחד שנכנס למחברת בעבר ✓' : `נמצאו עוד ${k} אנשים שנכנסו למחברת בעבר ✓`); })
+    .catch(e => { console.warn('sharePeople', e); oldPeopleDone.delete(key); });
+}
+async function approveReq(O, q) {
+  const nbk = notebooks.find(x => x.id === O.nb);
+  try {
+    await setDoc(memberDoc(q.sid, q.id), { name: String(q.name || 'חבר').slice(0, 79), ...(q.email ? { email: String(q.email) } : {}), mode: q.viaView ? 'view' : ((nbk && nbk.shareMode) || 'copy'), at: Date.now() });
+    await deleteDoc(doc(db, 'shares', q.sid, 'requests', q.id)).catch(() => {});
+    toast(`${q.name || 'החבר'} אושר ✓ המחברת נפתחת אצלו`);
+  } catch (e) { console.error(e); toast('לא הצלחתי לאשר'); }
+}
+async function rejectReq(q) {
+  try { await deleteDoc(doc(db, 'shares', q.sid, 'requests', q.id)); toast('הבקשה נדחתה'); } catch (e) { console.error(e); toast('לא הצלחתי'); }
+}
+const reqHtml = (q, cls) => `<div class="${cls}" data-q="${esc(q.id)}" data-qs="${esc(q.sid)}"><span class="pp-av">${esc(String(q.name || '?').trim().charAt(0))}</span>
+  <span class="nm-t"><b dir="auto">${esc(String(q.name || 'חבר'))}</b><small dir="ltr">${q.email ? esc(String(q.email)) : ''}</small></span>
+  <button type="button" class="nm-ok" data-ok>אישור</button><button type="button" class="nm-no" data-no>דחייה</button></div>`;
+function bindReqs(root, O) {
+  root.querySelectorAll('[data-q]').forEach(row => {
+    const q = O.reqs.find(x => x.id === row.dataset.q && x.sid === row.dataset.qs); if (!q) return;
+    row.querySelector('[data-ok]').onclick = e => { e.currentTarget.disabled = true; approveReq(O, q); };
+    row.querySelector('[data-no]').onclick = e => { e.currentTarget.disabled = true; rejectReq(q); };
+  });
 }
 function paintPeopleBtn() {
   const b = $('nbPeople'); if (!b) return;
   const on = !!ownerMem && !document.body.classList.contains('editing-shared');
   b.classList.toggle('hidden', !on);
-  const k = on ? ownerMem.list.filter(p => p.mode !== 'none' && ppOnline(p)).length : 0;
+  const k = on ? ownerMem.list.filter(p => p.mode !== 'none' && ppOnline(p)).length + ownerMem.reqs.length : 0;
   const nEl = $('nbPeopleN'); nEl.textContent = k; nEl.classList.toggle('hidden', !k);
   b.title = on ? `מי במחברת (${ownerMem.list.length})${k ? ` · ${k} מחוברים עכשיו` : ''}` : '';
   paintMemStrip(on);
@@ -3806,19 +3845,22 @@ async function setShareLock(n, on) {
 function paintMemStrip(on) {
   const box = $('nbMem'); if (!box) return;
   const O = ownerMem, list = on && O ? O.list.filter(p => p.mode !== 'none').sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0))) : [];
-  box.classList.toggle('hidden', !list.length);
-  if (!list.length) { box.innerHTML = ''; return; }
+  const reqs = on && O ? O.reqs : [];
+  box.classList.toggle('hidden', !list.length && !reqs.length);
+  if (!list.length && !reqs.length) { box.innerHTML = ''; return; }
   if (box.contains(document.activeElement) && box.dataset.sid === O.sid && box.dataset.busy) return;   // לא מציירים מחדש באמצע לחיצה
   box.dataset.sid = O.sid;
   const nm = p => esc(String(p.name || 'חבר'));
   const nbk = notebooks.find(x => x.id === O.nb), lk = !!(nbk && nbk.shareLocked);
   box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span><button type="button" class="nm-lock${lk ? ' on' : ''}" role="switch" aria-checked="${lk}" title="${lk ? 'נעולה: רק מי שברשימה יכול לפתוח. לחיצה תפתח אותה לכל מי שיש לו את הקישור' : 'לנעול: רק מי שברשימה יוכל לפתוח (לא מי שלא מחובר ולא מי שקיבל את הקישור ממישהו אחר)'}">${lk ? '🔒 נעולה' : '🔓 לנעול'}</button><button type="button" class="nm-all" title="כל האנשים, כולל מי שהוסר, והרשאה מפורטת">כל האנשים</button></div>
+    ${reqs.length ? `<div class="nm-req"><b>🙋 מבקשים להצטרף (${reqs.length})</b>${reqs.map(q => reqHtml(q, 'nm-p')).join('')}</div>` : ''}
     <div class="nm-list">${list.map(p => { const ed = p.mode === 'edit'; return `<div class="nm-p" data-u="${esc(p.id)}">
       <span class="pp-av${ppOnline(p) ? ' on' : ''}" title="${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + esc(timeAgo(p.at))}">${esc(String(p.name || '?').trim().charAt(0))}</span>
       <span class="nm-t"><b dir="auto">${nm(p)}</b><small dir="ltr">${p.email ? esc(String(p.email)) : 'אימייל יופיע בכניסה הבאה שלו'}</small></span>
       ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צופה</span>' : `<button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>`}
       <button type="button" class="nm-x" data-rm="${esc(p.id)}" data-s="${esc(p.sid)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
   box.querySelector('.nm-all').onclick = peopleDialog;
+  bindReqs(box, O);
   box.querySelector('.nm-lock').onclick = async e => { const b = e.currentTarget; if (!nbk) return; b.disabled = true; box.dataset.busy = '1'; await setShareLock(nbk, !nbk.shareLocked); delete box.dataset.busy; paintMemStrip(true); };
   box.querySelectorAll('[data-ed]').forEach(b => b.onclick = async () => {
     const p = list.find(x => x.id === b.dataset.ed && !x.viaView); if (!p) return;
@@ -3849,6 +3891,7 @@ function peopleDialog() {
       const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
       const lk = !!n.shareLocked;
       d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד.${lk ? '' : ` מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.`}</p>
+        ${ownerMem && ownerMem.reqs.length ? `<div class="nm-req pp-req"><b>🙋 מבקשים להצטרף (${ownerMem.reqs.length})</b>${ownerMem.reqs.map(q => reqHtml(q, 'pp-row')).join('')}</div>` : ''}
         <button type="button" class="pp-lock${lk ? ' on' : ''}" role="switch" aria-checked="${lk}"><i></i><span><b>${lk ? '🔒 המחברת נעולה' : 'לנעול את המחברת'}</b><small>${lk ? 'רק מי שברשימה יכול לפתוח. חברים חדשים לא יכולים להיכנס (גם עם הקישור) עד שפותחים.' : 'רק מי שברשימה יוכל לפתוח – לא מי שלא מחובר לאתר ולא מי שקיבל את הקישור ממישהו אחר.'}</small></span></button>
         ${list.length ? `<div class="pp-list">${list.map(p => `<div class="pp-row"><span class="pp-av${ppOnline(p) ? ' on' : ''}">${esc(String(p.name || '?').trim().charAt(0))}</span>
           <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
@@ -3873,6 +3916,7 @@ function peopleDialog() {
         try { await updateDoc(memberDoc(n.shareId, sel.dataset.u), { mode: sel.value }); toast(`${p ? p.name : 'החבר'}: עכשיו ${PP_MODES.find(x => x[0] === sel.value)[1]}`); }
         catch (e) { console.error(e); toast('לא הצלחתי לשנות'); sel.disabled = false; }
       });
+      if (ownerMem) bindReqs(d, ownerMem);
       d.querySelector('.pp-lock').onclick = async e => { const b = e.currentTarget; b.disabled = true; await setShareLock(n, !n.shareLocked); paint(); };
       const row = document.createElement('div'); row.className = 'row';
       const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = 'הקישור והגדרות'; sh.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); shareDialog(); };
@@ -3908,6 +3952,7 @@ function watchMember(sid) {
     if (now === 'none') { shareRemoved(sid); return; }
     if (openId === 'share:' + sid && now && now !== 'edit') { toast('בעל המחברת שינה לך לצפייה'); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     if (shareParam === sid && shareLast) shareRender(sid, shareLast);
+    else if (shareParam === sid && !shareLast && now && !first) { toast('אושרת ✓ פותח את המחברת'); deleteDoc(doc(db, 'shares', sid, 'requests', me.uid)).catch(() => {}); openShare(sid); }
   }, e => { console.warn('member watch', e); if (memWatch === W && !W.loaded) { W.loaded = true; if (shareParam === sid && shareLast) shareRender(sid, shareLast); } });
   // "מחובר עכשיו": מעדכנים כל דקה, רק כשהמסך פתוח על המחברת הזו
   W.timer = setInterval(() => { if (document.hidden || !memberModes.has(sid) || !(shareParam === sid || openId === 'share:' + sid)) return; updateDoc(memberDoc(sid, me.uid), { at: Date.now() }).catch(() => {}); }, 60000);
@@ -3920,6 +3965,27 @@ function shareRemoved(sid) {
   if (shareParam !== sid) return;
   if (memWatch && memWatch.id === sid) { memWatch.unsub(); clearInterval(memWatch.timer); memWatch = null; }
   closeShare(); toast('המחברת הזו כבר לא זמינה');
+}
+// 🙋 מחברת נעולה ואני לא ברשימה: אפשר לבקש גישה, ובעל המחברת מאשר. כשהוא מאשר – נפתחת לבד (watchMember)
+async function askAccess(id) {
+  if (shareParam !== id) return;
+  $('shTitle').textContent = 'המחברת נעולה 🔒'; $('shOwner').textContent = ''; $('shCopy').classList.add('hidden'); $('shHint')?.classList.add('hidden');
+  const rq = doc(db, 'shares', id, 'requests', me.uid);
+  let sent = false; try { sent = (await getDoc(rq)).exists(); } catch {}
+  if (shareParam !== id || shareLast) return;
+  const paint = () => {
+    $('shBody').innerHTML = sent
+      ? '<p class="sh-empty">הבקשה נשלחה ✓<br>כשמי ששיתף יאשר אותך, המחברת תיפתח כאן לבד.</p>'
+      : '<p class="sh-empty">רק מי שמי ששיתף אישר יכול לפתוח את המחברת הזו.<br><button type="button" class="btn btn-primary" id="askAcc" style="margin-top:14px">לבקש גישה</button></p>';
+    const b = $('askAcc'); if (!b) return;
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = 'שולח...';
+      const base = { name: myName(), at: Date.now() };
+      try { await setDoc(rq, { ...base, ...myEmail() }).catch(() => setDoc(rq, base)); sent = true; paint(); }
+      catch (e) { console.error(e); toast('לא הצלחתי לשלוח. אולי הקישור בוטל, או שהוסרת מהמחברת'); b.disabled = false; b.textContent = 'לבקש גישה'; }
+    };
+  };
+  paint();
 }
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
@@ -3935,7 +4001,7 @@ function openShare(id) {
   $('shTitle').textContent = ''; $('shOwner').textContent = '';
   if (unsubView) unsubView();
   shareLast = null; watchMember(id);
-  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); if (memberModes.get(id) === 'none') { shareRemoved(id); return; } $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'אין גישה: הקישור בוטל, או שמי ששיתף נעל את המחברת רק לאנשים שברשימה שלו. אם קיבלת גישה – בדוק שאתה מחובר לאתר.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
+  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); if (memberModes.get(id) === 'none') { shareRemoved(id); return; } if (err.code === 'permission-denied' && me) { askAccess(id); return; } $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'אין גישה: הקישור בוטל, או שמי ששיתף נעל את המחברת רק לאנשים שברשימה שלו. אם קיבלת גישה – בדוק שאתה מחובר לאתר.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
 }
 function shareRender(id, snap) {
   {

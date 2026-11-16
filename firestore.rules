@@ -120,6 +120,13 @@ service cloud.firestore {
       // רק בעל המחברת משנה הרשאה. החבר עצמו מעדכן רק את השם ו"מתי נכנס"
       match /members/{uid} {
         allow read: if request.auth != null && (request.auth.uid == uid || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+        // בעל המחברת מאשר בקשת הצטרפות: מוסיף את החבר לרשימה
+        allow create: if request.auth != null
+          && get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid
+          && request.resource.data.keys().hasOnly(['name', 'mode', 'at', 'email'])
+          && request.resource.data.mode in ['view', 'copy', 'edit']
+          && request.resource.data.name is string && request.resource.data.name.size() < 80
+          && (!('email' in request.resource.data) || (request.resource.data.email is string && request.resource.data.email.size() < 200));
         allow create: if request.auth != null && request.auth.uid == uid
           && request.resource.data.keys().hasOnly(['name', 'mode', 'at', 'email'])
           && request.resource.data.mode == get(/databases/$(database)/documents/shares/$(shareId)).data.mode
@@ -136,6 +143,17 @@ service cloud.firestore {
             && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email)));
         // רק מי שיצר את המחברת מוחק רשומה. (אם החבר היה מוחק את עצמו, הוא היה נכנס מחדש עם ההרשאה של הקישור ועוקף את מה שבעל המחברת קבע לו)
         allow delete: if request.auth != null && get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid;
+      }
+      // 🙋 בקשת הצטרפות למחברת נעולה: החבר מבקש (רק בשם שלו ועם האימייל האמיתי שלו), בעל המחברת מאשר או דוחה.
+      // מי שהועף לא יכול לבקש שוב (יש לו רשומה ב-members)
+      match /requests/{uid} {
+        allow read, delete: if request.auth != null && (request.auth.uid == uid || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+        allow create: if request.auth != null && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/shares/$(shareId))
+          && !exists(/databases/$(database)/documents/shares/$(shareId)/members/$(uid))
+          && request.resource.data.keys().hasOnly(['name', 'email', 'at'])
+          && request.resource.data.name is string && request.resource.data.name.size() < 80
+          && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email);
       }
       // מי נמצא עכשיו במחברת
       match /presence/{uid} {

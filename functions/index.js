@@ -283,3 +283,36 @@ exports.shareMirror = onDocumentWritten({ document: 'shares/{id}', region: 'euro
   if (!v.exists || v.data().src !== ev.params.id || v.data().owner !== a.owner) return;   // רק קישור צפייה ששייך לקישור הזה
   await ref.update(upd);
 });
+
+// 👥 "מי במחברת" גם למי שנכנס לפני שהייתה רשימה (אפילו לפני שנים): כל מי שפתח מחברת משותפת כשהוא מחובר
+// נשמר אצלו ב-users/{uid}/shared/{קוד הקישור}. רק השרת יכול לקרוא את זה אצל אחרים – אז בעל המחברת מבקש,
+// השרת בודק שהמחברת באמת שלו, ומוסיף לרשימה (members) כל מי שפתח ועוד לא ברשימה – עם שם ואימייל.
+// מי שהועף (mode: none) נשאר מועף. מי שפתח בלי להיות מחובר לא נשמר אף פעם, ולכן אי אפשר למצוא אותו.
+const { getAuth } = require('firebase-admin/auth');
+exports.sharePeople = onCall({ region: 'europe-west1', timeoutSeconds: 60 }, async req => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'צריך להתחבר');
+  const ids = [...new Set((Array.isArray(req.data && req.data.ids) ? req.data.ids : []).filter(x => typeof x === 'string' && /^[A-Za-z0-9]{10,40}$/.test(x)))].slice(0, 2);
+  if (!ids.length) throw new HttpsError('invalid-argument', 'חסר קישור');
+  const shares = {};
+  for (const id of ids) {
+    const s = await db.doc(`shares/${id}`).get();
+    if (!s.exists || s.data().owner !== uid) throw new HttpsError('permission-denied', 'זו לא המחברת שלך');
+    shares[id] = s.data();
+  }
+  const snap = await db.collectionGroup('shared').get();
+  const found = snap.docs.filter(d => shares[d.id] && d.ref.parent.parent && d.ref.parent.parent.parent.id === 'users' && d.ref.parent.parent.id !== uid);
+  let added = 0;
+  for (const d of found) {
+    const fu = d.ref.parent.parent.id, s = shares[d.id];
+    const ref = db.doc(`shares/${d.id}/members/${fu}`);
+    if ((await ref.get()).exists) continue;
+    const u = await getAuth().getUser(fu).catch(() => null);
+    if (!u) continue;
+    const email = u.email && u.email.length < 200 ? u.email : null;
+    const name = String(u.displayName || (email || '').split('@')[0] || 'חבר').slice(0, 79);
+    const mode = s.src ? 'view' : (['view', 'copy', 'edit'].includes(s.mode) ? s.mode : 'copy');
+    await ref.create({ name, ...(email ? { email } : {}), mode, at: +d.data().openedAt || Date.now() }).then(() => added++).catch(() => {});
+  }
+  return { added };
+});
