@@ -194,7 +194,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); thanksMaybe(); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
@@ -8704,6 +8704,36 @@ async function refLoad() {
   const k = 'refSeen:' + me.uid; let prev = refCount(); try { prev = +(localStorage.getItem(k) ?? refCount()); localStorage.setItem(k, refCount()); } catch {}
   const opened = REF_TIERS.filter(t => prev < t.n && refHas(t.n));
   if (opened.length) setTimeout(() => refCelebrate(opened[opened.length - 1]), 1500);
+}
+// תודה חד-פעמית ל-30 הראשונים: רק למי שנרשם לפני THX_CUTOFF, פעם אחת לכל חשבון (נשמר ב-users/{uid}/meta/flags).
+// מי שנרשם מעכשיו – לא רואה את זה
+const THX_CUTOFF = 1794827606000;
+async function thanksMaybe() {
+  if (!me || shareParam) return;
+  const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
+  if (!born || born >= THX_CUTOFF) return;
+  const k = 'thx30:' + me.uid; try { if (localStorage.getItem(k)) return; } catch {}
+  const ref = doc(db, 'users', me.uid, 'meta', 'flags');
+  try { const sn = await getDoc(ref); if (sn.exists() && sn.data().thx30) { try { localStorage.setItem(k, '1'); } catch {} return; } } catch { return; }
+  const show = (left = 8) => {
+    if (!me) return;
+    if ($('home').classList.contains('hidden') || document.querySelector('.overlay')) { if (left) setTimeout(() => show(left - 1), 3000); return; }
+    try { localStorage.setItem(k, '1'); } catch {}
+    setDoc(ref, { thx30: Date.now() }, { merge: true }).catch(() => {});
+    const name = typeof firstName === 'function' ? firstName() : '';
+    dialog(d => {
+      d.classList.add('thx-dlg');
+      d.innerHTML = `<div class="thx-badge"><b>30</b><span>הראשונים</span></div>
+        <h3>תודה${name ? ', ' + esc(name) : ''}!</h3>
+        <p>אתם <b>30 האנשים הראשונים</b> שנכנסו ל"המחברות שלי".<br>בזכותכם האתר גדל ומשתפר כל יום. תודה שאתם כאן!</p>`;
+      const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'בכיף!';
+      ok.onclick = ev => { window.Motion?.confetti(ev.currentTarget); setTimeout(closeDialog, 600); };
+      const row = document.createElement('div'); row.className = 'row'; row.appendChild(ok); d.appendChild(row);
+      setTimeout(() => { window.Motion?.confetti(d.querySelector('.thx-badge')); setTimeout(() => window.Motion?.confetti(d.querySelector('h3')), 450); }, 350);
+    });
+    track('thanks30', {});
+  };
+  setTimeout(show, 1500);
 }
 function refCelebrate(t) {
   toastAction(`חבר חדש הצטרף דרכך! פתחת: ${t.t}`, 'לראות', () => showTab('fr'));

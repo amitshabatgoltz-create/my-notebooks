@@ -2918,3 +2918,13 @@ button.adm-tool:hover{background:var(--accent-soft)}
 #notebook .ed-top .nb-print,#notebook .ed-top .nb-timer,#notebook .ed-top .nb-people{padding-inline:10px}
 #notebook .ed-top .presence{white-space:nowrap}
 #notebook .ed-top .presence .ptxt{white-space:nowrap}
+
+/* תודה ל-30 הראשונים */
+.thx-dlg{text-align:center}
+.thx-dlg h3{font-size:26px;margin:6px 0 8px}
+.thx-dlg p{font-size:16px;line-height:1.6}
+.thx-dlg .row{justify-content:center}
+.thx-badge{width:108px;height:108px;margin:4px auto 6px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#f59e0b,#ec4899 55%,#6d5efc);box-shadow:0 14px 34px -12px rgba(236,72,153,.6);animation:thxPop .6s cubic-bezier(.2,1.6,.4,1) both}
+.thx-badge b{font-size:40px;line-height:1;font-weight:900}.thx-badge span{font-size:13px;font-weight:800}
+@keyframes thxPop{from{transform:scale(.3) rotate(-20deg);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.thx-badge{animation:none}}
