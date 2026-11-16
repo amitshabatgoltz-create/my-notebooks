@@ -196,6 +196,7 @@ onAuthStateChanged(auth, user => {
     setTimeout(welcomeMaybe, 1600);
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); thanksMaybe(); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
+    try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
@@ -3924,6 +3925,8 @@ const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); }
 function openShare(id) {
   ensureAppCheck();
   if (!/^[\w-]{6,64}$/.test(String(id || ''))) { toast('הקישור לא תקין'); return; }   // אבטחה: רק קוד של שיתוף, לא נתיב אחר
+  // 🔒 כל קישור למחברת דורש התחברות: שומרים את הקישור, ואחרי ההתחברות הוא נפתח לבד
+  if (!me) { pendingShare(id); if (!$('shareView').classList.contains('hidden')) closeShare(true); shareParam = null; return; }
   shareParam = id; shareEditOpened = false; shGone.delete(id);   // אולי בעל המחברת החזיר אותי
   shMark(id); shareAsk = null; $('shBody').contentEditable = 'false'; $('shClose').querySelector('span').textContent = 'למחברות שלי';
   if (!location.search.includes('s=' + id)) history.pushState({ s: id }, '', '?s=' + id);
