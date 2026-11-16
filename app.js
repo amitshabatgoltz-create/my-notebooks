@@ -3780,6 +3780,42 @@ function paintPeopleBtn() {
   const k = on ? ownerMem.list.filter(p => p.mode !== 'none' && ppOnline(p)).length : 0;
   const nEl = $('nbPeopleN'); nEl.textContent = k; nEl.classList.toggle('hidden', !k);
   b.title = on ? `מי במחברת (${ownerMem.list.length})${k ? ` · ${k} מחוברים עכשיו` : ''}` : '';
+  paintMemStrip(on);
+}
+// שורה בתוך המחברת: כל מי שמחובר למחברת – שם, אימייל, עריכה כן/לא לכל אחד בנפרד, והסרה
+async function setMemberMode(sid, p, mode, okMsg) {
+  try { await updateDoc(memberDoc(sid, p.id), { mode }); toast(okMsg); return true; }
+  catch (e) { console.error(e); toast('לא הצלחתי לשנות'); return false; }
+}
+function paintMemStrip(on) {
+  const box = $('nbMem'); if (!box) return;
+  const O = ownerMem, list = on && O ? O.list.filter(p => p.mode !== 'none').sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0))) : [];
+  box.classList.toggle('hidden', !list.length);
+  if (!list.length) { box.innerHTML = ''; return; }
+  if (box.contains(document.activeElement) && box.dataset.sid === O.sid && box.dataset.busy) return;   // לא מציירים מחדש באמצע לחיצה
+  box.dataset.sid = O.sid;
+  const nm = p => esc(String(p.name || 'חבר'));
+  box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span><button type="button" class="nm-all">ניהול</button></div>
+    <div class="nm-list">${list.map(p => { const ed = p.mode === 'edit'; return `<div class="nm-p" data-u="${esc(p.id)}">
+      <span class="pp-av${ppOnline(p) ? ' on' : ''}" title="${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + esc(timeAgo(p.at))}">${esc(String(p.name || '?').trim().charAt(0))}</span>
+      <span class="nm-t"><b dir="auto">${nm(p)}</b><small dir="ltr">${p.email ? esc(String(p.email)) : 'אימייל יופיע בכניסה הבאה שלו'}</small></span>
+      <button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>
+      <button type="button" class="nm-x" data-rm="${esc(p.id)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
+  box.querySelector('.nm-all').onclick = peopleDialog;
+  box.querySelectorAll('[data-ed]').forEach(b => b.onclick = async () => {
+    const p = list.find(x => x.id === b.dataset.ed); if (!p) return;
+    const to = p.mode === 'edit' ? 'view' : 'edit';
+    b.disabled = true; box.dataset.busy = '1';
+    if (await setMemberMode(O.sid, p, to, `${p.name || 'החבר'}: עכשיו ${to === 'edit' ? 'יכול לערוך' : 'צפייה בלבד'}`)) p.mode = to;
+    delete box.dataset.busy; paintMemStrip(true);
+  });
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    const p = list.find(x => x.id === b.dataset.rm); if (!p) return;
+    if (!confirm(`להעיף את ${p.name || 'החבר'}${p.email ? ` (${p.email})` : ''} מהמחברת? הוא לא יוכל לפתוח אותה יותר, גם עם הקישור. אפשר להחזיר אותו ב"ניהול".`)) return;
+    b.disabled = true; box.dataset.busy = '1';
+    if (await setMemberMode(O.sid, p, 'none', `${p.name || 'החבר'} הוסר מהמחברת`)) p.mode = 'none';
+    delete box.dataset.busy; paintMemStrip(true);
+  });
 }
 function peopleDialog() {
   const n = notebooks.find(x => x.id === openId); if (!n || !n.shareId) return;
@@ -3795,11 +3831,11 @@ function peopleDialog() {
       const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
       d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד. מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.</p>
         ${list.length ? `<div class="pp-list">${list.map(p => `<div class="pp-row"><span class="pp-av${ppOnline(p) ? ' on' : ''}">${esc(String(p.name || '?').trim().charAt(0))}</span>
-          <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b><small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
+          <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
           <select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
           <button type="button" class="pp-rm" data-rm="${esc(p.id)}" title="הסרה מהמחברת" aria-label="הסרת ${esc(String(p.name || 'חבר'))} מהמחברת"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></div>`).join('')}</div>`
         : '<p class="noev">עוד אף אחד לא נכנס דרך הקישור. כשחבר יפתח אותו, הוא יופיע כאן.</p>'}
-        ${gone.length ? `<details class="pp-gone"><summary>הוסרו (${gone.length})</summary>${gone.map(p => `<div class="pp-row off"><span class="pp-av">${esc(String(p.name || '?').trim().charAt(0))}</span><div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b><small>לא יכול לפתוח את המחברת</small></div><button type="button" class="btn btn-ghost" data-back="${esc(p.id)}">להחזיר</button></div>`).join('')}</details>` : ''}`;
+        ${gone.length ? `<details class="pp-gone"><summary>הוסרו (${gone.length})</summary>${gone.map(p => `<div class="pp-row off"><span class="pp-av">${esc(String(p.name || '?').trim().charAt(0))}</span><div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small>לא יכול לפתוח את המחברת</small></div><button type="button" class="btn btn-ghost" data-back="${esc(p.id)}">להחזיר</button></div>`).join('')}</details>` : ''}`;
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
         const p = all.find(x => x.id === b.dataset.rm); if (!p) return;
         if (!confirm(`להסיר את ${p.name || 'החבר'} מהמחברת? הוא לא יוכל לפתוח אותה יותר (גם עם הקישור).`)) return;
@@ -3887,8 +3923,8 @@ function shareRender(id, snap) {
     if (me && !mine && memberModes.get(id) === 'none') { shareRemoved(id); return; }
     if (me && !mine) {
       // נרשמים פעם אחת עם ההרשאה של הקישור; אחר כך בעל המחברת יכול לשנות לי. ובכל כניסה – "נכנס עכשיו"
-      if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); setDoc(memberDoc(id, me.uid), { name: myName(), mode: (s.mode || 'copy'), at: Date.now() }).catch(e => console.warn('member', e)); }
-      else if (memberModes.has(id) && memWatch && !memWatch.touched) { memWatch.touched = true; updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName() }).catch(() => {}); }
+      if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); setDoc(memberDoc(id, me.uid), { name: myName(), ...myEmail(), mode: (s.mode || 'copy'), at: Date.now() }).catch(e => console.warn('member', e)); }
+      else if (memberModes.has(id) && memWatch && !memWatch.touched) { memWatch.touched = true; updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName(), ...myEmail() }).catch(() => {}); }
       s.mode = myShareMode(id, s);
     }
     const viewOnly = (s.mode || 'copy') === 'view';
@@ -4735,6 +4771,7 @@ function redateAuto() {
 // מקור האמת בזמן עריכה משותפת: shares/<קוד>. כל צד שומר לשם, ומקבל את השינויים של השני
 let live = null;
 const myName = () => (me && (me.displayName || (me.email || '').split('@')[0])) || 'חבר';
+const myEmail = () => (me && me.email && me.email.length < 200 ? { email: me.email } : {});
 function blocksOf(html) { const t = document.createElement('div'); t.innerHTML = html || ''; return [...t.childNodes].map(n => n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? n.textContent : '').filter(x => x !== ''); }
 // שילוב לפי פסקאות: מה שרק אתה שינית נשאר שלך, מה שרק החבר שינה נכנס, ואם שניכם שיניתם אותה פסקה – שתי הגרסאות נשארות (כלום לא נמחק)
 // שילוב ברמת התווים: כל צד שינה אזור אחד; אם האזורים נפרדים – שניהם נכנסים. אם הם חופפים – שניהם נשארים בסדר קבוע (כך ששני המכשירים מגיעים לאותה תוצאה)
