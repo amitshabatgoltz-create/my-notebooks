@@ -2953,3 +2953,13 @@ button.adm-tool:hover{background:var(--accent-soft)}
 .nm-x:hover{color:#b91c1c;background:#fee2e2}
 body.editing-shared .nb-mem{display:none}
 @media (max-width:600px){.nm-p{flex:1 1 100%}.nm-t b,.nm-t small{max-width:100%}}
+
+/* נעילת המחברת + מי שנכנס דרך קישור הצפייה */
+.nm-lk{font-style:normal;font-size:12px;font-weight:700;color:#92400e;background:#fef3c7;padding:2px 8px;border-radius:999px}
+.nm-vv{flex:none;font-size:12px;font-weight:700;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px dashed var(--line)}
+.pp-lock{display:flex;align-items:center;gap:12px;width:100%;text-align:start;padding:12px 14px;margin:4px 0 12px;border-radius:14px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;cursor:pointer}
+.pp-lock>span{display:flex;flex-direction:column;gap:2px}.pp-lock small{font-size:12.5px;color:var(--muted)}
+.pp-lock i{flex:none;position:relative;width:38px;height:22px;border-radius:999px;background:color-mix(in srgb,var(--ink) 18%,transparent);transition:background .15s}
+.pp-lock i::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-start .15s}
+.pp-lock.on{border-color:#f59e0b;background:#fffbeb}.pp-lock.on i{background:#f59e0b}.pp-lock.on i::after{inset-inline-start:19px}
+.pp-lock:disabled{opacity:.6;cursor:wait}

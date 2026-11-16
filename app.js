@@ -3716,7 +3716,8 @@ async function shareDialog() {
                 const vref = doc(collection(db, 'shares'));
                 await setDoc(vref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: cur.id, title: $('title').value.trim() || cur.title || 'מחברת', html: clean($('editor').innerHTML), color: cur.color || COLORS[0], ...lookOf(cur), mode: 'view', src: cur.shareId, createdAt: Date.now(), updatedAt: Date.now() });
                 await updateDoc(shareDoc(cur.shareId), { viewId: vref.id });
-                await updateDoc(nbDoc(cur.id), { viewId: vref.id }); cur.viewId = vref.id; paint();
+                if (cur.shareLocked) await updateDoc(vref, { locked: true }).catch(() => {});
+                await updateDoc(nbDoc(cur.id), { viewId: vref.id }); cur.viewId = vref.id; ownerPeopleWatch(cur); paint();
               } catch (e) { console.error(e); mk.disabled = false; mk.textContent = 'יצירת קישור לצפייה בלבד'; toast('לא הצלחתי ליצור קישור'); }
             };
             vw.appendChild(mk);
@@ -3743,7 +3744,7 @@ async function shareDialog() {
         const wa = document.createElement('a'); wa.className = 'btn btn-ghost'; wa.target = '_blank'; wa.rel = 'noopener'; wa.textContent = 'וואטסאפ'; wa.href = 'https://wa.me/?text=' + encodeURIComponent(`המחברת "${$('title').value || cur.title}" שלי: ${url}`); row.appendChild(wa);
         const stop = document.createElement('button'); stop.className = 'btn btn-ghost danger-t'; stop.textContent = 'הפסקת שיתוף';
         stop.onclick = async () => {
-          try { await deleteDoc(shareDoc(cur.shareId)); if (cur.viewId) await deleteDoc(shareDoc(cur.viewId)).catch(() => {}); await updateDoc(nbDoc(cur.id), { shareId: null, viewId: null }); cur.shareId = null; cur.viewId = null; toast('הקישורים בוטלו. מי שקיבל אותם כבר לא יכול לפתוח את המחברת'); closeDialog(); }
+          try { await deleteDoc(shareDoc(cur.shareId)); if (cur.viewId) await deleteDoc(shareDoc(cur.viewId)).catch(() => {}); await updateDoc(nbDoc(cur.id), { shareId: null, viewId: null, shareLocked: false }); cur.shareId = null; cur.viewId = null; cur.shareLocked = false; ownerPeopleWatch(cur); toast('הקישורים בוטלו. מי שקיבל אותם כבר לא יכול לפתוח את המחברת'); closeDialog(); }
           catch (e) { console.error(e); toast('לא הצלחתי לבטל'); }
         };
         const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
@@ -3761,16 +3762,21 @@ const PP_MODES = [['view', 'צפייה'], ['copy', 'צפייה + עותק'], ['e
 const ppOnline = p => Date.now() - (p.at || 0) < 150000;
 function ownerPeopleWatch(n) {
   const sid = n && !String(n.id || '').startsWith('share:') && n.shareId ? n.shareId : null;
-  if (ownerMem && ownerMem.sid === sid) return;
+  const vid = sid && n.viewId ? n.viewId : null;
+  if (ownerMem && ownerMem.sid === sid && ownerMem.vid === vid) return;
   if (ownerMem) { ownerMem.unsub(); clearInterval(ownerMem.t); ownerMem = null; }
   paintPeopleBtn();
   if (!sid || !me) return;
-  const O = ownerMem = { sid, unsub: () => {}, list: [], onChange: null, t: 0 };
-  O.unsub = onSnapshot(collection(db, 'shares', sid, 'members'), snap => {
+  // גם מי שנכנס דרך קישור הצפייה בלבד מופיע ברשימה (p.sid אומר לאיזה קישור הוא שייך)
+  const O = ownerMem = { sid, vid, nb: n.id, unsub: () => {}, list: [], onChange: null, t: 0, parts: {} };
+  const watch = id => onSnapshot(collection(db, 'shares', id, 'members'), snap => {
     if (ownerMem !== O) return;
-    O.list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.id !== me.uid);
+    O.parts[id] = snap.docs.map(d => ({ id: d.id, sid: id, viaView: id !== sid, ...d.data() })).filter(p => p.id !== me.uid);
+    O.list = Object.values(O.parts).flat();
     paintPeopleBtn(); if (O.onChange) O.onChange();
   }, e => console.warn('people', e));
+  const uns = [watch(sid)]; if (vid) uns.push(watch(vid));
+  O.unsub = () => uns.forEach(u => u());
   O.t = setInterval(() => { if (ownerMem === O) { paintPeopleBtn(); if (O.onChange) O.onChange(); } }, 30000);   // "מחובר עכשיו" מתעדכן גם בלי שינוי
 }
 function paintPeopleBtn() {
@@ -3784,8 +3790,17 @@ function paintPeopleBtn() {
 }
 // שורה בתוך המחברת: כל מי שמחובר למחברת – שם, אימייל, עריכה כן/לא לכל אחד בנפרד, והסרה
 async function setMemberMode(sid, p, mode, okMsg) {
-  try { await updateDoc(memberDoc(sid, p.id), { mode }); toast(okMsg); return true; }
+  try { await updateDoc(memberDoc(p.sid || sid, p.id), { mode }); toast(okMsg); return true; }
   catch (e) { console.error(e); toast('לא הצלחתי לשנות'); return false; }
+}
+async function setShareLock(n, on) {
+  try {
+    await updateDoc(shareDoc(n.shareId), { locked: on });
+    if (n.viewId) await updateDoc(shareDoc(n.viewId), { locked: on }).catch(e => console.warn('lock view', e));
+    await updateDoc(nbDoc(n.id), { shareLocked: on }); n.shareLocked = on;
+    toast(on ? '🔒 נעולה: רק מי שברשימה יכול לפתוח' : 'פתוחה: כל מי שיש לו את הקישור יכול להיכנס');
+    paintPeopleBtn(); return true;
+  } catch (e) { console.error(e); toast('לא הצלחתי לשנות'); return false; }
 }
 function paintMemStrip(on) {
   const box = $('nbMem'); if (!box) return;
@@ -3795,22 +3810,23 @@ function paintMemStrip(on) {
   if (box.contains(document.activeElement) && box.dataset.sid === O.sid && box.dataset.busy) return;   // לא מציירים מחדש באמצע לחיצה
   box.dataset.sid = O.sid;
   const nm = p => esc(String(p.name || 'חבר'));
-  box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span><button type="button" class="nm-all">ניהול</button></div>
+  const nbk = notebooks.find(x => x.id === O.nb), lk = !!(nbk && nbk.shareLocked);
+  box.innerHTML = `<div class="nm-h"><svg aria-hidden="true"><use href="#i-users"/></svg><b>מחוברים למחברת</b><span>${list.length}</span>${lk ? '<em class="nm-lk">🔒 נעולה</em>' : ''}<button type="button" class="nm-all">ניהול</button></div>
     <div class="nm-list">${list.map(p => { const ed = p.mode === 'edit'; return `<div class="nm-p" data-u="${esc(p.id)}">
       <span class="pp-av${ppOnline(p) ? ' on' : ''}" title="${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + esc(timeAgo(p.at))}">${esc(String(p.name || '?').trim().charAt(0))}</span>
       <span class="nm-t"><b dir="auto">${nm(p)}</b><small dir="ltr">${p.email ? esc(String(p.email)) : 'אימייל יופיע בכניסה הבאה שלו'}</small></span>
-      <button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>
-      <button type="button" class="nm-x" data-rm="${esc(p.id)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
+      ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צופה</span>' : `<button type="button" class="nm-sw${ed ? ' on' : ''}" data-ed="${esc(p.id)}" `role="switch" aria-checked="${ed}" title="${ed ? 'יכול לערוך – לחיצה תעביר לצפייה בלבד' : 'צפייה בלבד – לחיצה תיתן עריכה'}" aria-label="עריכה ל${nm(p)}"><i></i><span>${ed ? 'עורך' : 'צופה'}</span></button>`}
+      <button type="button" class="nm-x" data-rm="${esc(p.id)}" data-s="${esc(p.sid)}" title="להעיף מהמחברת" aria-label="הסרת ${nm(p)} מהמחברת">×</button></div>`; }).join('')}</div>`;
   box.querySelector('.nm-all').onclick = peopleDialog;
   box.querySelectorAll('[data-ed]').forEach(b => b.onclick = async () => {
-    const p = list.find(x => x.id === b.dataset.ed); if (!p) return;
+    const p = list.find(x => x.id === b.dataset.ed && !x.viaView); if (!p) return;
     const to = p.mode === 'edit' ? 'view' : 'edit';
     b.disabled = true; box.dataset.busy = '1';
     if (await setMemberMode(O.sid, p, to, `${p.name || 'החבר'}: עכשיו ${to === 'edit' ? 'יכול לערוך' : 'צפייה בלבד'}`)) p.mode = to;
     delete box.dataset.busy; paintMemStrip(true);
   });
   box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
-    const p = list.find(x => x.id === b.dataset.rm); if (!p) return;
+    const p = list.find(x => x.id === b.dataset.rm && x.sid === b.dataset.s); if (!p) return;
     if (!confirm(`להעיף את ${p.name || 'החבר'}${p.email ? ` (${p.email})` : ''} מהמחברת? הוא לא יוכל לפתוח אותה יותר, גם עם הקישור. אפשר להחזיר אותו ב"ניהול".`)) return;
     b.disabled = true; box.dataset.busy = '1';
     if (await setMemberMode(O.sid, p, 'none', `${p.name || 'החבר'} הוסר מהמחברת`)) p.mode = 'none';
@@ -3829,30 +3845,33 @@ function peopleDialog() {
       const all = (ownerMem ? ownerMem.list : []).slice().sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0)));
       const list = all.filter(p => p.mode !== 'none'), gone = all.filter(p => p.mode === 'none');
       const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
-      d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד. מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.</p>
+      const lk = !!n.shareLocked;
+      d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד.${lk ? '' : ` מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.`}</p>
+        <button type="button" class="pp-lock${lk ? ' on' : ''}" role="switch" aria-checked="${lk}"><i></i><span><b>${lk ? '🔒 המחברת נעולה' : 'לנעול את המחברת'}</b><small>${lk ? 'רק מי שברשימה יכול לפתוח. חברים חדשים לא יכולים להיכנס (גם עם הקישור) עד שפותחים.' : 'רק מי שברשימה יוכל לפתוח – לא מי שלא מחובר לאתר ולא מי שקיבל את הקישור ממישהו אחר.'}</small></span></button>
         ${list.length ? `<div class="pp-list">${list.map(p => `<div class="pp-row"><span class="pp-av${ppOnline(p) ? ' on' : ''}">${esc(String(p.name || '?').trim().charAt(0))}</span>
           <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
-          <select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
-          <button type="button" class="pp-rm" data-rm="${esc(p.id)}" title="הסרה מהמחברת" aria-label="הסרת ${esc(String(p.name || 'חבר'))} מהמחברת"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></div>`).join('')}</div>`
+          ${p.viaView ? '<span class="nm-vv" title="נכנס דרך הקישור לצפייה בלבד">צפייה (קישור צפייה)</span>' : `<select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select>`}
+          <button type="button" class="pp-rm" data-rm="${esc(p.id)}" data-s="${esc(p.sid)}" title="הסרה מהמחברת" aria-label="הסרת ${esc(String(p.name || 'חבר'))} מהמחברת"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></div>`).join('')}</div>`
         : '<p class="noev">עוד אף אחד לא נכנס דרך הקישור. כשחבר יפתח אותו, הוא יופיע כאן.</p>'}
-        ${gone.length ? `<details class="pp-gone"><summary>הוסרו (${gone.length})</summary>${gone.map(p => `<div class="pp-row off"><span class="pp-av">${esc(String(p.name || '?').trim().charAt(0))}</span><div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small>לא יכול לפתוח את המחברת</small></div><button type="button" class="btn btn-ghost" data-back="${esc(p.id)}">להחזיר</button></div>`).join('')}</details>` : ''}`;
+        ${gone.length ? `<details class="pp-gone"><summary>הוסרו (${gone.length})</summary>${gone.map(p => `<div class="pp-row off"><span class="pp-av">${esc(String(p.name || '?').trim().charAt(0))}</span><div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b>${p.email ? `<small class="pp-mail" dir="ltr">${esc(String(p.email))}</small>` : ''}<small>לא יכול לפתוח את המחברת</small></div><button type="button" class="btn btn-ghost" data-back="${esc(p.id)}" data-s="${esc(p.sid)}">להחזיר</button></div>`).join('')}</details>` : ''}`;
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
-        const p = all.find(x => x.id === b.dataset.rm); if (!p) return;
+        const p = all.find(x => x.id === b.dataset.rm && x.sid === b.dataset.s); if (!p) return;
         if (!confirm(`להסיר את ${p.name || 'החבר'} מהמחברת? הוא לא יוכל לפתוח אותה יותר (גם עם הקישור).`)) return;
         b.disabled = true;
-        try { await updateDoc(memberDoc(n.shareId, p.id), { mode: 'none' }); toast(`${p.name || 'החבר'} הוסר מהמחברת`); }
+        try { await updateDoc(memberDoc(p.sid, p.id), { mode: 'none' }); toast(`${p.name || 'החבר'} הוסר מהמחברת`); }
         catch (e) { console.error(e); toast('לא הצלחתי להסיר'); b.disabled = false; }
       });
       d.querySelectorAll('[data-back]').forEach(b => b.onclick = async () => {
-        const p = all.find(x => x.id === b.dataset.back); b.disabled = true;
-        try { await updateDoc(memberDoc(n.shareId, b.dataset.back), { mode: n.shareMode || 'copy' }); toast(`${(p && p.name) || 'החבר'} הוחזר`); }
+        const p = all.find(x => x.id === b.dataset.back && x.sid === b.dataset.s); if (!p) return; b.disabled = true;
+        try { await updateDoc(memberDoc(p.sid, p.id), { mode: p.viaView ? 'view' : (n.shareMode || 'copy') }); toast(`${(p && p.name) || 'החבר'} הוחזר`); }
         catch (e) { console.error(e); toast('לא הצלחתי להחזיר'); b.disabled = false; }
       });
       d.querySelectorAll('select[data-u]').forEach(sel => sel.onchange = async () => {
-        const p = list.find(x => x.id === sel.dataset.u); sel.disabled = true;
+        const p = list.find(x => x.id === sel.dataset.u && !x.viaView); sel.disabled = true;
         try { await updateDoc(memberDoc(n.shareId, sel.dataset.u), { mode: sel.value }); toast(`${p ? p.name : 'החבר'}: עכשיו ${PP_MODES.find(x => x[0] === sel.value)[1]}`); }
         catch (e) { console.error(e); toast('לא הצלחתי לשנות'); sel.disabled = false; }
       });
+      d.querySelector('.pp-lock').onclick = async e => { const b = e.currentTarget; b.disabled = true; await setShareLock(n, !n.shareLocked); paint(); };
       const row = document.createElement('div'); row.className = 'row';
       const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = 'הקישור והגדרות'; sh.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); shareDialog(); };
       const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); };
@@ -3913,7 +3932,7 @@ function openShare(id) {
   $('shTitle').textContent = ''; $('shOwner').textContent = '';
   if (unsubView) unsubView();
   shareLast = null; watchMember(id);
-  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); if (memberModes.get(id) === 'none') { shareRemoved(id); return; } $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
+  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); if (memberModes.get(id) === 'none') { shareRemoved(id); return; } $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'אין גישה: הקישור בוטל, או שמי ששיתף נעל את המחברת רק לאנשים שברשימה שלו. אם קיבלת גישה – בדוק שאתה מחובר לאתר.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
 }
 function shareRender(id, snap) {
   {
