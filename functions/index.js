@@ -23,6 +23,9 @@ const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יח
 const SITE_DAY_CAP = +process.env.AI_SITE_DAY_CAP || 500;
 const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +process.env.AI_QUEUE_WAIT_MS || 25000;
 const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
+// תמונה לטקסט (מצב "מדויק"): המודל החזק קורא כתב יד הרבה יותר טוב. ל-Flash יש מכסה קטנה (20 ביום לכל הפרויקט),
+// אז סופרים כאן, ואחרי OCR_FLASH_DAY ביום – או אם Gemini אומר שנגמר – עוברים לבד ל-Lite
+const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_DAY || 18;
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];
@@ -129,15 +132,28 @@ exports.ai = onCall({
   timeoutSeconds: 300, memory: '512MiB', maxInstances: 10, concurrency: 40,
 }, async (req, res) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'login');
-  const { kind, model, cfg, parts, search, image, urls } = req.data || {};
+  const { kind, cfg, parts, search, image, urls } = req.data || {};
+  let model = (req.data || {}).model;
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
-  if (image === true ? kind !== 'img' : (kind === 'img' || !MODELS.includes(model))) throw new HttpsError('invalid-argument', 'bad-model');
+  const flashOcr = kind === 'ocr' && model === OCR_MODEL;
+  if (image === true ? kind !== 'img' : (kind === 'img' || !(MODELS.includes(model) || flashOcr))) throw new HttpsError('invalid-argument', 'bad-model');
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
+  if (flashOcr) {
+    try {
+      const ok = await db.runTransaction(async tx => {
+        const ref = db.doc('aiQuota/_site'); const sn = await tx.get(ref); const g = sn.exists ? sn.data() : {};
+        const day = israelDay(), used = g.flashDay === day ? (g.flashToday || 0) : 0;
+        if (used >= OCR_FLASH_DAY) return false;
+        tx.set(ref, { flashDay: day, flashToday: used + 1 }, { merge: true }); return true;
+      });
+      if (!ok) model = MODELS[0];
+    } catch { model = MODELS[0]; }
+  }
 
   const ai = await gemini();
   if (image === true) {
@@ -181,6 +197,11 @@ exports.ai = onCall({
     if (tools.length) { try { return await run({ ...config, tools }); } catch (e) { if (sent) throw e; console.warn('tools failed, trying without', String(e && e.message).slice(0, 200)); } }
     try { return await run(config); }
     catch (e) {
+      // Flash עמוס / נגמרה לו המכסה / לא קיים – קוראים עם Lite
+      if (!sent && model === OCR_MODEL && /429|RESOURCE_EXHAUSTED|quota|404|NOT_FOUND|not found|unavailable|503|overloaded/i.test(String(e && e.message))) {
+        console.warn('ocr flash failed, using lite', String(e && e.message).slice(0, 200)); model = MODELS[0];
+        return await run(config);
+      }
       // המודל לא קיבל thinkingLevel / mediaResolution – מנסים שוב בדרך הישנה
       if (sent || !(config.thinkingConfig?.thinkingLevel || config.mediaResolution)) throw e;
       console.warn('level failed, trying budget', String(e && e.message).slice(0, 200));

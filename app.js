@@ -5281,9 +5281,12 @@ const OCR_PROMPT = `אתה מקבל תמונות (או PDF) של לוח בכית
 - טקסט רגיל: <p>. רשימות: <ul>/<ol> עם <li>. טבלה: <table> עם <tr>/<td>.
 - הדגשה במקור (קו תחתון, מסגרת, צבע בולט): <b>.
 - חצים וקשרים בין רעיונות: כתוב כטקסט עם "←".
-- מילה שלא ברורה: כתוב את הניחוש הכי טוב שלך לפי ההקשר. לעולם אל תכתוב [?] או סימני שאלה במקום מילה.
+- הכי חשוב: לא להמציא. כתוב רק מילים שבאמת רואים בתמונה. אל תשלים משפט שנקטע, אל תוסיף מילה "כדי שיישמע טוב", אל תחבר שתי שורות למשפט אחד ואל תכתוב מה שאתה חושב שהמורה התכוון.
+- מילה שלא ברורה: כתוב את מה שהכי קרוב לצורת האותיות שרואים (גם אם יוצאת טעות כתיב קטנה). עדיף מילה עם טעות כתיב מאשר מילה אחרת שנשמעת הגיונית. לעולם אל תכתוב [?] או סימני שאלה במקום מילה.
+- אם חלק בתמונה באמת לא קריא בכלל (חתוך, מוסתר, מטושטש לגמרי) – דלג עליו. אל תמציא במקומו.
 - אל תוסיף מידע שלא כתוב, ואל תסכם. רק להקליד.
-- העתק מילה במילה. לעולם אל תנסח מחדש, אל תחליף מילה במילה נרדפת ואל "תשפר" ניסוח. אם מילה לא ברורה – הניחוש הכי קרוב למה שכתוב, לא מילה אחרת.`;
+- העתק מילה במילה. לעולם אל תנסח מחדש, אל תחליף מילה במילה נרדפת ואל "תשפר" ניסוח.
+- לפני שאתה מחזיר: עבור שוב על התמונה שורה אחרי שורה, ובדוק שכל מילה שכתבת באמת כתובה שם, שלא דילגת על שורה ושלא הוספת שורה.`;
 const OCR_TITLE = 'בסוף, בשורה נפרדת ואחרונה, כתוב הצעה לשם קצר למחברת בפורמט: <!--title: השם-->';
 const OCR_HW = () => { const d = new Date(); return `
 שיעורי בית: אם כתובים על הלוח/בדף שיעורי בית, מטלה, עבודה להגשה או מבחן (למשל "ש"ב", "שיעורי בית", "להגיש עד", "לקרוא עד", "מבחן ב..."), השאר אותם גם בטקסט, ובנוסף הוסף שורה נפרדת בסוף:
@@ -5369,7 +5372,7 @@ async function ocrDialog() {
         const ctxHeadsSrc = n && n.id !== openId ? (() => { const t = document.createElement('div'); t.innerHTML = n.html || ''; return t; })() : $('editor');
         const ctxHeads = (!openId && !n) ? '' : [...ctxHeadsSrc.querySelectorAll('h1,h2,h3')].slice(-6).map(h => h.textContent.trim()).filter(Boolean).join(' | ');
         const ctx = `\nהקשר (רק כדי לזהות מילים, לא להעתיק): שם המחברת: "${ctxTitle}".${ctxHeads ? ` כותרות אחרונות במחברת: ${ctxHeads}.` : ''}
-- כשמילה לא ברורה, העדף מילה עברית אמיתית שמתאימה להקשר של המשפט ושל המקצוע (למשל שמות מהתנ"ך, מקומות, מושגים מהשיעור), על פני רצף אותיות חסר משמעות.
+- ההקשר עוזר רק כשהאותיות באמת לא ברורות: אז בחר, מבין המילים שדומות לצורת האותיות, את זו שמתאימה לשיעור (שמות מהתנ"ך, מקומות, מושגים). לעולם אל תחליף מילה שכתובה ברור במילה "הגיונית" יותר, ואל תכניס מילים מהמחברת שלא כתובות בתמונה.
 - מספרי פסוקים ופרקים כתובים באותיות עבריות (א', ב', ט', י'...). שים לב להבדל בין ט' ל-כ', ובין י' ל-ז'/ו'.
 - שים לב לאותיות שדומות בכתב יד: ד/ר/ל, ב/כ, ה/ח/ת, ו/ז/ן, ס/ם, מ/ט, ע/צ.
 - הערות קטנות מעל מילה (עם חץ או סוגר מסולסל) הן הסבר למילה הזו: כתוב אותן בסוגריים מיד אחריה.
@@ -5381,13 +5384,13 @@ async function ocrDialog() {
         // ב-Gemini 3.5 Flash-Lite ברירת המחדל היא כמעט בלי "חשיבה", וזה מה שגרם לו לא להבין תמונות.
         // thinkingLevel + רזולוציה גבוהה (השרת החדש מעביר אותם; השרת הישן מתעלם ומשתמש ב-thinkingBudget).
         // התמונות לפני ההוראות – כך Gemini ממליץ
-        const ocCfg = (budget, level) => ({ temperature: 0.2, thinkingConfig: { thinkingBudget: budget, thinkingLevel: level }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' });
+        const ocCfg = (budget, level) => ({ temperature: 0, thinkingConfig: { thinkingBudget: budget, thinkingLevel: level }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' });
         const second = exact
           ? aiText(aiModels(true), ocCfg(2048, 'medium'), [...parts, OCR_PROMPT + ctx]).catch(() => '')
           : aiText(aiModels(false), ocCfg(0, 'minimal'), [...parts, OCR_PROMPT + ctx]).catch(() => '');
         // הקריאה הראשית מוצגת תוך כדי, כך שרואים את הטקסט נכתב
         const liveBox = document.createElement("div"); liveBox.className = "ai-box live-read"; d.insertBefore(liveBox, row);
-        try { txt = await aiText(aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
+        try { txt = await aiText(exact ? [MODEL_STRONG] : aiModels(true), ocCfg(exact ? 8192 : 512, exact ? 'high' : 'low'), [...parts, fullPrompt], t => { liveBox.innerHTML = clean(t.replace(/<!--[\s\S]*?(-->|$)/g, '').replace(/^```(?:html)?\s*/i, '')); liveBox.scrollTop = liveBox.scrollHeight; }); }
         catch (e) { lastErr = e; }
         stop();
         if (txt) { st.textContent = 'בודק את עצמי...'; const t2 = await Promise.race([second, new Promise(r => setTimeout(() => r(''), exact ? 25000 : 4000))]); if (t2) txt = markDoubts(txt, t2); }
