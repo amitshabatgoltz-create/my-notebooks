@@ -2885,3 +2885,9 @@ button.adm-tool:hover{background:var(--accent-soft)}
   body.printing-nb #editor p,body.printing-nb #editor li{orphans:3;widows:3}
 }
 @media print{body.printing-nb #editor .pr-sec{display:block}body.printing-nb #editor .pr-fit{break-inside:avoid;page-break-inside:avoid}}
+
+/* קישור נוסף לצפייה בלבד */
+.share-view2{display:flex;flex-direction:column;gap:6px;margin:14px 0 4px;padding:12px 14px;border-radius:14px;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+.share-view2>b{font-size:15px}.share-view2>span{font-size:13px;color:var(--muted)}
+.share-view2>.btn{align-self:flex-start;margin-top:4px}
+.share-view2 .share-link{margin:6px 0 0}.share-view2 .row{margin-top:4px}

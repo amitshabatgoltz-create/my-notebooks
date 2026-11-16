@@ -260,3 +260,21 @@ exports.billingKill = onMessagePublished({ topic: 'billing-kill', region: 'europ
     } catch (e) { console.error(`${test ? 'TEST ' : ''}disable failed for ${project}`, e.message); }
   }
 });
+
+// 👥 קישור לצפייה בלבד: למחברת משותפת יכול להיות עוד קישור (shares/{viewId}, mode: view, src = הקישור הראשי).
+// כל שינוי בקישור הראשי – של בעל המחברת או של חבר שעורך – מועתק לכאן, כדי שמי שצופה יראה תמיד את העדכני
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+const MIRROR_KEYS = ['title', 'html', 'updatedAt', 'color', 'layout', 'bg', 'orient', 'margin', 'font', 'fs', 'rows', 'updatedBy', 'updatedByName'];
+exports.shareMirror = onDocumentWritten({ document: 'shares/{id}', region: 'europe-west1' }, async ev => {
+  const a = ev.data && ev.data.after && ev.data.after.exists ? ev.data.after.data() : null;
+  const b = ev.data && ev.data.before && ev.data.before.exists ? ev.data.before.data() : null;
+  if (!a) { if (b && b.viewId && !b.src) await db.doc(`shares/${b.viewId}`).delete().catch(() => {}); return; }   // הקישור הראשי נמחק – גם הצפייה
+  if (a.src || !a.viewId || typeof a.viewId !== 'string' || !/^[A-Za-z0-9]{10,40}$/.test(a.viewId)) return;
+  const upd = {};
+  for (const k of MIRROR_KEYS) if (k in a && (!b || b.viewId !== a.viewId || JSON.stringify(a[k]) !== JSON.stringify(b[k]))) upd[k] = a[k];
+  if (!Object.keys(upd).length) return;
+  const ref = db.doc(`shares/${a.viewId}`);
+  const v = await ref.get();
+  if (!v.exists || v.data().src !== ev.params.id || v.data().owner !== a.owner) return;   // רק קישור צפייה ששייך לקישור הזה
+  await ref.update(upd);
+});

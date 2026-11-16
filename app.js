@@ -543,7 +543,8 @@ $('delBtn').onclick = () => {
       ok.disabled = true; clearTimeout(saveTimer); dirty = false;
       try {
         if (n.shareId) await deleteDoc(shareDoc(n.shareId)).catch(() => {});
-        await updateDoc(nbDoc(n.id), { trashed: Date.now(), shareId: null });
+        if (n.viewId) await deleteDoc(shareDoc(n.viewId)).catch(() => {});
+        await updateDoc(nbDoc(n.id), { trashed: Date.now(), shareId: null, viewId: null });
         closeDialog(); showLibrary();
         toastAction('המחברת הועברה לפח המחזור', 'ביטול מחיקה', async () => {
           try { await updateDoc(nbDoc(n.id), { trashed: null, updatedAt: Date.now() }); trash = trash.filter(x => x.id !== n.id); toast('המחברת חזרה ✓'); const wait = (k = 0) => notebooks.find(x => x.id === n.id) ? openNotebook(n.id) : k < 30 && setTimeout(() => wait(k + 1), 100); wait(); }
@@ -3697,12 +3698,47 @@ async function shareDialog() {
         const cp = document.createElement('button'); cp.className = 'btn btn-primary'; cp.textContent = 'העתקה';
         cp.onclick = async () => { try { await navigator.clipboard.writeText(url); cp.textContent = 'הועתק ✓'; } catch { inp.select(); document.execCommand('copy'); cp.textContent = 'הועתק ✓'; } };
         box.append(inp, cp); d.appendChild(box);
+        // קישור שני – לצפייה בלבד: חבר אחד עורך, חבר אחר רק רואה. השרת (shareMirror) מעתיק אליו כל שינוי
+        if (cm !== 'view') {
+          const vw = document.createElement('div'); vw.className = 'share-view2';
+          if (!cur.viewId) {
+            vw.innerHTML = `<b>רוצה שחבר אחר רק יצפה?</b><span>קישור נוסף, שמי שמקבל אותו יכול רק לקרוא (בלי לשנות ובלי לשמור עותק).</span>`;
+            const mk = document.createElement('button'); mk.type = 'button'; mk.className = 'btn btn-ghost'; mk.textContent = 'יצירת קישור לצפייה בלבד';
+            mk.onclick = async () => {
+              mk.disabled = true; mk.textContent = 'יוצר...';
+              try {
+                if (dirty) await flush();
+                const vref = doc(collection(db, 'shares'));
+                await setDoc(vref, { owner: me.uid, ownerName: me.displayName || (me.email || '').split('@')[0] || 'חבר', nb: cur.id, title: $('title').value.trim() || cur.title || 'מחברת', html: clean($('editor').innerHTML), color: cur.color || COLORS[0], ...lookOf(cur), mode: 'view', src: cur.shareId, createdAt: Date.now(), updatedAt: Date.now() });
+                await updateDoc(shareDoc(cur.shareId), { viewId: vref.id });
+                await updateDoc(nbDoc(cur.id), { viewId: vref.id }); cur.viewId = vref.id; paint();
+              } catch (e) { console.error(e); mk.disabled = false; mk.textContent = 'יצירת קישור לצפייה בלבד'; toast('לא הצלחתי ליצור קישור'); }
+            };
+            vw.appendChild(mk);
+          } else {
+            const vurl = shareUrl(cur.viewId);
+            vw.innerHTML = `<b>קישור לצפייה בלבד</b><span>מי שמקבל את הקישור הזה יכול רק לקרוא.</span>`;
+            const vb = document.createElement('div'); vb.className = 'share-link';
+            const vi = document.createElement('input'); vi.readOnly = true; vi.value = vurl; vi.dir = 'ltr'; vi.onclick = () => vi.select();
+            const vc = document.createElement('button'); vc.className = 'btn btn-primary'; vc.textContent = 'העתקה';
+            vc.onclick = async () => { try { await navigator.clipboard.writeText(vurl); vc.textContent = 'הועתק ✓'; } catch { vi.select(); document.execCommand('copy'); vc.textContent = 'הועתק ✓'; } };
+            vb.append(vi, vc); vw.appendChild(vb);
+            const vwa = document.createElement('a'); vwa.className = 'btn btn-ghost'; vwa.target = '_blank'; vwa.rel = 'noopener'; vwa.textContent = 'וואטסאפ'; vwa.href = 'https://wa.me/?text=' + encodeURIComponent(`המחברת "${$('title').value || cur.title}" שלי (לצפייה): ${vurl}`);
+            const vx = document.createElement('button'); vx.type = 'button'; vx.className = 'btn btn-ghost danger-t'; vx.textContent = 'ביטול קישור הצפייה';
+            vx.onclick = async () => {
+              try { await deleteDoc(shareDoc(cur.viewId)); await updateDoc(shareDoc(cur.shareId), { viewId: null }).catch(() => {}); await updateDoc(nbDoc(cur.id), { viewId: null }); cur.viewId = null; toast('קישור הצפייה בוטל'); paint(); }
+              catch (e) { console.error(e); toast('לא הצלחתי לבטל'); }
+            };
+            const vr = document.createElement('div'); vr.className = 'row'; vr.append(vwa, vx); vw.appendChild(vr);
+          }
+          d.appendChild(vw);
+        }
         const row = document.createElement('div'); row.className = 'row';
         if (navigator.share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = 'שליחה...'; sh.onclick = () => navigator.share({ title: cur.title || 'מחברת', text: `המחברת "${$('title').value || cur.title}" שלי`, url }).catch(() => {}); row.appendChild(sh); }
         const wa = document.createElement('a'); wa.className = 'btn btn-ghost'; wa.target = '_blank'; wa.rel = 'noopener'; wa.textContent = 'וואטסאפ'; wa.href = 'https://wa.me/?text=' + encodeURIComponent(`המחברת "${$('title').value || cur.title}" שלי: ${url}`); row.appendChild(wa);
         const stop = document.createElement('button'); stop.className = 'btn btn-ghost danger-t'; stop.textContent = 'הפסקת שיתוף';
         stop.onclick = async () => {
-          try { await deleteDoc(shareDoc(cur.shareId)); await updateDoc(nbDoc(cur.id), { shareId: null }); cur.shareId = null; toast('הקישור בוטל. מי שקיבל אותו כבר לא יכול לפתוח את המחברת'); closeDialog(); }
+          try { await deleteDoc(shareDoc(cur.shareId)); if (cur.viewId) await deleteDoc(shareDoc(cur.viewId)).catch(() => {}); await updateDoc(nbDoc(cur.id), { shareId: null, viewId: null }); cur.shareId = null; cur.viewId = null; toast('הקישורים בוטלו. מי שקיבל אותם כבר לא יכול לפתוח את המחברת'); closeDialog(); }
           catch (e) { console.error(e); toast('לא הצלחתי לבטל'); }
         };
         const close = document.createElement('button'); close.className = 'btn btn-ghost'; close.textContent = 'סגירה'; close.onclick = closeDialog;
