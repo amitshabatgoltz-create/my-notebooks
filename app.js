@@ -435,6 +435,7 @@ function openNotebook(id) {
   document.body.classList.remove('editing-shared');
   stopLive();
   if (n.shareId && n.shareMode === 'edit') startLive(n.shareId, clean(n.html || ''));
+  ownerPeopleWatch(n);
   let off = false; try { off = localStorage.getItem('mathDock:' + id) === 'off'; } catch {}
   if (isMathNb(n) && !off) setTimeout(mathDockShow, 350); else mathDockHide();
 }
@@ -3683,12 +3684,16 @@ async function shareDialog() {
         row.append(go, no); d.appendChild(row);
       } else {
         const url = shareUrl(cur.shareId);
-        d.innerHTML = '<h3>המחברת משותפת ✓</h3><p>שלח את הקישור לחברים. הם יראו תמיד את הגרסה העדכנית.</p>';
+        d.innerHTML = '<h3>המחברת משותפת ✓</h3><p>שלח את הקישור לחברים. הם יראו תמיד את הגרסה העדכנית. מה שבוחרים כאן חל על כולם – ואפשר לשנות לכל אחד בנפרד:</p>';
+        const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'btn btn-ghost pp-open'; pb.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg>מי במחברת והרשאה לכל אחד${ownerMem && ownerMem.list.length ? ` (${ownerMem.list.length})` : ''}`;
+        pb.onclick = () => { closeDialog(); peopleDialog(); }; d.appendChild(pb);
         const cm = cur.shareMode || 'copy';
         d.appendChild(modePicker(cm, async m => {
           try {
             await updateDoc(shareDoc(cur.shareId), { mode: m }); await updateDoc(nbDoc(cur.id), { shareMode: m }); cur.shareMode = m;
-            toast({ view: 'עכשיו: צפייה בלבד', copy: 'עכשיו: צפייה + שמירת עותק', edit: 'עכשיו: עריכה משותפת' }[m]);
+            // לכולם: גם מי שכבר נכנס מקבל את ההרשאה החדשה (אחר כך אפשר לשנות לכל אחד ב"אנשים")
+            try { const ms = await getDocs(collection(db, 'shares', cur.shareId, 'members')); await Promise.all(ms.docs.filter(x => x.data().mode !== m).map(x => updateDoc(x.ref, { mode: m }))); } catch (e) { console.warn('members mode', e); }
+            toast({ view: 'עכשיו לכולם: צפייה בלבד', copy: 'עכשיו לכולם: צפייה + שמירת עותק', edit: 'עכשיו לכולם: עריכה משותפת' }[m]);
             stopLive(); if (m === 'edit' && openId === cur.id) startLive(cur.shareId, clean($('editor').innerHTML));
           }
           catch (e) { console.error(e); toast('לא הצלחתי לשנות'); }
@@ -3750,8 +3755,89 @@ async function shareDialog() {
 }
 $('shareBtn').onclick = shareDialog;
 
+/* ===== אנשים: בעל המחברת רואה מי נכנס, מי מחובר עכשיו, ומשנה הרשאה לכל אחד בנפרד ===== */
+let ownerMem = null;   // { sid, unsub, list, onChange }
+const PP_MODES = [['view', 'צפייה'], ['copy', 'צפייה + עותק'], ['edit', 'עריכה']];
+const ppOnline = p => Date.now() - (p.at || 0) < 150000;
+function ownerPeopleWatch(n) {
+  const sid = n && !String(n.id || '').startsWith('share:') && n.shareId ? n.shareId : null;
+  if (ownerMem && ownerMem.sid === sid) return;
+  if (ownerMem) { ownerMem.unsub(); clearInterval(ownerMem.t); ownerMem = null; }
+  paintPeopleBtn();
+  if (!sid || !me) return;
+  const O = ownerMem = { sid, unsub: () => {}, list: [], onChange: null, t: 0 };
+  O.unsub = onSnapshot(collection(db, 'shares', sid, 'members'), snap => {
+    if (ownerMem !== O) return;
+    O.list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.id !== me.uid);
+    paintPeopleBtn(); if (O.onChange) O.onChange();
+  }, e => console.warn('people', e));
+  O.t = setInterval(() => { if (ownerMem === O) { paintPeopleBtn(); if (O.onChange) O.onChange(); } }, 30000);   // "מחובר עכשיו" מתעדכן גם בלי שינוי
+}
+function paintPeopleBtn() {
+  const b = $('nbPeople'); if (!b) return;
+  const on = !!ownerMem && !document.body.classList.contains('editing-shared');
+  b.classList.toggle('hidden', !on);
+  const k = on ? ownerMem.list.filter(ppOnline).length : 0;
+  const nEl = $('nbPeopleN'); nEl.textContent = k; nEl.classList.toggle('hidden', !k);
+  b.title = on ? `מי במחברת (${ownerMem.list.length})${k ? ` · ${k} מחוברים עכשיו` : ''}` : '';
+}
+function peopleDialog() {
+  const n = notebooks.find(x => x.id === openId); if (!n || !n.shareId) return;
+  ownerPeopleWatch(n);
+  dialog(d => {
+    d.classList.add('people-dlg');
+    const paint = () => {
+      if (!d.isConnected) { if (ownerMem) ownerMem.onChange = null; return; }
+      const list = (ownerMem ? ownerMem.list : []).slice().sort((a, b) => (ppOnline(b) - ppOnline(a)) || ((b.at || 0) - (a.at || 0)));
+      const linkMode = (SHARE_MODES[n.shareMode || 'copy'] || [''])[0];
+      d.innerHTML = `<h3>מי במחברת</h3><p class="muted-s">כל מי שנכנס דרך הקישור. בוחרים לכל אחד מה מותר לו, וזה משתנה אצלו מיד. מי שייכנס חדש יקבל: <b>${esc(linkMode)}</b>.</p>
+        ${list.length ? `<div class="pp-list">${list.map(p => `<div class="pp-row"><span class="pp-av${ppOnline(p) ? ' on' : ''}">${esc(String(p.name || '?').trim().charAt(0))}</span>
+          <div class="pp-t"><b dir="auto">${esc(String(p.name || 'חבר'))}</b><small class="${ppOnline(p) ? 'on' : ''}">${ppOnline(p) ? 'מחובר עכשיו' : 'נכנס ' + timeAgo(p.at)}</small></div>
+          <select data-u="${esc(p.id)}" aria-label="מה מותר ל${esc(String(p.name || 'חבר'))}">${PP_MODES.map(([k, t]) => `<option value="${k}"${(p.mode || 'copy') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}</div>`
+        : '<p class="noev">עוד אף אחד לא נכנס דרך הקישור. כשחבר יפתח אותו, הוא יופיע כאן.</p>'}`;
+      d.querySelectorAll('select[data-u]').forEach(sel => sel.onchange = async () => {
+        const p = list.find(x => x.id === sel.dataset.u); sel.disabled = true;
+        try { await updateDoc(memberDoc(n.shareId, sel.dataset.u), { mode: sel.value }); toast(`${p ? p.name : 'החבר'}: עכשיו ${PP_MODES.find(x => x[0] === sel.value)[1]}`); }
+        catch (e) { console.error(e); toast('לא הצלחתי לשנות'); sel.disabled = false; }
+      });
+      const row = document.createElement('div'); row.className = 'row';
+      const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.textContent = 'הקישור והגדרות'; sh.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); shareDialog(); };
+      const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = () => { if (ownerMem) ownerMem.onChange = null; closeDialog(); };
+      row.append(ok, sh); d.appendChild(row);
+    };
+    if (ownerMem) ownerMem.onChange = () => { if (!d.querySelector('select:focus')) paint(); };
+    paint();
+  });
+}
+$('nbPeople').onclick = peopleDialog;
+$('presence').addEventListener('click', () => { if (ownerMem) peopleDialog(); });
+
 // ---- צפייה במחברת שמישהו שיתף
 let shareEditOpened = false;
+// 👥 הרשאה לכל אדם: מי שנכנס לקישור נרשם ב-shares/{id}/members/{uid} עם mode. בעל המחברת יכול לשנות לכל אחד בנפרד.
+// אם אין לי רשומה (עוד לא נרשמתי) – ההרשאה של הקישור
+const memberDoc = (sid, uid) => doc(db, 'shares', sid, 'members', uid);
+const memberModes = new Map();
+let memWatch = null;   // { id, unsub, timer }
+const myShareMode = (sid, s) => memberModes.has(sid) ? memberModes.get(sid) : ((s && s.mode) || 'copy');
+function watchMember(sid) {
+  if (!me || (memWatch && memWatch.id === sid)) return;
+  if (memWatch) { memWatch.unsub(); clearInterval(memWatch.timer); }
+  const W = memWatch = { id: sid, unsub: () => {}, timer: 0, touched: false };
+  W.unsub = onSnapshot(memberDoc(sid, me.uid), ms => {
+    if (memWatch !== W) return;
+    const before = memberModes.get(sid), first = !W.loaded; W.loaded = true;
+    if (ms.exists()) memberModes.set(sid, ms.data().mode); else memberModes.delete(sid);
+    const now = memberModes.get(sid);
+    if (now === before && !first) return;
+    // עורך את המחברת ובעל המחברת העביר אותי לצפייה
+    if (openId === 'share:' + sid && now && now !== 'edit') { toast('בעל המחברת שינה לך לצפייה'); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
+    if (shareParam === sid && shareLast) shareRender(sid, shareLast);
+  }, e => { console.warn('member watch', e); if (memWatch === W && !W.loaded) { W.loaded = true; if (shareParam === sid && shareLast) shareRender(sid, shareLast); } });
+  // "מחובר עכשיו": מעדכנים כל דקה, רק כשהמסך פתוח על המחברת הזו
+  W.timer = setInterval(() => { if (document.hidden || !memberModes.has(sid) || !(shareParam === sid || openId === 'share:' + sid)) return; updateDoc(memberDoc(sid, me.uid), { at: Date.now() }).catch(() => {}); }, 60000);
+}
+let shareLast = null;
 const pendingShare = id => { try { sessionStorage.setItem('pendingShare', id); } catch {} };
 function openShare(id) {
   ensureAppCheck();
@@ -3763,9 +3849,21 @@ function openShare(id) {
   $('shBody').innerHTML = '<div class="skel-grid"><div class="skel"><i></i><b></b><b></b></div></div>';
   $('shTitle').textContent = ''; $('shOwner').textContent = '';
   if (unsubView) unsubView();
-  unsubView = onSnapshot(shareDoc(id), snap => {
+  shareLast = null; watchMember(id);
+  unsubView = onSnapshot(shareDoc(id), snap => { shareLast = snap; shareRender(id, snap); }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; });
+}
+function shareRender(id, snap) {
+  {
     if (!snap.exists()) { $('shTitle').textContent = 'המחברת לא זמינה'; $('shOwner').textContent = ''; $('shBody').innerHTML = '<p class="sh-empty">הקישור הזה בוטל, או שהמחברת נמחקה.</p>'; $('shCopy').classList.add('hidden'); if (me) deleteDoc(doc(db, 'users', me.uid, 'shared', id)).catch(() => {}); return; }
-    const s = snap.data(); const mine = me && s.owner === me.uid; const viewOnly = (s.mode || 'copy') === 'view';
+    const s = snap.data(); const mine = me && s.owner === me.uid;
+    if (me && !mine && memWatch && memWatch.id === id && !memWatch.loaded) return;   // מחכים לדעת מה ההרשאה שלי לפני שמציגים
+    if (me && !mine) {
+      // נרשמים פעם אחת עם ההרשאה של הקישור; אחר כך בעל המחברת יכול לשנות לי. ובכל כניסה – "נכנס עכשיו"
+      if (!memberModes.has(id) && !memWatch?.touched) { memWatch && (memWatch.touched = true); setDoc(memberDoc(id, me.uid), { name: myName(), mode: (s.mode || 'copy'), at: Date.now() }).catch(e => console.warn('member', e)); }
+      else if (memberModes.has(id) && memWatch && !memWatch.touched) { memWatch.touched = true; updateDoc(memberDoc(id, me.uid), { at: Date.now(), name: myName() }).catch(() => {}); }
+      s.mode = myShareMode(id, s);
+    }
+    const viewOnly = (s.mode || 'copy') === 'view';
     $('shCta').classList.toggle('hidden', !!me);                // מי שעוד לא משתמש באתר: הזמנה להצטרף
     $('shareView').classList.toggle('view-only', viewOnly && !mine);
     document.title = (s.title || 'מחברת') + ' · המחברות שלי';
@@ -3782,7 +3880,7 @@ function openShare(id) {
     cp.textContent = mine ? 'פתיחה לעריכה' : editMode ? (me ? 'לערוך יחד' : 'התחברות כדי לערוך') : (me ? 'שמירת עותק אצלי' : 'התחברות כדי לשמור עותק');
     cp.onclick = () => mine ? (closeShare(), openNotebook(s.nb)) : editMode ? (me ? (closeShare(true), openSharedEdit(id, s)) : (pendingShare(id), closeShare())) : (me ? copyShare(id, s) : (pendingShare(id), closeShare()));
     if (me && !mine) setDoc(doc(db, 'users', me.uid, 'shared', id), { title: s.title || 'מחברת', ownerName: s.ownerName || '', color: s.color || COLORS[0], openedAt: Date.now() }).catch(() => {});
-  }, err => { console.error(err); $('shTitle').textContent = 'לא הצלחתי לפתוח את המחברת'; $('shBody').innerHTML = '<p class="sh-empty">' + (err.code === 'permission-denied' ? 'הקישור לא תקין, או שהשיתוף בוטל.' : 'בדוק שיש אינטרנט ונסה שוב.') + '</p>'; $('shCopy').classList.add('hidden'); });
+  }
 }
 function closeShare(keepUrl) {
   if (unsubView) { unsubView(); unsubView = null; }
@@ -4753,7 +4851,7 @@ function startLive(shareId, baseHtml) {
     if (!snap.exists()) { toast('השיתוף בוטל'); stopLive(); if (String(openId).startsWith('share:')) { openId = null; document.body.classList.remove('editing-shared'); showLibrary(); } return; }
     const s = snap.data();
     if (String(openId).startsWith('share:') && JSON.stringify(lookOf(s)) !== JSON.stringify(curLook())) applyLook(s);
-    if (String(openId).startsWith('share:') && s.mode !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
+    if (String(openId).startsWith('share:') && myShareMode(openId.slice(6), s) !== 'edit') { toast('מי ששיתף החליף לצפייה בלבד'); const sid = openId.slice(6); flush(); stopLive(); openId = null; document.body.classList.remove('editing-shared'); openShare(sid); return; }
     // השינוי שלי חזר אליי (משווים לשעון של המכשיר הזה בלבד – לא לשעון של החבר, שיכול להיות שונה)
     if (s.html === L.srv || (s.updatedBy === me.uid && (s.updatedAt || 0) <= L.lastSent)) {
       L.remote = s; if (s.updatedBy !== me.uid && s.title && document.activeElement !== $('title') && $('title').value !== s.title) $('title').value = s.title;
@@ -4843,6 +4941,7 @@ function openSharedEdit(id, s) {
   renderSide();
   startLive(id, s.html || '');
   if (live) live.remote = s;
+  watchMember(id);
 }
 
 /* ===== לוח מבחנים: מעלים קובץ, ה-AI מוצא את המבחנים ומכניס ליומן ===== */

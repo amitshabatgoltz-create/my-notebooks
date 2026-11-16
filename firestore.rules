@@ -90,18 +90,40 @@ service cloud.firestore {
     }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
     // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)
+    // ההרשאה של מי שכותב: מה שבעל המחברת קבע לו אישית, ואם עוד אין – ההרשאה של הקישור
+    function shareMode(shareId) {
+      let m = /databases/$(database)/documents/shares/$(shareId)/members/$(request.auth.uid);
+      return exists(m) ? get(m).data.mode : resource.data.mode;
+    }
     match /shares/{shareId} {
       allow get: if true;
       allow list: if request.auth != null && resource.data.owner == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
       allow update: if request.auth != null && (
         (resource.data.owner == request.auth.uid && request.resource.data.owner == resource.data.owner)
-        || (resource.data.mode == 'edit'
+        || (shareMode(shareId) == 'edit'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['html', 'title', 'updatedAt', 'updatedBy', 'updatedByName'])
             && request.resource.data.updatedBy == request.auth.uid
             && request.resource.data.html.size() < 900000)
       );
       allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+      // 👥 מי נכנס לקישור, ומה מותר לכל אחד. נרשמים רק עם ההרשאה של הקישור (אי אפשר לתת לעצמך יותר);
+      // רק בעל המחברת משנה הרשאה. החבר עצמו מעדכן רק את השם ו"מתי נכנס"
+      match /members/{uid} {
+        allow read: if request.auth != null && (request.auth.uid == uid || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['name', 'mode', 'at'])
+          && request.resource.data.mode == get(/databases/$(database)/documents/shares/$(shareId)).data.mode
+          && request.resource.data.name is string && request.resource.data.name.size() < 80;
+        allow update: if request.auth != null && (
+          (get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mode'])
+            && request.resource.data.mode in ['view', 'copy', 'edit'])
+          || (request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'at'])
+            && request.resource.data.name is string && request.resource.data.name.size() < 80));
+        allow delete: if request.auth != null && (request.auth.uid == uid || get(/databases/$(database)/documents/shares/$(shareId)).data.owner == request.auth.uid);
+      }
       // מי נמצא עכשיו במחברת
       match /presence/{uid} {
         allow read: if request.auth != null;
