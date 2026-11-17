@@ -801,8 +801,11 @@ function checkEmpty() {
 $('editor').addEventListener('paste', e => {
   e.preventDefault();
   const files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
-  if (files.length) { addImages(files); return; }
   const html = e.clipboardData.getData('text/html'), plain = e.clipboardData.getData('text/plain');
+  // Word / Docs / PowerPoint שולחים גם "תמונה" של מה שהעתקת וגם את הטקסט – אז רוצים את הטקסט.
+  // תמונה רק כשאין טקסט בכלל (צילום מסך, תמונה שהועתקה)
+  const hasText = (plain || '').trim() || (html && html.replace(/<img[^>]*>/gi, '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim());
+  if (files.length && !hasText) { addImages(files); return; }
   const start = blockOf(getSelection().anchorNode);
   // טקסט שהועתק מ-PDF: כל שורה נשברת באמצע משפט. מחברים שורות לפסקאות אמיתיות
   if (plain && (!html || looksLikeLines(html)) && plain.split(/\r?\n/).filter(l => l.trim()).length >= 3) document.execCommand('insertHTML', false, pasteRight(clean(textToHtml(plain))));
