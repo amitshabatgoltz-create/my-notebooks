@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>סרטון: מאיה גילתה – המחברות שלי</title>
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0E0E12;--ink:#F2F2F6;--muted:#9A9AA6;--line:#2A2A33;--accent:#8E8CFF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Rubik',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px;gap:14px}
+h1{font-size:22px;margin:0}
+p{margin:0;color:var(--muted);text-align:center;max-width:560px;font-size:15px;line-height:1.6}
+canvas{height:min(72vh,900px);width:auto;max-width:100%;aspect-ratio:9/16;border-radius:22px;box-shadow:0 20px 60px -20px rgba(0,0,0,.8);background:#000}
+#st{min-height:1.6em;color:var(--accent);font-weight:600}
+a.back{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<a class="back" href="./">חזרה לחומרי הפרסום</a>
+<h1>סרטון: מאיה גילתה (סגנון "סיפור אמיתי")</h1>
+<p>קריין מספר במתח, כתוביות מילה אחרי מילה, שעון והודעות טלפון. התמונות נוצרו ב-Gemini.</p>
+<canvas id="cv" width="1080" height="1920"></canvas>
+<div id="st" role="status"></div>
+<script>
+const TL = {"dur": 59.78, "scenes": [[1, 0, 8.86], [2, 8.86, 20.89], [3, 20.89, 24.7], [9, 24.7, 34.27], [4, 34.27, 39.26], [5, 39.26, 43.11], [6, 43.11, 45.95], [7, 45.95, 51.91], [8, 51.91, 59.63]], "segs": [{"k": "a1", "at": 0.5, "words": [["בשעה", 0.102, 0.532], ["שבע", 0.633, 0.372], ["ועשרים", 1.006, 0.465], ["בבוקר", 1.471, 0.785], ["מאיה", 2.509, 0.346], ["קיבלה", 2.854, 0.346], ["את", 3.2, 0.093], ["המבחן", 3.293, 0.811]], "hi": ["שבע", "ועשרים", "המבחן"]}, {"k": "a2", "at": 5.3, "words": [["ארבעים", 0.1, 0.558], ["ושתיים", 0.658, 0.771], ["שוב", 2.324, 0.731]], "hi": ["ארבעים", "ושתיים"]}, {"k": "b1", "at": 9.01, "words": [["ודניאל", 0.102, 0.997], ["מהשולחן", 1.325, 0.678], ["ליד", 2.003, 0.638], ["מאה", 3.534, 0.705], ["כמו", 5.13, 0.359], ["תמיד", 5.489, 0.665]], "hi": ["מאה"]}, {"k": "b2", "at": 15.56, "words": [["הוא", 0.103, 0.186], ["אף", 0.289, 0.213], ["פעם", 0.502, 0.306], ["לא", 0.808, 0.16], ["כותב", 0.968, 0.399], ["בשיעור", 1.367, 0.771], ["הוא", 3.03, 0.199], ["רק", 3.23, 0.253], ["מצלם", 3.482, 0.492], ["את", 3.974, 0.12], ["הלוח", 4.094, 0.731]], "hi": ["מצלם", "הלוח"]}, {"k": "c1", "at": 21.04, "words": [["אז", 0.1, 0.253], ["היא", 0.353, 0.093], ["ניסתה", 0.446, 0.412], ["בעצמה", 0.858, 0.705]], "hi": ["בעצמה"]}, {"k": "d1", "at": 24.85, "words": [["שלוש", 0.102, 0.465], ["שניות", 0.567, 0.705], ["וכל", 1.498, 0.359], ["השיעור", 1.857, 0.492], ["כבר", 2.349, 0.279], ["כתוב", 2.628, 0.412], ["במחברת", 3.04, 0.944]], "hi": ["שלוש", "שניות"]}, {"k": "d2", "at": 29.24, "words": [["ועוד", 0.102, 0.412], ["לחיצה", 0.514, 0.465], ["אחת", 0.979, 0.638], ["סיכום", 1.844, 0.452], ["למבחן", 2.296, 0.838]], "hi": ["סיכום", "למבחן"]}, {"k": "e1", "at": 34.42, "words": [["שבוע", 0.102, 0.532], ["אחרי", 0.633, 0.452], ["זה", 1.086, 0.452]], "hi": ["שבוע"]}, {"k": "e2", "at": 36.76, "words": [["מאה", 0.1, 0.705]], "hi": ["מאה"]}, {"k": "f1", "at": 39.41, "words": [["תוך", 0.102, 0.266], ["יומיים", 0.368, 0.705], ["חצי", 1.312, 0.426], ["כיתה", 1.737, 0.386], ["כבר", 2.123, 0.266], ["עשתה", 2.389, 0.372], ["את", 2.761, 0.12], ["זה", 2.881, 0.319]], "hi": ["חצי", "כיתה"]}, {"k": "g1", "at": 43.26, "words": [["ואז", 0.1, 0.838], ["המורה", 1.137, 0.399], ["גילתה", 1.536, 0.652]], "hi": ["המורה", "גילתה"]}, {"k": "h1", "at": 46.1, "words": [["היא", 0.117, 0.106], ["הסתכלה", 0.223, 0.519], ["על", 0.742, 0.053], ["המסך", 0.795, 0.824], ["ושאלה", 1.832, 0.612], ["רק", 2.444, 0.266], ["דבר", 2.71, 0.359], ["אחד", 3.069, 0.585]], "hi": ["דבר", "אחד"]}, {"k": "h2", "at": 50.25, "words": [["איך", 0.1, 0.273], ["נכנסים", 0.373, 0.781]], "hi": ["נכנסים"]}, {"k": "i1", "at": 52.06, "words": [["המחברות", 0.1, 0.745], ["שלי", 0.845, 0.465], ["בחינם", 2.204, 0.944], ["הקישור", 4.039, 0.598], ["בביו", 4.638, 0.638]], "hi": ["המחברות", "שלי", "בחינם"]}]};
+const W = 1080, H = 1920, FPS = 30, DUR = TL.dur;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, d) => clamp((t - a) / d);
+const eOut = x => 1 - Math.pow(1 - x, 3);
+const eInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eBack = x => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+function rnd(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function font(size, w = 800) { ctx.font = `${w} ${size}px "Rubik"`; }
+function grad(x0, y0, x1, y1, stops) { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+function rgrad(x, y, r0, r1, stops) { const g = ctx.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+function T(s, x, y, size, w = 800, color = '#fff', align = 'center') { font(size, w); ctx.direction = 'rtl'; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(s, x, y); }
+const YEL = '#FFD84D', PINK = '#EC4899', VIO = '#8B5CF6', GREEN = '#10B981';
+
+// ---------- תמונות ----------
+const IMG = {};
+const load = n => new Promise(res => { const im = new Image(); im.onload = () => { IMG[n] = im; res(); }; im.onerror = () => res(); im.src = `v14/s${n}.jpg`; });
+const ready = Promise.all([0, 1, 2, 3, 4, 5, 6, 7, 8].map(load).concat(['900', '800', '700'].map(w => document.fonts.load(`${w} 100px "Rubik"`).catch(() => {}))));
+// מצלמה איטית על התמונה (זום/תזוזה) – fx,fy = נקודת מיקוד
+function shot(n, t, d, o = {}) {
+  const im = IMG[n] || IMG[0]; if (!im) { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H); return; }
+  const k = clamp(t / d), z0 = o.z0 ?? 1.04, z1 = o.z1 ?? 1.16, z = lerp(z0, z1, eInOut(k)) * (o.punch || 1);
+  const base = Math.max(W / im.width, H / im.height) * z, w = im.width * base, h = im.height * base;
+  const fx = lerp(o.fx0 ?? .5, o.fx1 ?? .5, eInOut(k)), fy = lerp(o.fy0 ?? .5, o.fy1 ?? .5, eInOut(k));
+  let x = W / 2 - fx * w, y = H / 2 - fy * h; x = Math.min(0, Math.max(W - w, x)); y = Math.min(0, Math.max(H - h, y));
+  const sh = o.shake ? (Math.sin(t * 70) * o.shake) : 0;
+  ctx.drawImage(im, x + sh, y, w, h);
+}
+// אווירה: כהה בקצוות, גוון צבע, גרעין
+function grade(dark = .55, tint = null) {
+  ctx.fillStyle = rgrad(W / 2, H * .45, H * .25, H * .8, [[0, 'rgba(0,0,0,0)'], [1, `rgba(0,0,0,${dark})`]]); ctx.fillRect(0, 0, W, H);
+  if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, W, H); }
+  ctx.fillStyle = grad(0, H * .62, 0, H, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.65)']]); ctx.fillRect(0, H * .62, W, H * .38);
+}
+function grain(T0) { const r = rnd(Math.floor(T0 * 24) + 1); ctx.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 260; i++) ctx.fillRect(r() * W, r() * H, 2, 2); }
+
+// ---------- כתוביות מילה אחרי מילה ----------
+const SEGS = TL.segs.map(s => ({ ...s, chunks: (() => { const out = []; let cur = []; s.words.forEach((w, i) => { cur.push(i); const ends = /[.,?!:]$/.test(w[0]); if (cur.length >= 3 || ends || i === s.words.length - 1) { out.push(cur); cur = []; } }); return out; })() }));
+const clean = w => w.replace(/[.,?!:…"]/g, '');
+function captions(T0) {
+  const seg = SEGS.find(s => T0 >= s.at && T0 <= s.at + s.words[s.words.length - 1][1] + s.words[s.words.length - 1][2] + .35); if (!seg) return;
+  const lt = T0 - seg.at; let wi = seg.words.findIndex((w, i) => lt < (seg.words[i + 1] ? seg.words[i + 1][1] : 1e9)); if (wi < 0) wi = seg.words.length - 1;
+  const ch = seg.chunks.find(c => c.includes(wi)) || seg.chunks[seg.chunks.length - 1];
+  const words = ch.map(i => seg.words[i]); const size = 82;
+  font(size, 900); const gap = 22, ws = words.map(w => ctx.measureText(w[0]).width), total = ws.reduce((a, b) => a + b, 0) + gap * (words.length - 1);
+  let x = W / 2 + total / 2; const y = 1560;
+  const chStart = seg.words[ch[0]][1], pk = eBack(prog(lt, chStart, .18));
+  ctx.save(); ctx.translate(W / 2, y); ctx.scale(lerp(.85, 1, pk), lerp(.85, 1, pk)); ctx.translate(-W / 2, -y);
+  words.forEach((w, j) => {
+    const idx = ch[j], spoken = lt >= w[1] - .02, cur = idx === wi, hi = seg.hi.includes(clean(w[0]));
+    ctx.save(); const cx = x - ws[j] / 2; ctx.translate(cx, y); const sc = cur ? 1.08 : 1; ctx.scale(sc, sc);
+    font(size, 900); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(w[0], 0, 0);
+    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 18; ctx.fillStyle = hi && spoken ? YEL : spoken ? '#fff' : 'rgba(255,255,255,.55)'; ctx.fillText(w[0], 0, 0);
+    ctx.restore(); x -= ws[j] + gap;
+  });
+  ctx.restore();
+}
+// ---------- שעון גדול ----------
+function clock(txt, t, y = 430) {
+  const k = prog(t, .1, .35); if (k <= 0) return;
+  ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, y); const s = lerp(1.25, 1, eOut(k)); ctx.scale(s, s);
+  font(150, 900); ctx.direction = 'ltr'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(255,255,255,.55)'; ctx.shadowBlur = 40; ctx.fillStyle = '#fff'; ctx.fillText(txt, 0, 0);
+  ctx.shadowBlur = 0; ctx.globalAlpha = k * (Math.sin(t * 6.3) > 0 ? 1 : .35); font(150, 900); ctx.restore();
+}
+// ---------- הודעה מהטלפון (כמו בטלפון אמיתי) ----------
+function notif(t, t0, title, body, color = VIO) {
+  const k = eOut(prog(t, t0, .45)); if (k <= 0) return;
+  const y = lerp(-200, 210, k);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14;
+  rr(70, y - 90, W - 140, 180, 44); ctx.fillStyle = 'rgba(28,28,36,.92)'; ctx.fill(); ctx.shadowColor = 'transparent';
+  rr(W - 70 - 30 - 110, y - 55, 110, 110, 28); ctx.fillStyle = grad(W - 210, y - 55, W - 100, y + 55, [[0, '#6D5EFC'], [1, PINK]]); ctx.fill();
+  ctx.fillStyle = '#fff'; rr(W - 70 - 30 - 80, y - 32, 50, 64, 8); ctx.fill(); ctx.fillStyle = '#6D5EFC'; ctx.fillRect(W - 70 - 30 - 80, y - 32, 12, 64);
+  T(title, W - 240, y - 30, 38, 800, 'rgba(255,255,255,.65)', 'right');
+  T(body, W - 240, y + 26, 44, 800, '#fff', 'right');
+  T('עכשיו', 120, y - 30, 32, 600, 'rgba(255,255,255,.45)', 'left');
+  ctx.restore();
+}
+// ---------- אפקטים ----------
+function confetti(t, t0, cx, cy, n, seed) {
+  const k = t - t0; if (k < 0 || k > 2.4) return; const r = rnd(seed), cols = [PINK, VIO, GREEN, YEL, '#60A5FA'];
+  for (let i = 0; i < n; i++) { const a = r() * Math.PI * 2, v = 500 + r() * 800, rot = r() * 10; const x = cx + Math.cos(a) * v * k, y = cy + Math.sin(a) * v * k - 300 * k + 1200 * k * k;
+    ctx.save(); ctx.globalAlpha = clamp(2.4 - k); ctx.translate(x, y); ctx.rotate(rot + k * 8); ctx.fillStyle = cols[i % 5]; ctx.fillRect(-14, -7, 28, 14); ctx.restore(); }
+}
+function flash(t, t0, d = .35, c = '255,255,255') { const k = prog(t, t0, .06) * (1 - prog(t, t0 + .06, d)); if (k > 0) { ctx.fillStyle = `rgba(${c},${k})`; ctx.fillRect(0, 0, W, H); } }
+function viewfinder(t) {
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 8; const c = 90, m = 120;
+  [[m, 380, 1, 1], [W - m, 380, -1, 1], [m, 1380, 1, -1], [W - m, 1380, -1, -1]].forEach(([x, y, dx, dy]) => { ctx.beginPath(); ctx.moveTo(x, y + dy * c); ctx.lineTo(x, y); ctx.lineTo(x + dx * c, y); ctx.stroke(); });
+  ctx.fillStyle = '#EF4444'; ctx.beginPath(); ctx.arc(150, 300, 14, 0, 7); ctx.globalAlpha = Math.sin(t * 6) > 0 ? 1 : .3; ctx.fill(); ctx.globalAlpha = 1;
+  T('REC', 235, 302, 38, 800, '#fff'); ctx.restore();
+}
+// ---------- מסך הטלפון מקרוב ----------
+const TYPED = ['מחזור המים', '1. אידוי – השמש מחממת את המים', '2. עיבוי – נוצרים עננים', '3. משקעים – גשם ושלג', '4. זרימה – המים חוזרים לים'];
+function phoneUI(t, T0) {
+  const PW = 680, PH = 1260, px = 540, py = 860;
+  ctx.save(); ctx.translate(px, py); ctx.rotate(Math.sin(T0 * 1.2) * .012); const zs = lerp(.94, 1.02, eOut(prog(t, 0, 9))); ctx.scale(zs, zs);
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 70; ctx.shadowOffsetY = 30;
+  rr(-PW / 2, -PH / 2, PW, PH, 76); ctx.fillStyle = '#121218'; ctx.fill(); ctx.shadowColor = 'transparent';
+  rr(-PW / 2 + 4, -PH / 2 + 4, PW - 8, PH - 8, 72); ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 4; ctx.stroke();
+  const sx = -PW / 2 + 22, sy = -PH / 2 + 22, sw = PW - 44, sh = PH - 44;
+  ctx.save(); rr(sx, sy, sw, sh, 56); ctx.clip();
+  ctx.fillStyle = '#F7F6FB'; ctx.fillRect(sx, sy, sw, sh);
+  ctx.fillStyle = grad(sx, 0, sx + sw, 0, [[0, '#6D5EFC'], [1, PINK]]); ctx.fillRect(sx, sy, sw, 160);
+  T('המחברות שלי', sx + sw - 44, sy + 98, 46, 900, '#fff', 'right');
+  // הצילום של הלוח למעלה
+  ctx.save(); rr(sx + 36, sy + 200, sw - 72, 230, 22); ctx.clip(); const im = IMG[3]; if (im) { const cw = im.width * .5, chh = cw * 230 / (sw - 72); ctx.drawImage(im, im.width * .5, im.height * .3, cw, chh, sx + 36, sy + 200, sw - 72, 230); } ctx.restore();
+  rr(sx + 36, sy + 200, sw - 72, 230, 22); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 3; ctx.stroke();
+  const lineY = sy + 500;
+  TYPED.forEach((line, i) => {
+    const k = prog(t, .3 + i * .5, .5); if (k <= 0) return;
+    const n = Math.max(1, Math.round([...line].length * k)), part = [...line].slice(0, n).join('');
+    T(part, sx + sw - 50, lineY + i * 74, i ? 34 : 46, i ? 600 : 900, i ? '#2A2A3A' : '#4F46E5', 'right');
+    if (k < 1 && Math.sin(T0 * 14) > 0) { font(i ? 34 : 46, 600); const w = ctx.measureText(part).width; ctx.fillStyle = '#4F46E5'; ctx.fillRect(sx + sw - 56 - w, lineY + i * 74 - 22, 4, 44); }
+  });
+  const bk = prog(t, 4.3, .4), tap = prog(t, 6.2, .15) * (1 - prog(t, 6.35, .25));
+  if (bk > 0) { ctx.save(); ctx.translate(0, sy + 960); const sc = eBack(bk) * (1 - tap * .08); ctx.scale(sc, sc);
+    ctx.shadowColor = 'rgba(236,72,153,.6)'; ctx.shadowBlur = 40; rr(-240, -64, 480, 128, 64); ctx.fillStyle = grad(-240, 0, 240, 0, [[0, VIO], [1, PINK]]); ctx.fill(); ctx.shadowColor = 'transparent';
+    T('סיכום למבחן', 0, 4, 52, 900, '#fff'); ctx.restore(); }
+  if (t > 5.4 && t < 6.9) { const fk = eOut(prog(t, 5.4, .7)); ctx.save(); ctx.translate(lerp(250, 70, fk), lerp(sy + 1200, sy + 1000, fk)); ctx.fillStyle = 'rgba(255,214,170,.96)'; ctx.beginPath(); ctx.ellipse(0, 0, 50, 64, -.4, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.ellipse(-13, -26, 15, 10, -.4, 0, 7); ctx.fill(); ctx.restore(); }
+  const sk = eOut(prog(t, 6.5, .6));
+  if (sk > 0) {
+    ctx.save(); ctx.translate(0, lerp(sh, 0, sk));
+    rr(sx + 18, sy + 300, sw - 36, sh - 320, 44); ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 40; ctx.fill(); ctx.shadowColor = 'transparent';
+    rr(sx + 18, sy + 300, sw - 36, 130, 44); ctx.fillStyle = grad(sx, 0, sx + sw, 0, [[0, '#FDE68A'], [1, '#FBCFE8']]); ctx.fill();
+    T('סיכום למבחן', sx + sw - 64, sy + 366, 52, 900, '#1E1B4B', 'right');
+    ['אידוי: מים ← אדים', 'עיבוי: אדים ← עננים', 'משקעים: עננים ← גשם', 'זרימה: חזרה לים'].forEach((l, i) => {
+      const lk = prog(t, 6.9 + i * .22, .3); if (lk <= 0) return; const yy = sy + 520 + i * 110;
+      ctx.save(); ctx.globalAlpha = lk; ctx.beginPath(); ctx.arc(sx + sw - 86, yy, 24, 0, 7); ctx.fillStyle = GREEN; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx + sw - 98, yy); ctx.lineTo(sx + sw - 88, yy + 10); ctx.lineTo(sx + sw - 73, yy - 9); ctx.stroke();
+      T(l, sx + sw - 130, yy, 38, 700, '#2A2A3A', 'right'); ctx.restore();
+    });
+    ctx.restore();
+  }
+  ctx.restore(); ctx.restore();
+}
+
+// ---------- סצנות ----------
+const SCN = {
+  1: (t, d, T0) => { shot(1, t, d, { z0: 1.05, z1: 1.22, fx0: .5, fy0: .5, fx1: .55, fy1: .42 }); grade(.6, 'rgba(10,20,50,.25)'); clock('07:20', t); },
+  2: (t, d, T0) => { shot(2, t, d, { z0: 1.06, z1: 1.18, fx0: .35, fy0: .45, fx1: .7, fy1: .4 }); grade(.45); },
+  3: (t, d, T0) => { shot(3, t, d, { z0: 1.05, z1: 1.25, fx0: .5, fy0: .45, fx1: .75, fy1: .35 }); grade(.4); viewfinder(t); flash(t, 2.25, .5); notif(t, 2.45, 'המחברות שלי', 'הלוח הוקלד למחברת ✓'); },
+  9: (t, d, T0) => { shot(3, t, d, { z0: 1.3, z1: 1.35 }); ctx.fillStyle = 'rgba(12,10,30,.72)'; ctx.fillRect(0, 0, W, H); phoneUI(t, T0); },
+  4: (t, d, T0) => { const P = 2.5, k = prog(t, P, .25); shot(4, t, d, { z0: 1.0, z1: 1.12, fy0: .45, fy1: .38, punch: 1 + (1 - k) * (t > P ? .12 : 0) }); grade(t < P ? .7 : .3, t < P ? 'rgba(0,0,0,.35)' : null); flash(t, P, .5); confetti(t, P, 540, 700, 110, 7); },
+  5: (t, d, T0) => { shot(5, t, d, { z0: 1.06, z1: 1.2, fx0: .4, fy0: .45, fx1: .6, fy1: .4 }); grade(.45); },
+  6: (t, d, T0) => { shot(6, t, d, { z0: 1.05, z1: 1.3, fx0: .4, fy0: .45, fx1: .22, fy1: .4, shake: t > 1.2 && t < 1.5 ? 6 : 0 }); grade(.55, `rgba(120,0,0,${.12 + Math.max(0, Math.sin(t * 5)) * .1})`); clock('10:47', t, 330); },
+  7: (t, d, T0) => { const P = 4.3, k = prog(t, P, .2); shot(7, t, d, { z0: 1.05, z1: 1.18, fx0: .5, fy0: .4, fx1: .5, fy1: .3, punch: t > P ? 1 + .1 * eOut(k) : 1 }); grade(.45); flash(t, P, .3); },
+  8: (t, d, T0) => { shot(IMG[8] ? 8 : 0, t, d, { z0: 1.0, z1: 1.1, fy0: .55, fy1: .5 }); grade(.35);
+    const lk = prog(t, .3, .6); if (lk > 0) { ctx.save(); ctx.translate(540, 330); const sc = eBack(lk); ctx.scale(sc, sc); ctx.shadowColor = PINK; ctx.shadowBlur = 50;
+      rr(-110, -110, 220, 220, 58); ctx.fillStyle = grad(-110, -110, 110, 110, [[0, '#6D5EFC'], [1, PINK]]); ctx.fill(); ctx.shadowColor = 'transparent';
+      ctx.fillStyle = '#fff'; rr(-55, -70, 110, 140, 14); ctx.fill(); ctx.fillStyle = '#6D5EFC'; ctx.fillRect(-55, -70, 24, 140); ctx.fillStyle = 'rgba(109,94,252,.35)'; [-25, 5, 35].forEach(yy => ctx.fillRect(-20, yy - 4, 60, 8)); ctx.restore(); }
+    confetti(t, .4, 540, 300, 80, 31); },
+};
+function frame(T0) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  let i = TL.scenes.findIndex(s => T0 < s[2]); if (i < 0) i = TL.scenes.length - 1;
+  const [n, a, b] = TL.scenes[i], t = T0 - a;
+  // מעבר: זום מהיר והבזק קטן
+  const cut = i > 0 ? prog(t, 0, .28) : 1;
+  ctx.save(); if (cut < 1) { const s = lerp(1.12, 1, eOut(cut)); ctx.translate(W / 2, H / 2); ctx.scale(s, s); ctx.translate(-W / 2, -H / 2); }
+  SCN[n](t, b - a, T0); ctx.restore();
+  if (cut < 1) { ctx.fillStyle = `rgba(0,0,0,${.7 * (1 - eOut(cut))})`; ctx.fillRect(0, 0, W, H); }
+  grain(T0);
+  captions(T0);
+}
+
+// ---------- מוזיקה: מתח, שעון מתקתק, ומכות בדרמה ----------
+function music(ac, out, at) {
+  const noise = (() => { const b = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  const env = (g, t, v, a, d) => { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + d); };
+  const nz = (t, d, type, hz, v) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = type; f.frequency.value = hz; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + d + .02); };
+  const tone = (t, hz, d, v, type = 'sine') => { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = hz; env(g, t, v, .02, d); o.connect(g).connect(out); o.start(t); o.stop(t + d + .05); };
+  const boom = (t, v = 1) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(30, t + .9); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.6); o.connect(g).connect(out); o.start(t); o.stop(t + 1.7); nz(t, 1.2, 'lowpass', 600, .5 * v); };
+  const tick = (t, v = .18) => nz(t, .03, 'highpass', 5000, v);
+  const riser = (t, d) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; s.loop = true; f.type = 'bandpass'; f.Q.value = 3; f.frequency.setValueAtTime(200, t); f.frequency.exponentialRampToValueAtTime(6000, t + d); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.35, t + d); g.gain.exponentialRampToValueAtTime(.001, t + d + .05); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + d + .1); };
+  const drone = (t, d, hz, v) => { [hz, hz * 1.005, hz * 1.5].forEach((f0, i) => { const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f0; f.type = 'lowpass'; f.frequency.value = 380; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v * (i === 2 ? .4 : 1), t + 1.5); g.gain.setValueAtTime(v * (i === 2 ? .4 : 1), t + d - 1); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(f).connect(g).connect(out); o.start(t); o.stop(t + d + .05); }); };
+  const S = TL.scenes.map(s => s[1]), E = TL.scenes.map(s => s[2]);
+  // מתח עד הגילוי (100)
+  drone(at, S[4] + 2.5, 55, .07);
+  for (let t = .3; t < S[4] + 2.5; t += .5) tick(at + t, (Math.round(t * 2) % 2) ? .12 : .2);
+  const piano = [220, 261.6, 246.9, 196, 220, 174.6, 196, 164.8];
+  for (let i = 0; i * 1.5 < S[4]; i++) tone(at + .5 + i * 1.5, piano[i % 8], 1.4, .05);
+  // צילום, הקלדה, לחיצה
+  const cam = S[2] + 2.25; nz(at + cam, .15, 'highpass', 2500, .5); tone(at + cam + .4, 880, .25, .08); tone(at + cam + .55, 1318.5, .35, .08);
+  for (let i = 0; i < 26; i++) nz(at + S[3] + .3 + i * .1 + (i % 3) * .02, .025, 'bandpass', 4000, .1);
+  nz(at + S[3] + 6.2, .05, 'bandpass', 2000, .3); [1046.5, 1318.5, 1568, 2093].forEach((hz, i) => tone(at + S[3] + 6.6 + i * .06, hz, .5, .08));
+  // 100!
+  riser(at + S[4] + .3, 2.2); boom(at + S[4] + 2.5, 1.1); [523.3, 659.3, 784, 1046.5].forEach((hz, i) => tone(at + S[4] + 2.6 + i * .08, hz, .8, .08, 'triangle'));
+  // מוזיקה קלילה אחרי ה-100
+  const BEAT = .46, MEL = [659.3, 784, 880, 784, 659.3, 587.3, 523.3, 587.3];
+  for (let b = 0; S[4] + 3 + b * BEAT < S[5] + 3.6; b++) { const t = at + S[4] + 3 + b * BEAT; tone(t, MEL[b % 8], .25, .045, 'triangle'); if (b % 2 === 0) nz(t, .04, 'highpass', 7000, .06); }
+  // המורה: מתח שוב
+  drone(at + S[6] - .2, E[7] - S[6] + .2, 49, .08); boom(at + S[6] + 1.2, .9);
+  for (let t = S[6]; t < S[7] + 4.2; t += .5) tick(at + t, .16);
+  riser(at + S[7] + 2.4, 1.9); boom(at + S[7] + 4.3, 1);
+  // סוף: אקורד שמח
+  [261.6, 329.6, 392, 523.3].forEach((hz, i) => tone(at + S[8] + .2 + i * .05, hz, 3.5, .06, 'triangle'));
+  for (let b = 0; S[8] + .4 + b * .46 < DUR - .3; b++) { const t = at + S[8] + .4 + b * .46; tone(t, MEL[(b + 3) % 8], .25, .04, 'triangle'); }
+}
+function wav(buf) {
+  const ch = buf.numberOfChannels, len = buf.length * ch * 2 + 44, a = new ArrayBuffer(len), v = new DataView(a); let p = 0;
+  const s = str => { for (const c of str) v.setUint8(p++, c.charCodeAt(0)); }, u32 = x => { v.setUint32(p, x, true); p += 4; }, u16 = x => { v.setUint16(p, x, true); p += 2; };
+  s('RIFF'); u32(len - 8); s('WAVE'); s('fmt '); u32(16); u16(1); u16(ch); u32(buf.sampleRate); u32(buf.sampleRate * ch * 2); u16(ch * 2); u16(16); s('data'); u32(buf.length * ch * 2);
+  const d = [...Array(ch)].map((_, i) => buf.getChannelData(i));
+  for (let i = 0; i < buf.length; i++) for (let c = 0; c < ch; c++) { const x = Math.max(-1, Math.min(1, d[c][i])); v.setInt16(p, x < 0 ? x * 0x8000 : x * 0x7FFF, true); p += 2; }
+  return new Blob([a], { type: 'audio/wav' });
+}
+ready.then(() => frame(27));
+window.renderAll = async (save, prefix = 'f14_', from = 0, to = Math.round(DUR * FPS)) => {
+  await ready; const st = document.getElementById('st'); const N = Math.round(DUR * FPS);
+  for (let f = from; f < Math.min(to, N); f++) { frame(f / FPS); const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .9)); await fetch(`${save}${prefix}${String(f).padStart(4, '0')}.jpg`, { method: 'POST', body: blob }); if (f % 30 === 0) st.textContent = `פריים ${f}/${N}`; }
+  if (to >= N) { const oac = new OfflineAudioContext(2, Math.ceil(44100 * (DUR + .5)), 44100), out = oac.createGain(); out.gain.value = .6; out.connect(oac.destination); music(oac, out, 0); const buf = await oac.startRendering();
+    await fetch(`${save}${prefix}audio.wav`, { method: 'POST', body: wav(buf) }); await fetch(`${save}${prefix}done.txt`, { method: 'POST', body: String(N) }); }
+  st.textContent = 'נשמר ✓'; return N;
+};
+(() => { const q = new URLSearchParams(location.search);
+  if (q.get('shots')) ready.then(async () => { for (const s of (q.get('at') || '2').split(',')) { frame(+s); const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .85)); await fetch(`${q.get('shots')}shot_${s}.jpg`, { method: 'POST', body: blob }); } await fetch(`${q.get('shots')}shots_done.txt`, { method: 'POST', body: '1' }); });
+  if (q.get('save')) ready.then(() => q.has('audio') ? window.renderAll(q.get('save'), 'f14_', Math.round(DUR * FPS)) : window.renderAll(q.get('save'), 'f14_', +(q.get('from') || 0), +(q.get('to') || Math.round(DUR * FPS))));
+})();
+</script>
+</body>
+</html>
