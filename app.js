@@ -5832,15 +5832,18 @@ $('ocrBtn').addEventListener('click', ocrDialog);
 const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 21, cf: 3, kit: 3, pr: 3, wr: 5 };
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
-let unlimitedEmail = null, unlimitedYes = false;
+// מנהלים נוספים של עמוד "ניהול האתר" (ההורים) – רק רואים את הניהול, בלי AI בלי הגבלה. גם כאן SHA-256, בלי אימיילים בקוד
+const ADMIN_HASH = ['696992ad6f8db2e6bfec3398b9b1ed3b123f1d15c30724c3f9a858fd729cb8e8', '320f2461e41929bbcdff8136b5076f6a7bba98b91bfb7298eab89d02e165f2ee'];
+let unlimitedEmail = null, unlimitedYes = false, adminYes = false;
 async function refreshUnlimited() {
   const e = ((me && me.email) || '').toLowerCase();
   if (e === unlimitedEmail) return;
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('my-notebooks:' + e));
   const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  unlimitedYes = UNLIMITED_HASH.includes(hex); unlimitedEmail = e;
+  unlimitedYes = UNLIMITED_HASH.includes(hex); adminYes = unlimitedYes || ADMIN_HASH.includes(hex); unlimitedEmail = e;
 }
 const isUnlimited = () => unlimitedYes && unlimitedEmail === ((me && me.email) || '').toLowerCase();
+const isAdmin = () => adminYes && unlimitedEmail === ((me && me.email) || '').toLowerCase();
 const OCR_MAX_IMGS = 4;
 const USE_NAME = { ocr: 'תמונה לטקסט', sum: 'סיכום למבחן', qa: 'עבודה מהמורה', fc: 'כרטיסיות שינון', chat: 'עוזר לימודי', cf: 'העלאת קבצים לעוזר', kit: 'שאלונים ודפי חזרה', pr: 'דף תרגול דומה', wr: 'כתיבה עם AI' };
 let usage = null;
@@ -8379,7 +8382,7 @@ $('chatInput').addEventListener('input', () => { const i = $('chatInput'); i.sty
 const statsDoc = uid => doc(db, 'stats', uid);
 function deviceName() { const u = navigator.userAgent; return /iPhone|iPad/.test(u) ? 'iPhone/iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'אחר'; }
 async function statsPing() {
-  if (!me || isUnlimited()) return;   // בעל האתר לא נספר בניהול האתר
+  if (!me || isAdmin()) return;   // בעל האתר וההורים לא נספרים בניהול האתר
   const tk = todayKey();
   try { if (localStorage.getItem('statsDay:' + me.uid) === tk) return; } catch {}
   try {
@@ -8404,7 +8407,7 @@ const STATS_GAP = 30 * 60000, STATS_ENT_MAX = 30;
 const hmIL = (t = Date.now()) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
 function statsSeen() { try { if (me) localStorage.setItem('statsSeen:' + me.uid, String(Date.now())); } catch {} }
 function statsEnter() {
-  if (!me || isUnlimited()) return;
+  if (!me || isAdmin()) return;
   const tk = todayKey(), kN = 'statsEnt:' + me.uid; let seen = 0, n = 0;
   try { seen = +localStorage.getItem('statsSeen:' + me.uid) || 0; const c = JSON.parse(localStorage.getItem(kN) || '{}'); n = c.d === tk ? +c.n || 0 : 0; } catch {}
   statsSeen();
@@ -8414,12 +8417,12 @@ function statsEnter() {
     .then(() => { try { localStorage.setItem(kN, JSON.stringify({ d: tk, n: n + 1 })); } catch {} }).catch(() => {});
 }
 function statsFlush() {
-  if (!me || !statsMinBuf || isUnlimited()) { statsMinBuf = 0; return; } const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
+  if (!me || !statsMinBuf || isAdmin()) { statsMinBuf = 0; return; } const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
   statsCarry += n; const full = Math.floor(statsCarry / 60); statsCarry -= full * 60;
   setDoc(statsDoc(me.uid), { ...(full ? { mins: increment(full) } : {}), last: Date.now(), lastDay: tk, days: { [tk]: { s: increment(n) } } }, { merge: true }).catch(() => { statsMinBuf += n; statsCarry -= n - full * 60; });
 }
 function statsAi(k, count) {
-  if (!me || isUnlimited()) return;
+  if (!me || isAdmin()) return;
   setDoc(statsDoc(me.uid), { days: { [todayKey()]: { ai: { [k]: increment(count) } } } }, { merge: true }).catch(() => {});
   setDoc(statsDoc(me.uid), { last: Date.now(), lastDay: todayKey(), ai: { [k]: increment(count) } }, { merge: true }).catch(() => {});
 }
@@ -8466,7 +8469,7 @@ function admRefDialog(u) {
     if (rm) rm.onclick = async () => { try { await deleteDoc(doc(db, 'refs', u.ref, 'joined', u.id)); await updateDoc(statsDoc(u.id), { ref: deleteField() }); closeDialog(); toast('השיוך הוסר'); renderAdmin(); } catch (err) { console.warn(err); toast('לא הצלחתי להסיר'); } };
   });
 }
-function paintAdmin() { const on = isUnlimited(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
+function paintAdmin() { const on = isAdmin(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
 const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם
@@ -8630,7 +8633,7 @@ async function renderAdmin() {
   statsFlush();
   const box = $('admBody');
   await refreshUnlimited().catch(() => {});
-  if (!isUnlimited()) { box.innerHTML = '<p class="noev">העמוד הזה רק לבעל האתר.</p>'; return; }
+  if (!isAdmin()) { box.innerHTML = '<p class="noev">העמוד הזה רק למנהלי האתר.</p>'; return; }
   box.innerHTML = '<div class="card"><p class="muted-s">טוען...</p></div>';
   let list, site = null;
   try { const sq = await getDoc(doc(db, 'aiQuota', '_site')); if (sq.exists()) site = sq.data(); } catch (e) { console.warn('site ai', e && e.message); }

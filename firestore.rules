@@ -1,6 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // מנהלי עמוד "ניהול האתר": בעל האתר (לפי uid) וההורים – לפי SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימיילים לא יופיעו בקוד
+    function isAdmin() {
+      return request.auth != null && (request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1'
+        || ('email' in request.auth.token && request.auth.token.email_verified == true
+          && hashing.sha256('my-notebooks:' + request.auth.token.email.lower()).toHexString().lower() in [
+            '696992ad6f8db2e6bfec3398b9b1ed3b123f1d15c30724c3f9a858fd729cb8e8',
+            '320f2461e41929bbcdff8136b5076f6a7bba98b91bfb7298eab89d02e165f2ee']));
+    }
     // כל משתמש יכול לקרוא ולכתוב רק את המחברות והיומן של עצמו
     match /users/{userId}/{document=**} {
       allow read: if request.auth != null && request.auth.uid == userId;
@@ -48,7 +56,7 @@ service cloud.firestore {
     // 📊 ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם.
     // את הקטע עם הקוד של בעל האתר מעתיקים מהעמוד "ניהול האתר" באתר (ADMIN_UID מוחלף שם בקוד האמיתי)
     match /stats/{uid} {
-      allow read: if request.auth != null && request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1';
+      allow read: if isAdmin();
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref', 'mins', 'days'])
@@ -63,30 +71,30 @@ service cloud.firestore {
     }
     // בעל האתר מעדכן רק את השדה "ref" (מי הביא את המשתמש) – שיוך ידני מעמוד הניהול
     match /stats/{uid} {
-      allow update: if request.auth != null && request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1'
+      allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ref'])
         && (!('ref' in request.resource.data) || (request.resource.data.ref is string && request.resource.data.ref.size() < 60));
     }
     // הזמנת חברים: refs/<מי שהזמין>/joined/<החבר החדש>. רק משתמש חדש (שעוד אין לו stats) יכול להירשם כחבר, פעם אחת.
     // מי שהזמין רואה רק את החברים שלו, ובעל האתר רואה הכול
     match /refs/{refUid}/joined/{newUid} {
-      allow read: if request.auth != null && (request.auth.uid == refUid || request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1');
+      allow read: if request.auth != null && (request.auth.uid == refUid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == newUid && newUid != refUid
         && !exists(/databases/$(database)/documents/stats/$(newUid))
         && request.resource.data.keys().hasOnly(['name', 'at'])
         && request.resource.data.name is string && request.resource.data.name.size() < 100
         && request.resource.data.at is int;
       // בעל האתר יכול לשייך משתמש לחבר שהביא אותו (מעמוד "ניהול האתר"), ולבטל
-      allow create: if request.auth != null && request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1' && newUid != refUid
+      allow create: if isAdmin() && newUid != refUid
         && request.resource.data.keys().hasOnly(['name', 'at', 'manual'])
         && request.resource.data.name is string && request.resource.data.name.size() < 100
         && request.resource.data.at is int;
-      allow delete: if request.auth != null && request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1';
+      allow delete: if isAdmin();
       allow update: if false;
     }
     // 🔒 ספירת ה-AI: רק השרת כותב. בעל האתר יכול לקרוא את הספירה של כל האתר (aiQuota/_site) בעמוד "ניהול האתר"
     match /aiQuota/{id} {
-      allow get: if id == '_site' && request.auth != null && request.auth.uid == '1FmPHPqWRagZgQsStA5ux3B1Zbm1';
+      allow get: if id == '_site' && isAdmin();
     }
     // מחברות משותפות: מי שיש לו את הקישור יכול לקרוא, ורק מי ששיתף יכול לשנות או לבטל.
     // בעריכה משותפת, כל מי שמחובר יכול לשנות רק את התוכן (לא את הבעלים ולא את סוג השיתוף)
