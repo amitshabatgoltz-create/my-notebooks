@@ -2998,3 +2998,10 @@ body.editing-shared .nb-mem{display:none}
 .sh-both{display:flex;align-items:flex-start;gap:10px;margin:10px 0 2px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);cursor:pointer}
 .sh-both input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent);flex:none}
 .sh-both>span{display:flex;flex-direction:column;gap:2px}.sh-both small{font-size:12.5px;color:var(--muted)}
+/* תאריכים מתחת לגרפים לפי יום */
+.adm-dax{display:grid;gap:3px;direction:ltr;margin-top:5px;font-size:11px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;line-height:1.25}
+.adm-dax span{min-width:0;overflow:visible;white-space:nowrap}
+.adm-dax b{display:block;font-weight:600;color:var(--ink);opacity:.75}
+.adm-dax span.sat b{color:var(--accent);opacity:1}
+.adm-dax span.on{color:var(--accent);font-weight:700}.adm-dax span.on b{color:var(--accent);opacity:1}
+@media (max-width:700px){.adm-dax{font-size:9.5px}.adm-dax i{display:none}.adm-dax.many span:nth-last-child(even){visibility:hidden}}
