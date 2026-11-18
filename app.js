@@ -5,7 +5,7 @@ import {
   setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField, arrayUnion
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
@@ -194,7 +194,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); thanksMaybe(); refJoin().finally(() => { setTimeout(statsPing, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); thanksMaybe(); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -8396,9 +8396,23 @@ let statsMinBuf = 0, statsLastAct = Date.now();
 ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(t => addEventListener(t, () => { statsLastAct = Date.now(); }, { passive: true, capture: true }));
 // נשמר כל 30 שניות: שניות היום ב-days[יום].s, ודקות שלמות לסך הכול ב-mins
 let statsCarry = 0;
-setInterval(() => { if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf += 30; statsFlush(); } }, 30000);
-addEventListener('pagehide', () => statsFlush());
-addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') statsFlush(); });
+setInterval(() => { if (me && document.visibilityState === 'visible') statsSeen(); if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf += 30; statsFlush(); } }, 30000);
+addEventListener('pagehide', () => { statsFlush(); statsSeen(); });
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { statsFlush(); statsSeen(); } else statsEnter(); });
+// שעות כניסה: כל כניסה לאתר (או חזרה אחרי 30 דקות שלא היה בו) נשמרת כשעה "HH:MM" בשעון ישראל ב-days[יום].h – עד 30 ביום
+const STATS_GAP = 30 * 60000, STATS_ENT_MAX = 30;
+const hmIL = (t = Date.now()) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+function statsSeen() { try { if (me) localStorage.setItem('statsSeen:' + me.uid, String(Date.now())); } catch {} }
+function statsEnter() {
+  if (!me || isUnlimited()) return;
+  const tk = todayKey(), kN = 'statsEnt:' + me.uid; let seen = 0, n = 0;
+  try { seen = +localStorage.getItem('statsSeen:' + me.uid) || 0; const c = JSON.parse(localStorage.getItem(kN) || '{}'); n = c.d === tk ? +c.n || 0 : 0; } catch {}
+  statsSeen();
+  if (seen && Date.now() - seen < STATS_GAP) return;   // עדיין אותה כניסה (רענון, מעבר בין לשוניות)
+  if (n >= STATS_ENT_MAX) return;
+  setDoc(statsDoc(me.uid), { days: { [tk]: { h: arrayUnion(hmIL()) } } }, { merge: true })
+    .then(() => { try { localStorage.setItem(kN, JSON.stringify({ d: tk, n: n + 1 })); } catch {} }).catch(() => {});
+}
 function statsFlush() {
   if (!me || !statsMinBuf || isUnlimited()) { statsMinBuf = 0; return; } const n = statsMinBuf, tk = todayKey(); statsMinBuf = 0;
   statsCarry += n; const full = Math.floor(statsCarry / 60); statsCarry -= full * 60;
@@ -8491,6 +8505,39 @@ function admMarketers(list, brought, promoIds) {
     </div>`).join('') : '<p class="noev">עוד אף אחד לא הביא חברים דרך קישור אישי.</p>'}
     <p class="muted-s">כל מי שהביא לפחות חבר אחד מופיע כאן לבד. ב-${REF_GOAL} חברים מקבלים ${REF_OCR} תמונות לטקסט ביום.</p></div>`;
 }
+// שעות כניסה: days[יום].h = ["08:05", "16:40", ...] (שעון ישראל). גרף של 24 שעות, 00:00 משמאל
+const hrsOf = d => (d && Array.isArray(d.h) ? d.h.filter(t => typeof t === 'string').slice().sort() : []);
+function admHourCounts(objs) { const c = Array(24).fill(0); objs.forEach(d => hrsOf(d).forEach(t => { const h = parseInt(t, 10); if (h >= 0 && h < 24) c[h]++; })); return c; }
+function admHoursChart(c) {
+  const mx = Math.max(1, ...c);
+  return `<div class="adm-bars adm-hbars" role="img" aria-label="כניסות לפי שעה ביום">${c.map((v, h) => `<div class="adm-bar" title="${pad(h)}:00–${pad(h)}:59 · ${v} ${v === 1 ? 'כניסה' : 'כניסות'}">${v ? `<b>${v}</b>` : ''}<i style="height:${v ? Math.max(6, v / mx * 86) : 0}%"></i></div>`).join('')}</div>
+    <div class="adm-hax">${[0, 6, 12, 18].map(h => `<span style="grid-column:${h + 1} / span 3">${pad(h)}:00</span>`).join('')}</div>`;
+}
+function admPeak(c) { let b = 0; c.forEach((v, h) => { if (v > c[b]) b = h; }); return c[b] ? `הכי הרבה נכנסים בין ${pad(b)}:00 ל-${pad((b + 1) % 24)}:00` : ''; }
+let admHrsList = [], admHrsRng = 1;
+function admHoursBody() {
+  const rng = admHrsRng, tk = todayKey();
+  const ks = Array.from({ length: rng }, (_, i) => key(new Date(Date.now() - i * 864e5)));
+  const objs = []; admHrsList.forEach(u => ks.forEach(k => { if (u.days && u.days[k]) objs.push(u.days[k]); }));
+  const c = admHourCounts(objs), tot = c.reduce((a, v) => a + v, 0);
+  if (!tot) return `<p class="noev">${rng === 1 ? 'עוד אף אחד לא נכנס היום.' : 'עוד אין נתונים.'} שעות הכניסה נספרות מ-18 בנובמבר.</p>`;
+  const recent = rng === 1 ? admHrsList.flatMap(u => hrsOf(u.days && u.days[tk]).map(t => ({ t, u }))).sort((a, b) => b.t.localeCompare(a.t)).slice(0, 40) : [];
+  return `${admHoursChart(c)}<p class="muted-s">${tot} ${tot === 1 ? 'כניסה' : 'כניסות'}${rng > 1 ? ` ב-${rng} הימים האחרונים` : ' היום'}. ${admPeak(c)}.</p>
+    ${recent.length ? `<h4>מי נכנס מתי היום</h4><div class="adm-hlist">${recent.map(r => `<button type="button" class="adm-hitem adm-user" data-uid="${esc(r.u.id)}"><b dir="ltr">${esc(r.t)}</b><span dir="auto">${esc(r.u.name || r.u.email || 'משתמש')}</span></button>`).join('')}</div>` : ''}`;
+}
+function admHours(list) {
+  admHrsList = list;
+  return `<div class="card adm-hrs"><h3>באיזה שעות נכנסים לאתר</h3>
+    <div class="adm-seg" role="group" aria-label="תקופה">${[[1, 'היום'], [7, '7 ימים'], [21, '3 שבועות']].map(([n, t]) => `<button type="button" data-hr="${n}" class="${n === admHrsRng ? 'on' : ''}" aria-pressed="${n === admHrsRng}">${t}</button>`).join('')}</div>
+    <div class="adm-hrs-body">${admHoursBody()}</div>
+    <p class="muted-s">כל כניסה לאתר נספרת, וגם חזרה אחרי חצי שעה שלא היה בו. רענון של הדף לא נספר. שעון ישראל.</p></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-seg [data-hr]'); if (!b) return;
+  admHrsRng = +b.dataset.hr;
+  b.parentElement.querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  const body = b.closest('.adm-hrs').querySelector('.adm-hrs-body'); body.innerHTML = admHoursBody();
+});
 // "היום באתר": מי נכנס, כמה זמן היה, ובאילו כלים השתמש
 let admTodayData = null;
 // לחיצה על משתמש: מה הוא עשה בכל יום ב-3 השבועות האחרונים (כמה זמן ובאילו כלים – בלי התוכן עצמו)
@@ -8510,16 +8557,20 @@ function admUserDialog(u) {
   const last14 = Array.from({ length: 14 }, (_, i) => key(new Date(Date.now() - (13 - i) * 864e5)));
   const byDay = Object.fromEntries(days), mx = Math.max(1, ...last14.map(k => byDay[k] ? dm(byDay[k]) : 0));
   const ago = ms => { if (!ms) return '–'; const m = Math.round((Date.now() - ms) / 6e4); return m < 2 ? 'עכשיו' : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
+  const hrsC = admHourCounts(days.map(([, dd]) => dd));
+  const hrsChips = dd => { const h = hrsOf(dd); return h.length ? `<div class="adm-p-hrs"><span class="muted-s">נכנס ב:</span>${h.map(t => `<span dir="ltr">${esc(t)}</span>`).join('')}</div>` : ''; };
   dialog(d => {
     d.classList.add('adm-user-dlg');
     d.innerHTML = `<h3 dir="auto">${esc(u.name || 'משתמש')}</h3><p dir="ltr" class="adm-u-mail">${esc(u.email || '')}</p>
       <div class="adm-t-kpis adm-u-kpis"><div><b>${fmtMin(totMin)}</b><span>זמן ב-3 שבועות</span></div><div><b>${days.length}</b><span>ימים שנכנס</span></div><div><b>${ago(u.last)}</b><span>נכנס לאחרונה</span></div></div>
       <h4>זמן באתר – 14 הימים האחרונים</h4>
       <div class="adm-bars adm-u-bars" role="img" aria-label="דקות באתר לפי יום">${last14.map(k => { const v = byDay[k] ? dm(byDay[k]) : 0; return `<div class="adm-bar" title="${esc(dayLabel(k))}: ${v} דק׳">${v ? `<b>${v}</b>` : ''}<i style="height:${v ? Math.max(6, v / mx * 86) : 0}%"></i></div>`; }).join('')}</div>
+      <h4>באיזה שעות הוא נכנס (3 שבועות)</h4>
+      ${hrsC.some(Boolean) ? `${admHoursChart(hrsC)}<p class="muted-s">${admPeak(hrsC)}.</p>` : '<p class="noev">עוד אין שעות כניסה (נספרות מ-18 בנובמבר).</p>'}
       <h4>במה הוא השתמש (3 שבועות)</h4>
       ${totRows.length ? `<div class="adm-p-tools">${totRows.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<p class="noev">עוד לא השתמש בכלים.</p>'}
       <h4>יום אחרי יום</h4>
-      <div class="adm-ppl">${days.length ? days.map(([k, dd]) => { const ai = Object.entries(dd.ai || {}).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b>${esc(dayLabel(k))}</b><span class="adm-p-min">${dm(dd) ? fmtMin(dm(dd)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('') : '<p class="noev">אין עדיין נתונים לפי יום (נספר מ-12 בנובמבר).</p>'}</div>
+      <div class="adm-ppl">${days.length ? days.map(([k, dd]) => { const ai = Object.entries(dd.ai || {}).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b>${esc(dayLabel(k))}</b><span class="adm-p-min">${dm(dd) ? fmtMin(dm(dd)) : 'פחות מדקה'}</span></div>${hrsChips(dd)}${ai.length ? `<div class="adm-p-tools">${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('') : '<p class="noev">אין עדיין נתונים לפי יום (נספר מ-12 בנובמבר).</p>'}</div>
       <p class="muted-s">רואים רק כמה זמן ובאילו כלים – לא מה כתוב במחברות או מה שאל. סך הכול AI מאז ההתחלה: ${Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0)}.</p>
       <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button></div>`;
     d.querySelector('[data-x]').onclick = closeDialog;
@@ -8566,7 +8617,7 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
     <h4>כמה השתמשו בכל כלי</h4>
     ${tRows.length ? `<div class="adm-dev">${tRows.map(([k, v]) => `<button type="button" class="adm-dev-row adm-tool" data-tool="${esc(k)}" title="מי השתמש"><span class="adm-dev-n">${esc(toolName(k))}</span><span class="gb-track"><i style="width:${Math.max(3, v / tMax * 100)}%"></i></span><b>${v}</b></button>`).join('')}</div><p class="muted-s">לוחצים על כלי ורואים מי השתמש בו.</p>` : '<p class="noev">עוד לא השתמשו בכלים היום.</p>'}
     <h4>מי היה היום</h4>
-    ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><button type="button" class="link adm-user" data-uid="${esc(u.id)}" dir="auto"><b>${esc(u.name || u.email || 'משתמש')}</b></button><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
+    ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><button type="button" class="link adm-user" data-uid="${esc(u.id)}" dir="auto"><b>${esc(u.name || u.email || 'משתמש')}</b></button><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${hrsOf(u.days && u.days[tk]).length ? `<div class="adm-p-hrs"><span class="muted-s">נכנס ב:</span>${hrsOf(u.days[tk]).map(t => `<span dir="ltr">${esc(t)}</span>`).join('')}</div>` : ''}${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
     <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 30 שניות, ומה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
 }
 async function renderAdmin() {
@@ -8628,6 +8679,7 @@ async function renderAdmin() {
     ${admSiteAi(site)}
     ${admMarketers(list, brought, promoIds)}
     ${admToday(list, tk, dMin, dAi, fmtMin, toolName)}
+    ${admHours(list)}
     <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
       <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}">${byDay[k] ? `<b>${byDay[k]}</b>` : ''}<i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 86) : 0}%"></i></div>`).join('')}</div>
       <div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days[0]).getTime()))}</span><span>היום</span></div></div>
@@ -8635,8 +8687,8 @@ async function renderAdmin() {
       <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div><div class="adm-bars-ax"><span>${esc(fmtDate(new Date(days14[0]).getTime()))}</span><span>היום</span></div><p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
-    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
+    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>שעות כניסה היום</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
+      ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}${u.last && now - u.last < day ? ` <small class="muted-s" dir="ltr">${hmIL(u.last)}</small>` : ''}</td><td dir="ltr" class="adm-tt">${hrsOf(u.days && u.days[tk]).join(' · ') || '–'}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
   // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
   const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);
