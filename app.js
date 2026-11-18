@@ -7500,6 +7500,7 @@ const CHAT_EDIT_RULES = `6. עריכת המחברת: אם המשתמש מבקש 
 - op: "after" = שורה חדשה אחרי השורה שמכילה את find. "before" = לפני. "replace" = להחליף את השורה שמכילה את find בטקסט החדש. "append" = בסוף המחברת (בלי find).
 - find: 3 עד 8 מילים שמופיעות בדיוק כך במחברת, מתוך השורה שמשנים או השורה שליד המקום. "ליד הכותרת" / "מתחת לכותרת" = after, עם find מתוך הכותרת.
 - text: רק הטקסט החדש, בלי הסברים. כמה שורות = \\n. שורה שמתחילה ב-"- " = נקודה ברשימה. שורה שמתחילה ב-"## " = כותרת קטנה. אפשר **מודגש**.
+- טבלה: כל שורה בטבלה היא שורה נפרדת בפורמט | תא | תא | תא |, השורה הראשונה היא הכותרות, ואחריה |---|---|---|. אותו מספר תאים בכל שורה, ובלי | כפול.
 - replace רק כשהמשתמש ביקש לתקן או להחליף. אל תמחק שום דבר אחר.
 `;
 // העוזר מכיר את כל המחברות: בעוזר הכללי – קטעים מכל המחברות (החדשות קודם), כדי שאפשר לשאול "מה למדנו בהיסטוריה?".
@@ -7758,15 +7759,30 @@ function edTextToHtml(t) {
   const lines = String(t || '').replace(/\r/g, '').split('\n'); let out = '', list = [];
   const inl = v => esc(v).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   const flushList = () => { if (list.length) { out += '<ul>' + list.map(x => `<li>${inl(x)}</li>`).join('') + '</ul>'; list = []; } };
+  // טבלה בכתיב Markdown (| א | ב |) – הופכת לטבלה אמיתית במחברת
+  let tbl = [];
+  const cells = l => { let c = l.replace(/^\|/, '').replace(/\|$/, '').split('|').map(x => x.trim()); return c; };
+  const flushTbl = () => {
+    if (!tbl.length) return;
+    const rows = tbl.filter(r => /[^\s|:\-]/.test(r)).map(cells);   // בלי שורת המקפים |---|
+    const n = rows.length ? rows[0].filter(x => x !== '').length || rows[0].length : 0;
+    // שורות עם תאים ריקים מיותרים בהתחלה (||) – מורידים אותם עד מספר העמודות של הכותרת
+    const fix = r => { let c = r.slice(); while (c.length > n && c[0] === '') c.shift(); while (c.length > n && c[c.length - 1] === '') c.pop(); while (c.length < n) c.push(''); return c.slice(0, n); };
+    if (n) out += '<table><tbody>' + rows.map((r, i) => '<tr>' + fix(r).map(c => i === 0 ? `<th>${inl(c) || '<br>'}</th>` : `<td>${inl(c) || '<br>'}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    tbl = [];
+  };
   for (const raw of lines) {
-    const l = raw.trim(); if (!l) { flushList(); continue; }
+    const l = raw.trim();
+    if (/^\|.*\|$/.test(l) || (/^\|/.test(l) && l.split('|').length > 2)) { flushList(); tbl.push(l); continue; }
+    flushTbl();
+    if (!l) { flushList(); continue; }
     if (/^[-•*]\s+/.test(l)) { list.push(l.replace(/^[-•*]\s+/, '')); continue; }
     flushList();
     if (/^##\s+/.test(l)) out += `<h3>${inl(l.replace(/^##\s+/, ''))}</h3>`;
     else if (/^#\s+/.test(l)) out += `<h2>${inl(l.replace(/^#\s+/, ''))}</h2>`;
     else out += `<p>${inl(l)}</p>`;
   }
-  flushList(); return noEmoji ? clean(noEmoji(out)) : clean(out);
+  flushTbl(); flushList(); return noEmoji ? clean(noEmoji(out)) : clean(out);
 }
 function chatEditPrep(a) {
   if (!openId || !edCan()) return [];
