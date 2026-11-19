@@ -63,7 +63,9 @@ const fb = initializeApp(firebaseConfig);
 // Google Analytics: כמה נכנסים, מאיפה ומאיזה מכשיר (רואים ב-Firebase → Analytics)
 let analytics = null;
 if (firebaseConfig.measurementId) analyticsSupported().then(ok => { if (ok) analytics = getAnalytics(fb); }).catch(() => {});
-const track = (name, params) => { try { if (analytics) logEvent(analytics, name, params || {}); } catch {} };
+const track = (name, params) => { try { if (analytics) logEvent(analytics, name, params || {}); } catch {} try { window.posthog?.capture(name, params || {}); } catch {} };
+// PostHog: מזהים רק לפי מספר המשתמש (uid) – בלי שם ובלי אימייל. המנהלים (בעל האתר וההורים) לא נספרים
+const phUser = u => { try { const P = window.posthog; if (!P) return; if (u) P.identify(u.uid); else P.reset(); } catch {} };
 // App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
 // נטען רק כשצריך (מחובר / לוחץ להתחבר / מחברת משותפת), כדי שמי שרק מנסה את הדוגמה לא יוריד כמעט 1MB
 let appCheckOn = false;
@@ -186,7 +188,7 @@ onAuthStateChanged(auth, user => {
   if (unsubEv) { unsubEv(); unsubEv = null; }
   if (unsubSh) { unsubSh(); unsubSh = null; } stopSharedWatch();
   if (typeof unsubAct !== 'undefined' && unsubAct) { unsubAct(); unsubAct = null; }
-  me = user;
+  me = user; phUser(user);
   if (!shareParam && user) { try { const ps = sessionStorage.getItem('pendingShare'); if (ps) { sessionStorage.removeItem('pendingShare'); shareParam = ps; history.replaceState(null, '', '?s=' + ps); } } catch {} }
   if (shareParam) { openShare(shareParam); }
   if (user) {
@@ -8469,7 +8471,7 @@ function admRefDialog(u) {
     if (rm) rm.onclick = async () => { try { await deleteDoc(doc(db, 'refs', u.ref, 'joined', u.id)); await updateDoc(statsDoc(u.id), { ref: deleteField() }); closeDialog(); toast('השיוך הוסר'); renderAdmin(); } catch (err) { console.warn(err); toast('לא הצלחתי להסיר'); } };
   });
 }
-function paintAdmin() { const on = isAdmin(); document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
+function paintAdmin() { const on = isAdmin(); try { if (on) window.posthog?.opt_out_capturing(); } catch {} document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
 const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם
