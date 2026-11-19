@@ -8585,7 +8585,8 @@ function admUserDialog(u) {
       <h4>יום אחרי יום</h4>
       <div class="adm-ppl">${days.length ? days.map(([k, dd]) => { const ai = Object.entries(dd.ai || {}).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><b>${esc(dayLabel(k))}</b><span class="adm-p-min">${dm(dd) ? fmtMin(dm(dd)) : 'פחות מדקה'}</span></div>${hrsChips(dd)}${ai.length ? `<div class="adm-p-tools">${ai.map(([t, v]) => `<span>${esc(toolName(t))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('') : '<p class="noev">אין עדיין נתונים לפי יום (נספר מ-12 בנובמבר).</p>'}</div>
       <p class="muted-s">רואים רק כמה זמן ובאילו כלים – לא מה כתוב במחברות או מה שאל. סך הכול AI מאז ההתחלה: ${Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0)}.</p>
-      <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button></div>`;
+      <div class="row"><button type="button" class="btn btn-primary" data-x>סגירה</button>${u.id ? `<a class="btn btn-ghost" href="https://eu.posthog.com/person/${encodeURIComponent(u.id)}" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-play"/></svg>לראות ב-PostHog</a>` : ''}</div>
+      ${u.id ? `<p class="muted-s">ב-PostHog הוא מופיע בתור <span dir="ltr">${esc(u.id)}</span> – בלי שם ובלי אימייל. שם רואים את ההקלטות והלחיצות שלו.</p>` : ''}`;
     d.querySelector('[data-x]').onclick = closeDialog;
   });
 }
