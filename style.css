@@ -3168,3 +3168,21 @@ body.editing-shared .nb-mem{display:none}
 @keyframes presZoom{from{opacity:0;filter:blur(6px);scale:.88}to{opacity:1;filter:none;scale:1}}
 @keyframes presFlip{from{opacity:0;rotate:y 70deg}to{opacity:1;rotate:y 0deg}}
 @media (max-width:600px){.pres-bar{gap:2px;padding:4px}.pres-b{width:36px;height:36px}.pres-n{min-width:48px;font-size:12.5px}}
+
+/* מחברות ומצגות */
+.pres-sec{margin-top:26px}
+.pres-sec h3{display:flex;align-items:center;gap:8px;font-size:18px;margin:0 0 12px}
+.pres-sec h3 svg{width:16px;height:16px;fill:#E0488F}
+.nb.new.new-pres svg{fill:currentColor;stroke:none}
+.nav-pres svg{fill:currentColor;stroke:none}
+@media (max-width:700px){.nav-pres{display:none!important}}
+/* שקופית ריקה: רמזים אפורים (לא טקסט אמיתי – לא נשמר ולא מוצג בהצגה) */
+#editor[data-layout="slides"]>[data-slide] :is(h1,h2,h3,li,blockquote,p,td p):has(>br:only-child)::before{opacity:.38;pointer-events:none}
+#editor[data-layout="slides"]>[data-slide] h1:has(>br:only-child)::before{content:"כותרת"}
+#editor[data-layout="slides"]>[data-slide]>h1:first-child:has(>br:only-child)::before{content:"כותרת המצגת"}
+#editor[data-layout="slides"]>[data-slide] h2:has(>br:only-child)::before{content:"כותרת"}
+#editor[data-layout="slides"]>[data-slide] li:has(>br:only-child)::before{content:"נקודה"}
+#editor[data-layout="slides"]>[data-slide] blockquote:has(>br:only-child)::before{content:"ציטוט"}
+#editor[data-layout="slides"]>[data-slide]>h1+p:has(>br:only-child)::before{content:"כותרת משנה"}
+#editor[data-layout="slides"]>[data-slide]>blockquote+p:has(>br:only-child)::before{content:"מי אמר"}
+#editor[data-layout="slides"]>[data-slide] td p:has(>br:only-child)::before{content:"טקסט"}

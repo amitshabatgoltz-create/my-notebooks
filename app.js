@@ -392,24 +392,40 @@ function nbCard(n, i) {
   b.onclick = () => openNotebook(n.id);
   return b;
 }
+// מחברות ומצגות: במחשב – שני עמודים נפרדים (libMode). בטלפון – הכל בעמוד אחד, מחברות ואחריהן מצגות
+const isPres = n => n && n.layout === 'slides';
+let libMode = 'nb';
+const narrow = () => matchMedia('(max-width:700px)').matches;
+function fillGrid(g, list, pres) {
+  g.innerHTML = '';
+  list.forEach((n, i) => g.appendChild(nbCard(n, i)));
+  const add = document.createElement('button'); add.className = 'nb new' + (pres ? ' new-pres' : ''); add.style.setProperty('--i', list.length);
+  add.innerHTML = pres ? '<svg><use href="#i-play"/></svg><span>מצגת חדשה</span>' : '<svg><use href="#i-plus"/></svg><span>מחברת חדשה</span>';
+  add.onclick = () => pres ? newPresentation() : newNotebook(); g.appendChild(add);
+}
 function renderGrid() {
-  const g = $('grid'); g.innerHTML = '';
-  notebooks.forEach((n, i) => g.appendChild(nbCard(n, i)));
-  const add = document.createElement('button'); add.className = 'nb new'; add.style.setProperty('--i', notebooks.length);
-  add.innerHTML = '<svg><use href="#i-plus"/></svg><span>מחברת חדשה</span>';
-  add.onclick = newNotebook; g.appendChild(add);
-  $('count').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : '';
+  const nbs = notebooks.filter(n => !isPres(n)), prs = notebooks.filter(isPres);
+  const both = narrow(), pres = !both && libMode === 'pres';
+  fillGrid($('grid'), pres ? prs : nbs, pres);
+  const ps = $('presSec'); if (ps) { ps.classList.toggle('hidden', !both); if (both) fillGrid($('presGrid'), prs, true); }
+  $('libTitle').textContent = both ? 'המחברות והמצגות שלי' : pres ? 'המצגות שלי' : 'המחברות שלי';
+  const cn = (k, one, many) => k === 1 ? one : k ? `${k} ${many}` : '';
+  $('count').textContent = both ? [cn(nbs.length, 'מחברת אחת', 'מחברות'), cn(prs.length, 'מצגת אחת', 'מצגות')].filter(Boolean).join(' · ') : pres ? cn(prs.length, 'מצגת אחת', 'מצגות') : cn(nbs.length, 'מחברת אחת', 'מחברות');
+  $('newBtn').classList.toggle('hidden', pres); $('newPresBtn').classList.toggle('btn-primary', pres); $('newPresBtn').classList.toggle('btn-light', !pres);
   renderSide();
 }
+matchMedia('(max-width:700px)').addEventListener?.('change', () => { if (!$('library').classList.contains('hidden')) renderGrid(); });
 function renderSide() {
   const box = $('sideList'); if (!box) return; box.innerHTML = '';
+  const pbox = $('sidePresList'); if (pbox) pbox.innerHTML = '';
   notebooks.forEach(n => {
+    const into = pbox && isPres(n) ? pbox : box;
     const b = document.createElement('button'); b.className = 'side-nb' + (n.id === openId ? ' on' : '');
     const dot = document.createElement('i'); dot.style.background = nbPaint(n.color || COLORS[0]);
     const t = document.createElement('span'); t.textContent = n.title || 'מחברת ללא שם';
     b.append(dot, t);
     if (n.shareId) { const s2 = document.createElement('small'); s2.className = 'side-sh'; s2.innerHTML = '<svg aria-hidden="true"><use href="#i-users"/></svg>'; s2.title = 'שיתפת את המחברת הזו'; b.appendChild(s2); }
-    b.onclick = () => openNotebook(n.id); box.appendChild(b);
+    b.onclick = () => openNotebook(n.id); into.appendChild(b);
   });
   // מחברות שאחרים שיתפו איתי – גם בצד
   const sh = $('sideShared'); if (!sh) return; sh.innerHTML = '';
@@ -427,14 +443,16 @@ const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'c
 function setView(v, crumb) {
   if (v !== 'notebook' && typeof mathDockHide === 'function') mathDockHide();
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
-  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB_OF[v]));
+  const tabNow = (v === 'library' || v === 'notebook') && libMode === 'pres' && !narrow() ? 'pres' : TAB_OF[v];
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tabNow));
   window.Motion?.tab();
-  $('crumb').textContent = crumb || { home: 'בית', library: 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי', adminView: 'ניהול האתר' }[v] || '';
+  $('crumb').textContent = crumb || { home: 'בית', library: libMode === 'pres' && !narrow() ? 'מצגות' : 'מחברות', calendar: 'יומן', ttView: 'מערכת שעות', hwView: 'שיעורי בית', gradesView: 'ציונים', chatView: 'עוזר לימודי', adminView: 'ניהול האתר' }[v] || '';
   document.body.dataset.view = v;
   chatPlace(v);
   window.scrollTo(0, 0);
 }
-function showLibrary() {
+function showLibrary(mode) {
+  if (mode) libMode = mode;
   openId = null; setView('library'); renderGrid();
 }
 function openNotebook(id) {
@@ -449,7 +467,8 @@ function openNotebook(id) {
   renderCanvases($('editor'));
   applyBoxSizes($('editor'));
   setSave('נשמר בענן', 'ok');
-  setView('notebook', 'מחברות › ' + (n.title || ''));
+  libMode = isPres(n) ? 'pres' : 'nb';
+  setView('notebook', (isPres(n) ? 'מצגות › ' : 'מחברות › ') + (n.title || ''));
   applyLook(n);
   renderSide();
   document.body.classList.remove('editing-shared');
@@ -1907,13 +1926,12 @@ $('slideAdd').onclick = () => addSlide(null);
 /* ===== מצגות (כמו Canva / PowerPoint): מצגת חדשה, עיצובים, פריסות, סרגל לשקופית, מעברים, ומצב הצגה ===== */
 // מצגת = מחברת עם layout 'slides'. העיצוב בשדה stheme, המעבר בשדה strans. לכל שקופית: data-sbg (רקע משלה) ו-data-notes (הערות לדובר)
 const SLIDE_LAYOUTS = [
-  ['title', 'פתיחה', '<h1 data-a="center">כותרת המצגת</h1><p data-a="center">כותרת משנה</p>'],
-  ['content', 'כותרת ותוכן', '<h2>כותרת</h2><ul><li>נקודה ראשונה</li><li>נקודה שנייה</li><li>נקודה שלישית</li></ul>'],
-  ['two', 'שתי עמודות', '<h2>השוואה</h2><table><tbody><tr><td><p><b>צד אחד</b></p><p>טקסט</p></td><td><p><b>צד שני</b></p><p>טקסט</p></td></tr></tbody></table>'],
-  ['media', 'תמונה וטקסט', '<h2>כותרת</h2><table><tbody><tr><td><p>מוסיפים כאן תמונה מכפתור התמונה בסרגל</p></td><td><p>הסבר על התמונה</p></td></tr></tbody></table>'],
-  ['section', 'כותרת חלק', '<h1 data-a="center">חלק 2</h1>'],
-  ['quote', 'ציטוט', '<blockquote>"משפט חשוב שרוצים שיזכרו"</blockquote><p data-a="center">– מי אמר</p>'],
-  ['list', 'רשימת משימות', '<h2>מה עושים</h2><ul data-check=""><li>משימה ראשונה</li><li>משימה שנייה</li></ul>'],
+  ['title', 'פתיחה', '<h1 data-a="center"><br></h1><p data-a="center"><br></p>'],
+  ['content', 'כותרת ותוכן', '<h2><br></h2><ul><li><br></li></ul>'],
+  ['two', 'שתי עמודות', '<h2><br></h2><table><tbody><tr><td><p><br></p></td><td><p><br></p></td></tr></tbody></table>'],
+  ['section', 'כותרת חלק', '<h1 data-a="center"><br></h1>'],
+  ['quote', 'ציטוט', '<blockquote><br></blockquote><p data-a="center"><br></p>'],
+  ['list', 'רשימת משימות', '<h2><br></h2><ul data-check=""><li><br></li></ul>'],
   ['blank', 'ריקה', '<p><br></p>'],
 ];
 const LAY_ICON = {
@@ -1950,9 +1968,7 @@ function newPresentation(title0) {
       try {
         const ref = doc(nbCol()), t = Date.now(), name = st.title.trim() || 'מצגת חדשה';
         const e = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        const html = clean(`<div data-slide=""><h1 data-a="center">${e(name)}</h1><p data-a="center">השם שלך · ${new Date().toLocaleDateString('he-IL')}</p></div>`
-          + `<div data-slide="">${SLIDE_LAYOUTS[1][2].replace('כותרת', 'הנושא הראשון')}</div>`
-          + '<div data-slide=""><h2>סיכום</h2><p>מה חשוב לזכור מהמצגת?</p></div>');
+        const html = clean(`<div data-slide="">${SLIDE_LAYOUTS[0][2]}</div>`);
         await setDoc(ref, { title: name, color: st.color, html, layout: 'slides', ...(st.stheme ? { stheme: st.stheme } : {}), kind: 'pres', createdAt: t, updatedAt: t });
         closeDialog(); track('pres_new', { theme: st.stheme || 'plain', together: st.together ? 1 : 0 });
         const wait = (k = 0) => { if (!notebooks.find(x => x.id === ref.id)) return k < 50 && setTimeout(() => wait(k + 1), 100); openNotebook(ref.id);
@@ -1973,7 +1989,7 @@ document.addEventListener('selectionchange', () => { if ($('editor').dataset.lay
 
 // ---- שקופית חדשה לפי פריסה
 function addSlideLayout(lay, after) {
-  const ed = $('editor'), s = mkSlide(false); const L = SLIDE_LAYOUTS.find(x => x[0] === lay) || SLIDE_LAYOUTS[7];
+  const ed = $('editor'), s = mkSlide(false); const L = SLIDE_LAYOUTS.find(x => x[0] === lay) || SLIDE_LAYOUTS[SLIDE_LAYOUTS.length - 1];
   s.innerHTML = clean(L[2]);
   if (after && after.parentElement === ed) after.after(s); else ed.appendChild(s);
   ed.focus({ preventScroll: true }); placeCaret(s.firstChild); curSlide = s;
@@ -2389,7 +2405,8 @@ function showTab(t) {
   track('screen_view', { firebase_screen: t, firebase_screen_class: t });
   flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared');
   if (t === 'cal') { openId = null; setView('calendar'); renderCalendar(); renderSide(); }
-  else if (t === 'notes') showLibrary();
+  else if (t === 'notes') showLibrary('nb');
+  else if (t === 'pres') showLibrary('pres');
   else if (t === 'hw') { openId = null; setView('hwView'); renderHW(); renderSide(); introOnce('hw'); }
   else if (t === 'tt') { openId = null; setView('ttView'); renderTT(); renderSide(); }
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
