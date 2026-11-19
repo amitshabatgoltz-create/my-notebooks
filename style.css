@@ -3005,3 +3005,12 @@ body.editing-shared .nb-mem{display:none}
 .adm-dax span.sat b{color:var(--accent);opacity:1}
 .adm-dax span.on{color:var(--accent);font-weight:700}.adm-dax span.on b{color:var(--accent);opacity:1}
 @media (max-width:700px){.adm-dax{font-size:9.5px}.adm-dax i{display:none}.adm-dax.many span:nth-last-child(even){visibility:hidden}}
+
+/* ניהול האתר: כפתור בולט לפתיחת המשתמש ב-PostHog */
+.adm-ph{display:flex;align-items:center;gap:12px;margin:10px 0 14px;padding:12px 14px;border-radius:16px;text-decoration:none;color:#fff;background:linear-gradient(135deg,#F54E00,#F9BD2B);box-shadow:0 6px 18px rgba(245,78,0,.28);transition:transform .15s,box-shadow .15s}
+.adm-ph:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(245,78,0,.36)}
+.adm-ph-ic{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.22)}
+.adm-ph-ic svg{width:20px;height:20px;fill:#fff;stroke:none;margin-inline-start:2px}
+.adm-ph-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.adm-ph-tx b{font-size:16px}
+.adm-ph-tx small{font-size:12.5px;opacity:.92}
