@@ -3017,3 +3017,10 @@ body.editing-shared .nb-mem{display:none}
 .adm-ph-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .adm-ph-tx b{font-size:16px}
 .adm-ph-tx small{font-size:12.5px;opacity:.92}
+
+/* צבעים מיוחדים (פרס על החבר הראשון): מעבר צבעים ונצנוץ שעובר על הכריכה */
+.nb.sp .nb-cover{background:var(--cg)}
+.nb.sp .nb-cover::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.45) 50%,transparent 65%);background-size:250% 100%;animation:spShine 4.5s ease-in-out infinite;pointer-events:none}
+@keyframes spShine{0%,55%{background-position:120% 0}100%{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){.nb.sp .nb-cover::after{animation:none;opacity:.5}}
+.sp-picker button{width:34px;height:34px}

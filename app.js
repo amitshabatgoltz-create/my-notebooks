@@ -46,9 +46,21 @@ const $ = id => document.getElementById(id);
   if (document.body) start(); else addEventListener('DOMContentLoaded', start);
 })();
 const ic = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
-const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#1f8fa3','#4b5563'];
+const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#f472b6','#1f8fa3','#4b5563'];
 // צבעים מיוחדים: פרס על החבר הראשון שמצטרף דרך הקישור האישי
 const SPECIAL_COLORS = [['#C9971C', 'זהב'], ['#FF2E93', 'ניאון ורוד'], ['#3B1E8C', 'גלקסיה'], ['#0FB5A0', 'מנטה'], ['#F2552C', 'שקיעה'], ['#14151F', 'לילה']];
+// הצבעים המיוחדים נראים מיוחדים: מעבר צבעים, נצנוץ וכוכבים (בכרטיס, ברשימה בצד, בראש המחברת ובבחירת הצבע)
+const STARS = 'radial-gradient(circle at 18% 28%,#fff 0 1.2px,transparent 1.8px),radial-gradient(circle at 72% 22%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 48% 64%,rgba(255,255,255,.9) 0 1.3px,transparent 1.9px),radial-gradient(circle at 84% 74%,#fff 0 .9px,transparent 1.5px),radial-gradient(circle at 30% 82%,rgba(255,255,255,.8) 0 .9px,transparent 1.5px)';
+const SP_PAINT = {
+  '#C9971C': 'linear-gradient(135deg,#FFF1A8 0%,#E8B930 30%,#C9971C 55%,#8A6410 80%,#E8C55A 100%)',
+  '#FF2E93': 'linear-gradient(135deg,#FF9AD2 0%,#FF2E93 45%,#C2006F 100%)',
+  '#3B1E8C': STARS + ',linear-gradient(135deg,#7B4DFF 0%,#3B1E8C 50%,#120B3D 100%)',
+  '#0FB5A0': 'linear-gradient(135deg,#B6FFF0 0%,#2FD8BE 40%,#0FB5A0 65%,#06776A 100%)',
+  '#F2552C': 'linear-gradient(160deg,#FFD166 0%,#FF8A3D 35%,#F2552C 60%,#B5179E 100%)',
+  '#14151F': STARS + ',linear-gradient(160deg,#2E3170 0%,#14151F 70%)',
+};
+const nbPaint = c => SP_PAINT[c] || c;
+const isSp = c => !!SP_PAINT[c];
 
 if (firebaseConfig.apiKey === "PASTE_HERE") {
   $('loginStatus').classList.add('err');
@@ -364,7 +376,7 @@ function timeAgo(ms) {
 }
 function preview(html) { const t = document.createElement('div'); t.innerHTML = (html || '').replace(/<\/(p|h1|h2|h3|li|div|td|th)>/gi, ' $&').replace(/<br\s*\/?>/gi, ' '); return t.textContent.replace(/\s+/g, ' ').trim().slice(0, 90); }
 function nbCard(n, i) {
-  const b = document.createElement('button'); b.className = 'nb'; b.style.setProperty('--c', n.color || COLORS[0]); b.style.setProperty('--i', i);
+  const b = document.createElement('button'); b.className = 'nb' + (isSp(n.color) ? ' sp' : ''); b.style.setProperty('--c', n.color || COLORS[0]); b.style.setProperty('--cg', nbPaint(n.color || COLORS[0])); b.style.setProperty('--i', i);
   const cover = document.createElement('div'); cover.className = 'nb-cover';
   const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (n.title || '?').trim()[0] || '?';
   cover.appendChild(letter);
@@ -390,7 +402,7 @@ function renderSide() {
   const box = $('sideList'); if (!box) return; box.innerHTML = '';
   notebooks.forEach(n => {
     const b = document.createElement('button'); b.className = 'side-nb' + (n.id === openId ? ' on' : '');
-    const dot = document.createElement('i'); dot.style.background = n.color || COLORS[0];
+    const dot = document.createElement('i'); dot.style.background = nbPaint(n.color || COLORS[0]);
     const t = document.createElement('span'); t.textContent = n.title || 'מחברת ללא שם';
     b.append(dot, t);
     if (n.shareId) { const s2 = document.createElement('small'); s2.className = 'side-sh'; s2.innerHTML = '<svg aria-hidden="true"><use href="#i-users"/></svg>'; s2.title = 'שיתפת את המחברת הזו'; b.appendChild(s2); }
@@ -401,7 +413,7 @@ function renderSide() {
   $('sideShLabel').classList.toggle('hidden', !sharedList.length);
   sharedList.forEach(x => {
     const b = document.createElement('button'); b.className = 'side-nb';
-    const dot = document.createElement('i'); dot.style.background = x.color || COLORS[0];
+    const dot = document.createElement('i'); dot.style.background = nbPaint(x.color || COLORS[0]);
     const t = document.createElement('span'); t.textContent = x.title || 'מחברת';
     const o = document.createElement('small'); o.className = 'side-sh'; o.textContent = x.ownerName ? String(x.ownerName).split(/\s+/)[0] : '';
     b.append(dot, t, o); b.onclick = () => openShare(x.id); sh.appendChild(b);
@@ -427,7 +439,7 @@ function openNotebook(id) {
   if (openId && openId !== id) flush();
   openId = id; dirty = false;
   $('title').value = n.title || '';
-  $('docColor').style.setProperty('--c', n.color || COLORS[0]); $('nbColorDot').style.background = n.color || COLORS[0];
+  $('docColor').style.setProperty('--c', n.color || COLORS[0]); $('docColor').style.background = nbPaint(n.color || COLORS[0]); $('nbColorDot').style.background = nbPaint(n.color || COLORS[0]);
   $('editor').innerHTML = clean(n.html || '');
   loadImages($('editor'));
   renderFiles($('editor'));
@@ -456,7 +468,7 @@ function nbColorDialog() {
       const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === (n.color || COLORS[0])) s.classList.add('on');
       s.onclick = async () => {
         n.color = c; d.querySelectorAll('.picker button').forEach(x => x.classList.remove('on')); s.classList.add('on');
-        $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
+        $('docColor').style.setProperty('--c', c); $('docColor').style.background = nbPaint(c); $('nbColorDot').style.background = nbPaint(c); renderSide();
         try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
       };
       pick.appendChild(s);
@@ -465,11 +477,11 @@ function nbColorDialog() {
     const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
     const sp = document.createElement('div'); sp.className = 'picker sp-picker' + (open ? '' : ' locked');
     SPECIAL_COLORS.forEach(([c, nm]) => {
-      const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.title = nm; s.setAttribute('aria-label', nm); if (c === n.color) s.classList.add('on');
+      const s = document.createElement('button'); s.type = 'button'; s.style.background = nbPaint(c); s.title = nm; s.setAttribute('aria-label', nm); if (c === n.color) s.classList.add('on');
       s.onclick = async () => {
         if (!open) { closeDialog(); showTab('fr'); return; }
         n.color = c; d.querySelectorAll('.picker button').forEach(x => x.classList.remove('on')); s.classList.add('on');
-        $('docColor').style.setProperty('--c', c); $('nbColorDot').style.background = c; renderSide();
+        $('docColor').style.setProperty('--c', c); $('docColor').style.background = nbPaint(c); $('nbColorDot').style.background = nbPaint(c); renderSide();
         try { await updateDoc(nbDoc(n.id), { color: c }); if (n.shareId) updateDoc(shareDoc(n.shareId), { color: c }).catch(() => {}); } catch { toast('לא הצלחתי לשמור את הצבע'); }
       };
       sp.appendChild(s);
@@ -2003,7 +2015,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
         const open = typeof refHas === 'function' && refHas(1);
         const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
         const g2 = document.createElement('div'); g2.className = 'picker sp-picker' + (open ? '' : ' locked');
-        SPECIAL_COLORS.forEach(([c, nm]) => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.title = nm; s.setAttribute('aria-label', nm); if (c === st.color) s.classList.add('on'); s.onclick = () => { if (!open) { toast('הצבעים המיוחדים נפתחים כשחבר אחד מצטרף דרך הקישור שלך. אפשר דרך "חברים" בתפריט'); return; } st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g2.appendChild(s); all.push(s); });
+        SPECIAL_COLORS.forEach(([c, nm]) => { const s = document.createElement('button'); s.type = 'button'; s.style.background = nbPaint(c); s.title = nm; s.setAttribute('aria-label', nm); if (c === st.color) s.classList.add('on'); s.onclick = () => { if (!open) { toast('הצבעים המיוחדים נפתחים כשחבר אחד מצטרף דרך הקישור שלך. אפשר דרך "חברים" בתפריט'); return; } st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g2.appendChild(s); all.push(s); });
         sec.append(sh, g2);
       } else if (k === 'subject') {
         lab.textContent = 'מקצוע';
@@ -4042,7 +4054,7 @@ function shareRender(id, snap) {
     const hint = $('shHint');
     if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
-    $('shColor').style.setProperty('--c', s.color || COLORS[0]);
+    $('shColor').style.setProperty('--c', s.color || COLORS[0]); $('shColor').style.background = nbPaint(s.color || COLORS[0]);
     const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); }
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
@@ -4228,7 +4240,7 @@ function renderShared() {
   const list = $('sharedList'); list.innerHTML = '';
   // מחברות ששיתפו איתי: כרטיס גדול כמו של המחברות שלי
   sharedList.forEach((x, i) => {
-    const b = document.createElement('button'); b.className = 'nb sh-card'; b.style.setProperty('--c', x.color || COLORS[0]); b.style.setProperty('--i', i);
+    const b = document.createElement('button'); b.className = 'nb sh-card' + (isSp(x.color) ? ' sp' : ''); b.style.setProperty('--c', x.color || COLORS[0]); b.style.setProperty('--cg', nbPaint(x.color || COLORS[0])); b.style.setProperty('--i', i);
     const cover = document.createElement('div'); cover.className = 'nb-cover';
     const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (x.title || '?').trim()[0] || '?';
     const badge = document.createElement('span'); badge.className = 'nb-share'; badge.innerHTML = `<svg aria-hidden="true"><use href="#i-users"/></svg><span>${{ edit: 'עריכה משותפת', view: 'צפייה בלבד' }[shModeNow.get(x.id) || x.mode] || 'שותפה איתך'}</span>`;
@@ -5129,7 +5141,7 @@ function openSharedEdit(id, s) {
   if (openId) flush();
   openId = 'share:' + id; dirty = false;
   $('title').value = s.title || '';
-  $('docColor').style.setProperty('--c', s.color || COLORS[0]);
+  $('docColor').style.setProperty('--c', s.color || COLORS[0]); $('docColor').style.background = nbPaint(s.color || COLORS[0]);
   $('editor').innerHTML = clean(s.html || '');
   loadImages($('editor'), s.owner); renderFiles($('editor'), s.owner); renderCanvases($('editor')); applyBoxSizes($('editor'));
   $('app').classList.remove('hidden'); $('login').classList.add('hidden');
