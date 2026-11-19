@@ -2794,7 +2794,10 @@ button.adm-tool:hover{background:var(--accent-soft)}
 /* שעות כניסה */
 .adm-hbars{height:110px;gap:2px}
 .adm-hax{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;direction:ltr;font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
-.adm-hax span{white-space:nowrap}
+.adm-hax span{white-space:nowrap;text-align:center;font-size:10.5px}
+.adm-hax span.on{color:var(--ink);font-weight:700}
+.adm-hax-n{margin:4px 0 0;font-size:11.5px;color:var(--muted)}
+@media (max-width:600px){.adm-hax span{font-size:8.5px;letter-spacing:-.3px}}
 @media (max-width:600px){.adm-hbars .adm-bar b{font-size:8.5px}}
 .adm-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);margin:2px 0 8px}
 .adm-seg button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;padding:5px 12px;border-radius:9px;cursor:pointer}

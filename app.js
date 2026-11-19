@@ -8518,7 +8518,7 @@ function admHourCounts(objs) { const c = Array(24).fill(0); objs.forEach(d => hr
 function admHoursChart(c) {
   const mx = Math.max(1, ...c);
   return `<div class="adm-bars adm-hbars" role="img" aria-label="כניסות לפי שעה ביום">${c.map((v, h) => `<div class="adm-bar" title="${pad(h)}:00–${pad(h)}:59 · ${v} ${v === 1 ? 'כניסה' : 'כניסות'}">${v ? `<b>${v}</b>` : ''}<i style="height:${v ? Math.max(6, v / mx * 86) : 0}%"></i></div>`).join('')}</div>
-    <div class="adm-hax">${[0, 6, 12, 18].map(h => `<span style="grid-column:${h + 1} / span 3">${pad(h)}:00</span>`).join('')}</div>`;
+    <div class="adm-hax">${c.map((v, h) => `<span class="${v ? 'on' : ''}">${pad(h)}</span>`).join('')}</div><p class="adm-hax-n">כל עמודה היא שעה אחת (למשל 10 = בין 10:00 ל-10:59)</p>`;
 }
 function admPeak(c) { let b = 0; c.forEach((v, h) => { if (v > c[b]) b = h; }); return c[b] ? `הכי הרבה נכנסים בין ${pad(b)}:00 ל-${pad((b + 1) % 24)}:00` : ''; }
 let admHrsList = [], admHrsRng = 1;
