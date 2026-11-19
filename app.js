@@ -380,6 +380,7 @@ function nbCard(n, i) {
   const cover = document.createElement('div'); cover.className = 'nb-cover';
   const letter = document.createElement('span'); letter.className = 'nb-letter'; letter.textContent = (n.title || '?').trim()[0] || '?';
   cover.appendChild(letter);
+  if (n.layout === 'slides') { const k = document.createElement('span'); k.className = 'nb-kind'; k.innerHTML = '<svg aria-hidden="true"><use href="#i-play"/></svg>מצגת'; cover.appendChild(k); if (n.stheme) { cover.dataset.stheme = n.stheme; cover.classList.add('st-cover'); } }
   const body = document.createElement('div'); body.className = 'nb-body';
   const l = document.createElement('div'); l.className = 'label'; l.textContent = n.title || 'מחברת ללא שם';
   const pv = document.createElement('div'); pv.className = 'nb-pv'; pv.textContent = preview(n.html) || 'מחברת ריקה';
@@ -511,6 +512,7 @@ function newNotebook() {
         inp.oninput = () => { st.title = inp.value; };
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
         b.append(inp, nbSettingsUI(st, () => {}, ['subject', 'color']));
+        const pl = document.createElement('button'); pl.type = 'button'; pl.className = 'link wz-pres'; pl.innerHTML = '<svg aria-hidden="true"><use href="#i-play"/></svg>רוצה מצגת במקום מחברת?'; pl.onclick = () => { closeDialog(); setTimeout(() => newPresentation(st.title), 60); }; b.appendChild(pl);
         setTimeout(() => inp.focus(), 30);
       }],
       ['איך המחברת תיראה?', 'אפשר להחליף אחר כך מראש המחברת.', b => b.append(nbSettingsUI(st, () => paint(), ['layout']))],
@@ -1785,6 +1787,7 @@ function fromSlides(root = $('editor')) {
 }
 // כל התוכן חייב להיות בתוך שקופית (אחרי מחיקה של הכול, הדבקה, וכו')
 function slideFix() {
+  slNavSoon();
   const ed = $('editor'); if (curLayout() !== 'slides') return;
   const pos = document.activeElement === ed ? caretMark() : null;
   let changed = false;
@@ -1899,6 +1902,118 @@ $('pageAdd').onclick = () => addPageBreak(true);
 $('slideAdd').addEventListener('mousedown', e => e.preventDefault());
 $('slideAdd').onclick = () => addSlide(null);
 
+/* ===== מצגות (כמו Canva / PowerPoint): מצגת חדשה, עיצובים, פס שקופיות, ומצב הצגה במסך מלא ===== */
+// מצגת = מחברת עם layout 'slides'. העיצוב נשמר בשדה stheme. שיתוף לעריכה ביחד – דרך כפתור השיתוף הרגיל
+function newPresentation(title0) {
+  const st = { title: title0 || '', layout: 'slides', stheme: 'ocean', color: '#2f5bd3', together: false };
+  dialog(d => {
+    d.classList.add('nb-wiz', 'pres-new');
+    d.innerHTML = '<h3>מצגת חדשה</h3><p>בוחרים שם ועיצוב. אחר כך מוסיפים שקופיות, ובסוף לוחצים "הצגה".</p>';
+    const inp = document.createElement('input'); inp.placeholder = 'למשל: מצגת על מחזור המים'; inp.value = st.title; inp.setAttribute('aria-label', 'שם המצגת');
+    inp.oninput = () => { st.title = inp.value; };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); create(); } });
+    const body = document.createElement('div'); body.className = 'wz-body';
+    body.appendChild(nbSettingsUI(st, () => {}, ['stheme']));
+    const tg = document.createElement('label'); tg.className = 'pres-tog';
+    tg.innerHTML = '<input type="checkbox"><span><b>לעבוד עליה עם חברים</b><small>אחרי היצירה ייפתח חלון השיתוף, וכל מי שיש לו את הקישור יוכל לערוך איתך ביחד</small></span>';
+    tg.querySelector('input').onchange = e => { st.together = e.target.checked; };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יצירת המצגת';
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok, no); d.append(inp, body, tg, row);
+    setTimeout(() => inp.focus(), 30);
+    const create = async () => {
+      ok.disabled = true;
+      try {
+        const ref = doc(nbCol()), t = Date.now(), name = st.title.trim() || 'מצגת חדשה';
+        const e = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        const html = clean(`<div data-slide=""><h1 data-a="center">${e(name)}</h1><p data-a="center">השם שלך · ${new Date().toLocaleDateString('he-IL')}</p></div>`
+          + '<div data-slide=""><h2>הנושא הראשון</h2><ul><li>נקודה ראשונה</li><li>נקודה שנייה</li><li>נקודה שלישית</li></ul></div>'
+          + '<div data-slide=""><h2>סיכום</h2><p>מה חשוב לזכור מהמצגת?</p></div>');
+        await setDoc(ref, { title: name, color: st.color, html, layout: 'slides', ...(st.stheme ? { stheme: st.stheme } : {}), kind: 'pres', createdAt: t, updatedAt: t });
+        closeDialog(); track('pres_new', { theme: st.stheme || 'plain', together: st.together ? 1 : 0 });
+        const wait = (k = 0) => { if (!notebooks.find(x => x.id === ref.id)) return k < 50 && setTimeout(() => wait(k + 1), 100); openNotebook(ref.id);
+          setTimeout(() => { if (st.together) $('shareBtn').click(); else toastAction('המצגת מוכנה! כותבים בשקופיות, ובסוף לוחצים "הצגה"', 'הצגה עכשיו', () => presentSlides($('editor')), 9000); }, 700); };
+        wait();
+      } catch (err) { console.error(err); ok.disabled = false; toast('לא הצלחתי ליצור את המצגת'); }
+    };
+    ok.onclick = create;
+  });
+}
+if ($('homePres')) $('homePres').onclick = () => newPresentation();
+
+// ---- פס השקופיות מעל העורך: מספרים לקפיצה, שקופית חדשה, הצגה
+let slNavT = 0;
+function slNavSoon() { clearTimeout(slNavT); slNavT = setTimeout(slNavPaint, 120); }
+function slNavPaint() {
+  const nav = $('slNav'), ed = $('editor'); if (!nav || !ed) return;
+  const on = ed.dataset.layout === 'slides'; nav.classList.toggle('hidden', !on); if (!on) { nav.innerHTML = ''; return; }
+  const n = ed.querySelectorAll(':scope > [data-slide]').length;
+  nav.innerHTML = `<div class="sl-chips">${Array.from({ length: n }, (_, i) => `<button type="button" class="sl-chip" data-i="${i}" title="שקופית ${i + 1}">${i + 1}</button>`).join('')}<button type="button" class="sl-chip sl-plus" data-add title="שקופית חדשה"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+    <button type="button" class="btn btn-primary sl-play" data-play><svg aria-hidden="true"><use href="#i-play"/></svg><span>הצגה</span></button>`;
+}
+$('slNav')?.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+$('slNav')?.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.hasAttribute('data-play')) return presentSlides($('editor'));
+  if (b.hasAttribute('data-add')) return addSlide(null);
+  const sl = $('editor').querySelectorAll(':scope > [data-slide]')[+b.dataset.i];
+  if (sl) { sl.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('slNav').querySelectorAll('.sl-chip').forEach(x => x.classList.toggle('on', x === b)); }
+});
+// בצפייה במחברת ששיתפו איתי: כפתור הצגה כשזו מצגת
+function shPresentPaint() { const b = $('shPresent'); if (b) b.classList.toggle('hidden', !($('shBody') && $('shBody').dataset.layout === 'slides' && $('shBody').querySelector(':scope > [data-slide]'))); }
+if ($('shPresent')) $('shPresent').onclick = () => presentSlides($('shBody'));
+
+// ---- מצב הצגה: שקופית אחת על כל המסך. חצים / רווח / לחיצה / החלקה, Esc יוצא
+function presentSlides(root) {
+  if (!root) return;
+  const slides = [...root.querySelectorAll(':scope > [data-slide]')]; if (!slides.length) { toast('אין עדיין שקופיות'); return; }
+  // מתחילים מהשקופית שרואים עכשיו על המסך
+  let cur = 0, best = 1e9; slides.forEach((s, i) => { const r = s.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - innerHeight / 2); if (d < best) { best = d; cur = i; } });
+  const cs = getComputedStyle(root);
+  const ov = document.createElement('div'); ov.className = 'pres'; ov.tabIndex = -1;
+  if (root.dataset.stheme) ov.dataset.stheme = root.dataset.stheme; if (root.dataset.bg) ov.dataset.bg = root.dataset.bg;
+  ov.innerHTML = `<div class="pres-stage"><div class="pres-slide"></div></div>
+    <div class="pres-bar"><button type="button" class="pres-b" data-prev aria-label="השקופית הקודמת"><svg aria-hidden="true"><use href="#i-back"/></svg></button><span class="pres-n"></span><button type="button" class="pres-b pres-next" data-next aria-label="השקופית הבאה"><svg aria-hidden="true"><use href="#i-back"/></svg></button><button type="button" class="pres-b" data-x aria-label="יציאה מההצגה">✕</button></div>
+    <div class="pres-prog"><i></i></div>`;
+  const box = ov.querySelector('.pres-slide'); box.style.fontFamily = cs.fontFamily; box.style.fontSize = cs.fontSize;
+  const fit = () => { const s = Math.min(innerWidth / 960, innerHeight / 540) * .96; box.style.transform = `translate(-50%,-50%) scale(${s})`; };
+  const show = (i, dir = 0) => {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    const c = slides[cur].cloneNode(true);
+    // ציורים (canvas) לא עוברים בהעתקה – מעתיקים את התמונה
+    const src = slides[cur].querySelectorAll('canvas'), dst = c.querySelectorAll('canvas');
+    dst.forEach((cv, k) => { try { cv.width = src[k].width; cv.height = src[k].height; cv.getContext('2d').drawImage(src[k], 0, 0); } catch {} });
+    c.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
+    box.replaceChildren(...c.childNodes); box.classList.toggle('title', !!box.firstElementChild && box.firstElementChild.tagName === 'H1' && box.children.length < 4); box.classList.remove('in-n', 'in-p'); void box.offsetWidth; if (dir) box.classList.add(dir > 0 ? 'in-n' : 'in-p');
+    ov.querySelector('.pres-n').textContent = `${cur + 1} / ${slides.length}`;
+    ov.querySelector('.pres-prog i').style.width = `${(cur + 1) / slides.length * 100}%`;
+    ov.querySelector('[data-prev]').disabled = cur === 0; ov.querySelector('[data-next]').disabled = cur === slides.length - 1;
+  };
+  const next = () => cur < slides.length - 1 && show(cur + 1, 1), prev = () => cur > 0 && show(cur - 1, -1);
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; removeEventListener('keydown', key, true); removeEventListener('resize', fit); document.removeEventListener('fullscreenchange', fsOut);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); ov.remove(); slides[cur].scrollIntoView({ block: 'center' }); };
+  const key = e => {
+    if (['ArrowLeft', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); next(); }
+    else if (['ArrowRight', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); } else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+  };
+  const fsOut = () => { if (!document.fullscreenElement) close(); };
+  ov.querySelector('[data-prev]').onclick = e => { e.stopPropagation(); prev(); };
+  ov.querySelector('[data-next]').onclick = e => { e.stopPropagation(); next(); };
+  ov.querySelector('[data-x]').onclick = e => { e.stopPropagation(); close(); };
+  // לחיצה על המסך: צד שמאל = הבאה, צד ימין = הקודמת (כמו בעברית)
+  ov.querySelector('.pres-stage').onclick = e => { if (e.target.closest('a')) return; (e.clientX < innerWidth / 2 ? next : prev)(); };
+  let tx = null; ov.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  ov.addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 45) (dx > 0 ? next : prev)(); }, { passive: true });
+  document.body.appendChild(ov); fit(); show(cur); ov.focus();
+  addEventListener('keydown', key, true); addEventListener('resize', fit);
+  if (ov.requestFullscreen) ov.requestFullscreen().then(() => document.addEventListener('fullscreenchange', fsOut)).catch(() => {});
+  track('pres_show', { n: slides.length });
+}
+
 /* ---- דפים: הטקסט עובר לדף הבא כשנגמר המקום ---- */
 // שורה שלא נכנסת בסוף הדף מקבלת רווח למעלה עד הדף הבא. זה רק בתצוגה: clean() מוחק את זה בשמירה
 const pgSheets = document.createElement('div'); pgSheets.className = 'pg-sheets'; pgSheets.setAttribute('aria-hidden', 'true'); pageEl.prepend(pgSheets);
@@ -1964,14 +2079,15 @@ function setLayout(lay, convert) {
   const ed = $('editor'); lay = layoutOf({ layout: lay }); const prev = curLayout();
   if (lay) { ed.dataset.layout = lay; pageEl.dataset.layout = lay; } else { delete ed.dataset.layout; delete pageEl.dataset.layout; }
   if (convert && prev !== lay) { if (lay === 'slides') toSlides(); else if (prev === 'slides') fromSlides(); }
-  $('slideAdd').classList.toggle('hidden', lay !== 'slides'); $('pageAdd').classList.toggle('hidden', lay !== 'pages');
+  $('slideAdd').classList.toggle('hidden', lay !== 'slides'); slNavSoon(); $('pageAdd').classList.toggle('hidden', lay !== 'pages');
   if (lay === 'slides') slideFix();
   pgClear(); if (lay === 'pages') pgSchedule();
   checkEmpty();
 }
 /* ---- הגדרות המחברת: רקע, כיוון, שוליים, גופן, גודל (נשמרות על המחברת) ---- */
-const NB_KEYS = ['layout', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
+const NB_KEYS = ['layout', 'stheme', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
 const NB_OPTS = {
+  stheme: ['עיצוב המצגת', [['', 'לבן'], ['ocean', 'ים'], ['sunset', 'שקיעה'], ['mint', 'מנטה'], ['grape', 'ענבים'], ['night', 'לילה'], ['paper', 'נייר'], ['candy', 'ממתק']]],
   bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות'], ['stars', 'כוכבים'], ['gold', 'נקודות זהב'], ['color', 'משבצות צבעוניות']]],
   orient: ['כיוון הדף', [['', 'לאורך'], ['land', 'לרוחב']]],
   margin: ['שוליים', [['narrow', 'צרים'], ['', 'רגילים'], ['wide', 'רחבים']]],
@@ -1989,9 +2105,10 @@ function curLook() { const ed = $('editor'), o = {}; NB_KEYS.forEach(k => { o[k]
 function applyLook(look, convert) {
   const ed = $('editor'); look = lookOf(look);
   setLayout(look.layout, convert);
-  ['bg', 'orient', 'margin', 'rows', 'font', 'fs'].forEach(k => {
+  ['stheme', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'].forEach(k => {
     if (look[k]) { ed.dataset[k] = look[k]; pageEl.dataset[k] = look[k]; } else { delete ed.dataset[k]; delete pageEl.dataset[k]; }
   });
+  slNavPaint();
   pgSchedule();
 }
 // הכרטיסים של ההגדרות (בחלון של מחברת חדשה, ובהגדרות של מחברת קיימת). st משתנה במקום
@@ -2001,6 +2118,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
     w.innerHTML = '';
     keys.forEach(k => {
       if ((k === 'orient' || k === 'margin' || k === 'rows') && st.layout !== 'pages') return;
+      if (k === 'stheme' && st.layout !== 'slides') return;
       const sec = document.createElement('div'); sec.className = 'set-sec';
       const lab = document.createElement('div'); lab.className = 'set-lab'; sec.appendChild(lab);
       const pick = (v, el, grid) => { st[k] = v; [...grid.children].forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-checked', String(x === el)); }); onChange(k, v); if (k === 'layout' || preview) render(); };
@@ -2034,7 +2152,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
           const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio');
           const on = v === (st[k] || ''); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on));
           const vis = k === 'rows' ? `<i class="ov-rows" data-r="${v}"></i>` : k === 'bg' ? `<i class="ov-bg" data-bg="${v}"></i>` : k === 'orient' ? `<i class="ov-or${v ? ' land' : ''}"></i>` : k === 'margin' ? `<i class="ov-mg" data-m="${v}"><i></i></i>`
-            : k === 'font' ? `<i class="ov-font" data-font="${v}">אבג</i>` : k === 'fs' ? `<i class="ov-fs" data-fs="${v}">א</i>` : '';
+            : k === 'stheme' ? `<i class="ov-st" data-stheme="${v}"><b>כותרת</b><i></i><i></i></i>` : k === 'font' ? `<i class="ov-font" data-font="${v}">אבג</i>` : k === 'fs' ? `<i class="ov-fs" data-fs="${v}">א</i>` : '';
           const lk = refOptLock(k, v);
           b.innerHTML = `${vis}<b>${name}</b>${sub ? `<small>${sub}</small>` : ''}${lk ? `<span class="opt-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg>${lk} חברים</span>` : ''}`;
           if (lk) b.classList.add('locked');
@@ -2069,7 +2187,7 @@ function nbSettingsDialog() {
         await updateDoc(nbDoc(n.id), { [k]: v });
         if (n.shareId && k !== 'subject') updateDoc(shareDoc(n.shareId), { [k]: v }).catch(() => {});
       } catch { toast('לא הצלחתי לשמור את ההגדרה'); }
-    }, ['layout', 'bg', 'orient', 'rows', 'margin', 'font', 'fs', 'color', 'subject'], true));
+    }, ['layout', 'stheme', 'bg', 'orient', 'rows', 'margin', 'font', 'fs', 'color', 'subject'], true));
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
     const all = document.createElement('button'); all.className = 'btn btn-ghost wz-all'; all.textContent = 'ככה לכל המחברות';
     all.title = 'אותה צורה, רקע, גופן וגודל לכל המחברות שלך, וגם למחברות חדשות';
@@ -4055,7 +4173,7 @@ function shareRender(id, snap) {
     if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]); $('shColor').style.background = nbPaint(s.color || COLORS[0]);
-    const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); }
+    const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'stheme', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); } shPresentPaint();
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     const editMode = s.mode === 'edit';
@@ -4101,7 +4219,7 @@ function openDemo() {
   tools.innerHTML = '<span>לנסות:</span><button type="button" class="btn" data-demo="sum"><svg aria-hidden="true"><use href="#i-spark"/></svg>סיכום למבחן</button><button type="button" class="btn" data-demo="fc"><svg aria-hidden="true"><use href="#i-cards"/></svg>כרטיסיות שינון</button><button type="button" class="btn" data-demo="vid"><svg aria-hidden="true"><use href="#i-play"/></svg>סרטון של 30 שניות</button>';
   tools.onclick = e => { const x = e.target.closest('[data-demo]'); if (!x) return; if (x.dataset.demo === 'vid') demoIntro(() => {}, true); else demoTool(x.dataset.demo); };
   hint.appendChild(tools);
-  const b = $('shBody'); b.innerHTML = clean(DEMO_NOTEBOOK.html); ['layout', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); renderCanvases(b);
+  const b = $('shBody'); b.innerHTML = clean(DEMO_NOTEBOOK.html); ['layout', 'stheme', 'bg', 'font', 'fs'].forEach(k => delete b.dataset[k]); shPresentPaint(); renderCanvases(b);
   b.contentEditable = 'true'; b.spellcheck = false;
   $('shCta').classList.toggle('hidden', !!me);
   const cp = $('shCopy'); cp.classList.remove('hidden'); cp.textContent = me ? 'למחברות שלי' : 'להרשמה בחינם';

@@ -3024,3 +3024,78 @@ body.editing-shared .nb-mem{display:none}
 @keyframes spShine{0%,55%{background-position:120% 0}100%{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){.nb.sp .nb-cover::after{animation:none;opacity:.5}}
 .sp-picker button{width:34px;height:34px}
+
+/* ===== מצגות ===== */
+.t-pres{--c:#E0488F}
+.hero-actions.tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media (max-width:1100px) and (min-width:701px){.hero-actions.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.hero-actions.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tiles .t-cal{grid-column:1/-1}}
+.wz-pres{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-weight:700}
+.wz-pres svg{width:15px;height:15px;fill:currentColor}
+.pres-new input{width:100%;margin:6px 0 4px}
+.pres-tog{display:flex;align-items:flex-start;gap:10px;margin:12px 0 6px;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer}
+.pres-tog input{margin-top:3px;width:18px;height:18px;accent-color:var(--accent)}
+.pres-tog span{display:flex;flex-direction:column;gap:2px}
+.pres-tog small{color:var(--muted);font-size:12.5px}
+/* דוגמית של עיצוב בבחירה */
+.ov-st{position:relative;display:block;width:58px;height:34px;border-radius:6px;border:1px solid var(--line);background:#fff;padding:5px 6px;overflow:hidden;font-style:normal}
+.ov-st b{display:block;font-size:9px;line-height:1.1;color:#1D1D1F}
+.ov-st i{display:block;height:3px;border-radius:2px;margin-top:4px;width:70%;background:currentColor;opacity:.35;color:#1D1D1F}
+.ov-st i+i{width:50%}
+/* העיצובים – על השקופיות בעורך, בצפייה ובמצב הצגה */
+[data-stheme]{--st-bg:#fff;--st-ink:#1D1D1F;--st-head:#1D1D1F}
+[data-stheme="ocean"]{--st-bg:linear-gradient(135deg,#0B3D91 0%,#1565C0 45%,#26C6DA 100%);--st-ink:#EAF6FF;--st-head:#fff}
+[data-stheme="sunset"]{--st-bg:linear-gradient(140deg,#FFB547 0%,#FF6F59 45%,#B5179E 100%);--st-ink:#FFF5EC;--st-head:#fff}
+[data-stheme="mint"]{--st-bg:linear-gradient(140deg,#E6FFF7 0%,#B8F2E0 60%,#7FDCC4 100%);--st-ink:#0B3B33;--st-head:#06776A}
+[data-stheme="grape"]{--st-bg:linear-gradient(140deg,#4A1C8C 0%,#7B3FE4 55%,#C77DFF 100%);--st-ink:#F4ECFF;--st-head:#fff}
+[data-stheme="night"]{--st-bg:radial-gradient(circle at 15% 25%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 70% 15%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 85% 70%,rgba(255,255,255,.8) 0 1px,transparent 1.6px),radial-gradient(circle at 35% 80%,rgba(255,255,255,.7) 0 1px,transparent 1.6px),linear-gradient(160deg,#1E2150 0%,#0D0E1A 80%);--st-ink:#DCE2FF;--st-head:#FFD84D}
+[data-stheme="paper"]{--st-bg:linear-gradient(#FBF6EA,#F3EAD3);--st-ink:#3B2F1E;--st-head:#8A4B22}
+[data-stheme="candy"]{--st-bg:linear-gradient(135deg,#FFE3F1 0%,#FFD1E8 40%,#D7E8FF 100%);--st-ink:#4A1D3A;--st-head:#D1478F}
+.ov-st[data-stheme]{background:var(--st-bg)}
+.ov-st[data-stheme] b{color:var(--st-head)}
+.ov-st[data-stheme] i{color:var(--st-ink)}
+:is(#editor,#shBody)[data-layout="slides"][data-stheme]>[data-slide],.pres[data-stheme] .pres-slide{background:var(--st-bg);color:var(--st-ink);border-color:transparent}
+:is(#editor,#shBody)[data-layout="slides"][data-stheme]>[data-slide] :is(h1,h2,h3),.pres[data-stheme] .pres-slide :is(h1,h2,h3){color:var(--st-head)}
+:is(#editor,#shBody)[data-layout="slides"][data-stheme]>[data-slide]::after{color:var(--st-ink);opacity:.6}
+:is(#editor,#shBody)[data-layout="slides"][data-stheme]>[data-slide] a{color:inherit;text-decoration:underline}
+/* פס השקופיות */
+.sl-nav{position:sticky;top:8px;z-index:6;display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:6px;border-radius:14px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line);box-shadow:var(--shadow)}
+.sl-chips{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.sl-chips::-webkit-scrollbar{display:none}
+.sl-chip{flex:none;min-width:34px;height:34px;padding:0 8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-weight:700;font-size:13.5px;display:grid;place-items:center}
+.sl-chip:hover,.sl-chip.on{border-color:var(--accent);color:var(--accent)}
+.sl-plus svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2}
+.sl-play{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px}
+.sl-play svg,#shPresent svg{width:15px;height:15px;fill:currentColor}
+/* מצב הצגה */
+.pres{position:fixed;inset:0;z-index:400;background:#08080C;color:#fff;outline:none;user-select:none;-webkit-user-select:none}
+.pres-stage{position:absolute;inset:0;cursor:pointer}
+.pres-slide{position:absolute;left:50%;top:50%;width:960px;height:540px;box-sizing:border-box;padding:48px 64px;overflow:hidden;background:#fff;color:#1D1D1F;border-radius:6px;overflow-wrap:anywhere;transform-origin:center;font-size:18px}
+.pres-slide>:first-child{margin-top:0}
+.pres-slide h1{font-size:44px}
+.pres-slide h2{font-size:32px}
+.pres-slide img{max-width:100%;height:auto}
+.pres-slide [data-a="center"]{text-align:center}
+.pres-slide [data-a="left"]{text-align:left}
+.pres-slide.in-n{animation:presInN .35s cubic-bezier(.2,.8,.2,1)}
+.pres-slide.in-p{animation:presInP .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes presInN{from{opacity:0;margin-left:-40px}to{opacity:1;margin-left:0}}
+@keyframes presInP{from{opacity:0;margin-left:40px}to{opacity:1;margin-left:0}}
+@media (prefers-reduced-motion:reduce){.pres-slide.in-n,.pres-slide.in-p{animation:none}}
+.pres-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:rgba(20,20,28,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:.25;transition:opacity .2s}
+.pres:hover .pres-bar,.pres-bar:focus-within{opacity:1}
+@media (hover:none){.pres-bar{opacity:.85}}
+.pres-b{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.12);font-size:16px}
+.pres-b:disabled{opacity:.3}
+.pres-b svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4}
+.pres-next svg{transform:scaleX(-1)}
+.pres-n{min-width:62px;text-align:center;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;direction:ltr}
+.pres-prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12)}
+.pres-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5E5CE6,#E0488F);transition:width .3s;margin-inline-start:auto}
+
+/* שקופית פתיחה (כותרת ראשית): באמצע */
+:is(#editor,#shBody)[data-layout="slides"]>[data-slide]:has(>h1:first-child):not(:has(>:nth-child(4))),.pres-slide.title{display:flex;flex-direction:column;justify-content:center}
+
+.nb-kind{position:absolute;top:8px;right:10px;z-index:2;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.92);color:#1D1D1F}
+.nb-kind svg{width:11px;height:11px;fill:currentColor}
+.nb:not(.sp) .nb-cover.st-cover{background:var(--st-bg)}
