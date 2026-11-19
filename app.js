@@ -46,6 +46,7 @@ const $ = id => document.getElementById(id);
   if (document.body) start(); else addEventListener('DOMContentLoaded', start);
 })();
 const ic = n => `<svg aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const SBG_OK = ['white', 'ocean', 'sunset', 'mint', 'grape', 'night', 'paper', 'candy'];   // רקע לשקופית אחת במצגת
 const COLORS = ['#2f5bd3','#d24b4b','#2e9e6a','#e08a1e','#7a4fd1','#d1478f','#f472b6','#1f8fa3','#4b5563'];
 // צבעים מיוחדים: פרס על החבר הראשון שמצטרף דרך הקישור האישי
 const SPECIAL_COLORS = [['#C9971C', 'זהב'], ['#FF2E93', 'ניאון ורוד'], ['#3B1E8C', 'גלקסיה'], ['#0FB5A0', 'מנטה'], ['#F2552C', 'שקיעה'], ['#14151F', 'לילה']];
@@ -313,6 +314,7 @@ function clean(html) {
       const isTl = ch.tagName === 'OL' && ch.classList.contains('tl');
       const al = ch.getAttribute('data-a'), dr = ch.getAttribute('dir');
       const sl = ch.tagName === 'DIV' && ch.hasAttribute('data-slide'), pb = ch.tagName === 'HR' && ch.hasAttribute('data-pb');
+      const sbg = sl ? ch.getAttribute('data-sbg') : null, snotes = sl ? ch.getAttribute('data-notes') : null;
       const fr = ch.tagName === 'SPAN' ? (ch.hasAttribute('data-frac') ? 'data-frac' : ch.hasAttribute('data-n') ? 'data-n' : ch.hasAttribute('data-d') ? 'data-d' : '') : '';
       const dc = ch.getAttribute('data-c'), ds = ch.getAttribute('data-s'), chk = ch.hasAttribute('data-check'), dn = ch.hasAttribute('data-done'), href = ch.getAttribute('href') || '';
       [...ch.attributes].forEach(a => ch.removeAttribute(a.name));
@@ -320,7 +322,7 @@ function clean(html) {
         if (!/^(https?:\/\/|mailto:)[^\s"<>]{1,1500}$/i.test(href)) { walk(ch); ch.replaceWith(...ch.childNodes); return; }
         ch.setAttribute('href', href); ch.setAttribute('target', '_blank'); ch.setAttribute('rel', 'noopener noreferrer');
       }
-      if (sl) ch.setAttribute('data-slide', '');
+      if (sl) { ch.setAttribute('data-slide', ''); if (SBG_OK.includes(sbg)) ch.setAttribute('data-sbg', sbg); if (snotes && snotes.trim()) ch.setAttribute('data-notes', snotes.replace(/[ --]/g, '').slice(0, 2000)); }
       if (pb) ch.setAttribute('data-pb', '');                                                  // מעבר לדף הבא (במחברת של דפים)                                               // שקופית (מחברת של שקופיות)
       if (fr) ch.setAttribute(fr, '');                                                          // שבר (מתמטיקה)
       if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
@@ -1902,8 +1904,29 @@ $('pageAdd').onclick = () => addPageBreak(true);
 $('slideAdd').addEventListener('mousedown', e => e.preventDefault());
 $('slideAdd').onclick = () => addSlide(null);
 
-/* ===== מצגות (כמו Canva / PowerPoint): מצגת חדשה, עיצובים, פס שקופיות, ומצב הצגה במסך מלא ===== */
-// מצגת = מחברת עם layout 'slides'. העיצוב נשמר בשדה stheme. שיתוף לעריכה ביחד – דרך כפתור השיתוף הרגיל
+/* ===== מצגות (כמו Canva / PowerPoint): מצגת חדשה, עיצובים, פריסות, סרגל לשקופית, מעברים, ומצב הצגה ===== */
+// מצגת = מחברת עם layout 'slides'. העיצוב בשדה stheme, המעבר בשדה strans. לכל שקופית: data-sbg (רקע משלה) ו-data-notes (הערות לדובר)
+const SLIDE_LAYOUTS = [
+  ['title', 'פתיחה', '<h1 data-a="center">כותרת המצגת</h1><p data-a="center">כותרת משנה</p>'],
+  ['content', 'כותרת ותוכן', '<h2>כותרת</h2><ul><li>נקודה ראשונה</li><li>נקודה שנייה</li><li>נקודה שלישית</li></ul>'],
+  ['two', 'שתי עמודות', '<h2>השוואה</h2><table><tbody><tr><td><p><b>צד אחד</b></p><p>טקסט</p></td><td><p><b>צד שני</b></p><p>טקסט</p></td></tr></tbody></table>'],
+  ['media', 'תמונה וטקסט', '<h2>כותרת</h2><table><tbody><tr><td><p>מוסיפים כאן תמונה מכפתור התמונה בסרגל</p></td><td><p>הסבר על התמונה</p></td></tr></tbody></table>'],
+  ['section', 'כותרת חלק', '<h1 data-a="center">חלק 2</h1>'],
+  ['quote', 'ציטוט', '<blockquote>"משפט חשוב שרוצים שיזכרו"</blockquote><p data-a="center">– מי אמר</p>'],
+  ['list', 'רשימת משימות', '<h2>מה עושים</h2><ul data-check=""><li>משימה ראשונה</li><li>משימה שנייה</li></ul>'],
+  ['blank', 'ריקה', '<p><br></p>'],
+];
+const LAY_ICON = {
+  title: '<rect x="10" y="9" width="28" height="5" rx="2"/><rect x="15" y="18" width="18" height="3" rx="1.5"/>',
+  content: '<rect x="6" y="5" width="20" height="4" rx="2"/><path d="M8 14h28M8 19h24M8 24h20"/>',
+  two: '<rect x="6" y="5" width="16" height="4" rx="2"/><rect x="6" y="12" width="17" height="14" rx="2"/><rect x="25" y="12" width="17" height="14" rx="2"/>',
+  media: '<rect x="6" y="5" width="16" height="4" rx="2"/><rect x="6" y="12" width="17" height="14" rx="2"/><path d="M27 15h13M27 20h10"/>',
+  section: '<rect x="12" y="13" width="24" height="5" rx="2"/>',
+  quote: '<path d="M10 10c-2 2-2 6 1 7M17 10c-2 2-2 6 1 7"/><path d="M22 13h18M22 18h14"/>',
+  list: '<rect x="7" y="11" width="4" height="4" rx="1"/><rect x="7" y="18" width="4" height="4" rx="1"/><path d="M14 13h20M14 20h16"/>',
+  blank: '',
+};
+const SBG_NAMES = [['', 'כמו המצגת'], ['white', 'לבן'], ['ocean', 'ים'], ['sunset', 'שקיעה'], ['mint', 'מנטה'], ['grape', 'ענבים'], ['night', 'לילה'], ['paper', 'נייר'], ['candy', 'ממתק']];
 function newPresentation(title0) {
   const st = { title: title0 || '', layout: 'slides', stheme: 'ocean', color: '#2f5bd3', together: false };
   dialog(d => {
@@ -1928,7 +1951,7 @@ function newPresentation(title0) {
         const ref = doc(nbCol()), t = Date.now(), name = st.title.trim() || 'מצגת חדשה';
         const e = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
         const html = clean(`<div data-slide=""><h1 data-a="center">${e(name)}</h1><p data-a="center">השם שלך · ${new Date().toLocaleDateString('he-IL')}</p></div>`
-          + '<div data-slide=""><h2>הנושא הראשון</h2><ul><li>נקודה ראשונה</li><li>נקודה שנייה</li><li>נקודה שלישית</li></ul></div>'
+          + `<div data-slide="">${SLIDE_LAYOUTS[1][2].replace('כותרת', 'הנושא הראשון')}</div>`
           + '<div data-slide=""><h2>סיכום</h2><p>מה חשוב לזכור מהמצגת?</p></div>');
         await setDoc(ref, { title: name, color: st.color, html, layout: 'slides', ...(st.stheme ? { stheme: st.stheme } : {}), kind: 'pres', createdAt: t, updatedAt: t });
         closeDialog(); track('pres_new', { theme: st.stheme || 'plain', together: st.together ? 1 : 0 });
@@ -1940,75 +1963,201 @@ function newPresentation(title0) {
     ok.onclick = create;
   });
 }
-if ($('homePres')) $('homePres').onclick = () => newPresentation();
+['homePres', 'newPresBtn', 'sidePres'].forEach(id => { if ($(id)) $(id).onclick = () => newPresentation(); });
 
-// ---- פס השקופיות מעל העורך: מספרים לקפיצה, שקופית חדשה, הצגה
+// ---- השקופית הנוכחית (איפה שהסמן, או מה שלחצו עליו בפס)
+let curSlide = null;
+const edSlides = () => [...$('editor').querySelectorAll(':scope > [data-slide]')];
+function pickCurSlide() { const s = window.getSelection(); const n = s && s.anchorNode; const el = n && (n.nodeType === 1 ? n : n.parentElement); const sl = el && el.closest && el.closest('#editor > [data-slide]'); if (sl && sl !== curSlide) { curSlide = sl; slNavMark(); } }
+document.addEventListener('selectionchange', () => { if ($('editor').dataset.layout === 'slides') pickCurSlide(); });
+
+// ---- שקופית חדשה לפי פריסה
+function addSlideLayout(lay, after) {
+  const ed = $('editor'), s = mkSlide(false); const L = SLIDE_LAYOUTS.find(x => x[0] === lay) || SLIDE_LAYOUTS[7];
+  s.innerHTML = clean(L[2]);
+  if (after && after.parentElement === ed) after.after(s); else ed.appendChild(s);
+  ed.focus({ preventScroll: true }); placeCaret(s.firstChild); curSlide = s;
+  s.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  markDirty(); slNavSoon();
+}
+function layoutMenu(anchor, after) {
+  document.querySelector('.lay-pop')?.remove();
+  const pop = document.createElement('div'); pop.className = 'lay-pop'; pop.setAttribute('role', 'menu');
+  pop.innerHTML = `<b class="lay-h">איזו שקופית להוסיף?</b><div class="lay-grid">${SLIDE_LAYOUTS.map(([k, n]) => `<button type="button" role="menuitem" data-lay="${k}"><svg viewBox="0 0 48 30" aria-hidden="true"><rect x="1" y="1" width="46" height="28" rx="3" class="lay-fr"/>${LAY_ICON[k]}</svg><span>${n}</span></button>`).join('')}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
+  pop.style.width = w + 'px'; pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  const top = r.bottom + 8; pop.style.top = (top + 320 > innerHeight && r.top > 330 ? r.top - 8 - pop.offsetHeight : top) + 'px';
+  pop.addEventListener('mousedown', e => e.preventDefault());
+  pop.onclick = e => { const b = e.target.closest('[data-lay]'); if (!b) return; pop.remove(); addSlideLayout(b.dataset.lay, after); };
+  setTimeout(() => { const off = e => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('pointerdown', off, true); } }; document.addEventListener('pointerdown', off, true); }, 0);
+}
+$('slideAdd').onclick = e => layoutMenu(e.currentTarget, edSlides().slice(-1)[0]);
+
+// ---- פס השקופיות: מספרים עם הכותרת, +, הצגה – ומתחתיו סרגל לשקופית הנוכחית
 let slNavT = 0;
 function slNavSoon() { clearTimeout(slNavT); slNavT = setTimeout(slNavPaint, 120); }
+const slTitle = s => { const h = s.querySelector('h1,h2,h3,p,li,blockquote'); return (h ? h.textContent : '').replace(/\s+/g, ' ').trim().slice(0, 18); };
 function slNavPaint() {
   const nav = $('slNav'), ed = $('editor'); if (!nav || !ed) return;
   const on = ed.dataset.layout === 'slides'; nav.classList.toggle('hidden', !on); if (!on) { nav.innerHTML = ''; return; }
-  const n = ed.querySelectorAll(':scope > [data-slide]').length;
-  nav.innerHTML = `<div class="sl-chips">${Array.from({ length: n }, (_, i) => `<button type="button" class="sl-chip" data-i="${i}" title="שקופית ${i + 1}">${i + 1}</button>`).join('')}<button type="button" class="sl-chip sl-plus" data-add title="שקופית חדשה"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></div>
-    <button type="button" class="btn btn-primary sl-play" data-play><svg aria-hidden="true"><use href="#i-play"/></svg><span>הצגה</span></button>`;
+  const all = edSlides(); if (curSlide && !all.includes(curSlide)) curSlide = null;
+  const esc2 = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  nav.innerHTML = `<div class="sl-top"><div class="sl-chips">${all.map((s, i) => `<button type="button" class="sl-chip" data-i="${i}" title="שקופית ${i + 1}"><b>${i + 1}</b><span>${esc2(slTitle(s)) || '…'}</span>${s.dataset.notes ? '<i class="sl-has-n" title="יש הערות לדובר"></i>' : ''}</button>`).join('')}<button type="button" class="sl-chip sl-plus" data-add title="שקופית חדשה"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+    <button type="button" class="btn btn-primary sl-play" data-play title="הצגה מהשקופית הזאת"><svg aria-hidden="true"><use href="#i-play"/></svg><span>הצגה</span></button></div>
+    <div class="sl-tools" role="toolbar" aria-label="השקופית הנוכחית"><span class="sl-cur"></span>
+      <button type="button" data-t="dup" title="שכפול השקופית"><svg aria-hidden="true"><use href="#i-copy"/></svg><span>שכפול</span></button>
+      <button type="button" data-t="up" title="להזיז אחורה"><svg aria-hidden="true" class="flip"><use href="#i-back"/></svg><span>אחורה</span></button>
+      <button type="button" data-t="down" title="להזיז קדימה"><svg aria-hidden="true"><use href="#i-back"/></svg><span>קדימה</span></button>
+      <button type="button" data-t="bg" title="רקע לשקופית הזאת"><svg aria-hidden="true"><use href="#i-palette"/></svg><span>רקע</span></button>
+      <button type="button" data-t="notes" title="הערות לדובר (רק אתה רואה בהצגה)"><svg aria-hidden="true"><use href="#i-list"/></svg><span>הערות</span></button>
+      <button type="button" data-t="del" class="sl-del" title="מחיקת השקופית"><svg aria-hidden="true"><use href="#i-trash"/></svg><span>מחיקה</span></button>
+    </div>`;
+  slNavMark();
+}
+function slNavMark() {
+  const nav = $('slNav'); if (!nav || nav.classList.contains('hidden')) return;
+  const all = edSlides(), i = all.indexOf(curSlide);
+  nav.querySelectorAll('.sl-chip[data-i]').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
+  const cur = nav.querySelector('.sl-cur'); if (cur) cur.textContent = i >= 0 ? `שקופית ${i + 1}:` : 'לוחצים על שקופית כדי לערוך אותה';
+  nav.querySelector('.sl-tools')?.classList.toggle('dim', i < 0);
+  const ch = nav.querySelector(`.sl-chip[data-i="${i}"]`); if (ch) ch.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 $('slNav')?.addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
 $('slNav')?.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.hasAttribute('data-play')) return presentSlides($('editor'));
-  if (b.hasAttribute('data-add')) return addSlide(null);
-  const sl = $('editor').querySelectorAll(':scope > [data-slide]')[+b.dataset.i];
-  if (sl) { sl.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('slNav').querySelectorAll('.sl-chip').forEach(x => x.classList.toggle('on', x === b)); }
+  if (b.hasAttribute('data-play')) return presentSlides($('editor'), curSlide);
+  if (b.hasAttribute('data-add')) return layoutMenu(b, curSlide || edSlides().slice(-1)[0]);
+  if (b.dataset.i != null) { const sl = edSlides()[+b.dataset.i]; if (sl) { curSlide = sl; sl.scrollIntoView({ behavior: 'smooth', block: 'center' }); slNavMark(); } return; }
+  const t = b.dataset.t; if (!t) return;
+  const sl = curSlide && curSlide.isConnected ? curSlide : null; if (!sl) { toast('קודם לוחצים על שקופית'); return; }
+  if (t === 'dup') { const c = sl.cloneNode(true); sl.after(c); renderCanvases(c); curSlide = c; c.scrollIntoView({ block: 'center', behavior: 'smooth' }); markDirty(); slNavSoon(); }
+  else if (t === 'up') { const p = sl.previousElementSibling; if (p && p.hasAttribute('data-slide')) { p.before(sl); markDirty(); slNavSoon(); sl.scrollIntoView({ block: 'center' }); } }
+  else if (t === 'down') { const n = sl.nextElementSibling; if (n && n.hasAttribute('data-slide')) { n.after(sl); markDirty(); slNavSoon(); sl.scrollIntoView({ block: 'center' }); } }
+  else if (t === 'del') {
+    const all = edSlides(); if (all.length < 2) { toast('זו השקופית היחידה'); return; }
+    const idx = all.indexOf(sl), html = sl.outerHTML; const nxt = all[idx + 1] || all[idx - 1]; sl.remove(); curSlide = nxt; markDirty(); slNavSoon();
+    toastAction('השקופית נמחקה', 'ביטול', () => { const t2 = document.createElement('div'); t2.innerHTML = html; const back = t2.firstElementChild; const ref = edSlides()[idx]; if (ref) ref.before(back); else $('editor').appendChild(back); renderCanvases(back); curSlide = back; markDirty(); slNavSoon(); back.scrollIntoView({ block: 'center' }); });
+  }
+  else if (t === 'bg') slideBgMenu(b, sl);
+  else if (t === 'notes') slideNotesDialog(sl);
 });
+function slideBgMenu(anchor, sl) {
+  document.querySelector('.lay-pop')?.remove();
+  const pop = document.createElement('div'); pop.className = 'lay-pop sbg-pop';
+  pop.innerHTML = `<b class="lay-h">רקע לשקופית הזאת</b><div class="sbg-grid">${SBG_NAMES.map(([k, n]) => `<button type="button" data-sbg="${k}" class="${(sl.dataset.sbg || '') === k ? 'on' : ''}"><i class="ov-st" ${k ? `data-sbg="${k}"` : `data-stheme="${$('editor').dataset.stheme || ''}"`}><b>כותרת</b><i></i><i></i></i><span>${n}</span></button>`).join('')}</div>`;
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
+  pop.style.width = w + 'px'; pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; pop.style.top = (r.bottom + 8) + 'px';
+  pop.addEventListener('mousedown', e => e.preventDefault());
+  pop.onclick = e => { const b = e.target.closest('[data-sbg]'); if (!b || b.tagName !== 'BUTTON') return; const k = b.dataset.sbg; if (k) sl.dataset.sbg = k; else delete sl.dataset.sbg; pop.remove(); markDirty(); };
+  setTimeout(() => { const off = e => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('pointerdown', off, true); } }; document.addEventListener('pointerdown', off, true); }, 0);
+}
+function slideNotesDialog(sl) {
+  const i = edSlides().indexOf(sl);
+  dialog(d => {
+    d.innerHTML = `<h3>הערות לדובר – שקופית ${i + 1}</h3><p class="muted-s">מה רוצים להגיד בשקופית הזאת. בזמן ההצגה לוחצים על "הערות" (או N) כדי לראות אותן.</p>`;
+    const ta = document.createElement('textarea'); ta.className = 'sl-notes-ta'; ta.rows = 6; ta.maxLength = 2000; ta.value = sl.dataset.notes || ''; ta.placeholder = 'למשל: להתחיל בשאלה לכיתה – מי יודע מאיפה בא הגשם?';
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'שמירה';
+    ok.onclick = () => { const v = ta.value.trim().slice(0, 2000); if (v) sl.dataset.notes = v; else delete sl.dataset.notes; closeDialog(); markDirty(); slNavSoon(); toast(v ? 'ההערות נשמרו ✓' : 'ההערות נמחקו'); };
+    const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'ביטול'; no.onclick = closeDialog;
+    row.append(ok, no); d.append(ta, row); setTimeout(() => ta.focus(), 30);
+  });
+}
 // בצפייה במחברת ששיתפו איתי: כפתור הצגה כשזו מצגת
 function shPresentPaint() { const b = $('shPresent'); if (b) b.classList.toggle('hidden', !($('shBody') && $('shBody').dataset.layout === 'slides' && $('shBody').querySelector(':scope > [data-slide]'))); }
 if ($('shPresent')) $('shPresent').onclick = () => presentSlides($('shBody'));
 
-// ---- מצב הצגה: שקופית אחת על כל המסך. חצים / רווח / לחיצה / החלקה, Esc יוצא
-function presentSlides(root) {
+// ---- מצב הצגה: שקופית אחת על כל המסך
+// מקשים: חצים / רווח / Enter = הבאה וקודמת, Home/End, G = כל השקופיות, N = הערות, L = לייזר, B = מסך שחור, Esc = יציאה
+function presentSlides(root, startEl) {
   if (!root) return;
   const slides = [...root.querySelectorAll(':scope > [data-slide]')]; if (!slides.length) { toast('אין עדיין שקופיות'); return; }
-  // מתחילים מהשקופית שרואים עכשיו על המסך
-  let cur = 0, best = 1e9; slides.forEach((s, i) => { const r = s.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - innerHeight / 2); if (d < best) { best = d; cur = i; } });
+  let cur = startEl && slides.includes(startEl) ? slides.indexOf(startEl) : 0;
+  if (!startEl) { let best = 1e9; slides.forEach((s, i) => { const r = s.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - innerHeight / 2); if (d < best) { best = d; cur = i; } }); }
   const cs = getComputedStyle(root);
   const ov = document.createElement('div'); ov.className = 'pres'; ov.tabIndex = -1;
-  if (root.dataset.stheme) ov.dataset.stheme = root.dataset.stheme; if (root.dataset.bg) ov.dataset.bg = root.dataset.bg;
+  if (root.dataset.stheme) ov.dataset.stheme = root.dataset.stheme;
+  ov.dataset.trans = root.dataset.strans || '';
   ov.innerHTML = `<div class="pres-stage"><div class="pres-slide"></div></div>
-    <div class="pres-bar"><button type="button" class="pres-b" data-prev aria-label="השקופית הקודמת"><svg aria-hidden="true"><use href="#i-back"/></svg></button><span class="pres-n"></span><button type="button" class="pres-b pres-next" data-next aria-label="השקופית הבאה"><svg aria-hidden="true"><use href="#i-back"/></svg></button><button type="button" class="pres-b" data-x aria-label="יציאה מההצגה">✕</button></div>
+    <div class="pres-notes hidden"></div><div class="pres-laser hidden"></div><div class="pres-black hidden"></div><div class="pres-grid hidden"></div>
+    <div class="pres-bar">
+      <button type="button" class="pres-b" data-prev aria-label="הקודמת"><svg aria-hidden="true"><use href="#i-back"/></svg></button>
+      <span class="pres-n"></span>
+      <button type="button" class="pres-b pres-next" data-next aria-label="הבאה"><svg aria-hidden="true"><use href="#i-back"/></svg></button>
+      <i class="pres-sep"></i>
+      <button type="button" class="pres-b" data-grid aria-label="כל השקופיות" title="כל השקופיות (G)"><svg aria-hidden="true"><use href="#i-table"/></svg></button>
+      <button type="button" class="pres-b" data-notes aria-label="הערות לדובר" title="הערות לדובר (N)"><svg aria-hidden="true"><use href="#i-list"/></svg></button>
+      <button type="button" class="pres-b" data-laser aria-label="לייזר" title="לייזר (L)"><svg aria-hidden="true"><use href="#i-target"/></svg></button>
+      <button type="button" class="pres-b pres-auto" data-auto aria-label="מעבר אוטומטי" title="מעבר אוטומטי"><svg aria-hidden="true"><use href="#i-timer"/></svg><small></small></button>
+      <button type="button" class="pres-b" data-x aria-label="יציאה" title="יציאה (Esc)">✕</button>
+    </div>
     <div class="pres-prog"><i></i></div>`;
-  const box = ov.querySelector('.pres-slide'); box.style.fontFamily = cs.fontFamily; box.style.fontSize = cs.fontSize;
+  const box = ov.querySelector('.pres-slide'); box.style.fontFamily = cs.fontFamily;
   const fit = () => { const s = Math.min(innerWidth / 960, innerHeight / 540) * .96; box.style.transform = `translate(-50%,-50%) scale(${s})`; };
+  const cloneOf = sl => { const c = sl.cloneNode(true); const src = sl.querySelectorAll('canvas'), dst = c.querySelectorAll('canvas');
+    dst.forEach((cv, k) => { try { cv.width = src[k].width; cv.height = src[k].height; cv.getContext('2d').drawImage(src[k], 0, 0); } catch {} });
+    c.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable')); return c; };
+  const isTitle = el => !!el.firstElementChild && el.firstElementChild.tagName === 'H1' && el.children.length < 4;
+  const notesEl = ov.querySelector('.pres-notes');
   const show = (i, dir = 0) => {
     cur = Math.max(0, Math.min(slides.length - 1, i));
-    const c = slides[cur].cloneNode(true);
-    // ציורים (canvas) לא עוברים בהעתקה – מעתיקים את התמונה
-    const src = slides[cur].querySelectorAll('canvas'), dst = c.querySelectorAll('canvas');
-    dst.forEach((cv, k) => { try { cv.width = src[k].width; cv.height = src[k].height; cv.getContext('2d').drawImage(src[k], 0, 0); } catch {} });
-    c.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
-    box.replaceChildren(...c.childNodes); box.classList.toggle('title', !!box.firstElementChild && box.firstElementChild.tagName === 'H1' && box.children.length < 4); box.classList.remove('in-n', 'in-p'); void box.offsetWidth; if (dir) box.classList.add(dir > 0 ? 'in-n' : 'in-p');
+    const c = cloneOf(slides[cur]);
+    box.replaceChildren(...c.childNodes); box.classList.toggle('title', isTitle(box));
+    if (slides[cur].dataset.sbg) box.dataset.sbg = slides[cur].dataset.sbg; else delete box.dataset.sbg;
+    box.classList.remove('in-n', 'in-p'); void box.offsetWidth; if (dir) box.classList.add(dir > 0 ? 'in-n' : 'in-p');
     ov.querySelector('.pres-n').textContent = `${cur + 1} / ${slides.length}`;
     ov.querySelector('.pres-prog i').style.width = `${(cur + 1) / slides.length * 100}%`;
     ov.querySelector('[data-prev]').disabled = cur === 0; ov.querySelector('[data-next]').disabled = cur === slides.length - 1;
+    const nt = slides[cur].dataset.notes || ''; notesEl.textContent = nt || 'אין הערות לשקופית הזאת.'; notesEl.classList.toggle('empty', !nt);
   };
-  const next = () => cur < slides.length - 1 && show(cur + 1, 1), prev = () => cur > 0 && show(cur - 1, -1);
+  const next = () => cur < slides.length - 1 ? show(cur + 1, 1) : stopAuto(), prev = () => cur > 0 && show(cur - 1, -1);
+  // מעבר אוטומטי: כבוי → 5 → 10 → 20 שניות
+  const AUTO = [0, 5, 10, 20]; let ai = 0, at = 0;
+  const paintAuto = () => { const b = ov.querySelector('[data-auto]'); b.classList.toggle('on', ai > 0); b.querySelector('small').textContent = ai ? AUTO[ai] : ''; };
+  const startAuto = () => { clearInterval(at); if (AUTO[ai]) at = setInterval(next, AUTO[ai] * 1000); paintAuto(); };
+  function stopAuto() { ai = 0; clearInterval(at); paintAuto(); }
+  // לייזר: נקודה אדומה שעוקבת אחרי העכבר
+  const laser = ov.querySelector('.pres-laser'); let laserOn = false;
+  const toggleLaser = () => { laserOn = !laserOn; laser.classList.toggle('hidden', !laserOn); ov.classList.toggle('laser', laserOn); ov.querySelector('[data-laser]').classList.toggle('on', laserOn); };
+  ov.addEventListener('pointermove', e => { if (laserOn) { laser.style.left = e.clientX + 'px'; laser.style.top = e.clientY + 'px'; } });
+  const toggleNotes = () => { notesEl.classList.toggle('hidden'); ov.querySelector('[data-notes]').classList.toggle('on', !notesEl.classList.contains('hidden')); };
+  const black = ov.querySelector('.pres-black'); const toggleBlack = () => black.classList.toggle('hidden');
+  // כל השקופיות: רשת קטנה, לוחצים וקופצים
+  const grid = ov.querySelector('.pres-grid');
+  const toggleGrid = () => {
+    if (!grid.classList.contains('hidden')) { grid.classList.add('hidden'); return; }
+    grid.innerHTML = '';
+    slides.forEach((sl, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'pg-th' + (i === cur ? ' on' : '');
+      const mini = document.createElement('div'); mini.className = 'pres-slide pg-mini'; mini.style.fontFamily = box.style.fontFamily; mini.append(...cloneOf(sl).childNodes); if (isTitle(mini)) mini.classList.add('title'); if (sl.dataset.sbg) mini.dataset.sbg = sl.dataset.sbg;
+      const n = document.createElement('b'); n.textContent = i + 1; b.append(mini, n); b.onclick = e => { e.stopPropagation(); grid.classList.add('hidden'); show(i, i > cur ? 1 : -1); }; grid.appendChild(b); });
+    grid.classList.remove('hidden');
+    grid.querySelectorAll('.pg-th').forEach(th => { th.firstChild.style.transform = `translate(-50%,-50%) scale(${th.clientWidth / 960})`; });
+  };
   let closed = false;
-  const close = () => { if (closed) return; closed = true; removeEventListener('keydown', key, true); removeEventListener('resize', fit); document.removeEventListener('fullscreenchange', fsOut);
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); ov.remove(); slides[cur].scrollIntoView({ block: 'center' }); };
+  const close = () => { if (closed) return; closed = true; clearInterval(at); removeEventListener('keydown', key, true); removeEventListener('resize', fit); document.removeEventListener('fullscreenchange', fsOut);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); ov.remove(); slides[cur].scrollIntoView({ block: 'center' }); if (root.id === 'editor') { curSlide = slides[cur]; slNavMark(); } };
   const key = e => {
-    if (['ArrowLeft', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); next(); }
-    else if (['ArrowRight', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); prev(); }
-    else if (e.key === 'Home') { e.preventDefault(); show(0); } else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    const k = e.key.toLowerCase();
+    if (!grid.classList.contains('hidden') && e.key === 'Escape') { e.preventDefault(); grid.classList.add('hidden'); return; }
+    if (['arrowleft', 'arrowdown', ' ', 'pagedown', 'enter'].includes(k)) { e.preventDefault(); next(); }
+    else if (['arrowright', 'arrowup', 'pageup', 'backspace'].includes(k)) { e.preventDefault(); prev(); }
+    else if (k === 'home') { e.preventDefault(); show(0); } else if (k === 'end') { e.preventDefault(); show(slides.length - 1); }
+    else if (k === 'g' || k === 'ע') { e.preventDefault(); toggleGrid(); } else if (k === 'n' || k === 'מ') { e.preventDefault(); toggleNotes(); }
+    else if (k === 'l' || k === 'ך') { e.preventDefault(); toggleLaser(); } else if (k === 'b' || k === 'נ' || k === '.') { e.preventDefault(); toggleBlack(); }
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
   };
   const fsOut = () => { if (!document.fullscreenElement) close(); };
-  ov.querySelector('[data-prev]').onclick = e => { e.stopPropagation(); prev(); };
-  ov.querySelector('[data-next]').onclick = e => { e.stopPropagation(); next(); };
-  ov.querySelector('[data-x]').onclick = e => { e.stopPropagation(); close(); };
+  const on = (sel, f) => { ov.querySelector(sel).onclick = e => { e.stopPropagation(); f(); }; };
+  on('[data-prev]', prev); on('[data-next]', next); on('[data-x]', close); on('[data-grid]', toggleGrid); on('[data-notes]', toggleNotes); on('[data-laser]', toggleLaser);
+  on('[data-auto]', () => { ai = (ai + 1) % AUTO.length; startAuto(); if (ai) toast(`עובר לבד כל ${AUTO[ai]} שניות`); });
+  black.onclick = toggleBlack;
   // לחיצה על המסך: צד שמאל = הבאה, צד ימין = הקודמת (כמו בעברית)
-  ov.querySelector('.pres-stage').onclick = e => { if (e.target.closest('a')) return; (e.clientX < innerWidth / 2 ? next : prev)(); };
+  ov.querySelector('.pres-stage').onclick = e => { if (e.target.closest('a') || laserOn) return; (e.clientX < innerWidth / 2 ? next : prev)(); };
   let tx = null; ov.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
   ov.addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; tx = null; if (Math.abs(dx) > 45) (dx > 0 ? next : prev)(); }, { passive: true });
-  document.body.appendChild(ov); fit(); show(cur); ov.focus();
+  document.body.appendChild(ov); fit(); show(cur); ov.focus(); paintAuto();
   addEventListener('keydown', key, true); addEventListener('resize', fit);
   if (ov.requestFullscreen) ov.requestFullscreen().then(() => document.addEventListener('fullscreenchange', fsOut)).catch(() => {});
   track('pres_show', { n: slides.length });
@@ -2085,8 +2234,9 @@ function setLayout(lay, convert) {
   checkEmpty();
 }
 /* ---- הגדרות המחברת: רקע, כיוון, שוליים, גופן, גודל (נשמרות על המחברת) ---- */
-const NB_KEYS = ['layout', 'stheme', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
+const NB_KEYS = ['layout', 'stheme', 'strans', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'];
 const NB_OPTS = {
+  strans: ['מעבר בין שקופיות', [['', 'החלקה'], ['fade', 'דהייה'], ['zoom', 'זום'], ['flip', 'היפוך'], ['none', 'בלי']]],
   stheme: ['עיצוב המצגת', [['', 'לבן'], ['ocean', 'ים'], ['sunset', 'שקיעה'], ['mint', 'מנטה'], ['grape', 'ענבים'], ['night', 'לילה'], ['paper', 'נייר'], ['candy', 'ממתק']]],
   bg: ['רקע', [['', 'חלק'], ['lines', 'שורות'], ['grid', 'משבצות'], ['dots', 'נקודות'], ['stars', 'כוכבים'], ['gold', 'נקודות זהב'], ['color', 'משבצות צבעוניות']]],
   orient: ['כיוון הדף', [['', 'לאורך'], ['land', 'לרוחב']]],
@@ -2105,7 +2255,7 @@ function curLook() { const ed = $('editor'), o = {}; NB_KEYS.forEach(k => { o[k]
 function applyLook(look, convert) {
   const ed = $('editor'); look = lookOf(look);
   setLayout(look.layout, convert);
-  ['stheme', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'].forEach(k => {
+  ['stheme', 'strans', 'bg', 'orient', 'margin', 'rows', 'font', 'fs'].forEach(k => {
     if (look[k]) { ed.dataset[k] = look[k]; pageEl.dataset[k] = look[k]; } else { delete ed.dataset[k]; delete pageEl.dataset[k]; }
   });
   slNavPaint();
@@ -2118,7 +2268,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
     w.innerHTML = '';
     keys.forEach(k => {
       if ((k === 'orient' || k === 'margin' || k === 'rows') && st.layout !== 'pages') return;
-      if (k === 'stheme' && st.layout !== 'slides') return;
+      if ((k === 'stheme' || k === 'strans') && st.layout !== 'slides') return;
       const sec = document.createElement('div'); sec.className = 'set-sec';
       const lab = document.createElement('div'); lab.className = 'set-lab'; sec.appendChild(lab);
       const pick = (v, el, grid) => { st[k] = v; [...grid.children].forEach(x => { x.classList.toggle('on', x === el); x.setAttribute('aria-checked', String(x === el)); }); onChange(k, v); if (k === 'layout' || preview) render(); };
@@ -2187,7 +2337,7 @@ function nbSettingsDialog() {
         await updateDoc(nbDoc(n.id), { [k]: v });
         if (n.shareId && k !== 'subject') updateDoc(shareDoc(n.shareId), { [k]: v }).catch(() => {});
       } catch { toast('לא הצלחתי לשמור את ההגדרה'); }
-    }, ['layout', 'stheme', 'bg', 'orient', 'rows', 'margin', 'font', 'fs', 'color', 'subject'], true));
+    }, ['layout', 'stheme', 'strans', 'bg', 'orient', 'rows', 'margin', 'font', 'fs', 'color', 'subject'], true));
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סיום'; ok.onclick = closeDialog;
     const all = document.createElement('button'); all.className = 'btn btn-ghost wz-all'; all.textContent = 'ככה לכל המחברות';
     all.title = 'אותה צורה, רקע, גופן וגודל לכל המחברות שלך, וגם למחברות חדשות';
@@ -4173,7 +4323,7 @@ function shareRender(id, snap) {
     if (hint) { hint.classList.toggle('hidden', mine || editMode0(s)); hint.innerHTML = viewOnly ? 'שיתפו איתך <b>לצפייה בלבד</b>. כדי לערוך ביחד, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.' : 'אפשר לשמור עותק משלך ולערוך אותו. כדי לערוך <b>ביחד</b> באותה מחברת, בקש ממי ששיתף ללחוץ "שיתוף" ולבחור <b>עריכה משותפת</b>.'; }
     $('shOwner').textContent = mine ? `זו המחברת שלך. ככה החברים רואים אותה (${viewOnly ? 'צפייה בלבד' : 'צפייה + שמירת עותק'})` : `שותף על ידי ${s.ownerName || 'חבר'} · עודכן ${timeAgo(s.updatedAt)}${viewOnly ? ' · צפייה בלבד' : ''}`;
     $('shColor').style.setProperty('--c', s.color || COLORS[0]); $('shColor').style.background = nbPaint(s.color || COLORS[0]);
-    const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'stheme', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); } shPresentPaint();
+    const b = $('shBody'); b.innerHTML = clean(s.html || ''); { const lk = lookOf(s); ['layout', 'stheme', 'strans', 'bg', 'font', 'fs'].forEach(k => { if (lk[k]) b.dataset[k] = lk[k]; else delete b.dataset[k]; }); } shPresentPaint();
     loadImages(b, s.owner); renderFiles(b, s.owner, true); renderCanvases(b); applyBoxSizes(b);
     const cp = $('shCopy'); cp.classList.toggle('hidden', viewOnly && !mine);
     const editMode = s.mode === 'edit';
