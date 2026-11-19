@@ -7,11 +7,7 @@ import {
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField, arrayUnion
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
-import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js";
-import { getAnalytics, isSupported as analyticsSupported, logEvent } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
-import { getDatabase, ref as dbRef, set as dbSet, onValue, onDisconnect, remove as dbRemove } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js";
 import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1794223306";
 import { SAMPLE_NOTEBOOK } from "./sample-notebook.js";
 
@@ -62,22 +58,28 @@ if (firebaseConfig.apiKey === "PASTE_HERE") {
 const fb = initializeApp(firebaseConfig);
 // Google Analytics: כמה נכנסים, מאיפה ומאיזה מכשיר (רואים ב-Firebase → Analytics)
 let analytics = null;
-if (firebaseConfig.measurementId) analyticsSupported().then(ok => { if (ok) analytics = getAnalytics(fb); }).catch(() => {});
-const track = (name, params) => { try { if (analytics) logEvent(analytics, name, params || {}); } catch {} try { window.posthog?.capture(name, params || {}); } catch {} };
+// נטען רק אחרי שהאתר כבר על המסך (חוסך זמן פתיחה בטלפון)
+let anMod = null;
+const whenIdle = f => setTimeout(() => (window.requestIdleCallback || (g => g()))(f), 2500);
+if (firebaseConfig.measurementId) whenIdle(() => import('https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js').then(async m => { anMod = m; if (await m.isSupported()) analytics = m.getAnalytics(fb); }).catch(() => {}));
+const track = (name, params) => { try { if (analytics && anMod) anMod.logEvent(analytics, name, params || {}); } catch {} try { window.posthog?.capture(name, params || {}); } catch {} };
 // PostHog: מזהים רק לפי מספר המשתמש (uid) – בלי שם ובלי אימייל. המנהלים (בעל האתר וההורים) לא נספרים
 const phUser = u => { try { const P = window.posthog; if (!P) return; if (u) P.identify(u.uid); else P.reset(); } catch {} };
 // App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
 // נטען רק כשצריך (מחובר / לוחץ להתחבר / מחברת משותפת), כדי שמי שרק מנסה את הדוגמה לא יוריד כמעט 1MB
-let appCheckOn = false;
+let appCheckOn = false, appCheckReady = Promise.resolve();
 function ensureAppCheck() {
   if (appCheckOn || !recaptchaSiteKey || recaptchaSiteKey.startsWith('PASTE')) return; appCheckOn = true;
-  try { initializeAppCheck(fb, { provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey), isTokenAutoRefreshEnabled: true }); }
-  catch (e) { console.error('App Check', e); }
+  appCheckReady = import('https://www.gstatic.com/firebasejs/13.1.0/firebase-app-check.js').then(m => m.initializeAppCheck(fb, { provider: new m.ReCaptchaEnterpriseProvider(recaptchaSiteKey), isTokenAutoRefreshEnabled: true }))
+    .catch(e => console.error('App Check', e));
 }
 try { if (Object.keys(localStorage).some(k => k.startsWith('firebase:authUser:')) || new URLSearchParams(location.search).has('s')) ensureAppCheck(); } catch { ensureAppCheck(); }
 const auth = getAuth(fb);
 // Realtime Database: ערוץ מהיר לעכבר, לסמן ולטקסט בזמן עריכה משותפת (אם הוגדר)
-let rtdb = null; try { if (firebaseConfig.databaseURL) rtdb = getDatabase(fb); } catch (e) { console.warn('rtdb', e); }
+// נטען ברקע אחרי הפתיחה. עד שהוא מוכן, עריכה משותפת עובדת בדרך הרגילה (Firestore)
+let rtdb = null, rtMod = null;
+if (firebaseConfig.databaseURL) whenIdle(() => import('https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js').then(m => { rtMod = m; rtdb = m.getDatabase(fb); }).catch(e => console.warn('rtdb', e)));
+const dbRef = (...a) => rtMod.ref(...a), dbSet = (...a) => rtMod.set(...a), onValue = (...a) => rtMod.onValue(...a), onDisconnect = (...a) => rtMod.onDisconnect(...a), dbRemove = (...a) => rtMod.remove(...a);
 // שמירה גם במכשיר: המחברות נפתחות גם בלי אינטרנט, ומה שכותבים נשלח כשהחיבור חוזר
 let db;
 try { db = initializeFirestore(fb, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
@@ -2523,8 +2525,8 @@ let aiUrlsNow = false;
 let aiCall = null;
 function aiModel(name, generationConfig) {
   if (AI_VIA_SERVER) return aiServerModel(name, generationConfig);
-  if (!aiService) aiService = getAI(fb, { backend: new GoogleAIBackend() });
-  return getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name });
+  const real = async () => { const m = await import('https://www.gstatic.com/firebasejs/13.1.0/firebase-ai.js'); if (!aiService) aiService = m.getAI(fb, { backend: new m.GoogleAIBackend() }); return m.getGenerativeModel(aiService, generationConfig ? { model: name, generationConfig } : { model: name }); };
+  return { generateContent: async (...a) => (await real()).generateContent(...a), generateContentStream: async (...a) => (await real()).generateContentStream(...a) };
 }
 // מתנהג כמו המודל של Firebase AI (generateContent / generateContentStream), אבל דרך השרת
 function aiServerModel(name, cfg) {
@@ -2536,10 +2538,10 @@ function aiServerModel(name, cfg) {
   const body = parts => ({ kind: aiKindNow, search: aiSearchNow, ...(aiUrlsNow ? { urls: true } : {}), model: name, cfg: cfg || {}, parts: parts.map(p => typeof p === 'string' ? { text: p } : p) });
   const chunk = c => ({ text: () => c.t || '', candidates: c.f ? [{ finishReason: c.f }] : [], promptFeedback: c.b ? { blockReason: c.b } : undefined });
   return {
-    async generateContent(parts) { aiLastSrc = []; const r = await aiCall(body(parts)); aiLastSrc = (r.data && r.data.src) || []; return { response: chunk(r.data || {}) }; },
+    async generateContent(parts) { aiLastSrc = []; await appCheckReady; const r = await aiCall(body(parts)); aiLastSrc = (r.data && r.data.src) || []; return { response: chunk(r.data || {}) }; },
     async generateContentStream(parts) {
       aiLastSrc = [];
-      const { stream, data } = await aiCall.stream(body(parts));
+      await appCheckReady; const { stream, data } = await aiCall.stream(body(parts));
       return { stream: (async function* () { for await (const c of stream) yield chunk(c || {}); try { const d = await data; aiLastSrc = (d && d.src) || []; } catch {} })() };
     },
   };
@@ -3812,7 +3814,7 @@ function findOldPeople(sid, vid) {
   const key = sid + '|' + (vid || '');
   if (oldPeopleDone.has(key)) return; oldPeopleDone.add(key);
   if (!peopleCall) peopleCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'sharePeople', { timeout: 60000 });
-  peopleCall({ ids: [sid, vid].filter(Boolean) }).then(r => { const k = r && r.data && r.data.added; if (k) toast(k === 1 ? 'נמצא עוד אדם אחד שנכנס למחברת בעבר ✓' : `נמצאו עוד ${k} אנשים שנכנסו למחברת בעבר ✓`); })
+  appCheckReady.then(() => peopleCall({ ids: [sid, vid].filter(Boolean) })).then(r => { const k = r && r.data && r.data.added; if (k) toast(k === 1 ? 'נמצא עוד אדם אחד שנכנס למחברת בעבר ✓' : `נמצאו עוד ${k} אנשים שנכנסו למחברת בעבר ✓`); })
     .catch(e => { console.warn('sharePeople', e); oldPeopleDone.delete(key); });
 }
 async function approveReq(O, q) {
@@ -6855,7 +6857,7 @@ async function chatMakeImage(msg, files, b) {
   if (!aiCall) aiCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'ai', { timeout: 300000 });
   try {
     const parts = [{ text: `צור תמונה לפי הבקשה של תלמיד. תמונה ברורה, צבעונית ומתאימה לגיל. אם יש בה טקסט – מעט טקסט, באותה שפה של הבקשה.\nהבקשה: ${msg}` }, ...files.map(f => typeof f.part === 'string' ? { text: f.part } : f.part)];
-    const r = await aiCall({ kind: 'img', image: true, model: 'auto', cfg: {}, parts });
+    await appCheckReady; const r = await aiCall({ kind: 'img', image: true, model: 'auto', cfg: {}, parts });
     const img = (r.data && r.data.img) || [];
     b.classList.remove('making'); chatFill(b, (r.data && r.data.t) || '');
     if (!img.length) { chatFill(b, 'לא הצלחתי ליצור תמונה הפעם. נסה לתאר אחרת.'); return { text: 'לא הצלחתי ליצור תמונה.' }; }
