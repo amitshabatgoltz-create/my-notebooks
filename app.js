@@ -526,6 +526,9 @@ $('docColor').onclick = nbColorDialog;
 function newNotebook() {
   const st = { title: '', subject: '', color: COLORS[notebooks.length % COLORS.length], ...nbDefaults(), tpl: '' };
   let step = 0;
+  // מחברת מתמטיקה (לפי השם או המקצוע) – משבצות אוטומטית, אלא אם בחרו רקע אחר בעצמם
+  const bg0 = st.bg; let bgAuto = st.bg;
+  const mathBg = () => { if (st.bg !== bgAuto) return; st.bg = bgAuto = isMathNb(st) && st.layout !== 'slides' ? 'grid' : bg0; };
   dialog(d => {
     d.classList.add('nb-wiz');
     const head = document.createElement('div'); head.className = 'wz-head';
@@ -549,6 +552,7 @@ function newNotebook() {
       ['להתחיל עם תבנית?', 'או דף ריק', b => b.append(nbSettingsUI(st, () => {}, ['tpl']))],
     ];
     const paint = () => {
+      mathBg();
       const [h, sub, build] = STEPS[step];
       head.innerHTML = `<div class="wz-dots" aria-hidden="true">${STEPS.map((_, i) => `<i${i === step ? ' class="on"' : i < step ? ' class="done"' : ''}></i>`).join('')}</div><small>שלב ${step + 1} מתוך ${STEPS.length}</small><h3></h3><p></p>`;
       head.querySelector('h3').textContent = h; head.querySelector('p').textContent = typeof sub === 'function' ? sub() : (step === 2 ? 'רקע לדף' + (st.layout === 'pages' ? ', כיוון ושוליים' : '') : sub);
@@ -566,7 +570,7 @@ function newNotebook() {
         const ref = doc(nbCol()); const t = Date.now();
         let html = st.tpl && TPL[st.tpl] ? clean(TPL[st.tpl]()) + '<p><br></p>' : '';
         if (st.layout === 'slides') html = html ? `<div data-slide="">${html}</div>` : SLIDE_EMPTY;
-        const look = {}; NB_KEYS.forEach(k => { if (st[k]) look[k] = st[k]; });
+        mathBg(); const look = {}; NB_KEYS.forEach(k => { if (st[k]) look[k] = st[k]; });
         await setDoc(ref, { title: st.title.trim() || st.subject || 'מחברת חדשה', color: st.color, html, ...look, ...(st.subject ? { subject: st.subject } : {}), createdAt: t, updatedAt: t });
         closeDialog();
         const quick = step === 0;
