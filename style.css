@@ -3186,3 +3186,23 @@ body.editing-shared .nb-mem{display:none}
 #editor[data-layout="slides"]>[data-slide]>h1+p:has(>br:only-child)::before{content:"כותרת משנה"}
 #editor[data-layout="slides"]>[data-slide]>blockquote+p:has(>br:only-child)::before{content:"מי אמר"}
 #editor[data-layout="slides"]>[data-slide] td p:has(>br:only-child)::before{content:"טקסט"}
+
+/* מסך כניסה בטלפון (20.11.2026): הירח לא צף מעל הכרטיס, בלי משפט כפול, והכפתור של Google נראה בלי לגלול */
+@media (max-width:999px){
+  #login{padding-top:62px}
+  .login-theme{position:absolute;top:14px;left:14px}
+  .login-card>p:not(.login-swap){display:none}
+  .login-card h1{font-size:20px;margin:0 0 14px}
+  .login-card .status:empty{min-height:0;margin:0}
+}
+@media (max-width:600px){
+  .login-card{padding:24px 18px 18px}
+  .login-card .app-icon{width:52px;height:52px;margin:0 auto 12px}
+  .lc-intro{margin:0 0 16px}
+  .lc-big{font-size:20px;margin:0 0 10px}
+  .lc-pts{padding:10px 12px;gap:6px}
+  .lc-pts li{font-size:14px}
+  .login-card .or{margin:14px 0 10px}
+  .login-card .field{margin-bottom:10px}
+}
+@media (max-width:600px) and (max-height:700px){.lc-pts{display:none}}

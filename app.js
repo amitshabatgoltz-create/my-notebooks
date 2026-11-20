@@ -115,6 +115,13 @@ const ERRORS = {
   'auth/popup-closed-by-user': 'חלון ההתחברות נסגר',
   'auth/unauthorized-domain': 'האתר הזה לא מאושר ב-Firebase (Authorized domains — ראה README)',
   'auth/network-request-failed': 'אין חיבור לאינטרנט',
+  'auth/popup-blocked': 'הדפדפן חסם את החלון של Google. לחץ שוב על "המשך עם Google"',
+  'auth/cancelled-popup-request': 'חלון ההתחברות נסגר',
+  'auth/user-cancelled': 'חלון ההתחברות נסגר',
+  'auth/operation-not-supported-in-this-environment': 'כאן הכניסה עם Google לא עובדת. פתח את האתר ב-Chrome או ב-Safari, או היכנס עם אימייל',
+  'auth/web-storage-unsupported': 'הדפדפן חוסם שמירה (אולי מצב גלישה בסתר). נסה בחלון רגיל',
+  'auth/internal-error': 'משהו השתבש בחיבור. נסה שוב בעוד רגע',
+  'auth/missing-email': 'צריך למלא אימייל',
 };
 const status = (msg, err = true) => { $('loginStatus').textContent = msg; $('loginStatus').classList.toggle('err', err); };
 const errMsg = e => ERRORS[e?.code] || 'משהו השתבש, נסה שוב';
