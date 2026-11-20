@@ -571,19 +571,66 @@ for (let x = -10; x <= 18; x += 1.6) box(.35, 16, .05, '#D4AE8E', x, 8, 6.03, ho
 pic(homeSabta, 1.8, 2.2, -.4, 8.8, '#C9A24A', '#C9B79A'); pic(homeSabta, 1.8, 2.2, 8.4, 8.8, '#C9A24A', '#B9A48A');
 box(9, .06, 5, '#B5485A', 4, .03, 1.2, homeSabta, false); box(8, .07, 4.2, '#E8C27A', 4, .04, 1.2, homeSabta, false);
 const HOME = { mom: homeMom, yoni: homeYoni, sabta: homeSabta };
+// ---------- מבחוץ: רחוב, שלט העיר, וחזית עם חלון לכל בית (מסתכלים פנימה) ----------
+const roomBack = room.children.filter(o => o.isMesh && Math.abs(o.position.z + 8) < .01 && o.geometry.parameters?.width === 30);
+const roomWinBits = room.children.filter(o => o.isMesh && (o === winR || (Math.abs(o.position.z + 7.6) < .01 && o.geometry.parameters?.width === 5.4)));
+const glassM = new THREE.MeshStandardMaterial({ color: '#BFE3FF', transparent: true, opacity: .14, roughness: .1, metalness: .2 });
+function facade(wall, trim, curtain, deco) {
+  const g = new THREE.Group(); room.add(g); const z = -6, X0 = 1.3, X1 = 6.7, Y0 = 2.2, Y1 = 8.8;
+  box(X0 + 12, 18, .5, wall, (X0 - 12) / 2, 9, z, g, false); box(20 - X1, 18, .5, wall, (X1 + 20) / 2, 9, z, g, false);
+  box(X1 - X0, Y0, .5, wall, (X0 + X1) / 2, Y0 / 2, z, g, false); box(X1 - X0, 18 - Y1, .5, wall, (X0 + X1) / 2, (18 + Y1) / 2, z, g, false);
+  // מסגרת, צלב, אדן וזכוכית
+  box(X1 - X0 + .5, .35, .7, trim, 4, Y1, z - .1, g, false); box(X1 - X0 + 1, .35, 1.2, trim, 4, Y0 - .1, z - .3, g, false);
+  box(.35, Y1 - Y0, .7, trim, X0, (Y0 + Y1) / 2, z - .1, g, false); box(.35, Y1 - Y0, .7, trim, X1, (Y0 + Y1) / 2, z - .1, g, false);
+  const gl = new THREE.Mesh(new THREE.PlaneGeometry(X1 - X0, Y1 - Y0), glassM); gl.position.set(4, (Y0 + Y1) / 2, z + .05); gl.rotation.y = Math.PI; g.add(gl);
+  // וילונות בצדדים (מבפנים)
+  [X0 + .45, X1 - .45].forEach(x => box(.9, Y1 - Y0 + .4, .2, curtain, x, (Y0 + Y1) / 2, z + .5, g, false));
+  // אדנית פרחים
+  box(5, .7, .8, '#7A4A2B', 4, Y0 - .65, z - .7, g, false); [1.9, 2.9, 3.9, 4.9, 5.9].forEach((x, i) => { const f = new THREE.Mesh(new THREE.SphereGeometry(.38, 8, 6), M(['#FF6B8A', '#FFD84D', '#FF9F43', '#C77DFF', '#FF6B8A'][i])); f.position.set(x, Y0 - .05, z - .7); g.add(f); });
+  if (deco) deco(g, z);
+  return g;
+}
+const extMom = facade('#EBCB9E', '#FFFFFF', '#E86A8A');
+const extYoni = facade('#8FB3E3', '#2B3A55', '#2E3F7A', (g, z) => { box(2.2, 1, .2, '#FF4D6D', 10.5, 9.5, z - .3, g, false); });
+const extSabta = facade('#B9644A', '#F2E6D0', '#E8C27A', (g, z) => { box(1.4, 1.1, .2, '#F2E6D0', 10.5, 9, z - .3, g, false); });
+const EXT = { mom: extMom, yoni: extYoni, sabta: extSabta };
+// רחוב: מדרכה, כביש, פנס ושיח
+const street = new THREE.Group(); room.add(street);
+box(40, .1, 4, '#BDBDC4', 4, .05, -8.3, street, false); box(40, .08, 8, '#3A3A44', 4, .04, -14.3, street, false);
+for (let x = -14; x < 24; x += 4) box(2, .1, .25, '#F2F2F2', x, .1, -14.3, street, false);
+box(.3, 9, .3, '#2F2F36', -1.5, 4.5, -9.4, street); { const l = new THREE.Mesh(new THREE.SphereGeometry(.55, 10, 8), new THREE.MeshStandardMaterial({ color: '#FFE7A8', emissive: '#FFD27A', emissiveIntensity: 2 })); l.position.set(-1.5, 9.2, -9.4); street.add(l); }
+[[9.6, -7.4], [-.9, -7.2]].forEach(([x, z]) => { const b = new THREE.Mesh(new THREE.SphereGeometry(1.1, 10, 8), M('#3E9B55')); b.position.set(x, .9, z); b.scale.set(1.3, .9, 1); street.add(b); });
+// שלט העיר: ירוק כמו שלט כביש, עם מסגרת לבנה וצל
+const SIGN = ctex(640, 300, g => { g.fillStyle = '#0E7A4B'; g.beginPath(); g.roundRect(6, 6, 628, 288, 34); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 12; g.beginPath(); g.roundRect(22, 22, 596, 256, 24); g.stroke();
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.font = '700 46px Rubik'; g.fillText('ברוכים הבאים ל', 320, 92);
+  g.font = '900 104px Rubik'; g.fillText('העיר הזאת', 320, 190); g.fillStyle = '#FFD84D'; g.font = '800 30px Rubik'; g.fillText('כולם משחקים כאן', 320, 255); });
+const townSign = new THREE.Group(); room.add(townSign);
+{ const sm = new THREE.MeshStandardMaterial({ map: SIGN, roughness: .5 }); const f = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 3), sm); f.position.set(0, 6.2, -.13); f.rotation.y = Math.PI; townSign.add(f);
+  box(6.6, 3.2, .2, '#D9D9DE', 0, 6.2, 0, townSign); [-2.2, 2.2].forEach(x => box(.28, 6.2, .28, '#9A9AA3', x, 3.1, .1, townSign)); }
+townSign.position.set(-4.2, 0, -12.2); townSign.rotation.y = -.35;
+let extOn = false;
+function outside(on, who) { extOn = on; roomBack.forEach(o => o.visible = !on); roomWinBits.forEach(o => o.visible = !on); tv.visible = !on;
+  Object.entries(EXT).forEach(([k, g]) => g.visible = on && k === who); street.visible = on; townSign.visible = on && who === 'mom';
+  if (on) { room.background.set('#F4A876'); room.fog = null; } }
+outside(false);
+
 couch.visible = false;
 // כל אחד בבית שלו (who), או הסוף: נועם ואמא ביחד בבית
 function homeOf(T0, who) {
-  hemiRoom.intensity = 1.5; room.background.set('#2A2F55'); lamp.intensity = 25; chairR.visible = true; fillR.intensity = 1.3;
+  hemiRoom.intensity = 1.5; room.background.set('#2A2F55'); lamp.intensity = 25; chairR.visible = true; fillR.intensity = 1.3; outside(false);
   Object.entries(HOME).forEach(([k, g]) => g.visible = k === who);
   [momR, yoniR, sabtaR, noamR2].forEach(c => c.g.visible = false); cane.visible = false; studyNoam.g.visible = false;
   const c = { mom: momR, yoni: yoniR, sabta: sabtaR }[who]; c.g.visible = true;
   gamer(c, 4, T0, { mom: 'happy', yoni: 'laugh', sabta: 'smug' }[who], 1);
   if (who === 'sabta') { sabtaR.body.rotation.x = .1; sabtaR.headG.rotation.x = .18; cane.visible = true; cane.position.set(6, 0, 1.6); }
 }
-function gamer(c, x, T0, face, k = 0) { place(c, x, 2.9, Math.PI, { type: 'sit' }, T0 + k, face, -.3); const w = Math.sin(T0 * 9 + k) * .07; c.armL.rotation.set(-1.1 + w, 0, -.12); c.armR.rotation.set(-1.1 - w, 0, .12); c.headG.rotation.x = .08; c.ctrl.visible = true; }
+function gamer(c, x, T0, face, k = 0) { place(c, x, 2.9, Math.PI, { type: 'sit' }, T0 + k, face, -.3);
+  const w = Math.sin(T0 * 14 + k) * .06, lean = Math.sin(T0 * 2.1 + k) * .14, ph = ((T0 + k * .7) % 2.6) / 2.6, yay = ph > .78 ? Math.sin((ph - .78) / .22 * Math.PI) : 0;
+  c.body.rotation.z = lean * (1 - yay); c.body.rotation.x = -.06 + .1 * Math.sin(T0 * 1.3 + k); c.body.position.y = yay * .55;
+  c.armL.rotation.set(-1.1 + w - yay * 1.5, 0, -.12 - yay * .35); c.armR.rotation.set(-1.1 - w - yay * 1.5, 0, .12 + yay * .35);
+  c.headG.rotation.set(.08 - yay * .25, lean * .6, -lean * .5); if (yay > .3) setFace(c, 'laugh'); c.ctrl.visible = true; }
 function livingRoom(T0, withNoam) {
-  hemiRoom.intensity = 1.5; room.background.set('#2A2F55'); lamp.intensity = 25; chairR.visible = true; fillR.intensity = 1.2;
+  hemiRoom.intensity = 1.5; room.background.set('#2A2F55'); lamp.intensity = 25; chairR.visible = true; fillR.intensity = 1.2; outside(false);
   Object.entries(HOME).forEach(([k, g]) => g.visible = k === 'mom'); yoniR.g.visible = false; sabtaR.g.visible = false; cane.visible = false; momR.g.visible = true;
   gamer(momR, withNoam ? 2.4 : 4, T0, 'happy', 1);
   noamR2.g.visible = !!withNoam; if (withNoam) gamer(noamR2, 5.6, T0, 'happy', 4);
@@ -618,10 +665,10 @@ function hookDraw(T0) {
   ctx.restore();
 }
 // --- 1. כולם משחקים
-add(0, EV.mom - .15, T0 => { homeOf(T0, 'mom'); camShot(T0, 0, EV.mom, V3(4, 9, -6.5), V3(4, 8.2, -5.2), V3(4, 4.6, 3), V3(4, 4.4, 3), 60); return room; });
-add(EV.mom - .15, EV.yoni - .15, T0 => { homeOf(T0, 'mom'); orbit(T0, EV.mom - .15, EV.yoni - EV.mom, V3(4, 4.1, 2.9), 8, 7.2, Math.PI - .25, Math.PI - .15, .8, .6); return room; });
-add(EV.yoni - .15, EV.sabta - .15, T0 => { homeOf(T0, 'yoni'); orbit(T0, EV.yoni - .15, EV.sabta - EV.yoni, V3(4, 4.1, 2.9), 8, 7.2, Math.PI + .1, Math.PI, .8, .6); return room; });
-add(EV.sabta - .15, SC.s1[1], T0 => { homeOf(T0, 'sabta'); orbit(T0, EV.sabta - .15, SC.s1[1] - EV.sabta, V3(4, 4.1, 2.9), 8, 6.8, Math.PI + .2, Math.PI + .1, .8, .5); return room; });
+add(0, EV.mom - .15, T0 => { homeOf(T0, 'mom'); outside(true, 'mom'); camShot(T0, 0, EV.mom - .15, V3(-7.5, 5.2, -22), V3(2.2, 5.6, -15.5), V3(-3, 6, -10), V3(3.6, 5.2, -4), 52); return room; });
+add(EV.mom - .15, EV.yoni - .15, T0 => { homeOf(T0, 'mom'); outside(true, 'mom'); camShot(T0, EV.mom - .15, EV.yoni - EV.mom, V3(3.4, 5.8, -17), V3(4, 5.4, -12), V3(4, 5.2, 2.9), V3(4, 4.8, 2.9), 48); return room; });
+add(EV.yoni - .15, EV.sabta - .15, T0 => { homeOf(T0, 'yoni'); outside(true, 'yoni'); camShot(T0, EV.yoni - .15, EV.sabta - EV.yoni, V3(5, 5.8, -17), V3(4.1, 5.4, -12), V3(4, 5.2, 2.9), V3(4, 4.8, 2.9), 48); return room; });
+add(EV.sabta - .15, SC.s1[1], T0 => { homeOf(T0, 'sabta'); outside(true, 'sabta'); camShot(T0, EV.sabta - .15, SC.s1[1] - EV.sabta, V3(4, 6.6, -17), V3(4, 5.4, -12), V3(4, 5.2, 2.9), V3(4, 4.8, 2.9), 48); return room; });
 // --- 2. חוץ ממני: נועם לומד; ואז הכיתה עם ציונים גבוהים
 const s2b = SEG('f_v03').at - .1;
 add(SC.s1[1], s2b, T0 => { livingRoom(T0, false); studyNoam.g.visible = true; place(studyNoam, -4, -1.15, Math.PI, { type: 'sit' }, T0, 'tired'); { const w = Math.sin(T0 * 11) * .08; studyNoam.armR.rotation.set(-1.2 + w, 0, .15); studyNoam.armL.rotation.set(-1.1, 0, -.1); studyNoam.headG.rotation.x = .3; } studyNoam.g.position.y = .05; lamp.intensity = 45;
@@ -632,20 +679,40 @@ add(s2b, SC.s2[1], T0 => { resetCls3(); board.material.map = BOARD; seatKids(T0,
 function exam(T0) { resetCls3(); board.material.map = BOARD2; setNumAny(noamC, 40);
   const laugh = T0 > EV.no + .5;
   kidsC.forEach((k, i) => { const [x, y, z] = seatPos(k.seat); place(k, x, z, Math.PI, { type: 'sit' }, T0 + i, laugh ? 'laugh' : (i % 3 ? 'smug' : 'sleep'), y);
-    k.num.visible = false; if (laugh) { k.body.rotation.x = -.18; k.armR.rotation.x = -1.6; k.headG.rotation.y = .5; } else { k.armL.rotation.set(-1.2, 0, -.9); k.armR.rotation.set(-1.2, 0, .9); if (i % 3 === 0) k.headG.rotation.x = .7; } });
+    k.num.visible = false;
+    if (laugh) { const h = Math.abs(Math.sin(T0 * 12 + i)); k.body.rotation.x = -.2 - h * .08; k.armL.rotation.set(-.5, 0, -.2); k.armR.rotation.set(-1.9, 0, .5 + h * .2); k.headG.rotation.set(-.15 - h * .1, .45, 0); return; }
+    const kind = i % 3, br = Math.sin(T0 * 1.6 + i) * .04;
+    if (kind === 0) { // שוכב על השולחן וישן
+      setFace(k, 'sleep'); k.body.rotation.x = .55 + br; k.armL.rotation.set(-1.75, 0, .55); k.armR.rotation.set(-1.75, 0, -.55); k.headG.rotation.set(.35, 0, .25); }
+    else if (kind === 1) { // נשען אחורה, ידיים מאחורי הראש
+      setFace(k, 'smug'); k.body.rotation.x = -.22 + br; k.armL.rotation.set(-2.75, 0, .75); k.armR.rotation.set(-2.75, 0, -.75); k.headG.rotation.set(-.2, Math.sin(T0 * .7 + i) * .25, 0); }
+    else { // מתמתח ומפהק, ואז ידיים על הראש
+      const st = .5 + .5 * Math.sin(T0 * 1.1 + i * 2); setFace(k, st > .6 ? 'sleep' : 'smug'); k.body.rotation.x = -.12 * st; k.body.position.y = .12 * st;
+      k.armL.rotation.set(-2.6 - .45 * st, 0, .55 * (1 - st) - .1 * st); k.armR.rotation.set(-2.6 - .45 * st, 0, -.55 * (1 - st) + .1 * st); k.headG.rotation.x = -.3 * st; }
+  });
   noamC.num.visible = false;
   const took = T0 > EV.no + .2; seated(noamC, NOAM_SEAT, took ? { type: 'sit' } : { type: 'write', speed: 34 }, T0, T0 > EV.take ? 'shock' : 'stress');
   if (took) { noamC.armL.rotation.set(-1.9, 0, -.2); noamC.armR.rotation.set(-1.9, 0, .2); }
   const [nx, , nz] = seatPos(NOAM_SEAT);
   sweat.forEach((s, i) => { s.visible = !took || T0 < EV.no + 1.2; const p = ((T0 * 1.3 + i * .25) % 1); s.position.set(nx + (i % 2 ? .75 : -.75), 6.3 - p * 1.6, nz - .2); s.material.opacity = 1 - p; });
   // המורה הולכת אל נועם ולוקחת את הדף
-  if (T0 > EV.take - 1.2) { walkTo(teachC, T0, EV.take - 1.2, 1.1, [2, 6], [nx + 2.2, nz - .4, -Math.PI / 2], T0 > EV.take ? 'stern' : 'smile'); if (T0 > EV.take) teachC.armR.rotation.x = -1.3; } else teachC.g.visible = false;
-  exPaper.visible = true; const pk = eInOut(clamp((T0 - EV.no) / .5));
-  const from = V3(nx, 3.47, nz - 2.1), to = V3(nx + 1.6, 4.6, nz - .1); exPaper.position.copy(from.lerp(to, pk)); exPaper.rotation.set(lerp(-Math.PI / 2, 0, pk), lerp(0, -Math.PI / 2, pk), 0);
+  const tx = nx + 2.5, tz = nz - 2.1, reach = clamp((T0 - EV.take + .15) / .35), yank = T0 - EV.no, up = eBack(clamp((yank - .35) / .45));
+  if (T0 > EV.take - 1.4) { walkTo(teachC, T0, EV.take - 1.4, 1.2, [nx + 6, nz + 3], [tx, tz, -Math.PI / 2], T0 > EV.take ? 'stern' : 'smile');
+    if (T0 > EV.take - .2) { teachC.body.rotation.x = .18 * reach * (1 - up); teachC.armL.rotation.set(-1.45 * reach, 0, 0); teachC.armL.rotation.set(-1.45 * reach - 1.6 * up, 0, .15 * up); teachC.armR.rotation.x = -1.45 * reach * (1 - up); if (yank > 0) teachC.body.rotation.x -= .12 * Math.max(0, 1 - yank * 3);
+      if (T0 > EV.take && yank < .35) teachC.headG.rotation.z = Math.sin(T0 * 7) * .1; } } else teachC.g.visible = false;
+  // נועם: לפני – כותב ומזיע; כשהמורה מושכת – נאחז בדף ומנענע את הראש "לא לא"; אחרי – ידיים למעלה בהלם
+  if (T0 > EV.take && yank < .2) { const tug = Math.sin(T0 * 16); noamC.armL.rotation.set(-1.5, 0, -.05); noamC.armR.rotation.set(-1.5, 0, .05); noamC.body.rotation.x = .2 + tug * .05; noamC.headG.rotation.y = Math.sin(T0 * 19) * .35; setFace(noamC, 'stress'); }
+  if (yank > .2) { const f = Math.sin(T0 * 10) * .15; noamC.body.rotation.x = -.15; noamC.armL.rotation.set(-2.6 + f, 0, -.4); noamC.armR.rotation.set(-2.6 - f, 0, .4); noamC.headG.rotation.x = -.1; }
+  exPaper.visible = true;
+  const desk = V3(nx, 3.47, nz - 2.1), tugP = V3(nx + .55 + Math.sin(T0 * 16) * .2, 3.75, nz - 2.1), hand = V3(tx - 1.1, 3.7, tz - 1.4), high = V3(tx - .2, 9.2, tz - 1.15);
+  if (T0 < EV.take) { exPaper.position.copy(desk); exPaper.rotation.set(-Math.PI / 2, 0, 0); }
+  else if (yank < 0) { exPaper.position.copy(desk.clone().lerp(tugP, clamp((T0 - EV.take) / .25))); exPaper.rotation.set(-Math.PI / 2 + .25, 0, Math.sin(T0 * 16) * .15); }
+  else if (yank < .35) { const k = eOut(clamp(yank / .25)); exPaper.position.copy(tugP.clone().lerp(hand, k)); exPaper.rotation.set(lerp(-Math.PI / 2 + .25, -.2, k), lerp(0, -Math.PI / 2, k), 0); }
+  else { const ky = clamp(up * 1.6), kx = clamp((up - .45) / .55); exPaper.position.set(lerp(hand.x - .6, high.x, kx), lerp(hand.y, high.y, ky), lerp(hand.z, high.z, up)); exPaper.rotation.set(0, -Math.PI / 2 + Math.sin(T0 * 6) * .12 * up, 0); }
 }
 const s3b = EV.take - .5;
 add(SC.s3[0], s3b, T0 => { exam(T0); camShot(T0, SC.s3[0], s3b - SC.s3[0], V3(-1, 11.5, -10), V3(-1.5, 10, -8), V3(-2, 3.8, 6), V3(-2.5, 4, 9), 54); return cls; });
-add(s3b, SC.s3[1], T0 => { exam(T0); const [x, , z] = seatPos(NOAM_SEAT); orbit(T0, s3b, SC.s3[1] - s3b, V3(x + 1, 4.8, z - .3), 11.5, 10.5, Math.PI + .55, Math.PI + .5, 1.4, 1.2); return cls; });
+add(s3b, SC.s3[1], T0 => { exam(T0); const [x, , z] = seatPos(NOAM_SEAT); camShot(T0, s3b, SC.s3[1] - s3b, V3(x - 8.5, 10.5, z - 2.6), V3(x - 7.6, 10, z - 2.2), V3(x + 1.3, 4.8, z - 1), V3(x + 1.3, 5.6, z - 1), 60); return cls; });
 // --- 4. הציונים: 89, 83, 79, 85 … ואני 55
 const G_T = [EV.g1, EV.g2, EV.g3, EV.g4], G_V = [89, 83, 79, 85];
 function grades(T0) { resetCls3(); board.material.map = BOARD; seatKids(T0, 'sit'); kidsC.forEach((k, i) => { const gi = i < 4 ? i : -1; setFace(k, 'happy');
