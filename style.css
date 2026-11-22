@@ -3206,3 +3206,6 @@ body.editing-shared .nb-mem{display:none}
   .login-card .field{margin-bottom:10px}
 }
 @media (max-width:600px) and (max-height:700px){.lc-pts{display:none}}
+
+/* הדפסה מהאייפון (אפליקציה במסך הבית) */
+.pr-ios{margin:6px 0 14px;padding-inline-start:22px;line-height:1.8}

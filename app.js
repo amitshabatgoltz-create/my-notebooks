@@ -9474,7 +9474,7 @@ function printAsk() {
     const on = printCompactOn() ? '1' : '0';
     d.querySelectorAll('.pr-opt').forEach(b => {
       if (b.dataset.c === on) b.classList.add('on');
-      b.onclick = () => { try { localStorage.setItem('printCompact', b.dataset.c); } catch {} closeDialog(); setTimeout(printNotebook, 80); };
+      b.onclick = () => { try { localStorage.setItem('printCompact', b.dataset.c); } catch {} closeDialog(); printNotebook(); };   // בתוך הלחיצה עצמה – בטלפון אחרת ההדפסה נחסמת
     });
   });
 }
@@ -9488,7 +9488,21 @@ function printNotebook() {
   const done = () => { document.body.classList.remove('printing-nb', 'print-compact'); document.title = old; removeEventListener('afterprint', done); };
   addEventListener('afterprint', done);
   track('print', {});
-  setTimeout(() => window.print(), 60);
+  prSmart(true);
+  // אפליקציה במסך הבית באייפון: אין שם הדפסה בכלל – מסבירים איך לעשות את זה מספארי
+  if (navigator.standalone === true) { done(); prSmart(false); return printIosHelp(); }
+  try { window.print(); } catch { done(); }
+}
+function printIosHelp() {
+  dialog(d => {
+    d.innerHTML = `<h3>הדפסה מהאייפון</h3><p>באפליקציה שבמסך הבית אפל לא מאפשרים להדפיס. ככה עושים את זה:</p>
+      <ol class="pr-ios"><li>פותחים את האתר בספארי (לא דרך האייקון במסך הבית)</li><li>נכנסים למחברת ולוחצים על הדפסה</li><li>שם אפשר להדפיס או לשמור כ-PDF</li></ol>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const copy = document.createElement('button'); copy.className = 'btn btn-ghost'; copy.textContent = 'העתקת הקישור';
+    copy.onclick = async () => { try { await navigator.clipboard.writeText(location.origin + location.pathname); toast('הקישור הועתק – מדביקים בספארי'); } catch { toast('פותחים את ספארי ונכנסים לאתר'); } };
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הבנתי'; ok.onclick = closeDialog;
+    row.append(copy, ok); d.appendChild(row);
+  });
 }
 $('nbPrint').addEventListener('click', printAsk);
 // גם Ctrl+P בתוך מחברת מדפיס רק את המחברת
