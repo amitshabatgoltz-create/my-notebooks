@@ -552,7 +552,7 @@ exports.waProcess = onDocumentCreated({ document: 'waInbox/{id}', region: WA_REG
   finally { await ev.data.ref.update({ done: true, from: FieldValue.delete(), text: FieldValue.delete(), caption: FieldValue.delete() }).catch(() => {}); }
 });
 
-const WA_HELP = 'שלחו לכאן צילום של הלוח או של דף מהמחברת, והוא ייכנס לבד למחברת המתאימה 📷\nכדי לבחור מחברת, כתבו את השם שלה בכיתוב של התמונה (למשל: מתמטיקה).\nלניתוק כתבו: ניתוק';
+const WA_HELP = 'שלחו לכאן צילום של הלוח או של דף מהמחברת, והוא ייכנס לבד למחברת המתאימה 📷\nכדי לבחור מחברת, כתבו את השם שלה בכיתוב של התמונה (למשל: מתמטיקה).\nלמחיקה של מה שנכנס בפעם האחרונה כתבו: מחק\nלניתוק כתבו: ניתוק';
 
 async function waHandle(m) {
   const key = phoneKey(m.from);
@@ -576,6 +576,23 @@ async function waHandle(m) {
         return u;
       });
       return waSend(m.from, got ? '✅ מחובר! מעכשיו כל צילום של הלוח שתשלחו לכאן ייכנס למחברת המתאימה.\n\n' + WA_HELP : 'הקוד לא נכון או שעבר הזמן שלו. מקבלים קוד חדש באתר: תפריט ← וואטסאפ.');
+    }
+    // "מחק" – מוחקים מהמחברת את מה שהבוט הכניס בפעם האחרונה
+    if (/^(מחק|תמחק|למחוק|בטל|ביטול|undo)/i.test(t) && !/(ניתוק|נתק)/.test(t)) {
+      if (!uid) return waSend(m.from, 'קודם צריך לחבר את המספר באתר.');
+      const mref = db.doc(`users/${uid}/meta/whatsapp`); const ms = await mref.get(); const u = ms.exists && ms.data().undo;
+      if (!u || !u.nb) return waSend(m.from, 'אין משהו למחוק – עוד לא הכנסתי כלום, או שכבר מחקתי.');
+      const ref = db.doc(`users/${uid}/notebooks/${u.nb}`); let ok = false, title = 'המחברת';
+      await db.runTransaction(async tx => {
+        const sn = await tx.get(ref); if (!sn.exists) return; const cur = sn.data(); title = cur.title || title;
+        const html = String(cur.html || ''), i = html.lastIndexOf(u.block); if (i < 0) return;
+        const rest = html.slice(0, i) + html.slice(i + u.block.length), now = Date.now(); ok = true;
+        if (u.isNew && !rest.replace(/<[^>]+>/g, '').trim()) tx.update(ref, { html: rest, trashed: now, updatedAt: now, wa: { at: now, html: '' } });   // מחברת שהבוט יצר ונשארה ריקה – לפח
+        else tx.update(ref, { html: rest, updatedAt: now, wa: { at: now, html: '' } });
+      });
+      await mref.set({ undo: null }, { merge: true });
+      if (ok && u.img) await db.doc(`users/${uid}/images/${u.img}`).delete().catch(() => {});
+      return waSend(m.from, ok ? `נמחק מהמחברת "${title}" ✓` : 'לא מצאתי את זה במחברת – אולי כבר שינית את זה באתר.');
     }
     if (/^(ניתוק|נתק|stop|unlink)$/i.test(t)) {
       if (uid) { await db.doc(`waLinks/${key}`).delete(); await db.doc(`users/${uid}/meta/whatsapp`).delete().catch(() => {}); }
@@ -640,7 +657,7 @@ ${cap ? `התלמיד כתב ליד התמונה: "${String(m.caption).slice(0, 
     const d = new Date(Date.now() + 2 * 3600e3);   // התאריך לפי שעון ישראל (בערך – מספיק לכותרת)
     const when = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
     const block = `<h3>מהלוח · ${when}</h3>${imgId ? `<p><img data-img="${imgId}" data-u="${uid}"></p>` : ''}${html}<p><br></p>`;
-    const now = Date.now(); let title;
+    const now = Date.now(); let title, newNbId = null;
     if (target) {
       const ref = db.doc(`users/${uid}/notebooks/${target.id}`);
       await db.runTransaction(async tx => {
@@ -650,10 +667,11 @@ ${cap ? `התלמיד כתב ליד התמונה: "${String(m.caption).slice(0, 
       });
     } else {
       title = (cap && m.caption.trim().slice(0, 40)) || subject || 'מהוואטסאפ';
-      await db.collection(`users/${uid}/notebooks`).add({ title, ...(subject ? { subject } : {}), color: '#2f5bd3', html: block, createdAt: now, updatedAt: now, wa: { at: now, html: block } });
+      newNbId = (await db.collection(`users/${uid}/notebooks`).add({ title, ...(subject ? { subject } : {}), color: '#2f5bd3', html: block, createdAt: now, updatedAt: now, wa: { at: now, html: block } })).id;
     }
     done = true;
-    await db.doc(`users/${uid}/meta/whatsapp`).set({ last: now, count: FieldValue.increment(1) }, { merge: true }).catch(() => {});
+    const nbId = target ? target.id : newNbId;
+    await db.doc(`users/${uid}/meta/whatsapp`).set({ last: now, count: FieldValue.increment(1), undo: nbId ? { nb: nbId, block, img: imgId || null, isNew: !target, at: now } : null }, { merge: true }).catch(() => {});
     return waSend(m.from, `✅ נכנס ${target ? 'לסוף המחברת' : 'למחברת חדשה'} "${title}"\n${SITE}${target ? '' : '\n\nבפעם הבאה אפשר לכתוב את שם המחברת בכיתוב של התמונה, והיא תיכנס בדיוק לשם.'}`);
   } finally {
     if (!done && !owner) await refundOne(uid, 'ocr');
