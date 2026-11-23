@@ -466,8 +466,8 @@ const escHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'
 
 async function waSend(to, body) {
   try {
-    const r = await fetch(`${GRAPH}/${WA_PHONE_ID.value()}/messages`, {
-      method: 'POST', headers: { Authorization: `Bearer ${WA_TOKEN.value()}`, 'Content-Type': 'application/json' },
+    const r = await fetch(`${GRAPH}/${WA_PHONE_ID.value().trim()}/messages`, {
+      method: 'POST', headers: { Authorization: `Bearer ${WA_TOKEN.value().trim()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: String(body).slice(0, 4000), preview_url: false } }),
     });
     if (!r.ok) console.warn('wa send', r.status, (await r.text()).slice(0, 300));
@@ -475,7 +475,7 @@ async function waSend(to, body) {
 }
 
 async function waMedia(id) {
-  const h = { Authorization: `Bearer ${WA_TOKEN.value()}` };
+  const h = { Authorization: `Bearer ${WA_TOKEN.value().trim()}` };
   const meta = await (await fetch(`${GRAPH}/${encodeURIComponent(id)}`, { headers: h })).json();
   if (!meta || !meta.url) throw new Error('media-meta');
   if (meta.file_size && meta.file_size > 16e6) throw new Error('too-big');
@@ -522,13 +522,13 @@ exports.waLink = onCall({ region: WA_REGION }, async req => {
 // ---- 2. Meta שולחת לכאן כל הודעה ----
 exports.whatsapp = onRequest({ region: WA_REGION, secrets: [WA_APP_SECRET, WA_VERIFY], maxInstances: 5, invoker: 'public' }, async (req, res) => {
   if (req.method === 'GET') {   // אימות חד-פעמי כשמגדירים את ה-webhook ב-Meta
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === WA_VERIFY.value()) return res.status(200).send(String(req.query['hub.challenge'] || ''));
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === WA_VERIFY.value().trim()) return res.status(200).send(String(req.query['hub.challenge'] || ''));
     return res.sendStatus(403);
   }
   if (req.method !== 'POST') return res.sendStatus(405);
   // בודקים שההודעה באמת מ-Meta (חתימה עם ה-App secret)
   const sig = String(req.get('x-hub-signature-256') || '');
-  const want = 'sha256=' + crypto.createHmac('sha256', WA_APP_SECRET.value()).update(req.rawBody || Buffer.alloc(0)).digest('hex');
+  const want = 'sha256=' + crypto.createHmac('sha256', WA_APP_SECRET.value().trim()).update(req.rawBody || Buffer.alloc(0)).digest('hex');
   if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return res.sendStatus(401);
   const msgs = [];
   for (const e of (req.body && req.body.entry) || []) for (const c of e.changes || []) for (const m of (c.value && c.value.messages) || []) msgs.push(m);
