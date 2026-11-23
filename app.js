@@ -7808,11 +7808,13 @@ async function mashovDialog() {
         <label class="msh-l">בית הספר<input id="mshSchool" list="mshSchools" dir="auto" placeholder="מחפשים לפי שם או סמל" autocomplete="off"><datalist id="mshSchools"></datalist></label>
         <label class="msh-l">שנת לימודים<input id="mshYear" type="number" dir="ltr" min="2020" max="2040"></label>
         <label class="msh-l">שם משתמש במשוב<input id="mshUser" dir="ltr" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
-        <label class="msh-l">סיסמה של משוב<input id="mshPass" type="password" dir="ltr" autocomplete="current-password"></label>
+        <label class="msh-l">סיסמה של משוב<span class="msh-pw"><input id="mshPass" type="password" dir="ltr" autocomplete="current-password"><button type="button" class="msh-eye" data-eye aria-label="להראות את הסיסמה" title="להראות את הסיסמה"><svg aria-hidden="true"><use href="#i-eye"/></svg></button></span></label>
         <p class="msh-safe"><svg aria-hidden="true"><use href="#i-lock"/></svg>הסיסמה נשמרת מוצפנת בשרת, ורק השרת יכול לפתוח אותה. אפשר להתנתק בכל רגע והיא נמחקת.</p>
         <div class="row"><button class="btn btn-ghost" data-x>ביטול</button><button class="btn btn-primary" data-go>התחברות</button></div>`;
       const sc = d.querySelector('#mshSchool'), dl = d.querySelector('#mshSchools'); let schools = [];
       d.querySelector('[data-x]').onclick = closeDialog;
+      { const pw = d.querySelector('#mshPass'), eye = d.querySelector('[data-eye]');   // עין: להראות / להסתיר את מה שכתבת
+        eye.onclick = () => { const show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; eye.querySelector('use').setAttribute('href', show ? '#i-eye-off' : '#i-eye'); eye.setAttribute('aria-label', show ? 'להסתיר את הסיסמה' : 'להראות את הסיסמה'); eye.title = eye.getAttribute('aria-label'); pw.focus(); }; }
       mshCall({ a: 'schools' }).then(r => { schools = r.schools || []; d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(e => { toast('הרשימה של בתי הספר לא נטענה: ' + mshErr(e)); d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
       d.querySelector('[data-go]').onclick = async ev => {
         // בית הספר: מהרשימה (עם הסמל בסוף), סמל בלבד, או חלק מהשם – אם יש רק בית ספר אחד שמתאים
