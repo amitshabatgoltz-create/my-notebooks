@@ -7811,11 +7811,16 @@ async function mashovDialog() {
         <label class="msh-l">סיסמה של משוב<input id="mshPass" type="password" dir="ltr" autocomplete="current-password"></label>
         <p class="msh-safe"><svg aria-hidden="true"><use href="#i-lock"/></svg>הסיסמה נשמרת מוצפנת בשרת, ורק השרת יכול לפתוח אותה. אפשר להתנתק בכל רגע והיא נמחקת.</p>
         <div class="row"><button class="btn btn-ghost" data-x>ביטול</button><button class="btn btn-primary" data-go>התחברות</button></div>`;
-      const sc = d.querySelector('#mshSchool'), dl = d.querySelector('#mshSchools');
+      const sc = d.querySelector('#mshSchool'), dl = d.querySelector('#mshSchools'); let schools = [];
       d.querySelector('[data-x]').onclick = closeDialog;
-      mshCall({ a: 'schools' }).then(r => { d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(() => { d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
+      mshCall({ a: 'schools' }).then(r => { schools = r.schools || []; d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(() => { d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
       d.querySelector('[data-go]').onclick = async ev => {
-        const semel = (sc.value.match(/(\d{3,8})\)?\s*$/) || [])[1], user = d.querySelector('#mshUser').value.trim(), pass = d.querySelector('#mshPass').value;
+        // בית הספר: מהרשימה (עם הסמל בסוף), סמל בלבד, או חלק מהשם – אם יש רק בית ספר אחד שמתאים
+        let semel = (sc.value.match(/(\d{3,8})\)?\s*$/) || [])[1];
+        if (!semel && sc.value.trim()) { const q = sc.value.trim().replace(/["׳״']/g, ''), hit = schools.filter(x => x.n.replace(/["׳״']/g, '').includes(q));
+          if (hit.length === 1) { semel = String(hit[0].id); sc.value = `${hit[0].n} (${hit[0].id})`; }
+          else if (hit.length > 1) return toast(`יש ${hit.length} בתי ספר עם השם הזה – בוחרים את הנכון מהרשימה שנפתחת`); }
+        const user = d.querySelector('#mshUser').value.trim(), pass = d.querySelector('#mshPass').value;
         if (!semel) return toast('בוחרים בית ספר מהרשימה (או כותבים את הסמל)');
         if (!user || !pass) return toast('חסר שם משתמש או סיסמה');
         const b = ev.currentTarget; b.disabled = true; b.textContent = 'מתחבר למשוב…';
