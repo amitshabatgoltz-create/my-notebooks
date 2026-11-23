@@ -617,9 +617,15 @@ async function waHandle(m) {
 ${cap ? `התלמיד כתב ליד התמונה: "${String(m.caption).slice(0, 100)}" – אם זה שם של מקצוע, הוא קובע.\n` : ''}המחברות של התלמיד:\n${list || '(אין עדיין מחברות)'}`;
     const ai = await gemini();
     const parts = [{ inlineData: { mimeType: isPdf ? 'application/pdf' : (/^image\//.test(mime) ? mime : 'image/jpeg'), data: buf.toString('base64') } }, { text: WA_OCR_PROMPT + pick }];
-    let r;
-    try { r = await ai.models.generateContent({ model: MODELS[0], contents: [{ role: 'user', parts }], config: { temperature: 0, thinkingConfig: { thinkingLevel: 'HIGH' }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' } }); }
-    catch (e) { console.warn('wa gemini level failed, retry plain', String(e && e.message).slice(0, 200)); r = await ai.models.generateContent({ model: MODELS[0], contents: [{ role: 'user', parts }], config: { temperature: 0 } }); }
+    // Gemini לפעמים עמוס (503) – מנסים כמה פעמים עם הפסקה, ועוברים למודל השני אם צריך
+    const tries = [[MODELS[0], { temperature: 0, thinkingConfig: { thinkingLevel: 'HIGH' }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' }, 0], [MODELS[0], { temperature: 0 }, 3000], [OCR_MODEL, { temperature: 0, thinkingConfig: { thinkingLevel: 'LOW' } }, 4000], [MODELS[0], { temperature: 0 }, 10000], [OCR_MODEL, { temperature: 0 }, 15000]];
+    let r, lastErr;
+    for (const [model, config, wait] of tries) {
+      if (wait) await new Promise(ok => setTimeout(ok, wait));
+      try { r = await ai.models.generateContent({ model, contents: [{ role: 'user', parts }], config }); break; }
+      catch (e) { lastErr = e; console.warn('wa gemini', model, String(e && e.message).slice(0, 160)); }
+    }
+    if (!r) { const busy = /503|UNAVAILABLE|overloaded|high demand|429/i.test(String(lastErr && lastErr.message)); if (busy) { done = false; return waSend(m.from, 'ה-AI עמוס עכשיו. נסו לשלוח את התמונה שוב בעוד כמה דקות.'); } throw lastErr; }
     const raw = String(r.text || '');
     const html = waCleanHtml(raw);
     if (!html.replace(/<[^>]+>/g, '').trim()) { if (!owner) await refundOne(uid, 'ocr'); done = true; return waSend(m.from, 'לא מצאתי טקסט בתמונה 🤔 נסו צילום קרוב וברור יותר.'); }
