@@ -7930,6 +7930,9 @@ const CHAT_EDIT_RULES = `6. עריכת המחברת: אם המשתמש מבקש 
 - text: רק הטקסט החדש, בלי הסברים. כמה שורות = \\n. שורה שמתחילה ב-"- " = נקודה ברשימה. שורה שמתחילה ב-"## " = כותרת קטנה. אפשר **מודגש**.
 - טבלה: כל שורה בטבלה היא שורה נפרדת בפורמט | תא | תא | תא |, השורה הראשונה היא הכותרות, ואחריה |---|---|---|. אותו מספר תאים בכל שורה, ובלי | כפול.
 - replace רק כשהמשתמש ביקש לתקן או להחליף. אל תמחק שום דבר אחר.
+7. כפילויות: אם המשתמש מבקש למחוק כפילויות / דברים שמופיעים פעמיים / משהו שנכנס פעמיים למחברת, החזר בתחילת התשובה בדיוק את זה:
+{"action":"DEDUPE_NOTEBOOK"}
+ואחריו משפט קצר. האתר עצמו מוצא את הכפילויות: משאיר את הראשון ומוחק רק את מה שחוזר אחריו. אל תשתמש ב-EDIT_NOTEBOOK בשביל זה.
 `;
 // העוזר מכיר את כל המחברות: בעוזר הכללי – קטעים מכל המחברות (החדשות קודם), כדי שאפשר לשאול "מה למדנו בהיסטוריה?".
 // כשמחברת פתוחה – רק השמות של השאר. הטקסט נשמר בזיכרון לפי זמן העדכון, כדי לא לעבד הכול בכל הודעה
@@ -8087,7 +8090,7 @@ function chatSplit(raw) {
   if (end < 0) return { text: before, action: null, partial: true };
   const rest = t.slice(end + 1).replace(/^\s*```/, '').trim();
   const text = [before, rest].filter(Boolean).join('\n\n');
-  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'UPDATE_CALENDAR', 'QUIZ', 'SHEET', 'EDIT_NOTEBOOK'].includes(o.action) ? o : null }; }
+  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'UPDATE_CALENDAR', 'QUIZ', 'SHEET', 'EDIT_NOTEBOOK', 'DEDUPE_NOTEBOOK'].includes(o.action) ? o : null }; }
   catch { return { text, action: null, broken: true }; }
 }
 
@@ -8239,6 +8242,50 @@ function chatEditApply(eds) {
   els.forEach(n => n.classList.add('ai-flash')); setTimeout(() => els.forEach(n => { n.classList.remove('ai-flash'); if (!n.getAttribute('class')) n.removeAttribute('class'); }), 2600);
   els[0].scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   return before;
+}
+// כפילויות במחברת: כל שורה/בלוק שכבר הופיע קודם (אותו טקסט) – נמחק. הראשון נשאר.
+// תמונה בלי טקסט שנמצאת באמצע קטע כפול (וגם שורות ריקות שם) נמחקת יחד איתו.
+function nbDupes() {
+  const ed = $('editor'); if (!ed) return [];
+  const blocks = [...ed.querySelectorAll(':scope > *:not([data-slide]), :scope > [data-slide] > *')].filter(b => !b.classList.contains('pg-sheets'));
+  const key = b => { const t = edNorm(b.textContent || ''); if (t.length >= 6) return 't:' + t; const im = b.querySelector('img[data-img]'); return im && !t ? 'i:' + im.getAttribute('data-img') : ''; };
+  const seen = new Set(), dup = new Set();
+  blocks.forEach(b => { const k = key(b); if (!k) return; if (seen.has(k)) dup.add(b); else seen.add(k); });
+  // תמונות / שורות ריקות / שורות קצרות שנמצאות בין שני חלקים כפולים
+  for (let pass = 0; pass < 2; pass++) blocks.forEach((b, i) => {
+    if (dup.has(b) || key(b).startsWith('t:')) return;
+    const prev = blocks[i - 1], next = blocks[i + 1];
+    if (prev && dup.has(prev) && (!next || dup.has(next))) dup.add(b);
+  });
+  return blocks.filter(b => dup.has(b));
+}
+function chatDedupeCard(list) {
+  const c = document.createElement('div'); c.className = 'chat-edit';
+  const h = document.createElement('b'); h.textContent = list.length === 1 ? 'מצאתי שורה אחת שמופיעה פעמיים' : `מצאתי ${list.length} שורות שמופיעות פעמיים`;
+  const sub = document.createElement('small'); sub.textContent = 'הראשונות נשארות. אלה שחוזרות אחריהן יימחקו:';
+  const lst = document.createElement('div'); lst.className = 'ce-list';
+  list.slice(0, 6).forEach(b => { const it = document.createElement('div'); it.className = 'ce-item ce-del'; it.dir = 'auto'; it.textContent = (b.textContent || '').trim().slice(0, 90) || (b.querySelector('img') ? '(תמונה)' : '(שורה ריקה)'); lst.appendChild(it); });
+  if (list.length > 6) { const more = document.createElement('small'); more.textContent = `ועוד ${list.length - 6}…`; lst.appendChild(more); }
+  const row = document.createElement('div'); row.className = 'ce-row';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn btn-primary'; ok.textContent = 'למחוק את הכפילויות';
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn btn-ghost'; no.textContent = 'לא צריך';
+  list.forEach(b => b.classList.add('dup-mark'));
+  const unmark = () => list.forEach(b => { b.classList.remove('dup-mark'); if (!b.getAttribute('class')) b.removeAttribute('class'); });
+  list[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+  ok.onclick = () => {
+    const ed = $('editor'); if (!openId || !edCan()) { toast('צריך לפתוח את המחברת'); return; }
+    unmark(); const before = ed.innerHTML;
+    list.forEach(b => b.isConnected && b.remove());
+    if (typeof curLayout === 'function' && curLayout() === 'slides') slideFix();
+    markDirty(); track('chat_dedupe', { n: list.length });
+    row.innerHTML = ''; const done = document.createElement('span'); done.textContent = '✓ נמחקו ' + list.length;
+    const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn btn-ghost'; undo.textContent = 'ביטול';
+    undo.onclick = () => { $('editor').innerHTML = before; loadImages($('editor')); markDirty(); row.innerHTML = '<span>בוטל</span>'; };
+    row.append(done, undo);
+  };
+  no.onclick = () => { unmark(); c.remove(); };
+  row.append(ok, no); c.append(h, sub, lst, row);
+  $('chatLog').appendChild(c); chatScroll();
 }
 function chatEditCard(eds) {
   const c = document.createElement('div'); c.className = 'chat-edit';
@@ -8525,6 +8572,13 @@ async function chatSend() {
       if (ch.length) chatUpdatedCard(ch);
       const mv = added.filter(e => e.moved).map(e => e.moved), ad = added.filter(e => !e.moved && !e.dup);
       if (mv.length) chatUpdatedCard(mv); if (ad.length) chatAddedCard(ad);
+    } else if (s.action && s.action.action === 'DEDUPE_NOTEBOOK') {
+      const list = openId && edCan() ? nbDupes() : null;
+      if (!list) text = 'כדי שאמחק כפילויות, צריך לפתוח את המחברת ולשאול אותי משם.';
+      else if (!list.length) text = 'בדקתי – אין במחברת שורות שמופיעות פעמיים.';
+      else if (!text) text = 'מצאתי כפילויות. תסתכל ותאשר:';
+      b.classList.remove('typing', 'making'); chatFill(b, text);
+      if (list && list.length) chatDedupeCard(list);
     } else if (s.action && s.action.action === 'EDIT_NOTEBOOK') {
       const eds = chatEditPrep(s.action);
       if (!eds.length) text = (text ? text + '\n\n' : '') + (openId ? 'לא מצאתי במחברת את המקום שצריך לשנות. אפשר להגיד לי בדיוק איפה, למשל "מתחת לכותרת X".' : 'כדי שאשנה משהו במחברת, צריך לפתוח אותה ולשאול אותי משם.');

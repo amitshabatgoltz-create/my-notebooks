@@ -3230,3 +3230,7 @@ body.editing-shared .nb-mem{display:none}
 
 /* חיבור לוואטסאפ */
 .wa-code { font-size: 2.2rem; font-weight: 800; letter-spacing: .25em; text-align: center; margin: 14px 0 4px; font-variant-numeric: tabular-nums; }
+
+/* כפילויות במחברת (העוזר) */
+#editor .dup-mark{background:color-mix(in srgb,#EF4444 14%,transparent);outline:2px dashed color-mix(in srgb,#EF4444 55%,transparent);outline-offset:2px;border-radius:6px}
+.ce-item.ce-del{text-decoration:line-through;color:var(--muted)}
