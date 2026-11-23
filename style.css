@@ -3227,3 +3227,6 @@ body.editing-shared .nb-mem{display:none}
 .msh-eye{position:absolute;top:50%;left:6px;transform:translateY(-50%);width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:transparent;color:var(--muted)}
 .msh-eye:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
 .msh-eye svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* חיבור לוואטסאפ */
+.wa-code { font-size: 2.2rem; font-weight: 800; letter-spacing: .25em; text-align: center; margin: 14px 0 4px; font-variant-numeric: tabular-nums; }

@@ -238,6 +238,7 @@ function subscribe() {
     $('loading').classList.add('hidden');
     const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     notebooks = allNb.filter(n => !n.trashed); trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
+    waMerge();
     purgeTrash(); renderTrashBtn();
     // עומס: בכל שמירה אוטומטית (כל ~1.2 שנ׳ בזמן כתיבה) מגיע עדכון. מציירים את כל הרשימה רק כשהיא על המסך
     if (!$('library').classList.contains('hidden')) renderGrid(); else renderSide();
@@ -465,7 +466,7 @@ function showLibrary(mode) {
 function openNotebook(id) {
   const n = notebooks.find(x => x.id === id); if (!n) return;
   if (openId && openId !== id) flush();
-  openId = id; dirty = false;
+  openId = id; dirty = false; waSeen[id] = (n.wa && n.wa.at) || 0;
   $('title').value = n.title || '';
   $('docColor').style.setProperty('--c', n.color || COLORS[0]); $('docColor').style.background = nbPaint(n.color || COLORS[0]); $('nbColorDot').style.background = nbPaint(n.color || COLORS[0]);
   $('editor').innerHTML = clean(n.html || '');
@@ -7846,6 +7847,62 @@ async function mashovDialog() {
       catch (e) { b.disabled = false; b.textContent = 'לעדכן עכשיו'; toast(mshErr(e)); } };
   });
 }
+/* ================= צילום לוח מהוואטסאפ ================= */
+// המספר של הבוט: רק ספרות, עם קידומת מדינה (למשל 972501234567). ריק = הבוט עוד לא הוגדר (ראו WHATSAPP_SETUP.md)
+const WA_NUMBER = '';
+let waCallFn = null;
+const waLinkCall = data => { if (!waCallFn) waCallFn = httpsCallable(getFunctions(fb, 'europe-west1'), 'waLink', { timeout: 30000 }); return appCheckReady.then(() => waCallFn(data)).then(r => r.data); };
+// הבוט הוסיף תמונה למחברת שפתוחה עכשיו: מראים אותה, וגם דואגים שהשמירה הבאה מהמסך לא תמחק אותה
+const waSeen = {};
+function waMerge() {
+  if (!openId || String(openId).startsWith('share:')) return;
+  const n = notebooks.find(x => x.id === openId); if (!n || !n.wa || !n.wa.at) return;
+  if (!(openId in waSeen)) { waSeen[openId] = n.wa.at; return; }
+  if (n.wa.at <= waSeen[openId]) return;
+  waSeen[openId] = n.wa.at;
+  const ed = $('editor');
+  if (!dirty && !saving) ed.innerHTML = clean(n.html || '');
+  else { const w = document.createElement('div'); w.innerHTML = clean(n.wa.html || ''); ed.append(...w.childNodes); markDirty(); }
+  loadImages(ed); renderFiles(ed); renderCanvases(ed); applyBoxSizes(ed);
+  toast('נכנסה תמונה מהוואטסאפ לסוף המחברת');
+}
+async function waDialog() {
+  let st = {}; try { const sn = await getDoc(doc(db, 'users', me.uid, 'meta', 'whatsapp')); st = sn.exists() ? sn.data() : {}; } catch {}
+  const bot = `https://wa.me/${WA_NUMBER}`;
+  dialog(d => {
+    d.classList.add('wa-dlg');
+    if (!WA_NUMBER) {
+      d.innerHTML = '<h3>צילום לוח מהוואטסאפ</h3><p class="muted-s">הבוט עוד לא הוגדר. צריך להכניס את המספר שלו ב-WA_NUMBER בקובץ app.js (ההוראות ב-WHATSAPP_SETUP.md).</p><div class="row"><button class="btn btn-ghost" data-x>סגירה</button></div>';
+      d.querySelector('[data-x]').onclick = closeDialog; return;
+    }
+    if (st.on) {
+      d.innerHTML = `<h3>וואטסאפ מחובר</h3>
+        <p>מחובר למספר שמסתיים ב-<b dir="ltr">${esc(st.last4 || '')}</b>.${st.count ? ` נכנסו כבר ${st.count} תמונות.` : ''}</p>
+        <p class="muted-s">מצלמים את הלוח ושולחים לבוט. כדי לבחור מחברת, כותבים את השם שלה בכיתוב של התמונה (למשל: מתמטיקה). בלי כיתוב, הבוט בוחר לפי מה שכתוב בתמונה.</p>
+        <div class="row"><button class="btn btn-ghost" data-off>ניתוק</button><button class="btn btn-ghost" data-x>סגירה</button><a class="btn btn-primary" href="${bot}" target="_blank" rel="noopener">פתיחת הבוט</a></div>`;
+      d.querySelector('[data-x]').onclick = closeDialog;
+      d.querySelector('[data-off]').onclick = async ev => { if (!confirm('לנתק את הוואטסאפ? מה שכבר נכנס למחברות נשאר.')) return; ev.currentTarget.disabled = true;
+        try { await waLinkCall({ a: 'off' }); closeDialog(); toast('הוואטסאפ נותק'); } catch (e) { ev.currentTarget.disabled = false; toast(mshErr(e)); } };
+      return;
+    }
+    d.innerHTML = `<h3>צילום לוח מהוואטסאפ</h3>
+      <p class="muted-s">מחברים פעם אחת. אחר כך פשוט שולחים לבוט בוואטסאפ צילום של הלוח, והטקסט נכנס לבד למחברת המתאימה.</p>
+      <p class="wa-code" id="waCode" dir="ltr">· · · · · ·</p>
+      <p class="muted-s" id="waHint">מכין קוד…</p>
+      <div class="row"><button class="btn btn-ghost" data-x>ביטול</button><a class="btn btn-primary hidden" id="waGo" target="_blank" rel="noopener">שליחת הקוד בוואטסאפ</a></div>`;
+    let un = () => {};
+    d.querySelector('[data-x]').onclick = () => { un(); closeDialog(); };
+    waLinkCall({ a: 'code' }).then(r => {
+      d.querySelector('#waCode').textContent = r.code;
+      d.querySelector('#waHint').textContent = `לוחצים על הכפתור ושולחים בוואטסאפ את ההודעה שנפתחת. הקוד תקף ${r.minutes} דקות.`;
+      const go = d.querySelector('#waGo'); go.href = `${bot}?text=${encodeURIComponent('חיבור ' + r.code)}`; go.classList.remove('hidden');
+    }).catch(e => { d.querySelector('#waHint').textContent = 'לא הצלחתי להכין קוד: ' + mshErr(e); });
+    // כשהבוט מקבל את הקוד – החלון נסגר לבד
+    un = onSnapshot(doc(db, 'users', me.uid, 'meta', 'whatsapp'), sn => { if (sn.exists() && sn.data().on) { un(); closeDialog(); toast('וואטסאפ מחובר! עכשיו שולחים לבוט צילום של הלוח'); track('wa_on', {}); } }, () => {});
+    setTimeout(() => un(), 15 * 60000);
+  });
+}
+$('waBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); waDialog(); });
 $('mashovBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); mashovDialog(); });
 
 function chatAboutMe() {

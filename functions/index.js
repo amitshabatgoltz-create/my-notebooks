@@ -416,3 +416,237 @@ exports.mashovDaily = onSchedule({ schedule: '0 16 * * *', timeZone: 'Asia/Jerus
   const all = await db.collection('mashovCreds').get();
   for (const d of all.docs) await mshSync(d.id).catch(e => db.doc(`users/${d.id}/meta/mashov`).set({ err: String(e.message || e).slice(0, 200), errAt: Date.now() }, { merge: true }));
 });
+
+// ================================================================================================
+// 📲 בוט וואטסאפ: מצלמים את הלוח, שולחים לבוט, והטקסט נכנס לבד למחברת המתאימה (למשל "מתמטיקה").
+// איך זה עובד:
+//   1. באתר: תפריט ← "וואטסאפ" ← מקבלים קוד של 6 ספרות (waLink) ושולחים אותו לבוט. ככה המספר מחובר לחשבון.
+//   2. Meta שולחת כל הודעה לבוט לכתובת whatsapp. היא נשמרת ב-waInbox ועונים 200 מיד (Meta לא אוהבת לחכות).
+//   3. waProcess קורא את התמונה עם Gemini, בוחר מחברת (לפי הכיתוב של התמונה, ואם אין – לפי התוכן),
+//      מוסיף לסוף המחברת את התמונה ואת הטקסט, ועונה בוואטסאפ לאיזו מחברת זה נכנס.
+// הבוט עושה רק את זה: מקבל תמונות ושומר אותן במחברת. הוא לא צ'אט כללי (כך דורשים הכללים של WhatsApp Business).
+// הגדרה: ראו WHATSAPP_SETUP.md
+// ================================================================================================
+const { onRequest } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { defineString } = require('firebase-functions/params');
+const { FieldValue } = require('firebase-admin/firestore');
+const WA_TOKEN = defineSecret('WA_TOKEN');               // טוקן קבוע של System User ב-Meta
+const WA_APP_SECRET = defineSecret('WA_APP_SECRET');     // App secret – לבדוק שההודעה באמת מ-Meta
+const WA_VERIFY = defineSecret('WA_VERIFY_TOKEN');       // מחרוזת שאנחנו ממציאים, לאימות ה-webhook
+const WA_PHONE_ID = defineString('WA_PHONE_ID');         // Phone number ID של הבוט (בקובץ functions/.env)
+const GRAPH = 'https://graph.facebook.com/' + (process.env.WA_GRAPH_VERSION || 'v23.0');
+const SITE = 'https://amitshabatgoltz-create.github.io/my-notebooks/';
+const WA_REGION = 'europe-west1';
+const phoneKey = p => crypto.createHash('sha256').update('my-notebooks-wa:' + String(p)).digest('hex');
+const CODE_MIN = 10;   // הקוד תקף 10 דקות
+
+// אותן הוראות כמו "צילום לוח" באתר (OCR_PROMPT ב-app.js), בקיצור
+const WA_OCR_PROMPT = `אתה מקבל תמונה של לוח בכיתה, דף מחברת בכתב יד או דף מודפס, בעברית (לפעמים גם אנגלית/מתמטיקה).
+זה צילום אמיתי מטלפון: לפעמים בזווית, מטושטש, עם צל או השתקפות. אם יש טקסט – קרא אותו בכל זאת.
+הקלד את כל התוכן בדיוק כפי שהוא כתוב, לפי הסדר (מימין לשמאל, מלמעלה למטה).
+החזר HTML נקי בלבד, בלי הסברים ובלי \`\`\`:
+- כותרות: <h2> לכותרת ראשית, <h3> לכותרת משנה. טקסט: <p>. רשימות: <ul>/<ol> עם <li>. טבלה: <table> עם <tr>/<td>. הדגשה: <b>.
+- חצים וקשרים בין רעיונות: כתוב כטקסט עם "←".
+- לא להמציא. כתוב רק מילים שבאמת רואים. אל תשלים, אל תסכם, אל תנסח מחדש.
+- מילה לא ברורה: כתוב את מה שהכי קרוב לצורת האותיות. חלק שלא קריא בכלל – דלג.
+- דלג על דברים שלא קשורים לחומר: רשימת תורנים ושמות תלמידים, תאריך בפינת הלוח, "לא למחוק", הודעות כלליות.`;
+
+const WA_TAGS = new Set(['h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'sub', 'sup']);
+// HTML מ-Gemini: משאירים רק תגיות פשוטות ובלי שום מאפיין (האתר מנקה שוב כשהוא פותח את המחברת)
+function waCleanHtml(s) {
+  return String(s || '')
+    .replace(/<(script|style|iframe|object)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/?([a-zA-Z0-9]+)(\s[^>]*)?>/g, (m, t) => { t = t.toLowerCase(); return WA_TAGS.has(t) ? (m[1] === '/' ? `</${t}>` : `<${t}>`) : ''; })
+    .replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim().slice(0, 200000);
+}
+const norm = s => String(s || '').toLowerCase().replace(/["׳״'`]/g, '').replace(/[.,:;!?()\-–_]/g, ' ').replace(/\s+/g, ' ').trim();
+const escHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+async function waSend(to, body) {
+  try {
+    const r = await fetch(`${GRAPH}/${WA_PHONE_ID.value()}/messages`, {
+      method: 'POST', headers: { Authorization: `Bearer ${WA_TOKEN.value()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: String(body).slice(0, 4000), preview_url: false } }),
+    });
+    if (!r.ok) console.warn('wa send', r.status, (await r.text()).slice(0, 300));
+  } catch (e) { console.warn('wa send', String(e && e.message).slice(0, 200)); }
+}
+
+async function waMedia(id) {
+  const h = { Authorization: `Bearer ${WA_TOKEN.value()}` };
+  const meta = await (await fetch(`${GRAPH}/${encodeURIComponent(id)}`, { headers: h })).json();
+  if (!meta || !meta.url) throw new Error('media-meta');
+  if (meta.file_size && meta.file_size > 16e6) throw new Error('too-big');
+  const r = await fetch(meta.url, { headers: h });
+  if (!r.ok) throw new Error('media-get ' + r.status);
+  return { buf: Buffer.from(await r.arrayBuffer()), mime: meta.mime_type || 'image/jpeg' };
+}
+
+// התמונה נשמרת כמו באתר: users/<uid>/images/<id> עם data URL קטן מ-900KB
+async function waSaveImage(uid, buf) {
+  const sharp = require('sharp');
+  let side = 1400, q = 80, out;
+  for (let i = 0; i < 6; i++) {
+    out = await sharp(buf).rotate().resize({ width: side, height: side, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#ffffff' }).jpeg({ quality: q }).toBuffer();
+    if (out.length * 4 / 3 < 880000) break;
+    side = Math.round(side * 0.8); q = Math.max(50, q - 8);
+  }
+  const ref = db.collection(`users/${uid}/images`).doc();
+  await ref.set({ data: 'data:image/jpeg;base64,' + out.toString('base64'), createdAt: Date.now(), from: 'whatsapp' });
+  return ref.id;
+}
+
+// ---- 1. האתר מבקש קוד חיבור / ניתוק ----
+exports.waLink = onCall({ region: WA_REGION }, async req => {
+  if (!req.auth) throw new HttpsError('unauthenticated', 'login');
+  const uid = req.auth.uid, a = (req.data || {}).a;
+  if (a === 'code') {
+    for (let i = 0; i < 5; i++) {
+      const code = String(crypto.randomInt(100000, 1000000));
+      try { await db.doc(`waCodes/${code}`).create({ uid, exp: Date.now() + CODE_MIN * 60000 }); return { code, minutes: CODE_MIN }; }
+      catch { /* הקוד תפוס – מנסים אחר */ }
+    }
+    throw new HttpsError('unavailable', 'נסו שוב');
+  }
+  if (a === 'off') {
+    const ref = db.doc(`users/${uid}/meta/whatsapp`); const sn = await ref.get();
+    if (sn.exists && sn.data().key) await db.doc(`waLinks/${sn.data().key}`).delete().catch(() => {});
+    await ref.delete().catch(() => {});
+    return { ok: true };
+  }
+  throw new HttpsError('invalid-argument', 'bad-action');
+});
+
+// ---- 2. Meta שולחת לכאן כל הודעה ----
+exports.whatsapp = onRequest({ region: WA_REGION, secrets: [WA_APP_SECRET, WA_VERIFY], maxInstances: 5, invoker: 'public' }, async (req, res) => {
+  if (req.method === 'GET') {   // אימות חד-פעמי כשמגדירים את ה-webhook ב-Meta
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === WA_VERIFY.value()) return res.status(200).send(String(req.query['hub.challenge'] || ''));
+    return res.sendStatus(403);
+  }
+  if (req.method !== 'POST') return res.sendStatus(405);
+  // בודקים שההודעה באמת מ-Meta (חתימה עם ה-App secret)
+  const sig = String(req.get('x-hub-signature-256') || '');
+  const want = 'sha256=' + crypto.createHmac('sha256', WA_APP_SECRET.value()).update(req.rawBody || Buffer.alloc(0)).digest('hex');
+  if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return res.sendStatus(401);
+  const msgs = [];
+  for (const e of (req.body && req.body.entry) || []) for (const c of e.changes || []) for (const m of (c.value && c.value.messages) || []) msgs.push(m);
+  await Promise.all(msgs.slice(0, 20).map(m => {
+    const d = { from: String(m.from || '').replace(/\D/g, '').slice(0, 20), type: String(m.type || ''), at: Date.now() };
+    if (!d.from) return null;
+    if (m.type === 'text') d.text = String((m.text && m.text.body) || '').slice(0, 500);
+    else if (m.type === 'image' && m.image) { d.media = String(m.image.id || ''); d.caption = String(m.image.caption || '').slice(0, 200); }
+    else if (m.type === 'document' && m.document && /^(image\/|application\/pdf)/.test(m.document.mime_type || '')) { d.type = 'image'; d.media = String(m.document.id || ''); d.caption = String(m.document.caption || '').slice(0, 200); d.pdf = /pdf/.test(m.document.mime_type); }
+    // create נכשל אם ההודעה כבר הגיעה – Meta לפעמים שולחת פעמיים, וככה מטפלים בה רק פעם אחת
+    return db.doc(`waInbox/${crypto.createHash('sha256').update(String(m.id || Math.random())).digest('hex').slice(0, 40)}`).create(d).catch(() => {});
+  }));
+  res.sendStatus(200);
+});
+
+// ---- 3. מטפלים בהודעה ----
+exports.waProcess = onDocumentCreated({ document: 'waInbox/{id}', region: WA_REGION, secrets: [WA_TOKEN, GEMINI_KEY], timeoutSeconds: 180, memory: '1GiB', maxInstances: 5, retry: false }, async ev => {
+  const m = ev.data && ev.data.data(); if (!m || !m.from) return;
+  try { await waHandle(m); }
+  catch (e) { console.error('wa', String(e && e.message).slice(0, 300)); await waSend(m.from, 'משהו השתבש 😕 נסו לשלוח את התמונה שוב בעוד דקה.'); }
+  finally { await ev.data.ref.update({ done: true, from: FieldValue.delete(), text: FieldValue.delete(), caption: FieldValue.delete() }).catch(() => {}); }
+});
+
+const WA_HELP = 'שלחו לכאן צילום של הלוח או של דף מהמחברת, והוא ייכנס לבד למחברת המתאימה 📷\nכדי לבחור מחברת, כתבו את השם שלה בכיתוב של התמונה (למשל: מתמטיקה).\nלניתוק כתבו: ניתוק';
+
+async function waHandle(m) {
+  const key = phoneKey(m.from);
+  const link = await db.doc(`waLinks/${key}`).get();
+  const uid = link.exists ? link.data().uid : null;
+
+  if (m.type === 'text') {
+    const t = String(m.text || '').trim();
+    const code = (t.match(/(?:^|\D)(\d{6})(?:\D|$)/) || [])[1];
+    if (code) {   // חיבור המספר לחשבון
+      const cref = db.doc(`waCodes/${code}`);
+      const got = await db.runTransaction(async tx => {
+        const c = await tx.get(cref);
+        if (!c.exists || c.data().exp < Date.now()) return null;
+        const u = c.data().uid; const mref = db.doc(`users/${u}/meta/whatsapp`); const prev = await tx.get(mref);
+        if (prev.exists && prev.data().key && prev.data().key !== key) tx.delete(db.doc(`waLinks/${prev.data().key}`));
+        if (uid && uid !== u) tx.delete(db.doc(`users/${uid}/meta/whatsapp`));   // המספר היה מחובר לחשבון אחר
+        tx.delete(cref);
+        tx.set(db.doc(`waLinks/${key}`), { uid: u, at: Date.now() });
+        tx.set(mref, { on: true, key, last4: m.from.slice(-4), at: Date.now() });
+        return u;
+      });
+      return waSend(m.from, got ? '✅ מחובר! מעכשיו כל צילום של הלוח שתשלחו לכאן ייכנס למחברת המתאימה.\n\n' + WA_HELP : 'הקוד לא נכון או שעבר הזמן שלו. מקבלים קוד חדש באתר: תפריט ← וואטסאפ.');
+    }
+    if (/^(ניתוק|נתק|stop|unlink)$/i.test(t)) {
+      if (uid) { await db.doc(`waLinks/${key}`).delete(); await db.doc(`users/${uid}/meta/whatsapp`).delete().catch(() => {}); }
+      return waSend(m.from, 'התנתקתם. התמונות לא ייכנסו יותר למחברות. אפשר להתחבר שוב מהאתר מתי שרוצים.');
+    }
+    return waSend(m.from, uid ? WA_HELP : `היי! כדי שהתמונות ייכנסו למחברות שלכם, צריך קודם לחבר את המספר:\nבאתר ${SITE} ← תפריט ← וואטסאפ ← לשלוח לכאן את הקוד.`);
+  }
+
+  if (m.type !== 'image' || !m.media) return waSend(m.from, uid ? WA_HELP : `כדי להתחיל, מחברים את המספר באתר: ${SITE} ← תפריט ← וואטסאפ.`);
+  if (!uid) return waSend(m.from, `קודם צריך לחבר את המספר לחשבון: ${SITE} ← תפריט ← וואטסאפ ← לשלוח לכאן את הקוד.`);
+
+  // מכסה – בדיוק כמו "צילום לוח" באתר
+  let owner = false;
+  try { const { getAuth } = require('firebase-admin/auth'); const u = await getAuth().getUser(uid); owner = isOwner({ email: u.email, email_verified: u.emailVerified }); } catch {}
+  if (!owner) {
+    try { await takeOne(uid, 'ocr'); }
+    catch (e) { return waSend(m.from, String(e && e.message) === 'daily-limit' ? 'נגמרו התמונות להיום ⏰ מחר אפשר שוב.' : 'רגע, שלחתם הרבה בבת אחת. נסו שוב בעוד דקה.'); }
+  }
+  try { await takeGlobal('ocr', owner); }
+  catch { if (!owner) await refundOne(uid, 'ocr'); return waSend(m.from, 'יש עכשיו עומס. נסו לשלוח שוב בעוד כמה דקות.'); }
+
+  let done = false;
+  try {
+    const { buf, mime } = await waMedia(m.media);
+    const isPdf = m.pdf || /pdf/.test(mime);
+    // המחברות של התלמיד (בלי מה שבפח)
+    const snap = await db.collection(`users/${uid}/notebooks`).select('title', 'subject', 'trashed', 'updatedAt').get();
+    const nbs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(n => !n.trashed).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 40);
+    // 1. הכיתוב של התמונה ("מתמטיקה", "היסטוריה") – הכי בטוח
+    const cap = norm(m.caption);
+    let target = null;
+    if (cap) target = nbs.find(n => norm(n.title) === cap || norm(n.subject) === cap)
+      || nbs.find(n => (norm(n.title) && (norm(n.title).includes(cap) || cap.includes(norm(n.title)))) || (norm(n.subject) && cap.includes(norm(n.subject))));
+    // 2. אם אין – Gemini בוחר לפי התוכן מתוך הרשימה
+    const list = nbs.map((n, i) => `${i + 1}. ${n.title || 'מחברת'}${n.subject ? ` (מקצוע: ${n.subject})` : ''}`).join('\n');
+    const pick = target ? '' : `\n\nבסוף, בשורות נפרדות:
+<!--nb: מספר-->  – המספר של המחברת שהכי מתאימה לתוכן מהרשימה למטה, לפי המקצוע. אם אף אחת לא מתאימה באמת – 0.
+<!--subject: שם המקצוע בקצרה, למשל מתמטיקה / תנ"ך / אנגלית-->
+${cap ? `התלמיד כתב ליד התמונה: "${String(m.caption).slice(0, 100)}" – אם זה שם של מקצוע, הוא קובע.\n` : ''}המחברות של התלמיד:\n${list || '(אין עדיין מחברות)'}`;
+    const ai = await gemini();
+    const parts = [{ inlineData: { mimeType: isPdf ? 'application/pdf' : (/^image\//.test(mime) ? mime : 'image/jpeg'), data: buf.toString('base64') } }, { text: WA_OCR_PROMPT + pick }];
+    let r;
+    try { r = await ai.models.generateContent({ model: MODELS[0], contents: [{ role: 'user', parts }], config: { temperature: 0, thinkingConfig: { thinkingLevel: 'HIGH' }, mediaResolution: 'MEDIA_RESOLUTION_HIGH' } }); }
+    catch (e) { console.warn('wa gemini level failed, retry plain', String(e && e.message).slice(0, 200)); r = await ai.models.generateContent({ model: MODELS[0], contents: [{ role: 'user', parts }], config: { temperature: 0 } }); }
+    const raw = String(r.text || '');
+    const html = waCleanHtml(raw);
+    if (!html.replace(/<[^>]+>/g, '').trim()) { if (!owner) await refundOne(uid, 'ocr'); done = true; return waSend(m.from, 'לא מצאתי טקסט בתמונה 🤔 נסו צילום קרוב וברור יותר.'); }
+    const subject = ((raw.match(/<!--\s*subject:\s*([^>]*?)\s*-->/) || [])[1] || '').replace(/[<>]/g, '').slice(0, 40);
+    if (!target) { const k = +((raw.match(/<!--\s*nb:\s*(\d+)\s*-->/) || [])[1] || 0); if (k >= 1 && k <= nbs.length) target = nbs[k - 1]; }
+    if (!target && subject) target = nbs.find(n => norm(n.subject) === norm(subject) || norm(n.title) === norm(subject)) || null;
+
+    const imgId = isPdf ? null : await waSaveImage(uid, buf).catch(e => { console.warn('wa img', String(e && e.message).slice(0, 200)); return null; });
+    const d = new Date(Date.now() + 2 * 3600e3);   // התאריך לפי שעון ישראל (בערך – מספיק לכותרת)
+    const when = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+    const block = `<h3>מהלוח · ${when}</h3>${imgId ? `<p><img data-img="${imgId}" data-u="${uid}"></p>` : ''}${html}<p><br></p>`;
+    const now = Date.now(); let title;
+    if (target) {
+      const ref = db.doc(`users/${uid}/notebooks/${target.id}`);
+      await db.runTransaction(async tx => {
+        const sn = await tx.get(ref); const cur = sn.exists ? sn.data() : {};
+        title = cur.title || target.title || 'המחברת';
+        tx.update(ref, { html: (cur.html || '') + block, updatedAt: now, wa: { at: now, html: block } });
+      });
+    } else {
+      title = (cap && m.caption.trim().slice(0, 40)) || subject || 'מהוואטסאפ';
+      await db.collection(`users/${uid}/notebooks`).add({ title, ...(subject ? { subject } : {}), color: '#2f5bd3', html: block, createdAt: now, updatedAt: now, wa: { at: now, html: block } });
+    }
+    done = true;
+    await db.doc(`users/${uid}/meta/whatsapp`).set({ last: now, count: FieldValue.increment(1) }, { merge: true }).catch(() => {});
+    return waSend(m.from, `✅ נכנס ${target ? 'לסוף המחברת' : 'למחברת חדשה'} "${title}"\n${SITE}${target ? '' : '\n\nבפעם הבאה אפשר לכתוב את שם המחברת בכיתוב של התמונה, והיא תיכנס בדיוק לשם.'}`);
+  } finally {
+    if (!done && !owner) await refundOne(uid, 'ocr');
+  }
+}
