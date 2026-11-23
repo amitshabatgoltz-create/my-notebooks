@@ -7154,6 +7154,7 @@ $('grImport').onclick = gradesImportDialog;
 /* ================= עוזר לימודי: בועת צ'אט בכל מסך. בתוך מחברת הוא קורא אותה, ויודע להוסיף ליומן ================= */
 const CHAT_SHORT = 80;
 // "תכניס לי למערכת שעות" עם צילום של המערכת
+const CHAT_DUP = /כפיל|כפול|פעמיים|מופיע.{0,8}שוב|חוזר(ות|ים)? על עצמ|duplicate/i;
 const CHAT_TT = /מערכת(\s*ה)?\s*שעות|למערכת|את המערכת|המערכת שלי|timetable|schedule/i;
 // "תצייר לי חתול", "תיצור תמונה של...". תרשים, גרף או צורה – ה-AI מצייר בעצמו (SVG), בלי יצירת תמונה
 const CHAT_IMG = /(^|\s)(תצייר|צייר|ציירי|תציירי|לצייר)(\s|$)|(תיצור|צור|תעשה|תכין|ליצור|תייצר)\s+(לי\s+)?(תמונה|ציור|איור)|^תמונה של|\b(draw|generate an? image|create an? image)\b/i;
@@ -7987,6 +7988,7 @@ function chatPrompt(noKit, msg = '') {
   const upcoming = events.filter(e => !e.done && e.date >= todayKey()).slice(0, 30)
     .map(e => `[${e.id}] ${e.date}${e.time ? ' ' + e.time : ''} | ${TYPE_NAME[e.type] || ''} | ${e.title}${e.date === todayKey() && e.time && e.time < new Date().toTimeString().slice(0, 5) ? ' (כבר עבר היום)' : ''}`).join('\n');
   return `אתה עוזר לימודי אישי חכם באפליקציית "המחברות שלי".
+פנה למשתמש בלשון זכר (אתה, תרצה, שים לב), אלא אם הוא אמר שהוא בת או שכתוב בזיכרון שהיא בת. אם אמר "אני בן" או "אני בת" – זכור את זה (שורת @@).
 התפקידים שלך:
 1. עזור למשתמש בכל שאלה ובקשה, גם אם אין לה קשר למחברת: להסביר חומר, לפתור ולבדוק תרגילים, לתרגל למבחן, לעזור בכתיבה ולתת עצות. אם השאלה קשורה למחברת, הסתמך עליה. בכל מקרה אחר השתמש בידע הכללי הרחב שלך, והסבר בצורה מעולה ותמציתית. אם אתה לא בטוח במשהו, אמור זאת.
 אם המשתמש העלה תמונה או קובץ, קרא אותם ועזור לו לפיהם. אל תמציא מה שלא רואים בבירור.
@@ -8502,6 +8504,16 @@ async function chatSend() {
       chatHistory.push({ role: 'me', text: note + msg, ...(sentFiles.length ? { files: sentFiles } : {}) }, botItem);
       chatTools(b, botItem, false); chatSave();
       setTimeout(() => timetableDialog(ttFile), 400);
+      return;
+    }
+    // "תמחק כפילויות" במחברת פתוחה – בלי AI: האתר מוצא בעצמו, מסמן ומבקש אישור
+    if (!files.length && !long && openId && edCan() && CHAT_DUP.test(msg)) {
+      const list = nbDupes();
+      const txt = list.length ? 'מצאתי כפילויות. סימנתי אותן באדום במחברת – תסתכל ותאשר:' : 'בדקתי – אין במחברת שורות שמופיעות פעמיים.';
+      b.classList.remove('typing'); chatFill(b, txt);
+      const botItem = { role: 'bot', text: txt };
+      chatHistory.push({ role: 'me', text: msg }, botItem); chatTools(b, botItem, false); chatSave();
+      if (list.length) chatDedupeCard(list);
       return;
     }
     // בקשה לתמונה אמיתית (לא תרשים): יוצרים תמונה בשרת
