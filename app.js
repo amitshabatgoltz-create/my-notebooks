@@ -7849,7 +7849,7 @@ async function mashovDialog() {
 }
 /* ================= צילום לוח מהוואטסאפ ================= */
 // המספר של הבוט: רק ספרות, עם קידומת מדינה (למשל 972501234567). ריק = הבוט עוד לא הוגדר (ראו WHATSAPP_SETUP.md)
-const WA_NUMBER = '';
+const WA_NUMBER = '15551770629';   // מספר הבדיקה של Meta (+1 555 177 0629)
 let waCallFn = null;
 const waLinkCall = data => { if (!waCallFn) waCallFn = httpsCallable(getFunctions(fb, 'europe-west1'), 'waLink', { timeout: 30000 }); return appCheckReady.then(() => waCallFn(data)).then(r => r.data); };
 // הבוט הוסיף תמונה למחברת שפתוחה עכשיו: מראים אותה, וגם דואגים שהשמירה הבאה מהמסך לא תמחק אותה
