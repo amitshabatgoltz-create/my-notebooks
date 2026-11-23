@@ -330,8 +330,9 @@ function mshEnc(text) { const iv = crypto.randomBytes(12), c = crypto.createCiph
 function mshDec(o) { const d = crypto.createDecipheriv('aes-256-gcm', mshKey(), Buffer.from(o.iv, 'base64')); d.setAuthTag(Buffer.from(o.tag, 'base64')); return Buffer.concat([d.update(Buffer.from(o.enc, 'base64')), d.final()]).toString('utf8'); }
 const mshYear = () => { const n = new Date(); return n.getMonth() >= 7 ? n.getFullYear() + 1 : n.getFullYear(); };   // שנת הלימודים לפי משוב (תשפ"ז = 2027)
 async function mshLogin({ semel, year, username, password }) {
-  const r = await fetch(MSH + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  const r = await fetch(MSH + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
     body: JSON.stringify({ semel: +semel, year: +year, username, password, appName: 'info.mashov.students', apiVersion: '3.20210425', appVersion: '3.20210425', appBuild: '3.20210425', deviceUuid: 'chrome', devicePlatform: 'chrome', deviceManufacturer: 'win', deviceModel: 'desktop', deviceVersion: '120.0.0.0' }) });
+  console.log('mashov login', r.status);
   if (r.status === 401 || r.status === 403) throw new HttpsError('permission-denied', 'שם המשתמש או הסיסמה של משוב לא נכונים');
   if (!r.ok) throw new HttpsError('unavailable', 'משוב לא ענה (' + r.status + ')');
   const body = await r.json().catch(() => ({}));
@@ -341,7 +342,7 @@ async function mshLogin({ semel, year, username, password }) {
   if (!uid) throw new HttpsError('unavailable', 'משוב לא החזיר משתמש – אולי הכניסה אצלם השתנתה');
   return { uid, headers: { 'X-Csrf-Token': csrf, Cookie: [...cookies, 'Csrf-Token=' + csrf].join('; '), Accept: 'application/json' } };
 }
-async function mshGet(s, path) { const r = await fetch(MSH + path, { headers: s.headers }); if (!r.ok) return null; return r.json().catch(() => null); }
+async function mshGet(s, path) { const r = await fetch(MSH + path, { headers: { ...s.headers, 'User-Agent': 'Mozilla/5.0' } }); console.log('mashov get', path.replace(/\/students\/[^/]+/, '/students/*'), r.status); if (!r.ok) return null; return r.json().catch(() => null); }
 const ymd = t => { const d = new Date(t); return isNaN(d) ? '' : new Date(d.getTime() + 10800000).toISOString().slice(0, 10); };
 function grType(n) {
   n = String(n || '');
@@ -391,12 +392,12 @@ async function mshSync(uid) {
   return out;
 }
 let mshSchools = null;
-exports.mashov = onCall({ region: 'europe-west1', secrets: [MASHOV_KEY], timeoutSeconds: 120 }, async req => {
+exports.mashov = onCall({ region: 'me-west1', secrets: [MASHOV_KEY], timeoutSeconds: 120 }, async req => {
   const uid = req.auth && req.auth.uid;
   if (!uid || !isOwner(req.auth.token)) throw new HttpsError('permission-denied', 'החיבור למשוב רק לבעל האתר');
   const a = (req.data && req.data.a) || '';
   if (a === 'schools') {
-    if (!mshSchools) { const r = await fetch(MSH + '/schools', { headers: { Accept: 'application/json' } }); const l = r.ok ? await r.json().catch(() => []) : []; mshSchools = (Array.isArray(l) ? l : []).map(x => ({ id: x.semel, n: x.name })).filter(x => x.id && x.n); }
+    if (!mshSchools || !mshSchools.length) { const r = await fetch(MSH + '/schools', { headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } }); const l = r.ok ? await r.json().catch(() => []) : []; console.log('mashov schools', r.status, Array.isArray(l) ? l.length : typeof l); mshSchools = (Array.isArray(l) ? l : []).map(x => ({ id: x.semel, n: x.name })).filter(x => x.id && x.n); if (!mshSchools.length) throw new HttpsError('unavailable', 'משוב לא החזיר רשימת בתי ספר (' + r.status + ')'); }
     return { schools: mshSchools, year: mshYear() };
   }
   if (a === 'save') {
@@ -411,7 +412,7 @@ exports.mashov = onCall({ region: 'europe-west1', secrets: [MASHOV_KEY], timeout
   throw new HttpsError('invalid-argument', 'פעולה לא ידועה');
 });
 // כל יום ב-16:00 (שעון ישראל) – מביא דברים חדשים ממשוב לבד
-exports.mashovDaily = onSchedule({ schedule: '0 16 * * *', timeZone: 'Asia/Jerusalem', region: 'europe-west1', secrets: [MASHOV_KEY], timeoutSeconds: 300 }, async () => {
+exports.mashovDaily = onSchedule({ schedule: '0 16 * * *', timeZone: 'Asia/Jerusalem', region: 'me-west1', secrets: [MASHOV_KEY], timeoutSeconds: 300 }, async () => {
   const all = await db.collection('mashovCreds').get();
   for (const d of all.docs) await mshSync(d.id).catch(e => db.doc(`users/${d.id}/meta/mashov`).set({ err: String(e.message || e).slice(0, 200), errAt: Date.now() }, { merge: true }));
 });

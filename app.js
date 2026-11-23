@@ -7794,7 +7794,7 @@ function aiMemDialog() {
 $('aiMemBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); aiMemDialog(); });
 /* ===== משוב (רק לבעל האתר): ציונים, שיעורי בית והתנהגות – השרת מתחבר ומביא לבד כל יום ב-16:00 ===== */
 let mashovCall = null;
-const mshCall = data => { if (!mashovCall) mashovCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'mashov', { timeout: 130000 }); return appCheckReady.then(() => mashovCall(data)).then(r => r.data); };
+const mshCall = data => { if (!mashovCall) mashovCall = httpsCallable(getFunctions(fb, 'me-west1'), 'mashov', { timeout: 130000 }); return appCheckReady.then(() => mashovCall(data)).then(r => r.data); };
 const mshErr = e => String((e && e.message) || e || '').replace(/^.*?:\s*/, '') || 'משהו השתבש';
 async function mashovDialog() {
   if (!isUnlimited()) return;
@@ -7813,7 +7813,7 @@ async function mashovDialog() {
         <div class="row"><button class="btn btn-ghost" data-x>ביטול</button><button class="btn btn-primary" data-go>התחברות</button></div>`;
       const sc = d.querySelector('#mshSchool'), dl = d.querySelector('#mshSchools'); let schools = [];
       d.querySelector('[data-x]').onclick = closeDialog;
-      mshCall({ a: 'schools' }).then(r => { schools = r.schools || []; d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(() => { d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
+      mshCall({ a: 'schools' }).then(r => { schools = r.schools || []; d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(e => { toast('הרשימה של בתי הספר לא נטענה: ' + mshErr(e)); d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
       d.querySelector('[data-go]').onclick = async ev => {
         // בית הספר: מהרשימה (עם הסמל בסוף), סמל בלבד, או חלק מהשם – אם יש רק בית ספר אחד שמתאים
         let semel = (sc.value.match(/(\d{3,8})\)?\s*$/) || [])[1];
