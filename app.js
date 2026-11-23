@@ -7792,6 +7792,55 @@ function aiMemDialog() {
   });
 }
 $('aiMemBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); aiMemDialog(); });
+/* ===== משוב (רק לבעל האתר): ציונים, שיעורי בית והתנהגות – השרת מתחבר ומביא לבד כל יום ב-16:00 ===== */
+let mashovCall = null;
+const mshCall = data => { if (!mashovCall) mashovCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'mashov', { timeout: 130000 }); return appCheckReady.then(() => mashovCall(data)).then(r => r.data); };
+const mshErr = e => String((e && e.message) || e || '').replace(/^.*?:\s*/, '') || 'משהו השתבש';
+async function mashovDialog() {
+  if (!isUnlimited()) return;
+  let st = {}; try { const sn = await getDoc(doc(db, 'users', me.uid, 'meta', 'mashov')); st = sn.exists() ? sn.data() : {}; } catch {}
+  const when = t => t ? new Date(t).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  dialog(d => {
+    d.classList.add('msh-dlg');
+    if (!st.on) {
+      d.innerHTML = `<h3>חיבור למשוב</h3>
+        <p class="muted-s">האתר יביא לבד ציונים, שיעורי בית וחיסורים ממשוב – כל יום ב-16:00, ומתי שתלחץ "לעדכן".</p>
+        <label class="msh-l">בית הספר<input id="mshSchool" list="mshSchools" dir="auto" placeholder="מחפשים לפי שם או סמל" autocomplete="off"><datalist id="mshSchools"></datalist></label>
+        <label class="msh-l">שנת לימודים<input id="mshYear" type="number" dir="ltr" min="2020" max="2040"></label>
+        <label class="msh-l">שם משתמש במשוב<input id="mshUser" dir="ltr" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+        <label class="msh-l">סיסמה של משוב<input id="mshPass" type="password" dir="ltr" autocomplete="current-password"></label>
+        <p class="msh-safe"><svg aria-hidden="true"><use href="#i-lock"/></svg>הסיסמה נשמרת מוצפנת בשרת, ורק השרת יכול לפתוח אותה. אפשר להתנתק בכל רגע והיא נמחקת.</p>
+        <div class="row"><button class="btn btn-ghost" data-x>ביטול</button><button class="btn btn-primary" data-go>התחברות</button></div>`;
+      const sc = d.querySelector('#mshSchool'), dl = d.querySelector('#mshSchools');
+      d.querySelector('[data-x]').onclick = closeDialog;
+      mshCall({ a: 'schools' }).then(r => { d.querySelector('#mshYear').value = r.year; dl.innerHTML = r.schools.map(x => `<option value="${esc(x.n)} (${x.id})">`).join(''); }).catch(() => { d.querySelector('#mshYear').value = new Date().getMonth() >= 7 ? new Date().getFullYear() + 1 : new Date().getFullYear(); });
+      d.querySelector('[data-go]').onclick = async ev => {
+        const semel = (sc.value.match(/(\d{3,8})\)?\s*$/) || [])[1], user = d.querySelector('#mshUser').value.trim(), pass = d.querySelector('#mshPass').value;
+        if (!semel) return toast('בוחרים בית ספר מהרשימה (או כותבים את הסמל)');
+        if (!user || !pass) return toast('חסר שם משתמש או סיסמה');
+        const b = ev.currentTarget; b.disabled = true; b.textContent = 'מתחבר למשוב…';
+        try { const r = await mshCall({ a: 'save', semel, year: +d.querySelector('#mshYear').value, username: user, password: pass }); d.querySelector('#mshPass').value = ''; closeDialog(); toast(`מחובר למשוב ✓ נכנסו ${r.grades} ציונים ו-${r.hw} שיעורי בית`); track('mashov_on', {}); }
+        catch (e) { b.disabled = false; b.textContent = 'התחברות'; toast(mshErr(e)); }
+      };
+      return;
+    }
+    const beh = (st.beh || []).slice(0, 15);
+    d.innerHTML = `<h3>משוב</h3>
+      <p class="muted-s">מחובר. ${st.last ? 'עדכון אחרון: ' + when(st.last) + '.' : ''} מתעדכן לבד כל יום ב-16:00.</p>
+      ${st.err && (st.errAt || 0) > (st.last || 0) ? `<p class="msh-err">העדכון האחרון נכשל: ${esc(st.err)}</p>` : ''}
+      ${st.got ? `<p>בעדכון האחרון: ${st.got.grades} ציונים חדשים, ${st.got.hw} שיעורי בית חדשים.</p>` : ''}
+      <h4 class="msh-h">חיסורים, איחורים והערות</h4>
+      ${beh.length ? `<ul class="msh-beh">${beh.map(b => `<li><b dir="auto">${esc(b.n)}</b><span dir="auto">${esc(b.s)}</span><small>${esc(b.d.split('-').reverse().join('.'))}${b.j ? ' · מוצדק' : ''}</small></li>`).join('')}</ul>` : '<p class="muted-s">אין כלום – כל הכבוד!</p>'}
+      <div class="row"><button class="btn btn-ghost msh-off" data-off>להתנתק</button><button class="btn btn-ghost" data-x>סגירה</button><button class="btn btn-primary" data-sync>לעדכן עכשיו</button></div>`;
+    d.querySelector('[data-x]').onclick = closeDialog;
+    d.querySelector('[data-off]').onclick = async () => { if (!confirm('להתנתק ממשוב? הסיסמה תימחק מהשרת. הציונים ושיעורי הבית שכבר נכנסו נשארים.')) return; try { await mshCall({ a: 'off' }); closeDialog(); toast('התנתקת ממשוב והסיסמה נמחקה'); } catch (e) { toast(mshErr(e)); } };
+    d.querySelector('[data-sync]').onclick = async ev => { const b = ev.currentTarget; b.disabled = true; b.textContent = 'מעדכן…';
+      try { const r = await mshCall({ a: 'sync' }); closeDialog(); toast(r.grades || r.hw ? `עודכן ✓ ${r.grades} ציונים ו-${r.hw} שיעורי בית חדשים` : 'עודכן ✓ אין משהו חדש'); }
+      catch (e) { b.disabled = false; b.textContent = 'לעדכן עכשיו'; toast(mshErr(e)); } };
+  });
+}
+$('mashovBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); mashovDialog(); });
+
 function chatAboutMe() {
   const out = [];
   const days = (timetable && timetable.days) || {};
@@ -8781,7 +8830,7 @@ function admRefDialog(u) {
     if (rm) rm.onclick = async () => { try { await deleteDoc(doc(db, 'refs', u.ref, 'joined', u.id)); await updateDoc(statsDoc(u.id), { ref: deleteField() }); closeDialog(); toast('השיוך הוסר'); renderAdmin(); } catch (err) { console.warn(err); toast('לא הצלחתי להסיר'); } };
   });
 }
-function paintAdmin() { const on = isAdmin(); try { if (on) window.posthog?.opt_out_capturing(); } catch {} document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); }
+function paintAdmin() { const on = isAdmin(); try { if (on) window.posthog?.opt_out_capturing(); } catch {} document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !on)); document.querySelectorAll('.owner-only').forEach(el => el.classList.toggle('hidden', !isUnlimited())); }
 $('homeAdmin').onclick = () => showTab('admin');
 $('admRefresh').onclick = () => renderAdmin();
 const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב רק את הסטטיסטיקה של עצמו, ורק בעל האתר רואה את כולם

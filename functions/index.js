@@ -316,3 +316,102 @@ exports.sharePeople = onCall({ region: 'europe-west1', timeoutSeconds: 60 }, asy
   }
   return { added };
 });
+
+// ====================== משוב (רק לבעל האתר) ======================
+// מתחבר למשוב עם שם המשתמש והסיסמה של משוב, ומביא ציונים, שיעורי בית ואירועי התנהגות לאתר.
+// הסיסמה נשמרת מוצפנת (AES-256-GCM) ב-mashovCreds/{uid} – אוסף שאף דפדפן לא יכול לקרוא או לכתוב (אין לו כלל ב-firestore.rules).
+// המפתח להצפנה הוא סוד בשרת (MASHOV_KEY), לא בקוד ולא במסד הנתונים.
+// אין למשוב חיבור רשמי – זה אותו חיבור שהאפליקציה של משוב משתמשת בו, ויכול להשתנות.
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const MASHOV_KEY = defineSecret('MASHOV_KEY');
+const MSH = 'https://web.mashov.info/api';
+const mshKey = () => crypto.createHash('sha256').update(MASHOV_KEY.value()).digest();
+function mshEnc(text) { const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', mshKey(), iv); const enc = Buffer.concat([c.update(text, 'utf8'), c.final()]); return { iv: iv.toString('base64'), enc: enc.toString('base64'), tag: c.getAuthTag().toString('base64') }; }
+function mshDec(o) { const d = crypto.createDecipheriv('aes-256-gcm', mshKey(), Buffer.from(o.iv, 'base64')); d.setAuthTag(Buffer.from(o.tag, 'base64')); return Buffer.concat([d.update(Buffer.from(o.enc, 'base64')), d.final()]).toString('utf8'); }
+const mshYear = () => { const n = new Date(); return n.getMonth() >= 7 ? n.getFullYear() + 1 : n.getFullYear(); };   // שנת הלימודים לפי משוב (תשפ"ז = 2027)
+async function mshLogin({ semel, year, username, password }) {
+  const r = await fetch(MSH + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ semel: +semel, year: +year, username, password, appName: 'info.mashov.students', apiVersion: '3.20210425', appVersion: '3.20210425', appBuild: '3.20210425', deviceUuid: 'chrome', devicePlatform: 'chrome', deviceManufacturer: 'win', deviceModel: 'desktop', deviceVersion: '120.0.0.0' }) });
+  if (r.status === 401 || r.status === 403) throw new HttpsError('permission-denied', 'שם המשתמש או הסיסמה של משוב לא נכונים');
+  if (!r.ok) throw new HttpsError('unavailable', 'משוב לא ענה (' + r.status + ')');
+  const body = await r.json().catch(() => ({}));
+  const uid = body && body.credential && body.credential.userId;
+  const csrf = r.headers.get('x-csrf-token') || '';
+  const cookies = (r.headers.getSetCookie ? r.headers.getSetCookie() : []).map(c => c.split(';')[0]).filter(Boolean);
+  if (!uid) throw new HttpsError('unavailable', 'משוב לא החזיר משתמש – אולי הכניסה אצלם השתנתה');
+  return { uid, headers: { 'X-Csrf-Token': csrf, Cookie: [...cookies, 'Csrf-Token=' + csrf].join('; '), Accept: 'application/json' } };
+}
+async function mshGet(s, path) { const r = await fetch(MSH + path, { headers: s.headers }); if (!r.ok) return null; return r.json().catch(() => null); }
+const ymd = t => { const d = new Date(t); return isNaN(d) ? '' : new Date(d.getTime() + 10800000).toISOString().slice(0, 10); };
+function grType(n) {
+  n = String(n || '');
+  if (/מבחן|בחינה|מתכונת|בגרות/.test(n)) return 'מבחנים';
+  if (/בוחן|בחנים|(^|\s)בחן/.test(n)) return 'בחנים';
+  if (/עבוד|פרויקט|פרוייקט|מטלה|מטלת/.test(n)) return 'עבודות';
+  if (/שיעורי.?בית|ש["״]ב/.test(n)) return 'שיעורי בית';
+  if (/השתתפות|התנהגות|נוכחות/.test(n)) return 'השתתפות';
+  return '';
+}
+async function mshSync(uid) {
+  const cs = await db.doc(`mashovCreds/${uid}`).get();
+  if (!cs.exists) throw new HttpsError('failed-precondition', 'עוד לא התחברת למשוב');
+  const c = cs.data(); const s = await mshLogin({ ...c, password: mshDec(c.pw) });
+  const [gr, hw, bh] = await Promise.all([mshGet(s, `/students/${s.uid}/grades`), mshGet(s, `/students/${s.uid}/homework`), mshGet(s, `/students/${s.uid}/behave`)]);
+  const out = { grades: 0, hw: 0, behave: 0 };
+  // ציונים → meta/grades (רק ציון שהוא מספר; לא נוגעים בציונים שהוספת בעצמך)
+  if (Array.isArray(gr)) {
+    const ref = db.doc(`users/${uid}/meta/grades`), cur = await ref.get(), d = cur.exists ? cur.data() : {};
+    const items = Array.isArray(d.items) ? d.items : [];
+    for (const g of gr) {
+      if (g.grade === null || g.grade === undefined || g.grade === '') continue;
+      const val = Number(g.grade); if (!isFinite(val)) continue;
+      const id = 'm' + (g.id || g.gradingEventId), n = String(g.gradingEvent || g.gradeType || 'ציון').slice(0, 80);
+      const it = { id, s: String(g.subjectName || g.groupName || '').slice(0, 40), n, g: val, t: grType(n + ' ' + (g.gradeType || '')), d: ymd(g.eventDate || g.timestamp) };
+      const i = items.findIndex(x => x.id === id);
+      if (i < 0) { items.push(it); out.grades++; } else if (items[i].g !== val) { items[i] = { ...items[i], g: val }; out.grades++; }
+    }
+    await ref.set({ items, updatedAt: Date.now() }, { merge: true });
+  }
+  // שיעורי בית מ-3 השבועות האחרונים → היומן (כל אחד פעם אחת, לא דורסים "בוצע")
+  if (Array.isArray(hw)) {
+    const from = ymd(Date.now() - 21 * 864e5);
+    for (const h of hw) {
+      const date = ymd(h.lessonDate), text = String(h.homework || '').trim();
+      if (!date || date < from || !text) continue;
+      const ref = db.doc(`users/${uid}/events/mashov-hw-${String(h.lessonId || date + text.length).replace(/[^\w-]/g, '')}`);
+      if ((await ref.get()).exists) continue;
+      await ref.set({ title: `${h.subjectName || 'שיעורי בית'}: ${text}`.slice(0, 80), note: text.slice(0, 1000) + '\n(ממשוב – ניתן בשיעור)', type: 'hw', date, time: '', done: false, createdAt: Date.now(), mashov: true });
+      out.hw++;
+    }
+  }
+  // התנהגות (חיסורים, איחורים, הערות) – 40 האחרונים, לחלון של משוב באתר
+  const beh = Array.isArray(bh) ? bh.map(b => ({ d: ymd(b.lessonDate || b.timestamp), s: String(b.subject || '').slice(0, 40), n: String(b.achvaName || '').slice(0, 60), j: !!(b.justificationId > 0 || b.justified > 0) })).filter(b => b.d && b.n).sort((a, b) => b.d.localeCompare(a.d)).slice(0, 40) : [];
+  out.behave = beh.length;
+  await db.doc(`users/${uid}/meta/mashov`).set({ on: true, last: Date.now(), err: null, beh, got: out, ok: { grades: Array.isArray(gr), hw: Array.isArray(hw), behave: Array.isArray(bh) } }, { merge: true });
+  return out;
+}
+let mshSchools = null;
+exports.mashov = onCall({ region: 'europe-west1', secrets: [MASHOV_KEY], timeoutSeconds: 120 }, async req => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid || !isOwner(req.auth.token)) throw new HttpsError('permission-denied', 'החיבור למשוב רק לבעל האתר');
+  const a = (req.data && req.data.a) || '';
+  if (a === 'schools') {
+    if (!mshSchools) { const r = await fetch(MSH + '/schools', { headers: { Accept: 'application/json' } }); const l = r.ok ? await r.json().catch(() => []) : []; mshSchools = (Array.isArray(l) ? l : []).map(x => ({ id: x.semel, n: x.name })).filter(x => x.id && x.n); }
+    return { schools: mshSchools, year: mshYear() };
+  }
+  if (a === 'save') {
+    const { semel, username, password } = req.data; const year = +req.data.year || mshYear();
+    if (!/^\d{3,8}$/.test(String(semel)) || typeof username !== 'string' || typeof password !== 'string' || !username || !password || username.length > 60 || password.length > 100) throw new HttpsError('invalid-argument', 'חסרים פרטים');
+    await mshLogin({ semel, year, username, password });          // בודקים שזה עובד לפני ששומרים
+    await db.doc(`mashovCreds/${uid}`).set({ semel: +semel, year, username, pw: mshEnc(password), at: Date.now() });
+    return mshSync(uid);
+  }
+  if (a === 'sync') return mshSync(uid).catch(async e => { await db.doc(`users/${uid}/meta/mashov`).set({ err: String(e.message || e).slice(0, 200), errAt: Date.now() }, { merge: true }); throw e; });
+  if (a === 'off') { await db.doc(`mashovCreds/${uid}`).delete(); await db.doc(`users/${uid}/meta/mashov`).set({ on: false, beh: [] }, { merge: true }); return { ok: true }; }
+  throw new HttpsError('invalid-argument', 'פעולה לא ידועה');
+});
+// כל יום ב-16:00 (שעון ישראל) – מביא דברים חדשים ממשוב לבד
+exports.mashovDaily = onSchedule({ schedule: '0 16 * * *', timeZone: 'Asia/Jerusalem', region: 'europe-west1', secrets: [MASHOV_KEY], timeoutSeconds: 300 }, async () => {
+  const all = await db.collection('mashovCreds').get();
+  for (const d of all.docs) await mshSync(d.id).catch(e => db.doc(`users/${d.id}/meta/mashov`).set({ err: String(e.message || e).slice(0, 200), errAt: Date.now() }, { merge: true }));
+});
