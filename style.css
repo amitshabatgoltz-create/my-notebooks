@@ -3457,3 +3457,15 @@ body.editing-shared .nb-mem{display:none}
 #homeFriends.fr-glow{border-radius:18px}
 #userBtn.fr-glow::after{content:"";position:absolute;top:-1px;inset-inline-end:-1px;width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#F59E0B,#EC4899);border:2px solid var(--surface)}
 @media (prefers-reduced-motion:reduce){.fr-glow{animation:none;box-shadow:0 0 0 3px rgba(236,72,153,.6)}}
+/* טלפון: קל למצוא – אריח "לוח מבחנים" במסך הבית ושורת כפתורים עם מילים ביומן */
+.tile.t-tests{--c:#D9480F;display:none}
+.cal-acts{display:none}
+@media (max-width:700px){
+  .tile.t-tests{display:flex}
+  .tiles .t-cal{grid-column:auto}
+  .cal-nav .tests-btn,.cal-nav .tt-btn,.cal-nav .bell{display:none}
+  .cal-acts{display:flex;gap:8px;margin:0 0 12px;overflow-x:auto;scrollbar-width:none}
+  .cal-acts::-webkit-scrollbar{display:none}
+  .cal-acts button{display:inline-flex;align-items:center;gap:6px;flex:none;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600}
+  .cal-acts button svg{width:18px;height:18px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+}

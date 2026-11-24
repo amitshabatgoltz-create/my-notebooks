@@ -23,7 +23,8 @@ const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יח
 // תקרה יומית לכל האתר יחד: מעליה ה-AI לא עונה עד חצות (בעל האתר לא מוגבל). שומרת שהעלות לא תעבור סכום קבוע
 const SITE_DAY_CAP = +process.env.AI_SITE_DAY_CAP || 500;
 const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +process.env.AI_QUEUE_WAIT_MS || 25000;
-const MODELS = ['gemini-3.5-flash-lite'];               // המודל של כולם (גם של בעל האתר)
+const MODELS = ['gemini-3.5-flash-lite'];
+const ALT_LITE = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];   // גיבוי כשהמודל הרגיל עמוס (503) – שרת אחר אצל גוגל, מכסה נפרדת               // המודל של כולם (גם של בעל האתר)
 // תמונה לטקסט (מצב "מדויק"): המודל החזק קורא כתב יד הרבה יותר טוב. ל-Flash יש מכסה קטנה (20 ביום לכל הפרויקט),
 // אז סופרים כאן, ואחרי OCR_FLASH_DAY ביום – או אם Gemini אומר שנגמר – עוברים לבד ל-Lite
 const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_DAY || 18, OCR_FLASH_USER = +process.env.AI_OCR_FLASH_USER || 2;   // לכל האתר / לכל משתמש ביום
@@ -279,7 +280,8 @@ exports.ai = onCall({
     const heavy = contents[0].parts.some(p => p.inlineData) || kind === 'ocr';
     const lim = { ...config, httpOptions: { timeout: heavy ? 60000 : 30000 } };
     const tStart = Date.now();
-    const plan = [[model, 0], [model, 2000], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 3000], [MODELS[0], 6000], [OCR_MODEL, 4000], [MODELS[0], 10000]];
+    // עומס אצל גוגל הוא לכל מודל בנפרד: קודם קופצים מיד למודל קל אחר (בלי לחכות), ורק אחר כך מחכים ומנסים שוב (24.11.2026)
+    const plan = [[model, 0], [ALT_LITE[0], 0], [ALT_LITE[1], 800], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 0], [MODELS[0], 2500], [ALT_LITE[0], 3000], [MODELS[0], 6000]];
     let last;
     for (const [m, wait] of plan) {
       if (Date.now() - tStart > (heavy ? 150000 : 75000)) break;   // תקרה לכל הניסיונות יחד

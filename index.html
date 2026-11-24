@@ -36,18 +36,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1795539016">
+<link rel="stylesheet" href="style.css?v=1795539340">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}
 /* מי שהיה מחובר: מסך פתיחה במקום מסך הכניסה עד שהחיבור נבדק (app.js מוריד את זה). אם משהו נתקע – אחרי 15 שנ' חוזרים למסך הכניסה */try{if(localStorage.getItem('wasIn')==='1'){document.documentElement.classList.add('boot-in');setTimeout(function(){document.documentElement.classList.remove('boot-in')},15000)}}catch(e){}</script>
 <!-- טעינה מהירה: מורידים את Firebase ואת האתר במקביל, לא אחד אחרי השני -->
-<link rel="modulepreload" href="app.js?v=1795539016">
+<link rel="modulepreload" href="app.js?v=1795539340">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <script src="gsap.min.js" defer></script>
-<script defer src="motion.js?v=1795539016"></script>
+<script defer src="motion.js?v=1795539340"></script>
 <!-- PostHog (שרת באירופה): כמה נכנסים, מאיפה הגיעו ועל מה לוחצים. הקלטת מסך: הכפתורים והתפריטים נראים, ומה שפרטי מוסתר – המחברות, השמות, השיחות עם העוזר, היומן, הציונים, החלונות וכל מה שמקלידים. תמונות חסומות -->
 <script>
 !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags on onFeatureFlags onSessionId identify setPersonProperties group resetGroups reset get_distinct_id get_session_id alias set_config startSessionRecording stopSessionRecording captureException opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -316,6 +316,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
               <button class="tile t-pres" id="homePres" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-play"/></svg></span><b>מצגת חדשה</b><small>לבד או עם חברים</small></button>
               <button class="tile t-pr" id="homePr" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-doc"/></svg></span><b>דף תרגול דומה</b><small>להתאמן למבחן</small></button>
               <button class="tile t-cal" id="homeCal" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-cal"/></svg></span><b>יומן</b><small>מבחנים ושיעורי בית</small></button>
+              <button class="tile t-tests" id="homeTests" type="button"><span class="t-ic"><svg aria-hidden="true"><use href="#i-clipboard"/></svg></span><b>לוח מבחנים</b><small>מצלמים והמבחנים נכנסים ליומן</small></button>
               <button class="fr-banner" id="homeFriends" type="button"><span class="fr-banner-ic"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><span class="fr-banner-tx" id="homeFriendsTx"><b>הזמנת חברים</b><small>מביאים חברים ומקבלים פרסים</small></span><svg class="fr-banner-go" aria-hidden="true"><use href="#i-back"/></svg></button>
               <button class="btn btn-ghost hidden admin-only" id="homeAdmin" type="button">ניהול</button>
             </div>
@@ -489,6 +490,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
             <button class="btn btn-ghost icon-btn flip" id="nextMonth" title="חודש הבא" aria-label="חודש הבא"><svg><use href="#i-back"/></svg></button>
           </div>
         </div>
+        <div class="cal-acts" aria-label="פעולות ביומן"><button type="button" data-proxy="testsBtn"><svg aria-hidden="true"><use href="#i-clipboard"/></svg>לוח מבחנים</button><button type="button" data-proxy="ttBtn"><svg aria-hidden="true"><use href="#i-cal"/></svg>מערכת שעות</button><button type="button" data-proxy="bellBtn"><svg aria-hidden="true"><use href="#i-bell"/></svg>תזכורות</button></div>
         <div class="cal-layout">
           <div class="cal-box">
             <div class="cal-grid cal-days"><div>א'</div><div>ב'</div><div>ג'</div><div>ד'</div><div>ה'</div><div>ו'</div><div>ש'</div></div>
@@ -553,6 +555,6 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1795539016"></script>
+<script type="module" src="app.js?v=1795539340"></script>
 </body>
 </html>

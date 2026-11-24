@@ -2434,6 +2434,9 @@ $('sideNew').onclick = () => newNotebook();
 $('homeNew').onclick = () => newNotebook();
 $('homeNotes').onclick = () => showTab('notes');
 $('homeCal').onclick = () => showTab('cal');
+// טלפון: לוח מבחנים גם כאריח במסך הבית, ובטלפון גם שורת כפתורים עם מילים מעל היומן (עמית: היה קשה למצוא)
+$('homeTests').onclick = () => { track('home_tests', {}); testsDialog(); };
+document.querySelectorAll('.cal-acts [data-proxy]').forEach(b => b.onclick = () => $(b.dataset.proxy)?.click());
 
 /* ================= יומן ================= */
 const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
