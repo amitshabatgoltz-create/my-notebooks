@@ -8518,9 +8518,10 @@ async function chatAsk(parts, onText, onWait, short, deep) {
     catch (e) {
       aiSearchNow = false;
       // עומס: על "אין מקום" (429) לא מנסים שוב לבד – זה רק מגדיל את העומס על כולם
-      if (i >= 2 || /daily-limit|minute-limit|site-busy|site-cap|gemini-quota/.test(String(e && e.message)) || !(chatBusyErr(e) || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
+      // השרת כבר ניסה כמה פעמים (גם עם המודל השני) – כאן רק עוד ניסיון אחד, כדי שלא נחכה דקות
+      if (i >= 1 || /daily-limit|minute-limit|site-busy|site-cap|gemini-quota/.test(String(e && e.message)) || !(chatBusyErr(e) || /parse stream|failed to parse/i.test(String(e && e.message)))) throw e;
       onWait();
-      await new Promise(r => setTimeout(r, [5000, 15000][i]));
+      await new Promise(r => setTimeout(r, 4000));
     }
   }
 }
@@ -8632,7 +8633,7 @@ async function chatSend() {
         const what = /"QUIZ"/.test(t) ? 'מכין לך שאלון…' : /"SHEET"/.test(t) ? 'מכין לך דף חזרה…' : '';
         if (what) { b.classList.remove('typing'); b.classList.add('making'); b.textContent = what; chatScroll(); }
       }
-    }, () => { b.classList.remove('typing'); b.textContent = 'העוזר עמוס, מנסה שוב…'; }, short && !drawHint, deep || !!drawHint), stopP]);
+    }, () => { b.classList.remove('typing'); b.textContent = 'גוגל (שמפעילים את העוזר) עמוסים עכשיו. מנסה עוד פעם אחת…'; }, short && !drawHint, deep || !!drawHint), stopP]);
     if (!me || me.uid !== uid) return;
     useOne('chat'); if (files.length) useOne('cf', files.length);
     const s = chatSplit(raw);
