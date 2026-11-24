@@ -9639,7 +9639,7 @@ function refVideo() {
       <button type="button" class="dv-snd hidden"><svg aria-hidden="true"><use href="#i-speak"/></svg>להפעלת סאונד</button>
       <div class="rv-end hidden"><span class="rv-ic"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><b>מביאים חברים, מקבלים פרסים</b><small>הקישור האישי שלך מחכה בעמוד "חברים"</small>
         <button type="button" class="btn rv-go">לעמוד החברים</button><button type="button" class="rv-again">לראות שוב</button></div></div>
-    <div class="dv-side"><b>חדש באתר!</b><small>20 שניות על תוכנית החברים</small><button type="button" class="btn dv-skip">אחר כך</button></div>`;
+    <div class="dv-side"><b>חדש באתר!</b><small>20 שניות על תוכנית החברים</small><button type="button" class="btn rv-now">לעמוד החברים</button><button type="button" class="btn dv-skip">אחר כך</button></div>`;
   document.body.appendChild(o);
   const v = o.querySelector('video'), bar = o.querySelector('.dv-bar i'), snd = o.querySelector('.dv-snd'), end = o.querySelector('.rv-end');
   let closed = false;
@@ -9653,6 +9653,7 @@ function refVideo() {
   snd.onclick = () => { v.muted = false; snd.classList.add('hidden'); v.play().catch(() => {}); };
   o.querySelector('.dv-skip').onclick = () => close('skip');
   o.querySelector('.rv-go').onclick = () => { close('go'); showTab('fr'); };
+  o.querySelector('.rv-now').onclick = () => { close('go_now'); showTab('fr'); };   // לא חייבים לחכות לסוף הסרטון
   o.querySelector('.rv-again').onclick = () => { end.classList.add('hidden'); v.currentTime = 0; v.play().catch(() => {}); };
   v.play().catch(() => { v.muted = true; snd.classList.remove('hidden'); v.play().catch(() => showEnd()); });
 }

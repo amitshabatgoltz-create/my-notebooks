@@ -3272,3 +3272,8 @@ body.editing-shared .nb-mem{display:none}
 .plan-mat .pm-st:empty{display:none}
 .plan-mat-list{display:flex;flex-direction:column;gap:6px;max-height:30vh;overflow:auto}
 .plan-mat-list .plan-mi{grid-template-columns:auto 1fr}
+
+/* סרטון החברים: כפתור לעמוד החברים כבר בזמן הסרטון */
+.rv-wrap .rv-now{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 20px;font-weight:800;background:linear-gradient(135deg,#FF9F43,#E0488F)!important;color:#fff!important;border:0}
+.rv-wrap .dv-skip{background:transparent!important;color:#fff!important;border:1.5px solid rgba(255,255,255,.55)}
+@media (max-width:700px){.rv-wrap .rv-now{flex:1.4}.rv-wrap .dv-skip{flex:1}}
