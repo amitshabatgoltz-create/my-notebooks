@@ -220,8 +220,8 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
-  if (kind === 'ocr' && !owner) await earn(req.auth.uid, 'ocr');
-  if (kind === 'chat' && !owner && !image) await earn(req.auth.uid, 'ask');   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
+  if (kind === 'ocr') await earn(req.auth.uid, 'ocr');   // גם בעל האתר מרוויח גירים (לא משפיע על המכסה)
+  if (kind === 'chat' && !image) await earn(req.auth.uid, 'ask');   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashSmart) {
@@ -425,7 +425,10 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
     const wref = db.doc(`wallet/${uid}`);
     const sn = await tx.get(ref); const s = sn.exists ? sn.data() : { n: 0, best: 0, shield: 1 };
     const wsn = await tx.get(wref); let w = wsn.exists ? wsn.data() : {};
-    if (s.last === today) return { ...s, fresh: false };
+    if (s.last === today) {   // כבר נספר היום – אבל אם הגירים של הכניסה עוד לא ניתנו (למשל נספר לפני שהיו גירים), נותנים עכשיו
+      const r = earnIn(tx, w, 'day'); if (r.got) { tx.set(wref, r.w); }
+      return { ...s, fresh: false, chalk: r.got };
+    }
     const gap = s.last ? today - s.last : 0;
     let n = s.n || 0, shield = s.shield === undefined ? 1 : s.shield, usedShield = false, reset = 0;
     if (s.last && gap === 1) n += 1;

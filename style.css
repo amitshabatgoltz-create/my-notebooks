@@ -3495,7 +3495,7 @@ body.editing-shared .nb-mem{display:none}
 .shop-dlg .bq.ok span{opacity:.55;text-decoration:line-through}
 .shop-dlg .bq span{flex:1}
 .shop-dlg .bq-go{height:30px;padding:0 12px;border:1.5px solid #F3F0E4;border-radius:14px 10px 13px 9px;background:transparent;color:#F7F4EA;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-.shop-dlg .bd-track{position:relative;margin:12px -6px 8px;padding:34px 6px 8px;overflow-x:auto;scrollbar-width:thin;scroll-behavior:smooth;overscroll-behavior-x:contain}
+.shop-dlg .bd-track{position:relative;margin:12px -6px 8px;padding:34px 6px 8px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(243,240,228,.35) transparent;scroll-behavior:smooth;overscroll-behavior-x:contain}
 .shop-dlg .tk-bar{position:absolute;top:56px;inset-inline:30px;height:6px;border-radius:3px;background:rgba(243,240,228,.15);width:calc(30 * 92px - 60px)}
 .shop-dlg .tk-bar i{position:absolute;inset-block:0;inset-inline-start:0;width:var(--p);border-radius:3px;background:linear-gradient(90deg,#FFB46B,#F5C542)}
 .shop-dlg .tk-row{position:relative;display:flex;gap:0;margin:0;padding:0;list-style:none;width:calc(30 * 92px)}
