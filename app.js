@@ -221,7 +221,7 @@ onAuthStateChanged(auth, user => {
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -5385,7 +5385,7 @@ let rtdbBad = false;
 // מי עוד כאן (בלי Realtime Database: דרך Firestore, איטי יותר)
 function firePresence(L, shareId) {
   // רק כשהמסך באמת פתוח: טאב ברקע או טלפון נעול לא נחשבים "כאן"
-  const pres = () => { if (!document.hidden) setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {}); };
+  const pres = () => { if (!document.hidden) setDoc(doc(db, 'shares', shareId, 'presence', me.uid), { name: myName(), at: Date.now(), ...(refHas(10) ? { amb: true } : {}), ...(L.me || {}) }).catch(() => {}); };
   L.pres = pres;
   // מי שלא עדכן ב-50 השניות האחרונות כבר לא כאן (בודקים כל כמה שניות, גם בלי עדכון חדש).
   // סופרים לפי השעון של המכשיר הזה – מתי ראינו ממנו עדכון – כי השעון של החבר יכול להיות שונה
@@ -5419,12 +5419,13 @@ function stopLive() {
   if (me && !L.rt) deleteDoc(doc(db, 'shares', L.id, 'presence', me.uid)).catch(() => {});
   paintPresence(null);
 }
+const AMB_TAG = '<span class="amb-tag"><svg aria-hidden="true"><use href="#i-crown"/></svg>שגריר</span>';
 function paintPresence(others) {
   const el = $('presence'); if (!el) return;
   if (others === null) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   el.innerHTML = others.length
-    ? `<span class="dot-live"></span>${others.slice(0, 3).map(p => `<span class="pav" title="${esc(String(p.name || 'חבר'))}">${esc(String(p.name || '?').trim().charAt(0))}</span>`).join('')}<span class="ptxt">${others.length === 1 ? `${esc(String(others[0].name || 'חבר'))} כאן עכשיו` : `${others.length} אנשים כאן עכשיו`}</span>`
+    ? `<span class="dot-live"></span>${others.slice(0, 3).map(p => `<span class="pav${p.amb === true ? ' amb' : ''}" title="${esc(String(p.name || 'חבר'))}">${esc(String(p.name || '?').trim().charAt(0))}</span>`).join('')}<span class="ptxt">${others.length === 1 ? `${esc(String(others[0].name || 'חבר'))}${others[0].amb === true ? AMB_TAG : ''} כאן עכשיו` : `${others.length} אנשים כאן עכשיו`}</span>`
     : '<span class="dot-live"></span><span class="ptxt">עריכה משותפת</span>';
 }
 let byTimer = null;
@@ -5644,7 +5645,7 @@ function paintCursors() {
   live.others.forEach(o => {
     seen.add(o.id);
     let E = cursorEls.get(o.id);
-    const c = colorOf(o.id), nm = String(o.name || 'חבר');
+    const c = colorOf(o.id), nm = String(o.name || 'חבר') + (o.amb === true ? ' · שגריר' : '');
     if (!E) {
       E = { line: document.createElement('div'), caret: document.createElement('div'), mouse: document.createElement('div'), cur: null, tgt: null };
       E.line.className = 'lc-line'; E.caret.className = 'lc-caret'; E.caret.innerHTML = '<span></span>';
@@ -5887,7 +5888,7 @@ function startRtdb(L) {
   const meRef = dbRef(rtdb, `cursors/${L.id}/${me.uid}`), txtRef = dbRef(rtdb, `livetext/${L.id}`);
   L.rt = { me: meRef }; remember(L, L.base);
   onDisconnect(meRef).remove().catch(() => {});
-  L.pres = () => dbSet(meRef, { name: myName(), at: Date.now(), ...(L.me || {}) }).catch(() => {});
+  L.pres = () => dbSet(meRef, { name: myName(), at: Date.now(), ...(refHas(10) ? { amb: true } : {}), ...(L.me || {}) }).catch(() => {});
   L.pres(); L.presTimer = setInterval(L.pres, 20000);
   L.rt.offCur = onValue(dbRef(rtdb, `cursors/${L.id}`), snap => {
     if (live !== L) return; const v = snap.val() || {}; const now = Date.now();
@@ -5973,7 +5974,7 @@ async function ocrPart(f, exact) {
 const OCR_STRONG_DAY = 2;
 function ocrStrongLeft() {
   if (isUnlimited()) return Infinity;
-  try { const o = JSON.parse(localStorage.getItem('ocrStrong:' + (me && me.uid)) || '{}'); return Math.max(0, OCR_STRONG_DAY - (o.d === todayKey() ? o.n || 0 : 0)); } catch { return OCR_STRONG_DAY; }
+  try { const o = JSON.parse(localStorage.getItem('ocrStrong:' + (me && me.uid)) || '{}'); return Math.max(0, OCR_STRONG_DAY * (refHas(10) ? AMB_X : 1) - (o.d === todayKey() ? o.n || 0 : 0)); } catch { return OCR_STRONG_DAY * (refHas(10) ? AMB_X : 1); }
 }
 function ocrStrongUse() {
   try { const k = 'ocrStrong:' + (me && me.uid), o = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ d: todayKey(), n: (o.d === todayKey() ? o.n || 0 : 0) + 1 })); } catch {}
@@ -9494,6 +9495,7 @@ $('inviteBtn').addEventListener('click', () => { $('userMenu').classList.add('hi
 $('homeFriends').addEventListener('click', () => showTab('fr'));
 /* ===== הזמנת חברים עם קישור אישי: כל מי שנרשם דרך הקישור נספר למי ששלח. ב-7 חברים – 7 תמונות לטקסט ביום ===== */
 // refs/<מי שהזמין>/joined/<החבר החדש>. הכללים מרשים לכתוב רק למשתמש חדש (שעוד אין לו stats), וכל אחד רואה רק את מי שהוא הביא
+const DAILY_BASE = { ...DAILY }, AMB_X = 2;   // שגריר (10 חברים): כל ה-AI פי 2
 const OCR_BASE = DAILY.ocr, CHAT_BASE = DAILY.chat, SUM_BASE = DAILY.sum, FC_BASE = DAILY.fc, REF_GOAL = 7, REF_OCR = 7;
 // מדרגות הפרסים: כמה חברים צריך להביא, ומה מקבלים
 const REF_TIERS = [
@@ -9506,7 +9508,7 @@ const REF_TIERS = [
   { n: REF_GOAL, big: true, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
   { n: 8, ic: 'target', t: 'מסגרת לעיגול הפרופיל', d: 'צבעונית, רואים אותה תמיד' },
   { n: 9, ic: 'cards', t: '+1 כרטיסיות שינון ביום', d: 'עוד סט כרטיסיות כל יום' },
-  { n: 10, big: true, ic: 'crown', t: 'תג שגריר', d: 'ליד השם שלך, וגישה ראשונה לכל דבר חדש' },
+  { n: 10, big: true, ic: 'crown', t: 'שגריר: כל ה-AI פי 2', d: 'כל יום: פי 2 תמונות לטקסט, סיכומים, הודעות לעוזר, כרטיסיות ועוד. ותג שגריר ליד השם' },
 ];
 const REF_BIG = REF_TIERS.filter(t => t.big);
 // אפשרויות במחברת שנפתחות בשלב מסוים
@@ -9559,6 +9561,8 @@ function refApply() {
   DAILY.ocr = (refHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
   DAILY.sum = SUM_BASE + (fresh ? 1 : 0) + (refHas(5) ? 1 : 0);
   DAILY.fc = FC_BASE + (refHas(9) ? 1 : 0);
+  ['qa', 'cf', 'kit', 'pr', 'wr'].forEach(k => { DAILY[k] = DAILY_BASE[k]; });
+  if (refHas(10)) Object.keys(DAILY).forEach(k => { DAILY[k] *= AMB_X; });   // שגריר: הכל פי 2 (גם בשרת)
   $('userBtn').classList.toggle('framed', refHas(8));
   siteAccentApply();
   const amb = refHas(10);

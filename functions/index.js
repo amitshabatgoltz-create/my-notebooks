@@ -29,6 +29,14 @@ const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];
+// שגריר (הביא 10 חברים או יותר, refs/{uid}/joined): כל המכסות פי 2. נשמר בזיכרון ל-10 דקות כדי לא לספור בכל בקשה
+const AMB_MIN = 10, AMB_X = 2, ambCache = new Map();
+async function isAmb(uid) {
+  const c = ambCache.get(uid); if (c && Date.now() - c.t < 600000) return c.v;
+  let v = false;
+  try { v = (await db.collection(`refs/${uid}/joined`).count().get()).data().count >= AMB_MIN; } catch (e) { console.warn('amb', String(e && e.message).slice(0, 80)); }
+  ambCache.set(uid, { v, t: Date.now() }); return v;
+}
 const israelDay = () => Math.floor((Date.now() + 10800000) / 864e5);
 
 function isOwner(token) {
@@ -104,6 +112,7 @@ async function refundOne(uid, kind) {
 }
 // סופרים קודם, ורק אז שואלים את Gemini. הכול בטרנזקציה, אז גם הרבה בקשות בבת אחת לא עוברות את המכסה.
 async function takeOne(uid, kind) {
+  const max = LIMIT[kind] * (await isAmb(uid) ? AMB_X : 1);
   const ref = db.doc(`aiQuota/${uid}`);
   await db.runTransaction(async tx => {
     const sn = await tx.get(ref);
@@ -111,7 +120,7 @@ async function takeOne(uid, kind) {
     let q = sn.exists ? sn.data() : {};
     if (q.day !== day) q = { day, counts: {} };
     const used = (q.counts && q.counts[kind]) || 0;
-    if (used >= LIMIT[kind]) throw new HttpsError('resource-exhausted', 'daily-limit');
+    if (used >= max) throw new HttpsError('resource-exhausted', 'daily-limit');
     const minCount = q.min === min ? (q.minCount || 0) : 0;
     if (minCount >= PER_MINUTE) throw new HttpsError('resource-exhausted', 'minute-limit');
     tx.set(ref, { day, counts: { ...(q.counts || {}), [kind]: used + 1 }, min, minCount: minCount + 1, last: Date.now() });
@@ -146,13 +155,14 @@ exports.ai = onCall({
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashOcr) {
     try {
+      const flashMine = OCR_FLASH_USER * (!owner && await isAmb(req.auth.uid) ? AMB_X : 1);
       const ok = await db.runTransaction(async tx => {
         const ref = db.doc('aiQuota/_site'), uref = db.doc(`aiQuota/${req.auth.uid}`);
         const sn = await tx.get(ref), un = await tx.get(uref);
         const g = sn.exists ? sn.data() : {}, u = un.exists ? un.data() : {};
         const day = israelDay(), used = g.flashDay === day ? (g.flashToday || 0) : 0;
         const mine = u.day === day ? ((u.counts && u.counts.flash) || 0) : 0;   // נשמר בתוך counts, ש-takeOne שומר עליו
-        if (used >= OCR_FLASH_DAY || (!owner && mine >= OCR_FLASH_USER)) return false;
+        if (used >= OCR_FLASH_DAY || (!owner && mine >= flashMine)) return false;
         tx.set(ref, { flashDay: day, flashToday: used + 1 }, { merge: true });
         if (!owner) tx.set(uref, { day, counts: { flash: mine + 1 } }, { merge: true });
         return true;
