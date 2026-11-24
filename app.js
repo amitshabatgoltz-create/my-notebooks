@@ -6846,13 +6846,13 @@ function planShort(t) {
   const x = String(t || '').split(/ – | \| /)[0].trim();
   return x.length > 34 ? x.slice(0, 32).trim() + '…' : x;
 }
-function buildPlan(e, nbs) {
+function buildPlan(e, nbs, extra = []) {
   const tk = todayKey(); const testDay = fromKey(e.date);
   const days = []; const d0 = fromKey(tk);
   if (new Date().getHours() >= 21) d0.setDate(d0.getDate() + 1);   // מאוחר בלילה – מתחילים מחר
   for (const d = new Date(d0); d < testDay; d.setDate(d.getDate() + 1)) days.push(key(d));
   if (!days.length) return [];
-  const units = nbs.flatMap(nbUnits);
+  const units = nbs.flatMap(nbUnits).concat(extra);
   const plan = [];
   const review = days.length >= 2 ? days.pop() : null;           // היום האחרון לפני המבחן: חזרה כללית
   // ימים שבהם המשתמש עסוק (אימון, חוג...) – מוסיפים הערה ללמוד לפני
@@ -6880,17 +6880,19 @@ function planDialog(e) {
     d.innerHTML = `<h3>תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
       <label class="fl">מאיזה מחברות לומדים?</label>
       <div class="plan-nbs">${all.length ? all.map(n => `<label class="plan-nb" style="--c:${n.color || '#5E5CE6'}"><input type="checkbox" value="${n.id}"${pre.has(n.id) ? ' checked' : ''}><span>${esc(n.title)}</span></label>`).join('') : '<p class="noev">אין מחברות עדיין.</p>'}</div>
+      ${isUnlimited() ? `<label class="fl">חומר מהמשוב</label><div class="plan-msh"><button type="button" class="btn btn-ghost plan-msh-go"><svg aria-hidden="true"><use href="#i-search"/></svg>לחפש במשוב הודעות ושיעורי בית</button><div class="plan-msh-list"></div></div>` : ''}
       <label class="fl">התוכנית</label><div class="plan-list"></div>
       ${old.length ? `<p class="muted-s">יש כבר תוכנית ביומן למבחן הזה (${old.length} ימים). הוספה תחליף אותה.</p>` : ''}`;
     const cd = d.querySelector('.cd-live'); const tick = () => { if (!cd.isConnected) return clearInterval(iv); cd.textContent = countdownText(e); }; const iv = setInterval(tick, 30000); tick();
-    let plan = [];
+    let plan = [], mshItems = [];
     const paint = () => {
       const chosen = all.filter(n => d.querySelector(`.plan-nb input[value="${n.id}"]`)?.checked);
-      plan = buildPlan(e, chosen);
+      const extra = mshItems.filter(x => d.querySelector(`.plan-msh-list input[value="${x.id}"]`)?.checked).map(x => ({ nb: 'משוב', label: x.t.slice(0, 50) }));
+      plan = buildPlan(e, chosen, extra);
       const box = d.querySelector('.plan-list');
       box.innerHTML = plan.length ? plan.map(p => `<div class="plan-day"><span class="pd">${esc(dayLabel(p.date))}</span><span class="pt">${esc(p.task)}</span></div>`).join('') : '<p class="noev">המבחן כבר מחר או היום – אין ימים לחלק. בהצלחה!</p>';
       ok.disabled = !plan.length;
-      if (!chosen.length && plan.length) box.insertAdjacentHTML('afterbegin', '<p class="muted-s">לא בחרת מחברות, אז זו תוכנית כללית. סמן מחברות למעלה כדי לחלק את החומר.</p>');
+      if (!chosen.length && !extra.length && plan.length) box.insertAdjacentHTML('afterbegin', '<p class="muted-s">לא בחרת מחברות, אז זו תוכנית כללית. סמן מחברות למעלה כדי לחלק את החומר.</p>');
     };
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'הוספה ליומן';
@@ -6906,6 +6908,22 @@ function planDialog(e) {
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
     row.append(ok, no); d.appendChild(row);
     d.querySelector('.plan-nbs').addEventListener('change', paint);
+    // חומר מהמשוב: מחפשים לפי המקצוע של המבחן, ומה שמסמנים נכנס לתוכנית כמו פרק ממחברת
+    const mg = d.querySelector('.plan-msh-go');
+    if (mg) {
+      const ml = d.querySelector('.plan-msh-list');
+      ml.addEventListener('change', paint);
+      mg.onclick = async () => {
+        const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות|עבודה)\s*(ב|על)?\s*/, '').split(/[–\-:,(]/)[0] || e.title).trim().slice(0, 40);
+        mg.disabled = true; const stop = ticking(mg, 'מחפש במשוב...');
+        try {
+          const r = await mshCall({ a: 'mat', q: subj }); stop(); mshItems = (r && r.items) || [];
+          mg.classList.add('hidden');
+          ml.innerHTML = mshItems.length ? mshItems.map(x => `<label class="plan-mi"><input type="checkbox" value="${esc(x.id)}"><span class="pm-k">${x.k === 'mail' ? 'הודעה' : 'שיעורי בית'}</span><span class="pm-t" dir="auto">${esc(x.t)}</span><small>${esc((x.d || '').split('-').reverse().join('.'))}${x.from ? ' · ' + esc(x.from) : ''}${x.files && x.files.length ? ` · ${x.files.length} קבצים` : ''}</small>${x.text ? `<details><summary>להציג</summary><div class="pm-text" dir="auto">${esc(x.text).replace(/\n/g, '<br>')}</div></details>` : ''}</label>`).join('')
+            : `<p class="muted-s">לא מצאתי במשוב הודעות או שיעורי בית של "${esc(subj)}".</p>`;
+        } catch (err) { stop(); mg.disabled = false; mg.innerHTML = '<svg aria-hidden="true"><use href="#i-search"/></svg>לחפש במשוב הודעות ושיעורי בית'; toast(mshErr(err)); }
+      };
+    }
     paint();
   });
 }

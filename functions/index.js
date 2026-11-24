@@ -400,6 +400,41 @@ async function mshSync(uid) {
   await db.doc(`users/${uid}/meta/mashov`).set({ on: true, last: Date.now(), err: null, beh, got: out, ok: { grades: Array.isArray(gr), hw: Array.isArray(hw), behave: Array.isArray(bh) } }, { merge: true });
   return out;
 }
+// חומר למבחן מהמשוב: הודעות מהמורים ושיעורי בית של המקצוע (לתוכנית למידה באתר)
+const mshNorm = t => String(t || '').replace(/["׳״'`]/g, '').replace(/[^\u0590-\u05FFa-zA-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+const mshText = h => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr)>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+async function mshMaterial(uid, q) {
+  const cs = await db.doc(`mashovCreds/${uid}`).get();
+  if (!cs.exists) throw new HttpsError('failed-precondition', 'עוד לא התחברת למשוב');
+  const c = cs.data(); const s = await mshLogin({ ...c, password: mshDec(c.pw) });
+  const nq = mshNorm(q), words = nq.split(' ').filter(w => w.length >= 2);
+  const hit = t => { const n = mshNorm(t); return !!n && (n.includes(nq) || (nq.length >= 2 && nq.includes(n)) || words.some(w => w.length >= 3 && n.includes(w))); };
+  const out = [];
+  // שיעורי בית של המקצוע (כל השנה, החדשים קודם)
+  const hw = await mshGet(s, `/students/${s.uid}/homework`);
+  if (Array.isArray(hw)) hw.filter(h => hit(h.subjectName) && String(h.homework || '').trim()).sort((a, b) => String(b.lessonDate).localeCompare(String(a.lessonDate))).slice(0, 25)
+    .forEach(h => out.push({ k: 'hw', id: 'h' + (h.lessonId || ''), t: String(h.homework).trim().slice(0, 120), d: ymd(h.lessonDate), text: String(h.homework).trim().slice(0, 3000), from: String(h.subjectName || '') }));
+  // הודעות במשוב: נושא / שולח / תוכן שקשורים למקצוע
+  const inbox = await mshGet(s, '/mail/inbox/conversations?skip=0&take=60');
+  const convs = Array.isArray(inbox) ? inbox : [];
+  const pick = [];
+  for (const cv of convs) {
+    const m0 = Array.isArray(cv.messages) ? cv.messages[0] || {} : {};
+    const blob = [cv.subject, m0.senderName, m0.sender, m0.body, m0.preview].join(' ');
+    if (hit(blob)) pick.push(cv);
+    if (pick.length >= 8) break;
+  }
+  for (const cv of pick) {
+    const full = await mshGet(s, `/mail/conversations/${encodeURIComponent(cv.conversationId)}`);
+    const msgs = full && Array.isArray(full.messages) ? full.messages : Array.isArray(cv.messages) ? cv.messages : [];
+    const text = msgs.map(m => mshText(m.body || m.content || '')).filter(Boolean).join('\n\n').slice(0, 6000);
+    const files = msgs.flatMap(m => Array.isArray(m.files) ? m.files : []).map(f => String(f.fileName || f.name || '')).filter(Boolean).slice(0, 10);
+    const m0 = msgs[0] || {};
+    out.push({ k: 'mail', id: 'm' + cv.conversationId, t: String(cv.subject || 'הודעה').slice(0, 120), d: ymd(cv.sendTime || m0.sendTime), text, files, from: String(m0.senderName || m0.sender || '').slice(0, 60) });
+  }
+  console.log('mashov mat', q, 'hw', out.filter(x => x.k === 'hw').length, 'mail', pick.length, 'inbox', convs.length);
+  return { items: out };
+}
 let mshSchools = null;
 exports.mashov = onCall({ region: 'me-west1', secrets: [MASHOV_KEY], timeoutSeconds: 120 }, async req => {
   const uid = req.auth && req.auth.uid;
@@ -417,6 +452,7 @@ exports.mashov = onCall({ region: 'me-west1', secrets: [MASHOV_KEY], timeoutSeco
     return mshSync(uid);
   }
   if (a === 'sync') return mshSync(uid).catch(async e => { await db.doc(`users/${uid}/meta/mashov`).set({ err: String(e.message || e).slice(0, 200), errAt: Date.now() }, { merge: true }); throw e; });
+  if (a === 'mat') return mshMaterial(uid, String((req.data && req.data.q) || '').slice(0, 60));
   if (a === 'off') { await db.doc(`mashovCreds/${uid}`).delete(); await db.doc(`users/${uid}/meta/mashov`).set({ on: false, beh: [] }, { merge: true }); return { ok: true }; }
   throw new HttpsError('invalid-argument', 'פעולה לא ידועה');
 });
