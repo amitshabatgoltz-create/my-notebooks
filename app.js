@@ -8706,17 +8706,17 @@ $('chatListBtn').onclick = () => $('chatPanel').classList.contains('full') ? cha
 /* ---- כרטיסים בתוך הצ'אט: שאלון אינטראקטיבי ודף חזרה ---- */
 const CHAT_ACTIONS = [
   { icon: 'hw', text: 'בדיקת שיעורי בית', check: true },
-  { icon: 'target', text: 'תבחן אותי בשיחה', send: 'תבחן אותי בשיחה על החומר: שאלה אחת בכל פעם בטקסט (שאלות שצריך לזכור ולהסביר, לא רק לבחור), תחכה לתשובה שלי, תגיד לי אם צדקתי ולמה, ותתאים את הקושי. בלי שאלון.' },
-  { icon: 'doc', text: 'אני אסביר לך', fill: 'אני אסביר לך במילים שלי, ותבדוק מה חסר או לא נכון: ' },
-  { icon: 'doc', text: 'צעד אחרי צעד', fill: 'תסביר לי צעד אחרי צעד, עם דוגמה פתורה ואז תרגיל דומה בשבילי: ' },
-  { icon: 'target', text: 'מצא את הטעות', send: 'תן לי "מצא את הטעות" על החומר: פתרון של תלמיד אחר עם טעות אחת שתלמידים באמת עושים. אני אמצא אותה, אסביר למה זה לא נכון ואתקן. אל תגלה לי לפני שאנסה.' },
+  { icon: 'target', text: 'תבחן אותי בשיחה', learn: true, send: 'תבחן אותי בשיחה על החומר: שאלה אחת בכל פעם בטקסט (שאלות שצריך לזכור ולהסביר, לא רק לבחור), תחכה לתשובה שלי, תגיד לי אם צדקתי ולמה, ותתאים את הקושי. בלי שאלון.' },
+  { icon: 'doc', text: 'אני אסביר לך', learn: true, fill: 'אני אסביר לך במילים שלי, ותבדוק מה חסר או לא נכון: ' },
+  { icon: 'doc', text: 'צעד אחרי צעד', learn: true, fill: 'תסביר לי צעד אחרי צעד, עם דוגמה פתורה ואז תרגיל דומה בשבילי: ' },
+  { icon: 'target', text: 'מצא את הטעות', learn: true, send: 'תן לי "מצא את הטעות" על החומר: פתרון של תלמיד אחר עם טעות אחת שתלמידים באמת עושים. אני אמצא אותה, אסביר למה זה לא נכון ואתקן. אל תגלה לי לפני שאנסה.' },
   { icon: 'target', text: 'שאלון', send: 'תכין לי שאלון תרגול על החומר' },
   { icon: 'doc', text: 'דף חזרה', send: 'תכין לי דף חזרה מסודר על החומר' },
   { icon: 'compass', text: 'במה להתחיל?', send: 'במה כדאי לי להתחיל ללמוד עכשיו, ולמה?' },
   { icon: 'mark', text: 'הוספה ליומן', fill: 'יש לי ' },
 ];
 CHAT_ACTIONS.forEach(s => {
-  const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip'; c.textContent = s.text;
+  const c = document.createElement('button'); c.type = 'button'; c.className = 'ai-chip' + (s.learn ? ' learn' : ''); c.textContent = s.text;
   c.onclick = () => chatUse(s); $('chatActions').appendChild(c);
 });
 const chatStr = (v, n) => String(v ?? '').trim().slice(0, n);
