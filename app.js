@@ -218,7 +218,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -9283,7 +9283,7 @@ const TOUR = [
 /* ===== "כבר ראיתי" בחשבון: סיורים, הסברים בפעם הראשונה וסרטון החברים – לא מופיעים שוב במכשיר אחר ===== */
 // כל מקום באתר ששומר "ראיתי" ב-localStorage (intro:, tour:, refVid1:, invPop:, ttNudge:) נשמר גם ב-users/{uid}/meta/flags.seen,
 // ובכניסה מושכים משם לפני שמחליטים אם להראות סיור/סרטון
-const SEEN_RE = /^(intro:|tour:|refVid1:|invPop:|ttNudge:|onbNb:)/;
+const SEEN_RE = /^(intro:|tour:|refVid1:|invPop:|ttNudge:|onbNb:|refPush1:)/;
 const lsSet = Storage.prototype.setItem;
 let seenQ = {}, seenT = 0;
 const seenMine = k => { const m = k.match(/:([A-Za-z0-9]{20,})$/); return !m || (me && m[1] === me.uid); };   // מפתח של משתמש אחר באותו מכשיר – לא שלנו
@@ -9567,6 +9567,21 @@ async function invitePopMaybe() {
   const k = 'invPop:' + me.uid, tk = todayKey();
   try { if (localStorage.getItem(k) === tk) return; localStorage.setItem(k, tk); } catch {}
   setTimeout(() => { if (me && !document.querySelector('.overlay')) showTab('fr'); }, 1800);
+}
+// מבצע חד-פעמי: ביום REF_PUSH_DAY כל מי שנכנס רואה את סרטון החברים פעם אחת (גם מי שכבר ראה אותו).
+// משתמש חדש שעוד באמצע הצעדים של onbRun – לא, כדי שלא יקפצו לו שני חלונות (הסרטון יגיע לו בתורו)
+const REF_PUSH_DAY = '2026-11-24';
+function refPushMaybe() {
+  if (!me || shareParam || todayKey() !== REF_PUSH_DAY) return false;
+  if (onbNew() && !onbDone()) return false;
+  const k = 'refPush1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
+  const tryShow = (left = 6) => {
+    if (!me) return;
+    if ($('home').classList.contains('hidden') || document.querySelector('.overlay, .tour-ov, .tour-bub, .dv-wrap')) { if (left) setTimeout(() => tryShow(left - 1), 4000); return; }
+    try { localStorage.setItem(k, '1'); } catch {}
+    track('ref_push', {}); refVideo();
+  };
+  setTimeout(tryShow, 2500); return true;
 }
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
