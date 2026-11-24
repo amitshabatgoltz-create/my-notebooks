@@ -64,7 +64,7 @@ async function streakBoost(uid) {
 }
 // ===== גירים (24.11.2026): מטבע שמרוויחים באתר וקונים בו שימושים ב-AI ועיצובים. רק השרת כותב ל-wallet/{uid} =====
 // מרוויחים: כניסה יומית (ברצף), צילום לוח, מחברת חדשה, חבר שהצטרף. לכל סוג יש תקרה יומית כדי שאי אפשר "לחרוש"
-const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 30, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 } };
+const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 20, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 } };
 // משימות היום (24.11.2026): נכנסים (day) + מצלמים לוח (ocr) + שואלים את העוזר (ask) → בונוס quest. אותה רשימה באתר (QUESTS)
 const QUEST_KINDS = ['day', 'ocr', 'ask'];
 // החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
@@ -73,6 +73,8 @@ const SHOP = {
   fc1: { p: 8, k: 'fc', add: 1, max: 2 }, kit1: { p: 8, k: 'kit', add: 1, max: 2 }, pr1: { p: 8, k: 'pr', add: 1, max: 2 },
   shield: { p: 20, shield: true },
   chalk: { p: 60, skin: true }, sunset: { p: 60, skin: true }, ocean: { p: 60, skin: true },
+  // (24.11.2026) הפרסים של תוכנית החברים עברו לחנות – כל אחד יכול לקנות בגירים. מי שכבר קיבל אותם מחברים – שומר (באתר: legacyHas)
+  spcolors: { p: 25, skin: true }, spbg: { p: 25, skin: true }, funfont: { p: 20, skin: true }, accent: { p: 30, skin: true }, frame: { p: 30, skin: true },
 };
 // מוסיף גירים בתוך טרנזקציה קיימת (או חדשה). מחזיר כמה באמת נוספו (0 אם עברנו את התקרה של היום)
 function earnIn(tx, w, kind, n = 1) {
@@ -486,9 +488,19 @@ exports.chalkNotebook = onDocumentCreated({ document: 'users/{uid}/notebooks/{id
   await earn(ev.params.uid, 'nb');
 });
 // חבר שהצטרף דרך הקישור שלך = 30 גירים
+// (24.11.2026) כל חבר = 20 גירים, עד 10 חברים בחודש (נגד חשבונות מזויפים). fm = {m: 'YYYY-MM', n}
 exports.chalkFriend = onDocumentCreated({ document: 'refs/{ref}/joined/{uid}', region: 'europe-west1', retry: false }, async ev => {
   if (ev.params.ref === ev.params.uid) return;
-  await earn(ev.params.ref, 'friend');
+  const ref = db.doc(`wallet/${ev.params.ref}`), mon = new Date(Date.now() + 10800000).toISOString().slice(0, 7);
+  try {
+    await db.runTransaction(async tx => {
+      const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {};
+      const fm = w.fm && w.fm.m === mon ? w.fm : { m: mon, n: 0 };
+      if (fm.n >= 10) return;
+      const r = earnIn(tx, w, 'friend');
+      if (r.got) tx.set(ref, { ...r.w, fm: { m: mon, n: fm.n + 1 } });
+    });
+  } catch (e) { console.warn('chalkFriend', String(e && e.message).slice(0, 80)); }
 });
 
 exports.sharePeople = onCall({ region: 'europe-west1', timeoutSeconds: 60 }, async req => {

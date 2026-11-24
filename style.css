@@ -3524,3 +3524,16 @@ html[data-theme="dark"] .cb-wrap.big .cb-card{background:linear-gradient(160deg,
 .shop-dlg .bq-bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#FDBA3B,#F97316);transition:width .4s ease}
 .shop-dlg .tk-dot{position:relative}
 .shop-dlg .tk-star{position:absolute;top:-8px;inset-inline-end:-8px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#F5C542;color:#7A4B00;font-style:normal;font-size:12px;box-shadow:0 0 0 2px var(--surface)}
+/* מטבע אחד: עמוד חברים פשוט + פרסים בחנות */
+.fr-cap{display:block;margin-top:8px;font-size:12.5px;opacity:.8}
+.fr-amb{display:flex;align-items:center;gap:14px;padding:16px}
+.fr-amb>div{flex:1;display:flex;flex-direction:column;gap:2px}
+.fr-amb small{color:var(--muted)}
+.fr-amb-ic{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:14px;background:linear-gradient(160deg,#F5C542,#E8A317)}
+.fr-amb-ic svg{width:24px;height:24px;fill:none;stroke:#3A2410;stroke-width:1.8}
+.shop-dlg .bd-sub{margin:8px 2px 0;font-size:13px;font-weight:700;color:var(--muted)}
+.shop-dlg .bd-it.acc{flex-wrap:wrap}
+.shop-dlg .bd-accs{display:flex;gap:8px;flex-wrap:wrap}
+.shop-dlg .bd-accs button{width:30px;height:30px;border-radius:50%;border:2px solid var(--surface);background:var(--c);box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.shop-dlg .bd-accs button.on{box-shadow:0 0 0 2px var(--c)}
+@media (max-width:700px){.fr-amb{flex-wrap:wrap}.fr-amb .btn{width:100%}}

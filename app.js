@@ -220,7 +220,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -505,7 +505,7 @@ function nbColorDialog() {
       };
       pick.appendChild(s);
     });
-    const open = typeof refHas === 'function' && refHas(1);
+    const open = typeof perkHas === 'function' && perkHas(1);
     const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
     const sp = document.createElement('div'); sp.className = 'picker sp-picker' + (open ? '' : ' locked');
     SPECIAL_COLORS.forEach(([c, nm]) => {
@@ -2310,7 +2310,7 @@ function nbSettingsUI(st, onChange, keys, preview) {
         COLORS.forEach(c => { const s = document.createElement('button'); s.type = 'button'; s.style.background = c; s.setAttribute('aria-label', 'צבע'); if (c === st.color) s.classList.add('on'); s.onclick = () => { st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g.appendChild(s); all.push(s); });
         sec.appendChild(g);
         // צבעים מיוחדים (פרס על החבר הראשון)
-        const open = typeof refHas === 'function' && refHas(1);
+        const open = typeof perkHas === 'function' && perkHas(1);
         const sh = document.createElement('div'); sh.className = 'sp-head'; sh.innerHTML = `<b>צבעים מיוחדים</b>${open ? '' : '<span><svg aria-hidden="true"><use href="#i-lock"/></svg>נפתחים כשחבר אחד מצטרף דרכך</span>'}`;
         const g2 = document.createElement('div'); g2.className = 'picker sp-picker' + (open ? '' : ' locked');
         SPECIAL_COLORS.forEach(([c, nm]) => { const s = document.createElement('button'); s.type = 'button'; s.style.background = nbPaint(c); s.title = nm; s.setAttribute('aria-label', nm); if (c === st.color) s.classList.add('on'); s.onclick = () => { if (!open) { toast('הצבעים המיוחדים נפתחים כשחבר אחד מצטרף דרך הקישור שלך. אפשר דרך "חברים" בתפריט'); return; } st.color = c; all.forEach(x => x.classList.toggle('on', x === s)); onChange(k, c); }; g2.appendChild(s); all.push(s); });
@@ -9409,7 +9409,7 @@ function onbRun(left = 8) {
     if (ttSubjects().length) onbSet('ttNudge', '1');                     // כבר יש מערכת – מדלגים
     else { ttNudge(); return; }
   }
-  if (!onbGet('refVid1')) { onbSet('refVid1'); refVideo(); }
+  if (!onbGet('refVid1')) onbSet('refVid1', '1');   // (24.11.2026) סרטון המדרגות כבר לא נכון – לא מראים
 }
 // היום הראשון: רק דבר אחד – ליצור מחברת
 function firstNbCard() {
@@ -9557,14 +9557,14 @@ const REF_TIERS = [
 const REF_BIG = REF_TIERS.filter(t => t.big);
 // אפשרויות במחברת שנפתחות בשלב מסוים
 const REF_LOCKED_OPT = { bg: { stars: 2, gold: 2, color: 2 }, font: { fun: 4 } };
-const refOptLock = (k, v) => { const lv = REF_LOCKED_OPT[k] && REF_LOCKED_OPT[k][v]; return lv && !(typeof refHas === 'function' && refHas(lv)) ? lv : 0; };
+const refOptLock = (k, v) => { const lv = REF_LOCKED_OPT[k] && REF_LOCKED_OPT[k][v]; return lv && !(typeof perkHas === 'function' && perkHas(lv)) ? lv : 0; };
 // צבע לכל האתר (פרס של שלב 6)
 const SITE_ACCENTS = [['', 'סגול', '#5E5CE6'], ['#10B981', 'ירוק', '#10B981'], ['#F97316', 'כתום', '#F97316'], ['#EC4899', 'ורוד', '#EC4899'], ['#0EA5E9', 'תכלת', '#0EA5E9'], ['#E11D48', 'אדום', '#E11D48']];
 function siteAccentGet() { try { return (me && localStorage.getItem('accent:' + me.uid)) || ''; } catch { return ''; } }
 function siteAccentApply() {
   let st = document.getElementById('accentStyle'); const sk = skinNow();
   Object.keys(SKINS).forEach(k => document.documentElement.classList.toggle('skin-' + k, sk === k));
-  const c = sk ? SKINS[sk] : refHas(6) ? siteAccentGet() : '';
+  const c = sk ? SKINS[sk] : perkHas(6) ? siteAccentGet() : '';
   if (!c) { if (st) st.remove(); return; }
   if (!st) { st = document.createElement('style'); st.id = 'accentStyle'; document.head.appendChild(st); }
   st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`;
@@ -9583,12 +9583,18 @@ const SHOP = [
   { id: 'chalk', g: 'skin', p: 60, t: 'לוח ירוק', s: 'ירוק כהה כמו לוח בכיתה', sw: ['#2E7D5B', '#24412F'] },
   { id: 'sunset', g: 'skin', p: 60, t: 'שקיעה', s: 'כתום וורוד חמים', sw: ['#E8613C', '#F4A259'] },
   { id: 'ocean', g: 'skin', p: 60, t: 'ים', s: 'טורקיז רגוע', sw: ['#0E8FA8', '#5BC0BE'] },
+  // הפרסים שהיו פעם של תוכנית החברים (PERK_ITEM). לא עיצוב לכל האתר – פותחים משהו
+  { id: 'spcolors', g: 'perk', n: 1, p: 25, t: 'צבעים מיוחדים למחברות', s: 'זהב, ניאון, גלקסיה ועוד – בכפתור "צבע" של המחברת', ic: 'palette' },
+  { id: 'spbg', g: 'perk', n: 2, p: 25, t: 'רקעים מיוחדים לדף', s: 'כוכבים, נקודות זהב, משבצות צבעוניות – ב"הגדרות" של המחברת', ic: 'template' },
+  { id: 'funfont', g: 'perk', n: 4, p: 20, t: 'גופן כיפי למחברת', s: 'ב"הגדרות" של המחברת', ic: 'type' },
+  { id: 'accent', g: 'perk', n: 6, p: 30, t: 'צבע לכל האתר', s: 'ירוק, כתום, ורוד ועוד', ic: 'mark' },
+  { id: 'frame', g: 'perk', n: 8, p: 30, t: 'מסגרת צבעונית לעיגול', s: 'ליד השם שלך, תמיד', ic: 'target' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2E7D5B', sunset: '#E8613C', ocean: '#0E8FA8' };
 const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
 const QUESTS = [{ k: 'day', t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, { k: 'ocr', t: 'לצלם לוח אחד', done: 'צילמת לוח', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }], QUEST_BONUS = 10;
-const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3'], ['friend', 20, 0, 'כל חבר שמצטרף מהקישור שלך (עד 10 בחודש)']];
 let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
 const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
 function walletWatch() {
@@ -9638,7 +9644,8 @@ function chalkBurst(got, why, big, from, to) {
   setTimeout(() => { w.remove(); b.classList.remove('bump'); }, big ? 2300 : 1900);
 }
 // עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בגירים. נבחר אחד בכל פעם
-function skinOwned(id) { return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
+function skinOwned(id) { if (typeof isUnlimited === 'function' && isUnlimited()) return true;   // בעל האתר – כל העיצובים (עמית ביקש לראות)
+  return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
 function skinNow() {
   if (!me) return '';
   let v = null; try { v = localStorage.getItem('skinSel:' + me.uid); } catch {}
@@ -9655,6 +9662,7 @@ function shopPaint(d) {
   d = d || $('dialogRoot').querySelector('.shop-dlg'); if (!d) return;
   const bal = (wallet && wallet.bal) || 0, ex = walletToday();
   const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {};
+  const perkItem = it => { const own = perkHas(it.n); return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך ✓ · ' : ''}${esc(it.s)}</small></span>${own ? '<button class="bd-buy on" disabled>שלך ✓</button>' : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg></button>`}</div>`; };
   const item = it => {
     if (it.g === 'skin') {
       const own = skinOwned(it.id), on = skinNow() === it.id;
@@ -9686,6 +9694,8 @@ function shopPaint(d) {
       ? `<div class="bd-it skin"><span class="bd-sw plain"></span><span class="bd-tx"><b>רגיל</b><small>העיצוב הרגיל של האתר</small></span><button class="bd-buy${!skinNow() ? ' on' : ''}" data-skin="">${!skinNow() ? 'בשימוש ✓' : 'להשתמש'}</button></div>`
         + (skinOwned('gold') ? item({ id: 'gold', g: 'skin', t: 'זהב', s: 'פרס של 7 ימים ברצף', sw: ['#C98A04', '#F5C542'] }) : '')
         + SHOP.filter(x => x.g === 'skin').map(item).join('')
+        + `<p class="bd-sub">פותחים לתמיד</p>` + SHOP.filter(x => x.g === 'perk').map(perkItem).join('')
+        + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')
       : SHOP.filter(x => x.g === 'ai').map(item).join('');
   d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
     <div class="bd-head"><h3>חנות הגירים</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-chalk"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>גירים</span></div></div>
@@ -9696,6 +9706,7 @@ function shopPaint(d) {
   d.querySelector('.bd-x').onclick = closeDialog;
   d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
   d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
+  d.querySelectorAll('.bd-accs [data-acc]').forEach(b => b.onclick = () => { try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); localStorage.setItem('skinSel:' + me.uid, ''); } catch {} siteAccentApply(); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
   d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); if (b.dataset.go === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else showTab('chat'); });
   if (shopTab === 'streak') setTimeout(() => { const tr = d.querySelector('.bd-track'), now = d.querySelector('.tk-n.now'); if (tr && now) tr.scrollLeft += now.getBoundingClientRect().left + now.offsetWidth / 2 - (tr.getBoundingClientRect().left + tr.clientWidth / 2); }, 60);
@@ -9710,6 +9721,7 @@ async function shopBuy(id, btn) {
     track('shop_buy', { id, p: it.p });
     if (id === 'shield' && dStreak) { dStreak.shield = 1; streakPaint(); }
     if (it.g === 'skin') { skinSet(id); toast(`העיצוב "${it.t}" שלך ✓`); }
+    else if (it.g === 'perk') { toast(`${it.t} – שלך ✓`); refApply(); }
     else toast(it.k ? `${it.t} – אפשר להשתמש עכשיו ✓` : `${it.t} ✓`);
     btn.closest('.bd-it')?.classList.add('bought');
   } catch (e) {
@@ -9753,6 +9765,7 @@ function streakPaint() {
     <span class="sk-dots" aria-hidden="true">${dots}</span>${dStreak.shield ? '<span class="sk-sh" title="מגן רצף: יום אחד שפספסת לא ישבור את הרצף"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>' : ''}`;
   el.classList.remove('hidden');
 }
+if (location.hostname === 'localhost') window.__frTest = (list) => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; refList = list || []; showTab('fr'); renderFriends(); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__whereTest = () => streakWhere();   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
@@ -9867,18 +9880,24 @@ async function refJoin() {
 }
 const refCount = () => refList.length;
 const refHas = k => refCount() >= k;
+// (24.11.2026) עמית: מטבע אחד. מדרגות החברים בוטלו – כל חבר = 20 גירים, והפרסים עברו לחנות. מי שכבר הגיע למדרגה לפני השינוי – שומר אותה
+const REF_CUTOVER = Date.UTC(2026, 10, 24, 20, 0, 0);
+const legacyN = () => refList.filter(x => (x.at || 0) < REF_CUTOVER).length;
+const legacyHas = k => legacyN() >= k;
+const PERK_ITEM = { 1: 'spcolors', 2: 'spbg', 4: 'funfont', 6: 'accent', 8: 'frame' };
+const perkHas = k => (typeof isUnlimited === 'function' && isUnlimited()) || legacyHas(k) || !!(wallet && PERK_ITEM[k] && (wallet.owned || []).includes(PERK_ITEM[k]));
 function refApply() {
   let fresh = false; try { fresh = !!me && localStorage.getItem('refNew:' + me.uid) === todayKey(); } catch {}
-  DAILY.chat = refHas(3) ? CHAT_BASE + 5 : CHAT_BASE;
-  DAILY.ocr = (refHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
-  DAILY.sum = SUM_BASE + (fresh ? 1 : 0) + (refHas(5) ? 1 : 0);
-  DAILY.fc = FC_BASE + (refHas(9) ? 1 : 0);
+  DAILY.chat = legacyHas(3) ? CHAT_BASE + 5 : CHAT_BASE;
+  DAILY.ocr = (legacyHas(REF_GOAL) ? Math.max(OCR_BASE, REF_OCR) : OCR_BASE) + (fresh ? 1 : 0);
+  DAILY.sum = SUM_BASE + (fresh ? 1 : 0) + (legacyHas(5) ? 1 : 0);
+  DAILY.fc = FC_BASE + (legacyHas(9) ? 1 : 0);
   ['qa', 'cf', 'kit', 'pr', 'wr'].forEach(k => { DAILY[k] = DAILY_BASE[k]; });
   const sb = streakToday(); if (sb.bonus && DAILY[sb.bonus.k] !== undefined) DAILY[sb.bonus.k] += sb.bonus.add;   // רצף יומי: הפרס הקטן של היום
   const wx = walletToday().add || {}; Object.keys(wx).forEach(k => { if (DAILY[k] !== undefined) DAILY[k] += +wx[k] || 0; });   // גירים: שימושים שנקנו להיום
   if (sb.x2) Object.keys(DAILY).forEach(k => { DAILY[k] *= 2; });                                                   // רצף: יום 30 – פי 2 מהכל
   if (refHas(10)) Object.keys(DAILY).forEach(k => { DAILY[k] *= AMB_X; });   // שגריר: הכל פי 2 (גם בשרת)
-  $('userBtn').classList.toggle('framed', refHas(8));
+  $('userBtn').classList.toggle('framed', perkHas(8));
   siteAccentApply();
   const amb = refHas(10);
   paintFriendsBanner();
@@ -9894,7 +9913,7 @@ async function refLoad() {
   refApply();
   // עלית מדרגה מאז הפעם הקודמת? חוגגים
   const k = 'refSeen:' + me.uid; let prev = refCount(); try { prev = +(localStorage.getItem(k) ?? refCount()); localStorage.setItem(k, refCount()); } catch {}
-  const opened = REF_TIERS.filter(t => prev < t.n && refHas(t.n));
+  const opened = REF_TIERS.filter(t => t.n === 10 && prev < t.n && refHas(t.n));
   if (opened.length) setTimeout(() => refCelebrate(opened[opened.length - 1]), 1500);
   frGlowPaint(); frWatch();
   if (!$('friendsView').classList.contains('hidden')) frGiftOpened();
@@ -9972,6 +9991,7 @@ function refPushMaybe() {
 }
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
+  return false;   // (24.11.2026) הסרטון/ההדרכה על המדרגות כבר לא נכונים – כל חבר = 20 גירים
   if (!me || shareParam) return false;
   if (onbNew()) return !onbDone();                                        // משתמש חדש: הסרטון מגיע בתורו (onbRun)
   const k = 'refVid1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
@@ -10049,61 +10069,39 @@ const refNext = () => REF_TIERS.find(t => refCount() < t.n) || null;
 function paintFriendsBanner() {
   const b = $('homeFriendsTx'); if (!b) return;
   const n = refCount(), nx = refNext(), left = nx ? nx.n - n : 0;
-  b.innerHTML = nx ? `<b>הזמנת חברים</b><small>${n ? `הבאת ${n} · ` : ''}עוד ${left === 1 ? 'חבר אחד' : left + ' חברים'} ל: ${esc(nx.t)}</small>` : `<b>שגריר</b><small>הבאת ${n} חברים. פתחת את כל הפרסים</small>`;
+  b.innerHTML = `<b>${n >= 10 ? 'שגריר' : 'הזמנת חברים'}</b><small>כל חבר = 20 גירים${n ? ` · הבאת ${n}` : ''}</small>`; void nx; void left;
 }
 function renderFriends() {
   const box = $('frBody'); if (!box || !me) return;
   const n = refCount(), nx = refNext(), left = nx ? nx.n - n : 0;
   const pos = v => Math.min(1, v / REF_MAX);
   const ago = t => { if (!t) return ''; const dd = Math.floor((Date.now() - t) / 864e5); return dd <= 0 ? 'היום' : dd === 1 ? 'אתמול' : `לפני ${dd} ימים`; };
+  const mon = new Date(Date.now() + 10800000).toISOString().slice(0, 7), fm = wallet && wallet.fm && wallet.fm.m === mon ? wallet.fm.n : 0, toAmb = Math.max(0, 10 - n);
   box.innerHTML = `
     <div class="fr-hero">
       <div class="fr-hero-l">
         <div class="fr-big"><b>${n}</b><span>${n === 1 ? 'חבר הצטרף דרכך' : 'חברים הצטרפו דרכך'}</span></div>
-        <p class="fr-next">${nx ? `עוד <b>${left === 1 ? 'חבר אחד' : left + ' חברים'}</b> ואתה מקבל: <b>${esc(nx.t)}</b>` : 'פתחת את כל הפרסים. אתה שגריר של האתר!'}</p>
+        <p class="fr-next"><b>כל חבר שמצטרף = 20 גירים</b> לחנות. החבר מקבל מתנה ביום הראשון.</p>
         <div class="fr-cta"><button class="btn fr-share" type="button" id="frShare"><svg aria-hidden="true"><use href="#i-send"/></svg>שליחה לחברים</button><button class="btn fr-copy" type="button" id="frCopy"><svg aria-hidden="true"><use href="#i-copy"/></svg>העתקת הקישור</button></div>
+        <small class="fr-cap">החודש: ${fm} מתוך 10 חברים שנותנים גירים</small>
       </div>
-      <div class="fr-ring" style="--p:${nx ? Math.round(n / nx.n * 100) : 100}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-${nx ? nx.ic : 'crown'}"/></svg><small>${nx ? `${n}/${nx.n}` : 'הכול'}</small></span></div>
+      <div class="fr-ring" style="--p:${Math.round(Math.min(n, 10) / 10 * 100)}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-crown"/></svg><small>${Math.min(n, 10)}/10</small></span></div>
     </div>
-    <div class="card bp">
-      <div class="bp-head"><div><small>מסלול החברים</small><h3>כל חבר = שלב אחד קדימה</h3>${nx ? `<p class="bp-left">עוד <b>${left}</b> ${left === 1 ? 'חבר' : 'חברים'} למטרה הבאה: ${esc(nx.t)}</p>` : '<p class="bp-left">סיימת את כל המסלול!</p>'}</div><div class="bp-lvl"><span>שלב</span><b>${Math.min(n, REF_MAX)}</b><span>מתוך ${REF_MAX}</span></div></div>
-      <div class="bp-scroll" id="bpScroll"><div class="bp-track" style="--cols:${REF_MAX};--fill:${n <= 0 ? 0 : Math.min(1, (Math.min(n, REF_MAX) - .5) / REF_MAX)}">
-        ${Array.from({ length: REF_MAX }, (_, k) => { const lv = k + 1, t = REF_TIERS.find(x => x.n === lv), st = n >= lv ? 'got' : lv === n + 1 ? 'next' : 'lock';
-          return `<div class="bp-col ${st}${lv === n ? ' me' : ''}" data-lv="${lv}">
-            ${t ? `<div class="bp-card${t.big ? ' big' : ' sm'}">${t.big ? '<span class="bp-bigtag">פרס גדול</span>' : ''}<span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b title="${esc(t.t)}">${esc(t.t)}</b><small title="${esc(t.d)}">${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
-            <div class="bp-node"><span>${lv}</span>${lv === n ? '<em>אתה</em>' : ''}</div>
-          </div>`; }).join('')}
-        <div class="bp-bar"><i></i></div>
-      </div></div>
-    </div>
-    <div class="card fr-mine"><h3>הפרסים שלך</h3>
-      <div class="fr-acc${refHas(6) ? '' : ' locked'}"><div><b>צבע לכל האתר</b><small>${refHas(6) ? 'בוחרים, והאתר כולו מתחלף' : 'נפתח ב-6 חברים'}</small></div><div class="picker fr-acc-pick">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="background:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>
-      <p class="muted-s">רקעים מיוחדים וגופן כיפי: ב"הגדרות" של כל מחברת. צבעים מיוחדים: בכפתור "צבע" של המחברת.</p>
-    </div>
-    <div class="card fr-vid"><video src="promo/video12.mp4" poster="promo/video12.jpg" controls playsinline preload="none" aria-label="סרטון: איך עובדת תוכנית החברים"></video>
-      <div class="fr-vid-tx"><small>סרטון של 20 שניות</small><h3>איך זה עובד?</h3><p>שולחים קישור, כל חבר שנרשם הוא שלב קדימה, ובכל שלב נפתח פרס. גם החבר מקבל מתנה.</p></div></div>
+    <div class="card fr-amb"><span class="fr-amb-ic"><svg aria-hidden="true"><use href="#i-crown"/></svg></span><div><b>${n >= 10 ? 'אתה שגריר!' : `שגריר ב-10 חברים${toAmb ? ` · עוד ${toAmb}` : ''}`}</b><small>שגריר מקבל פי 2 מכל ה-AI כל יום ותג ליד השם שחברים רואים.</small></div><button type="button" class="btn btn-ghost" id="frShop">לחנות הגירים</button></div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
         <ol><li><span><svg aria-hidden="true"><use href="#i-send"/></svg></span><div><b>שולחים את הקישור שלך</b><small>בוואטסאפ, בקבוצה של הכיתה, איפה שרוצים</small></div></li>
         <li><span><svg aria-hidden="true"><use href="#i-users"/></svg></span><div><b>חבר נרשם דרכו</b><small>רק חבר חדש נספר, מי שכבר רשום לא</small></div></li>
-        <li><span><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><b>שניכם מקבלים</b><small>אתה מתקדם במסלול, והוא מקבל ביום הראשון עוד תמונה לטקסט ועוד סיכום</small></div></li></ol>
-        <button type="button" class="btn btn-ghost" id="frGuide">להדרכה המלאה</button>
+        <li><span><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><b>שניכם מקבלים</b><small>אתה מקבל 20 גירים, והוא מקבל ביום הראשון עוד תמונה לטקסט ועוד סיכום</small></div></li></ol>
       </div>
       <div class="card fr-who"><h3>מי הצטרף דרכך</h3>${n ? `<div class="fr-list">${refList.slice().reverse().map(x => `<div class="fr-p"><span class="fr-av" style="--c:${colorOf(x.name || 'x')}">${esc(String(x.name || 'ח').trim().charAt(0))}</span><b dir="auto">${esc(x.name || 'חבר')}</b><small>${ago(x.at)}</small></div>`).join('')}</div>` : `<div class="fr-empty"><svg aria-hidden="true"><use href="#i-users"/></svg><p>עוד אף אחד. החבר הראשון כבר פותח לך צבעים מיוחדים למחברות!</p></div>`}
         <div class="inv-link fr-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך" id="frLinkInp"><button class="btn btn-ghost" type="button" id="frCopy2">העתקה</button></div>
       </div>
     </div>`;
   const url = inviteLink(), inp = $('frLinkInp'); inp.value = url; inp.onclick = () => inp.select();
-  // באטל פאס: גוללים לבד לשלב שלך
-  requestAnimationFrame(() => { const sc = $('bpScroll'), c = sc && (sc.querySelector('.bp-col.next') || sc.querySelector('.bp-col.me')); if (sc && c) { const r = c.getBoundingClientRect(), R = sc.getBoundingClientRect(); sc.scrollLeft += (r.left + r.width / 2) - (R.left + R.width / 2); } });
   const copy = async () => { try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); } catch { inp.select(); toast('סמן את הקישור והעתק'); } };
   $('frCopy').onclick = copy; $('frCopy2').onclick = copy;
-  $('frGuide').onclick = () => refGuide();
-  box.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => {
-    if (!refHas(6)) { toast('הצבע לאתר נפתח כשמביאים 6 חברים'); return; }
-    try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); } catch {}
-    box.querySelectorAll('[data-acc]').forEach(x => x.classList.toggle('on', x === b)); siteAccentApply();
-  });
+  $('frShop').onclick = () => shopOpen('skin');
   $('frShare').onclick = async () => {
     const text = 'מצאתי אתר שחוסך המון זמן בלימודים: מצלמים את הלוח והוא מקליד את זה למחברת, ויש סיכום למבחן בלחיצה. בחינם, ומי שנרשם דרך הקישור הזה מקבל מתנה:';
     track('invite_send', { from: 'page' });
@@ -10114,6 +10112,7 @@ function renderFriends() {
 async function inviteDialog() {
   if (!me) return;
   track('invite', {});
+  closeDialog(); showTab('fr'); return;   // (24.11.2026) הכל בעמוד החברים הפשוט
   await refLoad();
   dialog(d => {
     d.classList.add('inv-dlg');
