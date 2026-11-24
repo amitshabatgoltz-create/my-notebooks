@@ -8593,7 +8593,7 @@ async function chatSend() {
     chatFileChips(meB, sentFiles);
     await chatRestoreMem();
     b = chatBubble('bot', ''); b.classList.add('typing'); b.innerHTML = '<i></i><i></i><i></i>';
-    chatLinks = CHAT_URL.test(msg);
+    chatLinks = CHAT_URL.test(msg); chatLocked = chatLinks && CHAT_LOCKED.test(msg); if (chatLocked) { chatLinks = false; track('chat_locked_link', {}); }   // ספר דיגיטלי/אתר בית ספר: אי אפשר להיכנס, אז לא מנסים
     chatAutoWeb = AI_VIA_SERVER && !long && CHAT_SEARCH.test(msg);
     const short = !long && chatIsShort(msg, files);
     const deep = !!files.length || CHAT_DEEP.test(msg) || CHAT_HARD.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
@@ -8641,7 +8641,7 @@ async function chatSend() {
     const parts = [
       chatPrompt(kitLeft <= 0, long ? '' : msg),
       ...chatMem.flatMap(m => [`קובץ שהמשתמש העלה בשיחה: "${m.name}"`, m.part]),
-      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint + (chatLinks ? CHAT_LINK_HINT : '') + (chatWeb || chatAutoWeb ? '\n\n(בהודעה הזאת יש לך חיפוש בגוגל: חפש וענה לפי מה שמצאת, עם המידע העדכני. אל תגיד שאין לך גישה לאינטרנט. אם לא מצאת – אמור שלא מצאת.)' : '\n\n(בהודעה הזאת אין חיפוש באינטרנט. אם צריך מידע עדכני או מהאינטרנט, אל תגיד שאתה לא יכול: ענה מה שאתה יודע, ואמור שאפשר ללחוץ על הזכוכית המגדלת ליד תיבת הכתיבה כדי שתחפש בגוגל.)')}`,
+      `${past ? `השיחה עד עכשיו:\n${past}\n\n` : ''}ההודעה החדשה של המשתמש:\n${long ? 'הדבקתי את החומר שמופיע למעלה. אם כתובה בו בקשה, בצע אותה. אחרת, אמור במשפט קצר על מה החומר ושאל מה לעשות איתו.' : (msg || 'עזור לי עם מה שהעליתי.') + drawHint + (chatLinks ? CHAT_LINK_HINT : chatLocked ? CHAT_LOCKED_HINT : '') + (chatWeb || chatAutoWeb ? '\n\n(בהודעה הזאת יש לך חיפוש בגוגל: חפש וענה לפי מה שמצאת, עם המידע העדכני. אל תגיד שאין לך גישה לאינטרנט. אם לא מצאת – אמור שלא מצאת.)' : '\n\n(בהודעה הזאת אין חיפוש באינטרנט. אם צריך מידע עדכני או מהאינטרנט, אל תגיד שאתה לא יכול: ענה מה שאתה יודע, ואמור שאפשר ללחוץ על הזכוכית המגדלת ליד תיבת הכתיבה כדי שתחפש בגוגל.)')}`,
     ];
     const raw = await Promise.race([chatAsk(parts, t => {
       if (stopped) return; lastRaw = t;
@@ -8929,7 +8929,10 @@ const HA_IDEAS = ['מה זה פוטוסינתזה?', 'תבחן אותי באנג
     inp.placeholder = t.slice(0, i) + (i < t.length || del ? '|' : '');
   }, 60);
 })();
-let chatStopper = null, chatWeb = false, chatLinks = false, chatAutoWeb = false;
+let chatStopper = null, chatWeb = false, chatLinks = false, chatAutoWeb = false, chatLocked = false;
+// אתרים שנעולים בכניסה של בית הספר (ספרים דיגיטליים, משוב, מודל, Classroom): אף AI לא יכול להיכנס אליהם
+const CHAT_LOCKED = /kotar\.cet\.ac\.il|cet\.ac\.il\/|mashov\.info|moodle|classroom\.google|webtop|smartschool|bagrut\.cet|edu\.gov\.il\/(?!.*public)/i;
+const CHAT_LOCKED_HINT = '\n\n(בהודעה יש קישור לאתר של בית הספר או לספר דיגיטלי (כמו כותר) שנעול בשם משתמש וסיסמה. אתה לא יכול להיכנס אליו – גם אף אחד אחר מבחוץ לא. אמור את זה במשפט אחד, בלי להתנצל הרבה, והצע דרך שעובדת: לצלם את העמוד או לעשות צילום מסך ולצרף עם כפתור המהדק, או להעתיק את הטקסט מהספר ולהדביק כאן. אחר כך המשך לעזור במה שהוא ביקש.)';
 // בקשה שצריכה מידע מהאינטרנט ("תבדוק באינטרנט", חדשות, תוצאות, מי זה...) – מפעילים חיפוש בגוגל לבד להודעה הזאת
 const CHAT_SEARCH = /באינטרנט|ברשת|בגוגל|גוגל\s*את|(^|\s)(ת?חפש|ת?בדוק\s+(לי\s+)?(מה|מי|אם))|חדשות|עדכני|הכי\s+חדש|מה\s+קורה\s+(עכשיו|היום)|תוצא(ות|ה)\s+(של|ב)|מזג\s+ה?אוויר|מקורות|לינק\s+ל|קישור\s+ל|מתי\s+(יוצא|ייצא|יהיה)|כמה\s+עולה|search|google|latest|news/i;
 const CHAT_URL = /https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/i;
