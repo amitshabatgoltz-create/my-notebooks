@@ -223,7 +223,7 @@ onAuthStateChanged(auth, user => {
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -9596,7 +9596,7 @@ function skinNow() {
   return v && SKINS[v] && skinOwned(v) ? v : '';
 }
 function skinSet(id) { try { localStorage.setItem('skinSel:' + me.uid, id || ''); } catch {} siteAccentApply(); track('skin_set', { id: id || 'none' }); }
-$('chalkBtn').onclick = () => { track('shop_open', {}); shopOpen(); };
+$('chalkBtn').onclick = e => { const st = e.target.closest('.cc-st'); track(st ? 'streak_open' : 'shop_open', {}); shopOpen(st ? 'streak' : 'ai'); };
 function shopOpen(tab) {
   if (tab) shopTab = tab;
   dialog(d => { d.classList.add('shop-dlg'); shopPaint(d); });
@@ -9615,7 +9615,11 @@ function shopPaint(d) {
     const lbl = full ? 'נגמר להיום' : hasSh ? 'כבר יש לך' : `${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg>`;
     return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${used && !full ? `קנית היום ${used} · ` : ''}${it.s}</small></span><button class="bd-buy" data-id="${it.id}" ${full || hasSh || bal < it.p ? 'disabled' : ''}>${lbl}</button></div>`;
   };
-  const list = shopTab === 'earn'
+  if (shopTab === 'streak' && !dStreak) shopTab = 'ai';
+  const sN = dStreak ? dStreak.n || 0 : 0, sD = sN ? streakDayOf(sN) : 1, sCyc = sN ? Math.floor((sN - 1) / 30) : 0;
+  const streakHtml = () => `<div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `${sN} ימים ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
+    <div class="bd-path">${Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : ''; return `<div class="bd-day ${stt}${p.big ? ' big' : ''}"><i>${dd + sCyc * 30}</i><b>${esc(p.t)}</b></div>`; }).join('')}</div>`;
+  const list = shopTab === 'streak' ? streakHtml() : shopTab === 'earn'
     ? EARN_LIST.map(([k, a, cap, s]) => `<div class="bd-it earn"><span class="bd-plus">+${a}</span><span class="bd-tx"><b>${EARN_TX[k]}</b><small>${s}${cap ? ` · היום: ${Math.min(today[k] || 0, cap)} מתוך ${cap}` : ''}</small></span></div>`).join('')
     : shopTab === 'skin'
       ? `<div class="bd-it skin"><span class="bd-sw plain"></span><span class="bd-tx"><b>רגיל</b><small>העיצוב הרגיל של האתר</small></span><button class="bd-buy${!skinNow() ? ' on' : ''}" data-skin="">${!skinNow() ? 'בשימוש ✓' : 'להשתמש'}</button></div>`
@@ -9624,7 +9628,7 @@ function shopPaint(d) {
       : SHOP.filter(x => x.g === 'ai').map(item).join('');
   d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
     <div class="bd-head"><h3>חנות הגירים</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-chalk"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>גירים</span></div></div>
-    <div class="bd-tabs" role="tablist">${[['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>
+    <div class="bd-tabs" role="tablist">${[...(dStreak ? [['streak', 'רצף']] : []), ['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>
     <div class="bd-list">${list}</div>
     ${shopTab !== 'earn' && bal < 6 ? '<p class="bd-hint">עוד אין לך מספיק גירים? בלשונית "איך מרוויחים" רואים מה עושים.</p>' : ''}
     <div class="bd-tray" aria-hidden="true"><i></i><i></i><i></i><em></em></div>`;
@@ -9632,6 +9636,7 @@ function shopPaint(d) {
   d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
   d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
+  if (shopTab === 'streak') setTimeout(() => d.querySelector('.bd-day.now')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120);
 }
 async function shopBuy(id, btn) {
   const it = SHOP.find(x => x.id === id); if (!it || btn.disabled) return;
@@ -9675,7 +9680,8 @@ async function streakLoad() {
   } catch (e) { console.warn('streak', e && e.message); }
 }
 function streakPaint() {
-  const el = $('homeStreak'); if (!el) return;
+  const st = $('ccStreak'); if (st) { st.classList.toggle('hidden', !dStreak); $('streakN').textContent = dStreak ? dStreak.n || 0 : 0; if (dStreak) { $('chalkBtn').classList.remove('hidden'); $('chalkBtn').title = `${dStreak.n} ימים ברצף`; } }
+  const el = $('homeStreak'); if (!el) return;   // הכרטיס במסך הבית הוסר (עמית: הרצף עובר ללוח הקטן למעלה, ליד הגירים)
   if (!dStreak) { el.classList.add('hidden'); return; }
   const n = dStreak.n || 0, d = streakDayOf(n);
   const nextBig = [7, 14, 30].find(b => b > d) || 7, left = nextBig > d ? nextBig - d : 30 - d + 7;
@@ -9687,7 +9693,7 @@ function streakPaint() {
 }
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
-$('homeStreak').onclick = () => { track('streak_open', {}); streakDialog(); };
+
 function streakPop(left = 8) {
   if (!dStreak) return;
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
@@ -9703,7 +9709,7 @@ function streakPop(left = 8) {
       ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = closeDialog;
-    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'כל הפרסים'; all.onclick = () => { closeDialog(); setTimeout(streakDialog, 250); };
+    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'כל הפרסים'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
     row.append(ok, all); dl.appendChild(row);
     if (p.big) setTimeout(() => window.Motion?.confetti(dl.querySelector('.sp-flame')), 300);
   });
