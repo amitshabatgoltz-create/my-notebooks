@@ -2,17 +2,17 @@
   "rules": {
     "cursors": {
       "$share": {
-        ".read": "auth != null",
+        ".read": "auth != null && (!root.child('acl').child($share).exists() || root.child('acl').child($share).child('o').val() === auth.uid || (root.child('acl').child($share).child('u').child(auth.uid).exists() ? root.child('acl').child($share).child('u').child(auth.uid).val() !== 'none' : root.child('acl').child($share).child('m').val() !== 'none'))",
         "$uid": {
-          ".write": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid && (!root.child('acl').child($share).exists() || root.child('acl').child($share).child('o').val() === auth.uid || (root.child('acl').child($share).child('u').child(auth.uid).exists() ? root.child('acl').child($share).child('u').child(auth.uid).val() !== 'none' : root.child('acl').child($share).child('m').val() !== 'none'))",
           ".validate": "!newData.exists() || newData.hasChildren(['at'])"
         }
       }
     },
     "livetext": {
       "$share": {
-        ".read": "auth != null",
-        ".write": "auth != null && (!newData.exists() || (newData.child('by').val() === auth.uid && newData.child('html').isString() && newData.child('html').val().length < 900000 && (!newData.child('title').exists() || newData.child('title').val().length < 2000)))"
+        ".read": "auth != null && (!root.child('acl').child($share).exists() || root.child('acl').child($share).child('o').val() === auth.uid || (root.child('acl').child($share).child('u').child(auth.uid).exists() ? root.child('acl').child($share).child('u').child(auth.uid).val() !== 'none' : root.child('acl').child($share).child('m').val() !== 'none'))",
+        ".write": "auth != null && (!root.child('acl').child($share).exists() || root.child('acl').child($share).child('o').val() === auth.uid || (root.child('acl').child($share).child('u').child(auth.uid).exists() ? root.child('acl').child($share).child('u').child(auth.uid).val() === 'edit' : root.child('acl').child($share).child('m').val() === 'edit')) && (!newData.exists() || (newData.child('by').val() === auth.uid && newData.child('html').isString() && newData.child('html').val().length < 900000 && (!newData.child('title').exists() || newData.child('title').val().length < 2000)))"
       }
     }
   }

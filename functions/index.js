@@ -732,3 +732,43 @@ ${cap ? `התלמיד כתב ליד התמונה: "${String(m.caption).slice(0, 
     if (!done && !owner) await refundOne(uid, 'ocr');
   }
 }
+
+// 🔒 מי מורשה בערוץ המהיר (Realtime Database) של מחברת משותפת.
+// הכללים של RTDB לא יכולים לקרוא את Firestore, אז השרת מעתיק לשם את ההרשאות: acl/{share} = { o: בעלים, m: הרשאת הקישור, u: {uid: הרשאה אישית} }
+// בלי זה, כל מי שמחובר ויודע את קוד הקישור (גם מי שקיבל רק צפייה, או שהוסר) יכול היה לשלוח תוכן לעורכים ולשנות את המחברת
+const { getDatabase } = require('firebase-admin/database');
+const RTDB_URL = 'https://my-notebooks-32ffd-default-rtdb.europe-west1.firebasedatabase.app';
+const rtdb = () => getDatabase(undefined, RTDB_URL);
+const aclMode = m => ['view', 'copy', 'edit', 'none'].includes(m) ? m : 'view';
+exports.shareAcl = onDocumentWritten({ document: 'shares/{id}', region: 'europe-west1' }, async ev => {
+  const id = ev.params.id, a = ev.data && ev.data.after && ev.data.after.exists ? ev.data.after.data() : null;
+  const b = ev.data && ev.data.before && ev.data.before.exists ? ev.data.before.data() : null;
+  const ref = rtdb().ref(`acl/${id}`);
+  if (!a) { await ref.remove(); return; }
+  const m = a.locked === true ? 'none' : aclMode(a.mode);
+  if (b && b.owner === a.owner && (b.locked === true ? 'none' : aclMode(b.mode)) === m) {
+    const has = await ref.child('o').get(); if (has.exists()) return;   // לא השתנה כלום שקשור להרשאות
+  }
+  await ref.update({ o: String(a.owner || ''), m });
+});
+exports.memberAcl = onDocumentWritten({ document: 'shares/{id}/members/{uid}', region: 'europe-west1' }, async ev => {
+  const { id, uid } = ev.params;
+  const a = ev.data && ev.data.after && ev.data.after.exists ? ev.data.after.data() : null;
+  const b = ev.data && ev.data.before && ev.data.before.exists ? ev.data.before.data() : null;
+  const ref = rtdb().ref(`acl/${id}/u/${uid}`);
+  if (!a) { await ref.remove(); return; }
+  if (b && b.mode === a.mode) { const has = await ref.get(); if (has.exists()) return; }   // "מחובר עכשיו" כל דקה – לא נוגעים
+  await ref.set(aclMode(a.mode));
+});
+// מילוי חד-פעמי למחברות שכבר שותפו (רק בעל האתר)
+exports.aclBackfill = onCall({ region: 'europe-west1', timeoutSeconds: 300 }, async req => {
+  if (!req.auth || !isOwner(req.auth.token)) throw new HttpsError('permission-denied', 'רק לבעל האתר');
+  const shares = await db.collection('shares').get(); let n = 0, u = 0;
+  for (const s of shares.docs) {
+    const a = s.data(); const out = { o: String(a.owner || ''), m: a.locked === true ? 'none' : aclMode(a.mode), u: {} };
+    const ms = await s.ref.collection('members').get();
+    ms.docs.forEach(d => { out.u[d.id] = aclMode(d.data().mode); u++; });
+    await rtdb().ref(`acl/${s.id}`).set(out); n++;
+  }
+  return { shares: n, members: u };
+});
