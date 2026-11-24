@@ -5537,9 +5537,9 @@ async function testsDialog() {
         const part = await fileToAiPart(f);
         const now = new Date(), y0 = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
         const prompt = `זה לוח מבחנים (או מטלות) של תלמיד בבית ספר בישראל. מצא בו את כל המבחנים, הבחנים, הבגרויות, העבודות להגשה ותאריכי ההגשה.
-היום ${todayKey()}. שנת הלימודים היא ${y0}–${y0 + 1}: תאריך בלי שנה בין ספטמבר לדצמבר הוא ב-${y0}, ובין ינואר לאוגוסט הוא ב-${y0 + 1}. תאריך כמו 12/11 הוא 12 בנובמבר (יום/חודש).
+היום ${todayKey()}. שנת הלימודים היא ${y0}–${y0 + 1}: תאריך בלי שנה בין ספטמבר לדצמבר הוא ב-${y0}, ובין ינואר לאוגוסט הוא ב-${y0 + 1}. תאריך כמו 12/11 או 12.11 הוא 12 בנובמבר (יום.חודש). טווח כמו "8–12.11" הוא מ-8 עד 12 בנובמבר, ו-"29.11–3.12" הוא מ-29 בנובמבר עד 3 בדצמבר: date = היום האחרון של הטווח (יום ההגשה), עם החודש שכתוב בסוף: \"8–12.11\" → 12 בנובמבר (לא 12 בדצמבר), \"13–17.12\" → 17 בדצמבר, \"3–7.1\" → 7 בינואר. title יכול לכלול את הטווח.
 החזר JSON בלבד, בלי שום טקסט נוסף:
-{"items":[{"date":"YYYY-MM-DD","subject":"מתמטיקה","title":"מבחן במתמטיקה – פרקים 1-3","time":"","kind":"test","class":""}]}
+{"items":[{"raw":"התאריך בדיוק כמו שכתוב בלוח, תו אחרי תו","date":"YYYY-MM-DD","subject":"מתמטיקה","title":"מבחן במתמטיקה – פרקים 1-3","time":"","kind":"test","class":""}]}
 - kind: "test" למבחן/בוחן/בגרות, "hw" לעבודה/הגשה, "event" לאחר.
 - title: קצר וברור בעברית, שמתחיל במה זה ובמקצוע, ואם כתוב חומר למבחן – אחרי מקף.
 - time: שעה בפורמט HH:MM אם כתובה, אחרת "".
@@ -5548,6 +5548,8 @@ async function testsDialog() {
         aiKindNow = 'imp'; const txt = await aiExtract(prompt, part); stop();
         const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]);
         const tk = todayKey();
+        // התאריך מהטקסט שכתוב בלוח (raw) – אנחנו מחשבים, כי ה-AI טעה בטווחים כמו "8–12.11". היום האחרון בטווח = יום ההגשה
+        (Array.isArray(j.items) ? j.items : []).forEach(x => { const ms = [...String((x && x.raw) || '').matchAll(/(\d{1,2})\s*[./]\s*(\d{1,2})(?:\s*[./]\s*(\d{2,4}))?/g)]; const m = ms[ms.length - 1]; if (!m) return; const dd = +m[1], mm = +m[2]; if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return; let yy = m[3] ? +m[3] : (mm >= 9 ? y0 : y0 + 1); if (yy < 100) yy += 2000; x.date = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`; });
         items = (Array.isArray(j.items) ? j.items : []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x && x.date || '')).slice(0, 150).map((x, i) => {
           const title = String(x.title || x.subject || 'מבחן').replace(/\s+/g, ' ').trim().slice(0, 200);
           const type = ['test', 'hw', 'event'].includes(x.kind) ? x.kind : 'test';
@@ -5565,7 +5567,7 @@ async function testsDialog() {
         st.textContent = `✓ מצאתי ${items.length} ${items.length === 1 ? 'פריט' : 'פריטים'}. ${nNew ? 'תבדוק שהתאריכים נכונים ותלחץ "הוספה ליומן".' : 'כולם כבר ביומן או שכבר עברו.'}`;
         up.classList.add('small'); paint();
       } catch (e) { console.error(e); stop(); track('tests_fail', { why: String((e && (e.code || e.message)) || '').slice(0, 80) });
-        st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : e.code === 'big' ? 'הקובץ גדול מדי. נסה צילום מסך במקום.' : `לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור. (${String((e && (e.code || e.message)) || '').replace(/^functions\//, '').slice(0, 60)})`; }
+        st.textContent = /busy|unavailable|503|overloaded|high demand/i.test(String(e && (e.code + ' ' + e.message))) ? 'גוגל (ה-AI) עמוסים מאוד עכשיו. נסה שוב בעוד דקה – בדרך כלל זה עובר.' : e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : e.code === 'big' ? 'הקובץ גדול מדי. נסה צילום מסך במקום.' : `לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור. (${String((e && (e.code || e.message)) || '').replace(/^functions\//, '').slice(0, 60)})`; }
       up.disabled = false;
     };
     ok.onclick = async () => {
