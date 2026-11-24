@@ -3517,3 +3517,10 @@ html[data-theme="dark"] .cb-wrap.big .cb-card{background:linear-gradient(160deg,
 @keyframes cbIn{from{opacity:0;transform:scale(.6) translateY(16px)}}
 @keyframes cbOut{to{opacity:0;transform:scale(.85) translateY(-10px)}}
 @media (prefers-reduced-motion:reduce){.cb-card,.cb-card.out{animation:none}}
+/* "היום שלך" בתוך הרצף (משימות + רצף = דבר אחד) */
+.shop-dlg .bd-day-card{padding:14px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,#F97316 5%,var(--surface))}
+.shop-dlg .bd-day-card .bd-streak{padding:0 0 10px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.shop-dlg .bq-bar{height:8px;margin:0 0 8px;border-radius:4px;background:var(--line);overflow:hidden}
+.shop-dlg .bq-bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#FDBA3B,#F97316);transition:width .4s ease}
+.shop-dlg .tk-dot{position:relative}
+.shop-dlg .tk-star{position:absolute;top:-8px;inset-inline-end:-8px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#F5C542;color:#7A4B00;font-style:normal;font-size:12px;box-shadow:0 0 0 2px var(--surface)}

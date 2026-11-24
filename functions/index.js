@@ -82,9 +82,10 @@ function earnIn(tx, w, kind, n = 1) {
   if (!times) return { w, got: 0 };
   de[kind] = (de[kind] || 0) + times;
   let got = e.a * times, log = [{ t: kind, a: got, at: Date.now() }, ...(w.log || [])];
-  if (kind !== 'quest' && !de.quest && QUEST_KINDS.every(k => de[k])) { de.quest = 1; got += EARN.quest.a; log = [{ t: 'quest', a: EARN.quest.a, at: Date.now() + 1 }, ...log]; }   // כל משימות היום – בונוס
+  let qd = w.qd || [];
+  if (kind !== 'quest' && !de.quest && QUEST_KINDS.every(k => de[k])) { de.quest = 1; got += EARN.quest.a; log = [{ t: 'quest', a: EARN.quest.a, at: Date.now() + 1 }, ...log]; qd = [...qd.filter(x => x !== day), day].slice(-40); }   // qd = ימים שהושלמו (כוכב במסלול)   // כל משימות היום – בונוס
   log = log.slice(0, 20);
-  return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log }, got };
+  return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log, qd }, got };
 }
 async function earn(uid, kind, n = 1) {
   const ref = db.doc(`wallet/${uid}`);

@@ -9585,10 +9585,10 @@ const SHOP = [
   { id: 'ocean', g: 'skin', p: 60, t: 'ים', s: 'טורקיז רגוע', sw: ['#0E8FA8', '#5BC0BE'] },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2E7D5B', sunset: '#E8613C', ocean: '#0E8FA8' };
-const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'סיימת את כל משימות היום!' };
+const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
-const QUESTS = [{ k: 'day', t: 'להיכנס לאתר' }, { k: 'ocr', t: 'לצלם לוח אחד', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', go: 'לשאול' }], QUEST_BONUS = 10;
-const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'כל 3 משימות היום'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
+const QUESTS = [{ k: 'day', t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, { k: 'ocr', t: 'לצלם לוח אחד', done: 'צילמת לוח', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }], QUEST_BONUS = 10;
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
 let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
 const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
 function walletWatch() {
@@ -9668,13 +9668,17 @@ function shopPaint(d) {
   if (shopTab === 'streak' && !dStreak) shopTab = 'ai';
   const sN = dStreak ? dStreak.n || 0 : 0, sD = sN ? streakDayOf(sN) : 1, sCyc = sN ? Math.floor((sN - 1) / 30) : 0;
   const streakHtml = () => {
-    const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {}, qDone = QUESTS.filter(q => today[q.k]).length;
-    const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next';
-      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
-    return `<div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `${sN} ימים ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
-    <div class="bd-quests"><div class="bq-h"><b>משימות היום</b><span>${qDone}/3 · כל ה-3 = +${QUEST_BONUS} גירים${today.quest ? ' ✓' : ''}</span></div>
-      ${QUESTS.map(q => `<div class="bq${today[q.k] ? ' ok' : ''}"><i>${today[q.k] ? '✓' : ''}</i><span>${q.t}</span>${!today[q.k] && q.go ? `<button type="button" class="bq-go" data-go="${q.k}">${q.go}</button>` : ''}</div>`).join('')}<p class="bq-note">נספר מכל מקום באתר – הכפתורים הם רק קיצור דרך</p></div>
-    <div class="bd-track" tabindex="0" aria-label="מסלול 30 הימים"><div class="tk-bar"><i style="--p:${Math.round((sD - 1) / 29 * 100)}%"></i></div><ol class="tk-row">${nodes}</ol></div>`;
+    const td = usageDay(), today = wallet && wallet.day === td ? (wallet.dayEarn || {}) : {}, qDone = QUESTS.filter(q => today[q.k]).length, qd = (wallet && wallet.qd) || [];
+    const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next', star = stt !== 'next' && qd.includes(td - (sD - dd));
+      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
+    return `<div class="bd-day-card">
+      <div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `יום ${sN} ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
+      <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} גירים`}</span></div>
+      <div class="bq-bar"><i style="width:${Math.round(qDone / 3 * 100)}%"></i></div>
+      ${QUESTS.map(q => `<div class="bq${today[q.k] ? ' ok' : ''}"><i>${today[q.k] ? '✓' : ''}</i><span>${today[q.k] ? q.done : q.t}</span>${!today[q.k] && q.go ? `<button type="button" class="bq-go" data-go="${q.k}">${q.go}</button>` : ''}</div>`).join('')}
+      <p class="bq-note">נספר מכל מקום באתר. הכניסה שומרת על הרצף, ו-2 הצעדים האחרים הם בונוס של היום.</p></div>
+    <div class="bd-track" tabindex="0" aria-label="מסלול 30 הימים"><div class="tk-bar"><i style="--p:${Math.round((sD - 1) / 29 * 100)}%"></i></div><ol class="tk-row">${nodes}</ol></div>
+    <p class="bq-note">★ = יום שהשלמת את כל 3 הצעדים</p>`;
   };
   const list = shopTab === 'streak' ? streakHtml() : shopTab === 'earn'
     ? EARN_LIST.map(([k, a, cap, s]) => `<div class="bd-it earn"><span class="bd-plus">+${a}</span><span class="bd-tx"><b>${EARN_TX[k]}</b><small>${s}${cap ? ` · היום: ${Math.min(today[k] || 0, cap)} מתוך ${cap}` : ''}</small></span></div>`).join('')
@@ -9749,6 +9753,7 @@ function streakPaint() {
     <span class="sk-dots" aria-hidden="true">${dots}</span>${dStreak.shield ? '<span class="sk-sh" title="מגן רצף: יום אחד שפספסת לא ישבור את הרצף"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>' : ''}`;
   el.classList.remove('hidden');
 }
+if (location.hostname === 'localhost') window.__whereTest = () => streakWhere();   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
@@ -9756,7 +9761,8 @@ if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStr
 function streakPop(left = 8) {
   if (!dStreak) return;
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
-  if (dStreak.n === 1 && !dStreak.reset) return;            // יום ראשון: בלי חלון (יש מספיק חלונות למשתמש חדש)
+  // עמית: כל יום, בכניסה הראשונה – החלון של הרצף (גם ביום הראשון). בפעם הראשונה בכלל – אחרי זה מראים איפה הרצף נמצא
+  let firstEver = false; try { firstEver = !!me && !localStorage.getItem('intro:streak:' + me.uid); } catch {}
   const d = streakDayOf(dStreak.n), p = streakPrize(d), share = dStreak.n >= 3 && (dStreak.n % 7 === 0 || [3, 10, 50, 100].includes(dStreak.n));
   dialog(dl => {
     dl.classList.add('streak-dlg', 'chest-dlg');
@@ -9768,8 +9774,8 @@ function streakPop(left = 8) {
       <div class="ch-out hidden"><div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
       ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}</div>`;
     const row = document.createElement('div'); row.className = 'row hidden';
-    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = closeDialog;
-    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'המסלול והמשימות'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = () => { closeDialog(); if (firstEver) setTimeout(streakWhere, 350); };
+    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'המסלול והיום שלך'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
     row.append(ok);
     if (share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.innerHTML = '<svg aria-hidden="true" class="sh-ic"><use href="#i-share"/></svg>לשתף'; sh.onclick = () => streakShare(); row.append(sh); }
     row.append(all); dl.appendChild(row);
@@ -9782,6 +9788,13 @@ function streakPop(left = 8) {
     };
     chest.onclick = open;
   });
+}
+// פעם ראשונה בכלל: זרקור על המונה למעלה – "כאן הרצף שלך" (נשמר ב-intro:streak, גם בחשבון דרך SEEN_RE)
+function streakWhere() {
+  try { localStorage.setItem('intro:streak:' + me.uid, '1'); } catch {}
+  if (!$('chalkBtn') || $('chalkBtn').classList.contains('hidden')) return;
+  track('streak_where', {});
+  runTour([{ sel: '#chalkBtn', e: 'flame', t: 'כאן הרצף והגירים שלך', x: 'הלהבה = כמה ימים ברצף, הגיר = כמה גירים יש לך. לוחצים כאן כדי לראות את המסלול, את "היום שלך" ואת החנות. כל יום בכניסה הראשונה יופיע לך הפרס של היום.' }], () => {});
 }
 // שיתוף רצף: תמונה של לוח עם המספר + הקישור האישי (מביא חברים). בטלפון – שיתוף עם התמונה, במחשב – וואטסאפ עם טקסט
 async function streakShare() {
