@@ -220,10 +220,10 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; document.documentElement.classList.remove('skin-gold'); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -9534,13 +9534,123 @@ const refOptLock = (k, v) => { const lv = REF_LOCKED_OPT[k] && REF_LOCKED_OPT[k]
 const SITE_ACCENTS = [['', 'סגול', '#5E5CE6'], ['#10B981', 'ירוק', '#10B981'], ['#F97316', 'כתום', '#F97316'], ['#EC4899', 'ורוד', '#EC4899'], ['#0EA5E9', 'תכלת', '#0EA5E9'], ['#E11D48', 'אדום', '#E11D48']];
 function siteAccentGet() { try { return (me && localStorage.getItem('accent:' + me.uid)) || ''; } catch { return ''; } }
 function siteAccentApply() {
-  let st = document.getElementById('accentStyle'); const gold = streakGoldOn(); document.documentElement.classList.toggle('skin-gold', gold);
-  const c = gold ? '#C98A04' : refHas(6) ? siteAccentGet() : '';
+  let st = document.getElementById('accentStyle'); const sk = skinNow();
+  Object.keys(SKINS).forEach(k => document.documentElement.classList.toggle('skin-' + k, sk === k));
+  const c = sk ? SKINS[sk] : refHas(6) ? siteAccentGet() : '';
   if (!c) { if (st) st.remove(); return; }
   if (!st) { st = document.createElement('style'); st.id = 'accentStyle'; document.head.appendChild(st); }
   st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`;
 }
 let refList = [], refLoaded = false;
+/* ===== גירים: מטבע שמרוויחים באתר (כניסה יומית, צילום לוח, מחברת חדשה, חבר) וקונים בו שימושים ועיצובים. השרת סופר ומוכר (exports.shop), האתר רק מציג ===== */
+// אותה רשימה כמו SHOP ב-functions/index.js
+const SHOP = [
+  { id: 'ocr1', g: 'ai', p: 10, t: 'עוד צילום לוח', s: 'רק להיום · עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
+  { id: 'chat5', g: 'ai', p: 6, t: 'עוד 5 הודעות לעוזר', s: 'רק להיום · עד 3 ביום', ic: 'chat', k: 'chat', add: 5, max: 3 },
+  { id: 'sum1', g: 'ai', p: 10, t: 'עוד סיכום למבחן', s: 'רק להיום · עד 2 ביום', ic: 'doc', k: 'sum', add: 1, max: 2 },
+  { id: 'fc1', g: 'ai', p: 8, t: 'עוד כרטיסיות שינון', s: 'רק להיום · עד 2 ביום', ic: 'cards', k: 'fc', add: 1, max: 2 },
+  { id: 'kit1', g: 'ai', p: 8, t: 'עוד שאלון חזרה', s: 'רק להיום · עד 2 ביום', ic: 'clipboard', k: 'kit', add: 1, max: 2 },
+  { id: 'pr1', g: 'ai', p: 8, t: 'עוד דף תרגול', s: 'רק להיום · עד 2 ביום', ic: 'template', k: 'pr', add: 1, max: 2 },
+  { id: 'shield', g: 'ai', p: 20, t: 'מגן רצף', s: 'יום אחד שתפספס לא ישבור את הרצף', ic: 'shield' },
+  { id: 'chalk', g: 'skin', p: 60, t: 'לוח ירוק', s: 'ירוק כהה כמו לוח בכיתה', sw: ['#2E7D5B', '#24412F'] },
+  { id: 'sunset', g: 'skin', p: 60, t: 'שקיעה', s: 'כתום וורוד חמים', sw: ['#E8613C', '#F4A259'] },
+  { id: 'ocean', g: 'skin', p: 60, t: 'ים', s: 'טורקיז רגוע', sw: ['#0E8FA8', '#5BC0BE'] },
+];
+const SKINS = { gold: '#C98A04', chalk: '#2E7D5B', sunset: '#E8613C', ocean: '#0E8FA8' };
+const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך' };
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
+let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
+const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
+function walletWatch() {
+  if (walletOff) walletOff();
+  walletOff = onSnapshot(doc(db, 'wallet', me.uid), sn => {
+    const prev = wallet; wallet = sn.exists() ? sn.data() : { bal: 0 };
+    refApply(); walletPaint(prev);
+    if ($('dialogRoot').querySelector('.shop-dlg')) shopPaint();
+  }, () => {});
+}
+function walletPaint(prev) {
+  const b = $('chalkBtn'); if (!b) return;
+  if (!wallet) { b.classList.add('hidden'); return; }
+  b.classList.remove('hidden'); $('chalkN').textContent = (wallet.bal || 0).toLocaleString('he-IL');
+  const got = prev ? (wallet.bal || 0) - (prev.bal || 0) : 0;
+  if (got > 0) {
+    chalkFloat('+' + got);
+    const why = wallet.log && wallet.log[0] && EARN_TX[wallet.log[0].t];
+    if (why) setTimeout(() => toast(`קיבלת ${got} גירים · ${why}`), 600);
+    track('chalk_earn', { n: got, t: (wallet.log && wallet.log[0] && wallet.log[0].t) || '' });
+  }
+}
+function chalkFloat(txt) {
+  const b = $('chalkBtn'); if (!b || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = b.getBoundingClientRect(), f = document.createElement('span');
+  f.className = 'chalk-float'; f.textContent = txt; f.style.left = (r.left + r.width / 2) + 'px'; f.style.top = (r.bottom + 4) + 'px';
+  document.body.appendChild(f); b.classList.add('bump'); setTimeout(() => { f.remove(); b.classList.remove('bump'); }, 1400);
+}
+// עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בגירים. נבחר אחד בכל פעם
+function skinOwned(id) { return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
+function skinNow() {
+  if (!me) return '';
+  let v = null; try { v = localStorage.getItem('skinSel:' + me.uid); } catch {}
+  if (v === null) { let old = null; try { old = localStorage.getItem('skin:' + me.uid); } catch {} v = skinOwned('gold') && old !== 'off' ? 'gold' : ''; }
+  return v && SKINS[v] && skinOwned(v) ? v : '';
+}
+function skinSet(id) { try { localStorage.setItem('skinSel:' + me.uid, id || ''); } catch {} siteAccentApply(); track('skin_set', { id: id || 'none' }); }
+$('chalkBtn').onclick = () => { track('shop_open', {}); shopOpen(); };
+function shopOpen(tab) {
+  if (tab) shopTab = tab;
+  dialog(d => { d.classList.add('shop-dlg'); shopPaint(d); });
+}
+function shopPaint(d) {
+  d = d || $('dialogRoot').querySelector('.shop-dlg'); if (!d) return;
+  const bal = (wallet && wallet.bal) || 0, ex = walletToday();
+  const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {};
+  const item = it => {
+    if (it.g === 'skin') {
+      const own = skinOwned(it.id), on = skinNow() === it.id;
+      const act = own ? `<button class="bd-buy${on ? ' on' : ''}" data-skin="${it.id}">${on ? 'בשימוש ✓' : 'להשתמש'}</button>` : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg></button>`;
+      return `<div class="bd-it skin"><span class="bd-sw" style="--a:${it.sw[0]};--b:${it.sw[1]}"></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך' : it.s}</small></span>${act}</div>`;
+    }
+    const used = (ex.n && ex.n[it.id]) || 0, full = it.max && used >= it.max, hasSh = it.id === 'shield' && dStreak && dStreak.shield;
+    const lbl = full ? 'נגמר להיום' : hasSh ? 'כבר יש לך' : `${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg>`;
+    return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${used && !full ? `קנית היום ${used} · ` : ''}${it.s}</small></span><button class="bd-buy" data-id="${it.id}" ${full || hasSh || bal < it.p ? 'disabled' : ''}>${lbl}</button></div>`;
+  };
+  const list = shopTab === 'earn'
+    ? EARN_LIST.map(([k, a, cap, s]) => `<div class="bd-it earn"><span class="bd-plus">+${a}</span><span class="bd-tx"><b>${EARN_TX[k]}</b><small>${s}${cap ? ` · היום: ${Math.min(today[k] || 0, cap)} מתוך ${cap}` : ''}</small></span></div>`).join('')
+    : shopTab === 'skin'
+      ? `<div class="bd-it skin"><span class="bd-sw plain"></span><span class="bd-tx"><b>רגיל</b><small>העיצוב הרגיל של האתר</small></span><button class="bd-buy${!skinNow() ? ' on' : ''}" data-skin="">${!skinNow() ? 'בשימוש ✓' : 'להשתמש'}</button></div>`
+        + (skinOwned('gold') ? item({ id: 'gold', g: 'skin', t: 'זהב', s: 'פרס של 7 ימים ברצף', sw: ['#C98A04', '#F5C542'] }) : '')
+        + SHOP.filter(x => x.g === 'skin').map(item).join('')
+      : SHOP.filter(x => x.g === 'ai').map(item).join('');
+  d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
+    <div class="bd-head"><h3>חנות הגירים</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-chalk"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>גירים</span></div></div>
+    <div class="bd-tabs" role="tablist">${[['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>
+    <div class="bd-list">${list}</div>
+    ${shopTab !== 'earn' && bal < 6 ? '<p class="bd-hint">עוד אין לך מספיק גירים? בלשונית "איך מרוויחים" רואים מה עושים.</p>' : ''}
+    <div class="bd-tray" aria-hidden="true"><i></i><i></i><i></i><em></em></div>`;
+  d.querySelector('.bd-x').onclick = closeDialog;
+  d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
+  d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
+  d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
+}
+async function shopBuy(id, btn) {
+  const it = SHOP.find(x => x.id === id); if (!it || btn.disabled) return;
+  btn.disabled = true; btn.innerHTML = '<span class="bd-wait"></span>';
+  try {
+    if (!shopCall) shopCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'shop', { timeout: 20000 });
+    await appCheckReady.catch(() => {});
+    await shopCall({ item: id });
+    track('shop_buy', { id, p: it.p });
+    if (id === 'shield' && dStreak) { dStreak.shield = 1; streakPaint(); }
+    if (it.g === 'skin') { skinSet(id); toast(`העיצוב "${it.t}" שלך ✓`); }
+    else toast(it.k ? `${it.t} – אפשר להשתמש עכשיו ✓` : `${it.t} ✓`);
+    btn.closest('.bd-it')?.classList.add('bought');
+  } catch (e) {
+    const m = String(e && e.message || '');
+    toast(/no-chalk/.test(m) ? 'אין מספיק גירים' : /max-today/.test(m) ? 'הגעת למקסימום להיום' : /owned|has-shield/.test(m) ? 'כבר יש לך את זה' : 'לא הצלחתי לקנות, נסו שוב');
+    shopPaint();
+  }
+}
 /* ===== רצף יומי (באטל פאס): כל יום שנכנסים – פרס קטן, ובימים 7, 14, 30 – פרס גדול. השרת סופר (exports.streak), האתר רק מציג ===== */
 // אותה טבלה כמו בשרת (STREAK_SMALL ב-functions/index.js)
 const STREAK_SMALL = [['chat', 3], ['ocr', 1], ['fc', 1], ['sum', 1], ['pr', 1], ['kit', 1], ['wr', 2]];
@@ -9554,7 +9664,7 @@ function streakToday() {
   const day = usageDay(), s = dStreak || {};
   return { bonus: s.bonusDay === day && s.bonus ? s.bonus : null, x2: s.x2Day === day, flash: (s.flashUntil || 0) >= day ? 1 : 0 };
 }
-function streakGoldOn() { if (!dStreak || !dStreak.gold) return false; try { return localStorage.getItem('skin:' + (me && me.uid)) !== 'off'; } catch { return true; } }
+function streakGoldOn() { return skinNow() === 'gold'; }
 async function streakLoad() {
   if (!me) return;
   try {
@@ -9575,6 +9685,7 @@ function streakPaint() {
     <span class="sk-dots" aria-hidden="true">${dots}</span>${dStreak.shield ? '<span class="sk-sh" title="מגן רצף: יום אחד שפספסת לא ישבור את הרצף"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>' : ''}`;
   el.classList.remove('hidden');
 }
+if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
 $('homeStreak').onclick = () => { track('streak_open', {}); streakDialog(); };
 function streakPop(left = 8) {
@@ -9588,7 +9699,8 @@ function streakPop(left = 8) {
       <h3>${dStreak.reset ? 'מתחילים רצף חדש' : p.big ? `יום ${dStreak.n} ברצף! פרס גדול` : `יום ${dStreak.n} ברצף`}</h3>
       ${dStreak.reset ? `<p class="muted-s">הרצף הקודם היה ${dStreak.reset} ימים. היום יום 1, קדימה.</p>` : ''}
       ${dStreak.usedShield ? '<p class="sp-note"><svg aria-hidden="true"><use href="#i-shield"/></svg>המגן שמר לך על הרצף ביום שפספסת</p>' : ''}
-      <div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>`;
+      <div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
+      ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}`;
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = closeDialog;
     const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'כל הפרסים'; all.onclick = () => { closeDialog(); setTimeout(streakDialog, 250); };
@@ -9606,7 +9718,7 @@ function streakDialog() {
       <p class="muted-s">נכנסים לאתר כל יום ומקבלים פרס. פרס קטן הוא רק לאותו יום. מפספסים יום – הרצף מתחיל מחדש${dStreak.shield ? ', אבל <b>יש לך מגן</b>: יום אחד שתפספס לא ישבור את הרצף.' : '. המגן חוזר כל 7 ימים ברצף.'} השיא שלך: ${dStreak.best || n} ימים.</p>
       <div class="sd-grid">${cells}</div>
       ${dStreak.gold ? `<label class="sd-gold"><input type="checkbox" id="sdGold" ${streakGoldOn() ? 'checked' : ''}> עיצוב זהב לאתר</label>` : ''}`;
-    const g = dl.querySelector('#sdGold'); if (g) g.onchange = () => { try { localStorage.setItem('skin:' + me.uid, g.checked ? 'on' : 'off'); } catch {} siteAccentApply(); };
+    const g = dl.querySelector('#sdGold'); if (g) g.onchange = () => skinSet(g.checked ? 'gold' : '');
     const row = document.createElement('div'); row.className = 'row';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = closeDialog;
     row.append(ok); dl.appendChild(row);
@@ -9652,6 +9764,7 @@ function refApply() {
   DAILY.fc = FC_BASE + (refHas(9) ? 1 : 0);
   ['qa', 'cf', 'kit', 'pr', 'wr'].forEach(k => { DAILY[k] = DAILY_BASE[k]; });
   const sb = streakToday(); if (sb.bonus && DAILY[sb.bonus.k] !== undefined) DAILY[sb.bonus.k] += sb.bonus.add;   // רצף יומי: הפרס הקטן של היום
+  const wx = walletToday().add || {}; Object.keys(wx).forEach(k => { if (DAILY[k] !== undefined) DAILY[k] += +wx[k] || 0; });   // גירים: שימושים שנקנו להיום
   if (sb.x2) Object.keys(DAILY).forEach(k => { DAILY[k] *= 2; });                                                   // רצף: יום 30 – פי 2 מהכל
   if (refHas(10)) Object.keys(DAILY).forEach(k => { DAILY[k] *= AMB_X; });   // שגריר: הכל פי 2 (גם בשרת)
   $('userBtn').classList.toggle('framed', refHas(8));

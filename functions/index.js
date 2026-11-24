@@ -2,6 +2,7 @@
 // ורק אז שולח ל-Gemini. לתלמיד אין דרך לשנות את המונה כאן – הוא נשמר ב-aiQuota/{uid},
 // ולכללים של Firestore אין שום הרשאה לשם (רק השרת יכול לכתוב).
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -55,6 +56,45 @@ async function streakBoost(uid) {
     v.flash = (s.flashUntil || 0) >= day ? 1 : 0;
   } catch (e) { console.warn('streak', String(e && e.message).slice(0, 80)); }
   streakCache.set(uid, { day, v, t: Date.now() }); return v;
+}
+// ===== גירים (24.11.2026): מטבע שמרוויחים באתר וקונים בו שימושים ב-AI ועיצובים. רק השרת כותב ל-wallet/{uid} =====
+// מרוויחים: כניסה יומית (ברצף), צילום לוח, מחברת חדשה, חבר שהצטרף. לכל סוג יש תקרה יומית כדי שאי אפשר "לחרוש"
+const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 30, cap: 50 } };
+// החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
+const SHOP = {
+  ocr1: { p: 10, k: 'ocr', add: 1, max: 3 }, sum1: { p: 10, k: 'sum', add: 1, max: 2 }, chat5: { p: 6, k: 'chat', add: 5, max: 3 },
+  fc1: { p: 8, k: 'fc', add: 1, max: 2 }, kit1: { p: 8, k: 'kit', add: 1, max: 2 }, pr1: { p: 8, k: 'pr', add: 1, max: 2 },
+  shield: { p: 20, shield: true },
+  chalk: { p: 60, skin: true }, sunset: { p: 60, skin: true }, ocean: { p: 60, skin: true },
+};
+// מוסיף גירים בתוך טרנזקציה קיימת (או חדשה). מחזיר כמה באמת נוספו (0 אם עברנו את התקרה של היום)
+function earnIn(tx, w, kind, n = 1) {
+  const e = EARN[kind], day = israelDay();
+  const de = w.day === day ? { ...(w.dayEarn || {}) } : {};
+  const left = Math.max(0, e.cap - (de[kind] || 0)), times = Math.min(n, left);
+  if (!times) return { w, got: 0 };
+  de[kind] = (de[kind] || 0) + times;
+  const got = e.a * times;
+  const log = [{ t: kind, a: got, at: Date.now() }, ...(w.log || [])].slice(0, 20);
+  return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log }, got };
+}
+async function earn(uid, kind, n = 1) {
+  const ref = db.doc(`wallet/${uid}`);
+  try {
+    return await db.runTransaction(async tx => {
+      const sn = await tx.get(ref); const r = earnIn(tx, sn.exists ? sn.data() : {}, kind, n);
+      if (r.got) tx.set(ref, r.w);
+      return r.got;
+    });
+  } catch (e) { console.warn('earn', kind, String(e && e.message).slice(0, 80)); return 0; }
+}
+const walletCache = new Map();
+async function walletExtra(uid) {
+  const day = israelDay(), c = walletCache.get(uid);
+  if (c && c.day === day && Date.now() - c.t < 120000) return c.v;
+  let v = {};
+  try { const sn = await db.doc(`wallet/${uid}`).get(); const w = sn.exists ? sn.data() : {}; if (w.extra && w.extra.day === day) for (const [k, n] of Object.entries(w.extra.add || {})) { const sk = STREAK_SERVER_KIND[k] || k; v[sk] = (v[sk] || 0) + (+n || 0); } } catch {}
+  walletCache.set(uid, { day, v, t: Date.now() }); return v;
 }
 const israelDay = () => Math.floor((Date.now() + 10800000) / 864e5);
 
@@ -131,8 +171,8 @@ async function refundOne(uid, kind) {
 }
 // סופרים קודם, ורק אז שואלים את Gemini. הכול בטרנזקציה, אז גם הרבה בקשות בבת אחת לא עוברות את המכסה.
 async function takeOne(uid, kind) {
-  const sb = await streakBoost(uid);
-  const max = (LIMIT[kind] + (sb.add[kind] || 0)) * (await isAmb(uid) ? AMB_X : 1) * (sb.x2 ? 2 : 1);
+  const sb = await streakBoost(uid), wx = await walletExtra(uid);
+  const max = (LIMIT[kind] + (sb.add[kind] || 0) + (wx[kind] || 0)) * (await isAmb(uid) ? AMB_X : 1) * (sb.x2 ? 2 : 1);
   const ref = db.doc(`aiQuota/${uid}`);
   await db.runTransaction(async tx => {
     const sn = await tx.get(ref);
@@ -171,6 +211,7 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
+  if (kind === 'ocr' && !owner) await earn(req.auth.uid, 'ocr');   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashOcr) {
@@ -340,7 +381,9 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
   if (!uid) throw new HttpsError('unauthenticated', 'login');
   const ref = db.doc(`streaks/${uid}`), today = israelDay();
   return db.runTransaction(async tx => {
+    const wref = db.doc(`wallet/${uid}`);
     const sn = await tx.get(ref); const s = sn.exists ? sn.data() : { n: 0, best: 0, shield: 1 };
+    const wsn = await tx.get(wref); let w = wsn.exists ? wsn.data() : {};
     if (s.last === today) return { ...s, fresh: false };
     const gap = s.last ? today - s.last : 0;
     let n = s.n || 0, shield = s.shield === undefined ? 1 : s.shield, usedShield = false, reset = 0;
@@ -354,9 +397,53 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
     else if (d === 30) { out.x2Day = today; out.big = 'x2'; }
     else { const [k, add] = streakSmall(d); out.bonus = { k, add }; }
     tx.set(ref, out);
+    let chalk = 0; { const r1 = earnIn(tx, w, 'day'); w = r1.w; chalk += r1.got; } if (out.big) { const r2 = earnIn(tx, w, 'big'); w = r2.w; chalk += r2.got; }
+    if (chalk) tx.set(wref, w);
     streakCache.delete(uid);
-    return { ...out, fresh: true, usedShield, reset };
+    return { ...out, fresh: true, usedShield, reset, chalk };
   });
+});
+
+// חנות הגירים: בודקים שיש מספיק, מורידים, ונותנים את מה שנקנה
+exports.shop = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const id = String((req.data || {}).item || ''), it = SHOP[id];
+  if (!it || !Object.prototype.hasOwnProperty.call(SHOP, id)) throw new HttpsError('invalid-argument', 'bad-item');
+  const wref = db.doc(`wallet/${uid}`), sref = db.doc(`streaks/${uid}`), day = israelDay();
+  const res = await db.runTransaction(async tx => {
+    const wsn = await tx.get(wref); const w = wsn.exists ? wsn.data() : {};
+    const ssn = it.shield ? await tx.get(sref) : null;
+    if ((w.bal || 0) < it.p) throw new HttpsError('failed-precondition', 'no-chalk');
+    const out = { ...w, bal: (w.bal || 0) - it.p, log: [{ t: 'buy:' + id, a: -it.p, at: Date.now() }, ...(w.log || [])].slice(0, 20) };
+    if (it.k) {
+      const ex = w.extra && w.extra.day === day ? { day, add: { ...w.extra.add }, n: { ...(w.extra.n || {}) } } : { day, add: {}, n: {} };
+      if ((ex.n[id] || 0) >= it.max) throw new HttpsError('resource-exhausted', 'max-today');
+      ex.add[it.k] = (ex.add[it.k] || 0) + it.add; ex.n[id] = (ex.n[id] || 0) + 1; out.extra = ex;
+    } else if (it.shield) {
+      const s = ssn.exists ? ssn.data() : {};
+      if (s.shield) throw new HttpsError('already-exists', 'has-shield');
+      tx.set(sref, { shield: 1 }, { merge: true });
+    } else if (it.skin) {
+      const owned = w.owned || [];
+      if (owned.includes(id)) throw new HttpsError('already-exists', 'owned');
+      out.owned = [...owned, id];
+    }
+    tx.set(wref, out);
+    return { bal: out.bal };
+  });
+  walletCache.delete(uid); streakCache.delete(uid);
+  return res;
+});
+// מחברת חדשה = גירים (עד 2 ביום). מצגות לא נספרות
+exports.chalkNotebook = onDocumentCreated({ document: 'users/{uid}/notebooks/{id}', region: 'europe-west1', retry: false }, async ev => {
+  const d = ev.data && ev.data.data(); if (!d || d.layout === 'slides' || d.trashed) return;
+  await earn(ev.params.uid, 'nb');
+});
+// חבר שהצטרף דרך הקישור שלך = 30 גירים
+exports.chalkFriend = onDocumentCreated({ document: 'refs/{ref}/joined/{uid}', region: 'europe-west1', retry: false }, async ev => {
+  if (ev.params.ref === ev.params.uid) return;
+  await earn(ev.params.ref, 'friend');
 });
 
 exports.sharePeople = onCall({ region: 'europe-west1', timeoutSeconds: 60 }, async req => {
@@ -534,7 +621,7 @@ exports.mashovDaily = onSchedule({ schedule: '0 16 * * *', timeZone: 'Asia/Jerus
 // הגדרה: ראו WHATSAPP_SETUP.md
 // ================================================================================================
 const { onRequest } = require('firebase-functions/v2/https');
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+
 const { defineString } = require('firebase-functions/params');
 const { FieldValue } = require('firebase-admin/firestore');
 const WA_TOKEN = defineSecret('WA_TOKEN');               // טוקן קבוע של System User ב-Meta
