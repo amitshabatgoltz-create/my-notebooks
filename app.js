@@ -7246,6 +7246,8 @@ async function chatMakeImage(msg, files, b) {
 }
 // הודעה קצרה: המודל הקל, בלי זמן "חשיבה". תרגיל חשבון או תמונה בשיחה צריכים דיוק, אז הם נשארים במודל הרגיל.
 const CHAT_KIT = /שאלון|תבחן|תבחני|בוחן|לתרגל|תרגול|דף חזרה|דף למידה/;
+// שאלות שצריך לחשוב עליהן ברצינות – Flash וחשיבה גבוהה
+const CHAT_HARD = /למה|איך פותרים|תפתור|לפתור|פתרון|תרגיל|משווא|הוכח|חשב|תחשב|נוסח|בעיה|שבר|אחוז|גרף|פונקצי|תסביר|הסבר|ניתוח|תנתח|השווה|ההבדל|כתוב חיבור|דקדוק|תרגם|grammar|translate|solve|why/i;
 const CHAT_DEEP = /תבחן|תבחני|שאלון|בוחן|מבחן|תרגול|לתרגל|דף חזרה|דף למידה|תסכם|סיכום/;
 const chatIsShort = (msg, files) => !!msg && msg.length <= CHAT_SHORT && !files.length && !CHAT_DEEP.test(msg)
   && !/\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg)
@@ -8001,6 +8003,14 @@ const CHAT_PEDAGOGY = `איך מלמדים (לפי מחקר על למידה):
 - כתוב רק בעברית תקינה (בלי מילים או אותיות בערבית או בשפה אחרת באמצע), ובדוק כתיב של ציטוטים.
 - אמת: אל תמציא מקורות, שמות של מחקרים, ציטוטים, מספרים, תאריכים או מספרי עמודים. אם אתה לא בטוח – אמור "אני לא בטוח" ומה כדאי לבדוק. הבחן בין מה שכתוב במחברת שלו לבין הידע הכללי שלך.
 `;
+// דיוק: התלמיד סומך על התשובה. קצר בכוונה – נכנס לכל הודעה
+const CHAT_ACCURACY = `דיוק (הכי חשוב):
+- קודם ענה בדיוק על מה שנשאל, ורק אחר כך תוסיף.
+- תרגיל: פתור צעד אחרי צעד, ובסוף בדוק את התשובה (הצבה, חישוב הפוך או הערכה). אם הבדיקה לא מסתדרת – תקן לפני שאתה כותב. אל תכתוב תשובה שלא בדקת.
+- בתמונה: קרא כל מספר וסימן בזהירות. אם משהו לא ברור – אמור מה לא ברור במקום לנחש.
+- עובדות, תאריכים, שמות ומספרים: רק מה שאתה בטוח בו. אם לא בטוח – אמור "אני לא בטוח" והצע איך לבדוק.
+- אנגלית/שפות: בדוק דקדוק ואיות פעמיים לפני שאתה מתקן את התלמיד.
+`;
 const CHAT_TEACH = `מצב מורה פעיל (המשתמש ביקש ללמוד בעצמו). זה הכלל הכי חשוב:
 - אל תיתן את התשובה הסופית ואל תפתור את התרגיל עד הסוף. גם אם המשתמש מבקש "רק תגיד לי" – תסביר בחום ובמשפט אחד שככה בפעם הבאה יצליח לבד, ושאל מה בדיוק לא ברור: המושג, הדרך, או צעד מסוים.
 - אם עוד לא ניסה כלום – בקש ממנו לנסות את הצעד הראשון, גם אם הוא לא בטוח.
@@ -8105,7 +8115,7 @@ answer בשאלת mc הוא המספר של התשובה הנכונה, החל מ
 5. דף חזרה: אם המשתמש מבקש דף חזרה, סיכום או דף למידה, החזר בתחילת התשובה JSON בפורמט הזה בדיוק, ואחריו משפט קצר:
 {"action":"SHEET","title":"שם הדף","sections":[{"heading":"כותרת","table":[["מילה","פירוש"]],"items":["נקודה חשובה"]}],"tips":["טיפ לזכירה"]}
 כל חלק יכול לכלול table או items או את שניהם. סדר את כל החומר לפי נושאים, בלי לדלג על מילים.
-${CHAT_PEDAGOGY}${openId && edCan() ? CHAT_EDIT_RULES : ''}אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
+${CHAT_PEDAGOGY}${CHAT_ACCURACY}${openId && edCan() ? CHAT_EDIT_RULES : ''}אם חסר לך החומר שצריך לשאלון או לדף, אל תחזיר JSON: אמור בדיוק מה חסר ובקש אותו.
 לפני כל JSON אין לכתוב שום טקסט, והוא חייב להיות תקין.
 
 טבלה: כשמבקשים טבלה (או כשהשוואה או שלבים נראים טוב יותר בטבלה), כתוב טבלה אמיתית בפורמט הזה, עם שורת כותרת ושורת קווים:
@@ -8512,8 +8522,10 @@ const chatStatus = e => e?.customErrorData?.status || +(String(e?.message).match
 const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e)) || /gemini-busy|UNAVAILABLE|high demand|overloaded|503/i.test(String(e && (e.message || e.code)));
 // כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
 async function chatAsk(parts, onText, onWait, short, deep) {
-  const models = aiModels(deep);
-  const cfg = short ? { temperature: 0.5, thinkingConfig: { thinkingBudget: 0 } } : deep ? { temperature: 0.3, thinkingConfig: { thinkingBudget: 2048 } } : { temperature: 0.5, thinkingConfig: { thinkingBudget: 512 } };
+  // שאלה קשה (תרגיל, תמונה, מבחן): קודם Flash – החכם יותר (השרת עובר לבד ל-Lite כשנגמרה המכסה החינמית שלו היום)
+  const models = deep ? [MODEL_STRONG] : aiModels(false);
+  // יותר זמן "חשיבה" = תשובות חכמות ומדויקות יותר. גם הודעה קצרה חושבת קצת (minimal היה חלש מדי)
+  const cfg = short ? { temperature: 0.5, thinkingConfig: { thinkingLevel: 'low' } } : deep ? { temperature: 0.3, thinkingConfig: { thinkingLevel: 'high' } } : { temperature: 0.4, thinkingConfig: { thinkingLevel: 'medium' } };
   for (let i = 0; ; i++) {
     // שאלה שצריך לחשוב עליה (חומר, מבחן, תרגיל): בלי זרם. כש-Gemini "חושב", הזרם שלו נשבר בדפדפן ("Failed to parse stream"), אז מקבלים את התשובה בבת אחת
     aiKindNow = 'chat';
@@ -8582,7 +8594,7 @@ async function chatSend() {
     chatLinks = CHAT_URL.test(msg);
     chatAutoWeb = AI_VIA_SERVER && !long && CHAT_SEARCH.test(msg);
     const short = !long && chatIsShort(msg, files);
-    const deep = !!files.length || CHAT_DEEP.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
+    const deep = !!files.length || CHAT_DEEP.test(msg) || CHAT_HARD.test(msg) || /\d\s*[-+*/=×÷^]|[-+*/=×÷^]\s*\d/.test(msg) || chatMem.some(m => typeof m.part !== 'string');
     // צילום של מערכת שעות + "תכניס למערכת" – פותחים את מערכת השעות וממלאים אותה מהתמונה (עם בדיקה לפני שמירה)
     const ttFile = files.map(f => f.file).find(f => f && (/^image\//.test(f.type) || /pdf$/i.test(f.type || f.name)));
     if (ttFile && CHAT_TT.test(msg)) {

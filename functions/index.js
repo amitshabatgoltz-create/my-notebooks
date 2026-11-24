@@ -27,6 +27,9 @@ const MODELS = ['gemini-3.5-flash-lite'];
 const ALT_LITE = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];   // גיבוי כשהמודל הרגיל עמוס (503) – שרת אחר אצל גוגל, מכסה נפרדת               // המודל של כולם (גם של בעל האתר)
 // תמונה לטקסט (מצב "מדויק"): המודל החזק קורא כתב יד הרבה יותר טוב. ל-Flash יש מכסה קטנה (20 ביום לכל הפרויקט),
 // אז סופרים כאן, ואחרי OCR_FLASH_DAY ביום – או אם Gemini אומר שנגמר – עוברים לבד ל-Lite
+// Flash גם לשאלות קשות (עוזר, שאלונים, תרגול, סיכום) – כל עוד נשארה מכסה חינמית היום. משאירים ל-OCR לפחות 6 ביום
+const FLASH_KINDS = ['chat', 'qa', 'pr', 'sum'], FLASH_SMART_DAY = 12, FLASH_SMART_USER = 3;
+let flashDead = -1;   // היום (israelDay) שבו Flash כבר החזיר 429 – לא מנסים שוב עד מחר
 const OCR_MODEL = 'gemini-3.5-flash', OCR_FLASH_DAY = +process.env.AI_OCR_FLASH_DAY || 18, OCR_FLASH_USER = +process.env.AI_OCR_FLASH_USER || 2;   // לכל האתר / לכל משתמש ביום
 const MAX_BYTES = 24 * 1024 * 1024, MAX_PARTS = 40;
 // בעל האתר – בלי הגבלה. כמו באתר: SHA-256 של 'my-notebooks:' + האימייל, כדי שהאימייל לא יופיע בקוד
@@ -208,13 +211,33 @@ exports.ai = onCall({
   if (!Object.prototype.hasOwnProperty.call(LIMIT, kind)) throw new HttpsError('invalid-argument', 'bad-kind');
   const owner = isOwner(req.auth.token);
   const flashOcr = kind === 'ocr' && model === OCR_MODEL;
-  if (image === true ? kind !== 'img' : (kind === 'img' || !(MODELS.includes(model) || flashOcr))) throw new HttpsError('invalid-argument', 'bad-model');
+  const flashSmart = FLASH_KINDS.includes(kind) && model === OCR_MODEL;
+  if (image === true ? kind !== 'img' : (kind === 'img' || !(MODELS.includes(model) || flashOcr || flashSmart))) throw new HttpsError('invalid-argument', 'bad-model');
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
   if (kind === 'ocr' && !owner) await earn(req.auth.uid, 'ocr');   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
+  if (flashSmart) {
+    // שאלה קשה: Flash (חכם יותר) אם יש עוד מכסה היום, אחרת Lite
+    try {
+      const ok = flashDead !== israelDay() && await db.runTransaction(async tx => {
+        const ref = db.doc('aiQuota/_site'), uref = db.doc(`aiQuota/${req.auth.uid}`);
+        const sn = await tx.get(ref), un = await tx.get(uref);
+        const g = sn.exists ? sn.data() : {}, u = un.exists ? un.data() : {};
+        const day = israelDay(), used = g.flashDay === day ? (g.flashToday || 0) : 0;
+        const mine = u.day === day ? ((u.counts && u.counts.flashc) || 0) : 0;
+        if (used >= FLASH_SMART_DAY || (!owner && mine >= FLASH_SMART_USER)) return false;
+        tx.set(ref, { flashDay: day, flashToday: used + 1 }, { merge: true });
+        if (!owner) tx.set(uref, { day, counts: { flashc: mine + 1 } }, { merge: true });
+        return true;
+      });
+      if (!ok) model = MODELS[0];
+    } catch { model = MODELS[0]; }
+    // Flash עם חשיבה גבוהה לוקח יותר מדקה – מספיק בינוני
+    if (model === OCR_MODEL && config.thinkingConfig && config.thinkingConfig.thinkingLevel === 'HIGH') config.thinkingConfig = { thinkingLevel: 'MEDIUM' };
+  }
   if (flashOcr) {
     try {
       const flashMine = owner ? 0 : (OCR_FLASH_USER + (await streakBoost(req.auth.uid)).flash) * (await isAmb(req.auth.uid) ? AMB_X : 1);
@@ -229,7 +252,7 @@ exports.ai = onCall({
         if (!owner) tx.set(uref, { day, counts: { flash: mine + 1 } }, { merge: true });
         return true;
       });
-      if (!ok) model = MODELS[0];
+      if (!ok || flashDead === israelDay()) model = MODELS[0];
     } catch { model = MODELS[0]; }
   }
 
@@ -279,21 +302,27 @@ exports.ai = onCall({
     // כל ניסיון: עד 30 שנ' (תמונות ומסמכים – 60), כדי שבזמן עומס אצל גוגל לא נחכה דקות ארוכות
     const heavy = contents[0].parts.some(p => p.inlineData) || kind === 'ocr';
     // (24.11.2026, נמדד: תמונה שעוברת חוזרת תוך 1–3 שנ'; כשגוגל עמוסים בקשה יכולה להיתקע דקה-שתיים ואז 503) – אז ניסיונות קצרים ורבים
-    const lim = { ...config, httpOptions: { timeout: model === OCR_MODEL ? 45000 : heavy ? 25000 : 30000 } };
+    const deep = config.thinkingConfig && /HIGH|MEDIUM/.test(config.thinkingConfig.thinkingLevel);
+    const tmo = m => m === OCR_MODEL ? 45000 : heavy ? (deep ? 40000 : 25000) : deep ? 45000 : 30000;
+    const lim = { ...config, httpOptions: { timeout: tmo(model) } };
+    const no429 = new Set();   // מודלים שכבר אמרו "נגמרה המכסה" – לא מנסים אותם שוב בבקשה הזאת
     const tStart = Date.now();
     // עומס אצל גוגל הוא לכל מודל בנפרד: קודם קופצים מיד למודל קל אחר (בלי לחכות), ורק אחר כך מחכים ומנסים שוב (24.11.2026)
     const plan = [[model, 0], [ALT_LITE[0], 0], [MODELS[0], 500], [ALT_LITE[1], 500], [ALT_LITE[0], 1500], [MODELS[0], 1500], [ALT_LITE[1], 2500], [MODELS[0], 3000], [ALT_LITE[0], 3000], [MODELS[0], 4000]];
     let last;
     for (const [m, wait] of plan) {
-      if (Date.now() - tStart > (heavy ? 80000 : 60000)) break;   // תקרה לכל הניסיונות יחד
+      if (Date.now() - tStart > (heavy || deep ? 90000 : 60000)) break;   // תקרה לכל הניסיונות יחד
+      if (no429.has(m)) continue;
       if (wait) await new Promise(ok => setTimeout(ok, wait));
-      model = m; lim.httpOptions = { timeout: m === OCR_MODEL ? 45000 : heavy ? 25000 : 30000 };
+      model = m; lim.httpOptions = { timeout: tmo(m) };
       try { return await run(lim); }
       catch (e) {
         last = e; if (sent) throw e;
         const msg = String(e && e.message);
         // Flash: נגמרה המכסה / לא קיים – ישר ל-Lite
-        if (model === OCR_MODEL && /429|RESOURCE_EXHAUSTED|quota|404|NOT_FOUND|not found/i.test(msg)) { console.warn('flash off, using lite', msg.slice(0, 160)); continue; }
+        if (model === OCR_MODEL && /429|RESOURCE_EXHAUSTED|quota|404|NOT_FOUND|not found/i.test(msg)) { flashDead = israelDay(); console.warn('flash off, using lite', msg.slice(0, 160)); continue; }
+        // מכסה של מודל אחד נגמרה – לכל מודל יש מכסה נפרדת, אז ממשיכים לבא בתור (ולא מנסים את זה שוב)
+        if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg) && !/prepayment|credits|billing/i.test(msg)) { no429.add(model); console.warn('quota, next model', model, msg.slice(0, 120)); continue; }
         // הגדרה שהמודל לא מקבל (400) – פעם אחת בלי רמת חשיבה ורזולוציה
         if (/INVALID_ARGUMENT|400/.test(msg) && (lim.thinkingConfig || lim.mediaResolution)) { console.warn('bad arg, retry plain', msg.slice(0, 160)); delete lim.thinkingConfig; delete lim.mediaResolution; continue; }
         if (!transient(e)) throw e;
