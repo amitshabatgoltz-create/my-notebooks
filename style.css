@@ -3469,3 +3469,46 @@ body.editing-shared .nb-mem{display:none}
   .cal-acts button{display:inline-flex;align-items:center;gap:6px;flex:none;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:14px;font-weight:600}
   .cal-acts button svg{width:18px;height:18px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 }
+/* באטל פאס 2 (24.11.2026): תיבה שפותחים, מסלול לרוחב, משימות היום */
+.chest-dlg{text-align:center}
+.chest{position:relative;display:block;width:150px;height:130px;margin:44px auto 4px;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.chest .ch-box{position:absolute;inset:auto 10px 0;height:78px;border-radius:10px 10px 14px 14px;background:linear-gradient(#9A6A42,#7A4E2D);box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),0 12px 24px -12px rgba(0,0,0,.45);border:3px solid #6B4428}
+.chest .ch-box::before{content:"";position:absolute;inset:12px 0 auto;height:8px;background:#C98A04;opacity:.9}
+.chest .ch-lock{position:absolute;top:2px;left:50%;width:22px;height:26px;margin-left:-11px;border-radius:5px;background:#F5C542;box-shadow:inset 0 -3px 0 #C98A04}
+.chest .ch-lid{position:absolute;inset:auto 6px 70px;height:46px;border-radius:30px 30px 6px 6px;background:linear-gradient(#B07A4D,#8A5A35);border:3px solid #6B4428;transform-origin:50% 100%;transition:transform .55s cubic-bezier(.3,1.6,.5,1);z-index:2}
+.chest .ch-glow{position:absolute;left:50%;bottom:60px;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:radial-gradient(#FFE8A3,rgba(255,200,80,0) 70%);opacity:0;transition:all .6s ease}
+.chest.big .ch-box::before,.chest.big .ch-lock{background:#FFD54A}
+.chest:not(.open){animation:chWiggle 2.2s ease-in-out infinite}
+.chest.open .ch-lid{transform:translateY(-34px) rotate(-24deg)}
+.chest.open .ch-glow{width:220px;height:220px;margin-left:-110px;bottom:-20px;opacity:1}
+@keyframes chWiggle{0%,80%,100%{transform:rotate(0)}84%{transform:rotate(-5deg)}88%{transform:rotate(5deg)}92%{transform:rotate(-3deg)}}
+.chest-dlg .ch-tap{font-family:'Amatic SC',sans-serif;font-weight:700;font-size:26px;color:var(--muted);margin:2px 0 6px}
+.chest-dlg .ch-out{animation:chOut .4s ease both}
+@keyframes chOut{from{opacity:0;transform:translateY(10px) scale(.96)}}
+.chest-dlg .sh-ic{width:16px;height:16px;vertical-align:-3px;margin-inline-end:4px;fill:none;stroke:currentColor;stroke-width:1.8}
+.shop-dlg .bd-quests{margin:10px 0 6px;padding:10px 12px;border:2px dashed rgba(243,240,228,.4);border-radius:12px 16px 10px 14px}
+.shop-dlg .bq-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.shop-dlg .bq-h b{font-family:'Amatic SC',sans-serif;font-size:26px;line-height:1}
+.shop-dlg .bq-h span{font-size:12.5px;color:rgba(243,240,228,.75)}
+.shop-dlg .bq{display:flex;align-items:center;gap:10px;min-height:36px;font-size:14.5px}
+.shop-dlg .bq i{width:22px;height:22px;flex:none;display:grid;place-items:center;border:2px solid rgba(243,240,228,.7);border-radius:6px 4px 7px 5px;font-style:normal;font-weight:800;color:#B8E8C8}
+.shop-dlg .bq.ok span{opacity:.55;text-decoration:line-through}
+.shop-dlg .bq span{flex:1}
+.shop-dlg .bq-go{height:30px;padding:0 12px;border:1.5px solid #F3F0E4;border-radius:14px 10px 13px 9px;background:transparent;color:#F7F4EA;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.shop-dlg .bd-track{position:relative;margin:12px -6px 8px;padding:34px 6px 8px;overflow-x:auto;scrollbar-width:thin;scroll-behavior:smooth;overscroll-behavior-x:contain}
+.shop-dlg .tk-bar{position:absolute;top:56px;inset-inline:30px;height:6px;border-radius:3px;background:rgba(243,240,228,.15);width:calc(30 * 92px - 60px)}
+.shop-dlg .tk-bar i{position:absolute;inset-block:0;inset-inline-start:0;width:var(--p);border-radius:3px;background:linear-gradient(90deg,#FFB46B,#F5C542)}
+.shop-dlg .tk-row{position:relative;display:flex;gap:0;margin:0;padding:0;list-style:none;width:calc(30 * 92px)}
+.shop-dlg .tk-n{position:relative;width:92px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:11.5px;line-height:1.25;color:rgba(243,240,228,.85)}
+.shop-dlg .tk-dot{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:#2E4D3B;border:2px solid rgba(243,240,228,.5);font-family:'Amatic SC',sans-serif;font-weight:700;font-size:22px;color:#F7F4EA}
+.shop-dlg .tk-dot svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
+.shop-dlg .tk-n b{font-weight:500;padding:0 4px}
+.shop-dlg .tk-n small{color:#F5C542;font-size:11px}
+.shop-dlg .tk-n.done .tk-dot{background:#3C6B4F;border-color:#9BE3B9;color:#B8E8C8;font-family:Rubik,sans-serif;font-size:18px}
+.shop-dlg .tk-n.done b{opacity:.5}
+.shop-dlg .tk-n.now .tk-dot{width:48px;height:48px;margin-top:-4px;background:#FFB46B;border-color:#FFE2BF;color:#3A2410;box-shadow:0 0 0 6px rgba(255,180,107,.22)}
+.shop-dlg .tk-n.big .tk-dot{width:50px;height:50px;margin-top:-5px;background:linear-gradient(160deg,#F5C542,#C98A04);border-color:#FFE8A3;color:#3A2410}
+.shop-dlg .tk-n.big b{color:#FBE7A1;font-weight:700}
+.shop-dlg .tk-here{position:absolute;top:-26px;font-style:normal;font-family:'Amatic SC',sans-serif;font-weight:700;font-size:20px;color:#FFB46B;white-space:nowrap}
+.shop-dlg .tk-n.next:not(.big) .tk-dot{opacity:.75}
+@media (prefers-reduced-motion:reduce){.chest:not(.open){animation:none}.chest .ch-lid,.chest .ch-glow{transition:none}}

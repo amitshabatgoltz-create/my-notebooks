@@ -64,7 +64,9 @@ async function streakBoost(uid) {
 }
 // ===== גירים (24.11.2026): מטבע שמרוויחים באתר וקונים בו שימושים ב-AI ועיצובים. רק השרת כותב ל-wallet/{uid} =====
 // מרוויחים: כניסה יומית (ברצף), צילום לוח, מחברת חדשה, חבר שהצטרף. לכל סוג יש תקרה יומית כדי שאי אפשר "לחרוש"
-const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 30, cap: 50 } };
+const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 30, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 } };
+// משימות היום (24.11.2026): נכנסים (day) + מצלמים לוח (ocr) + שואלים את העוזר (ask) → בונוס quest. אותה רשימה באתר (QUESTS)
+const QUEST_KINDS = ['day', 'ocr', 'ask'];
 // החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
 const SHOP = {
   ocr1: { p: 10, k: 'ocr', add: 1, max: 3 }, sum1: { p: 10, k: 'sum', add: 1, max: 2 }, chat5: { p: 6, k: 'chat', add: 5, max: 3 },
@@ -79,8 +81,9 @@ function earnIn(tx, w, kind, n = 1) {
   const left = Math.max(0, e.cap - (de[kind] || 0)), times = Math.min(n, left);
   if (!times) return { w, got: 0 };
   de[kind] = (de[kind] || 0) + times;
-  const got = e.a * times;
-  const log = [{ t: kind, a: got, at: Date.now() }, ...(w.log || [])].slice(0, 20);
+  let got = e.a * times, log = [{ t: kind, a: got, at: Date.now() }, ...(w.log || [])];
+  if (kind !== 'quest' && !de.quest && QUEST_KINDS.every(k => de[k])) { de.quest = 1; got += EARN.quest.a; log = [{ t: 'quest', a: EARN.quest.a, at: Date.now() + 1 }, ...log]; }   // כל משימות היום – בונוס
+  log = log.slice(0, 20);
   return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log }, got };
 }
 async function earn(uid, kind, n = 1) {
@@ -217,7 +220,8 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
-  if (kind === 'ocr' && !owner) await earn(req.auth.uid, 'ocr');   // צילום לוח = גירים (עד 3 ביום)
+  if (kind === 'ocr' && !owner) await earn(req.auth.uid, 'ocr');
+  if (kind === 'chat' && !owner && !image) await earn(req.auth.uid, 'ask');   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashSmart) {

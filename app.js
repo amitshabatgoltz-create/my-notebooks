@@ -9585,8 +9585,10 @@ const SHOP = [
   { id: 'ocean', g: 'skin', p: 60, t: 'ים', s: 'טורקיז רגוע', sw: ['#0E8FA8', '#5BC0BE'] },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2E7D5B', sunset: '#E8613C', ocean: '#0E8FA8' };
-const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך' };
-const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
+const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'סיימת את כל משימות היום!' };
+// משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
+const QUESTS = [{ k: 'day', t: 'להיכנס לאתר' }, { k: 'ocr', t: 'לצלם לוח אחד', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', go: 'לשאול' }], QUEST_BONUS = 10;
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'כל 3 משימות היום'], ['friend', 30, 0, 'כל חבר שמצטרף מהקישור שלך']];
 let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
 const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
 function walletWatch() {
@@ -9645,8 +9647,15 @@ function shopPaint(d) {
   };
   if (shopTab === 'streak' && !dStreak) shopTab = 'ai';
   const sN = dStreak ? dStreak.n || 0 : 0, sD = sN ? streakDayOf(sN) : 1, sCyc = sN ? Math.floor((sN - 1) / 30) : 0;
-  const streakHtml = () => `<div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `${sN} ימים ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
-    <div class="bd-path">${Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : ''; return `<div class="bd-day ${stt}${p.big ? ' big' : ''}"><i>${dd + sCyc * 30}</i><b>${esc(p.t)}</b></div>`; }).join('')}</div>`;
+  const streakHtml = () => {
+    const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {}, qDone = QUESTS.filter(q => today[q.k]).length;
+    const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next';
+      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
+    return `<div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `${sN} ימים ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
+    <div class="bd-quests"><div class="bq-h"><b>משימות היום</b><span>${qDone}/3 · כל ה-3 = +${QUEST_BONUS} גירים${today.quest ? ' ✓' : ''}</span></div>
+      ${QUESTS.map(q => `<div class="bq${today[q.k] ? ' ok' : ''}"><i>${today[q.k] ? '✓' : ''}</i><span>${q.t}</span>${!today[q.k] && q.go ? `<button type="button" class="bq-go" data-go="${q.k}">${q.go}</button>` : ''}</div>`).join('')}</div>
+    <div class="bd-track" tabindex="0" aria-label="מסלול 30 הימים"><div class="tk-bar"><i style="--p:${Math.round((sD - 1) / 29 * 100)}%"></i></div><ol class="tk-row">${nodes}</ol></div>`;
+  };
   const list = shopTab === 'streak' ? streakHtml() : shopTab === 'earn'
     ? EARN_LIST.map(([k, a, cap, s]) => `<div class="bd-it earn"><span class="bd-plus">+${a}</span><span class="bd-tx"><b>${EARN_TX[k]}</b><small>${s}${cap ? ` · היום: ${Math.min(today[k] || 0, cap)} מתוך ${cap}` : ''}</small></span></div>`).join('')
     : shopTab === 'skin'
@@ -9664,7 +9673,8 @@ function shopPaint(d) {
   d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
   d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
-  if (shopTab === 'streak') setTimeout(() => d.querySelector('.bd-day.now')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120);
+  d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); if (b.dataset.go === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else showTab('chat'); });
+  if (shopTab === 'streak') setTimeout(() => { const tr = d.querySelector('.bd-track'), now = d.querySelector('.tk-n.now'); if (tr && now) tr.scrollLeft += now.getBoundingClientRect().left + now.offsetWidth / 2 - (tr.getBoundingClientRect().left + tr.clientWidth / 2); }, 60);
 }
 async function shopBuy(id, btn) {
   const it = SHOP.find(x => x.id === id); if (!it || btn.disabled) return;
@@ -9725,22 +9735,55 @@ if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStr
 function streakPop(left = 8) {
   if (!dStreak) return;
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
-  if (dStreak.n === 1 && !dStreak.reset) return;            // יום ראשון: רק הכרטיס, בלי חלון (יש מספיק חלונות למשתמש חדש)
-  const d = streakDayOf(dStreak.n), p = streakPrize(d);
+  if (dStreak.n === 1 && !dStreak.reset) return;            // יום ראשון: בלי חלון (יש מספיק חלונות למשתמש חדש)
+  const d = streakDayOf(dStreak.n), p = streakPrize(d), share = dStreak.n >= 3 && (dStreak.n % 7 === 0 || [3, 10, 50, 100].includes(dStreak.n));
   dialog(dl => {
-    dl.classList.add('streak-dlg');
-    dl.innerHTML = `<div class="sp-flame${p.big ? ' big' : ''}"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${dStreak.n}</b></div>
-      <h3>${dStreak.reset ? 'מתחילים רצף חדש' : p.big ? `יום ${dStreak.n} ברצף! פרס גדול` : `יום ${dStreak.n} ברצף`}</h3>
+    dl.classList.add('streak-dlg', 'chest-dlg');
+    dl.innerHTML = `<h3>${dStreak.reset ? 'מתחילים רצף חדש' : `יום ${dStreak.n} ברצף`}</h3>
       ${dStreak.reset ? `<p class="muted-s">הרצף הקודם היה ${dStreak.reset} ימים. היום יום 1, קדימה.</p>` : ''}
       ${dStreak.usedShield ? '<p class="sp-note"><svg aria-hidden="true"><use href="#i-shield"/></svg>המגן שמר לך על הרצף ביום שפספסת</p>' : ''}
-      <div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
-      ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}`;
-    const row = document.createElement('div'); row.className = 'row';
+      <button type="button" class="chest${p.big ? ' big' : ''}" aria-label="לפתוח את הפרס של היום"><span class="ch-lid"></span><span class="ch-box"><i class="ch-lock"></i></span><span class="ch-glow"></span></button>
+      <p class="ch-tap">${p.big ? 'פרס גדול מחכה לך! ' : ''}לחצו לפתוח</p>
+      <div class="ch-out hidden"><div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
+      ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}</div>`;
+    const row = document.createElement('div'); row.className = 'row hidden';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = closeDialog;
-    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'כל הפרסים'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
-    row.append(ok, all); dl.appendChild(row);
-    if (p.big) setTimeout(() => window.Motion?.confetti(dl.querySelector('.sp-flame')), 300);
+    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'המסלול והמשימות'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
+    row.append(ok);
+    if (share) { const sh = document.createElement('button'); sh.className = 'btn btn-ghost'; sh.innerHTML = '<svg aria-hidden="true" class="sh-ic"><use href="#i-share"/></svg>לשתף'; sh.onclick = () => streakShare(); row.append(sh); }
+    row.append(all); dl.appendChild(row);
+    const chest = dl.querySelector('.chest');
+    const open = () => {
+      if (chest.classList.contains('open')) return;
+      chest.classList.add('open'); track('streak_chest', { n: dStreak.n, big: p.big ? 1 : 0 });
+      dl.querySelector('.ch-tap').classList.add('hidden');
+      setTimeout(() => { dl.querySelector('.ch-out').classList.remove('hidden'); row.classList.remove('hidden'); if (p.big) window.Motion?.confetti(chest); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650);
+    };
+    chest.onclick = open;
   });
+}
+// שיתוף רצף: תמונה של לוח עם המספר + הקישור האישי (מביא חברים). בטלפון – שיתוף עם התמונה, במחשב – וואטסאפ עם טקסט
+async function streakShare() {
+  if (!dStreak || !me) return;
+  const n = dStreak.n, url = inviteLink(), text = `${n} ימים ברצף במחברות שלי! תצטרפו ותקבלו מתנה:`;
+  track('streak_share', { n });
+  let file = null;
+  try {
+    await document.fonts.load('700 120px "Amatic SC"').catch(() => {});
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1080; const g = c.getContext('2d');
+    g.fillStyle = '#8A5A35'; g.fillRect(0, 0, 1080, 1080); g.fillStyle = '#24412F'; g.fillRect(40, 40, 1000, 1000);
+    for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .04})`; g.fillRect(40 + Math.random() * 1000, 40 + Math.random() * 1000, 2, 2); }
+    g.direction = 'rtl'; g.textAlign = 'center'; g.fillStyle = '#FFB46B';
+    g.font = '700 360px "Amatic SC", sans-serif'; g.fillText(String(n), 540, 520);
+    g.fillStyle = '#F7F4EA'; g.font = '700 120px "Amatic SC", sans-serif'; g.fillText('ימים ברצף', 540, 680);
+    g.font = '700 70px "Amatic SC", sans-serif'; g.fillStyle = 'rgba(247,244,234,.8)'; g.fillText('המחברות שלי', 540, 900);
+    g.fillStyle = '#9A6A42'; g.fillRect(40, 1000, 1000, 40); g.fillStyle = '#F3F0E4'; g.fillRect(300, 985, 90, 16); g.fillStyle = '#F4B6C2'; g.fillRect(420, 987, 60, 14);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    if (blob) file = new File([blob], `streak-${n}.png`, { type: 'image/png' });
+  } catch {}
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], text: text + '\n' + url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
 }
 function streakDialog() {
   if (!dStreak) return;
