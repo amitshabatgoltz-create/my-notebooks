@@ -2435,7 +2435,7 @@ $('homeNew').onclick = () => newNotebook();
 $('homeNotes').onclick = () => showTab('notes');
 $('homeCal').onclick = () => showTab('cal');
 // טלפון: לוח מבחנים גם כאריח במסך הבית, ובטלפון גם שורת כפתורים עם מילים מעל היומן (עמית: היה קשה למצוא)
-$('homeTests').onclick = () => { track('home_tests', {}); testsDialog(); };
+$('homeTests').onclick = () => { track('home_tests', {}); testsPick(); };
 document.querySelectorAll('.cal-acts [data-proxy]').forEach(b => b.onclick = () => $(b.dataset.proxy)?.click());
 
 /* ================= יומן ================= */
@@ -3145,7 +3145,7 @@ function renderHome() {
     nt.classList.toggle('soon', d <= 3);
   } else {
     const what = document.createElement('div'); what.className = 'what nt-none'; what.textContent = 'אין מבחנים ביומן כרגע';
-    const add = document.createElement('button'); add.className = 'link'; add.textContent = 'העלאת לוח המבחנים'; add.onclick = () => testsDialog();
+    const add = document.createElement('button'); add.className = 'link'; add.textContent = 'העלאת לוח המבחנים'; add.onclick = () => testsPick();
     nt.append(h, what, add); nt.classList.remove('soon');
   }
 
@@ -5108,7 +5108,7 @@ function nextLesson(text) {
 function paintTTBtn() { const b = $('ttBtn'); if (b) b.classList.toggle('on', ttSubjects().length > 0); }
 
 async function timetableDialog(fromFile) {
-  if (!(await introOnce('tt'))) return;
+  try { localStorage.setItem('intro:tt', '1'); } catch {}
   dialog(d => {
     d.classList.add('tt-dlg');
     const has = ttSubjects().length > 0; let start = timetable.start === 0 ? 0 : 1;
@@ -5186,9 +5186,9 @@ async function timetableDialog(fromFile) {
     row.append(ok, no); d.appendChild(row);
   });
 }
-$('ttBtn').onclick = timetableDialog;
+$('ttBtn').onclick = () => (ttSubjects().length ? timetableDialog() : ttPick());   // אין עדיין מערכת – ישר לבחירת קובץ; יש – לראות ולערוך
 if ($('qaHelp')) $('qaHelp').onclick = () => { const box = $('qaHelpBox'); const open = box.classList.toggle('hidden') === false; $('qaHelp').setAttribute('aria-expanded', open); };
-if ($('ttBtn2')) $('ttBtn2').onclick = timetableDialog;
+if ($('ttBtn2')) $('ttBtn2').onclick = () => (ttSubjects().length ? timetableDialog() : ttPick());
 
 // ---- עמוד מערכת השעות
 function renderTT() {
@@ -5198,7 +5198,7 @@ function renderTT() {
     box.innerHTML = `<button type="button" class="tt-up big" id="ttEmptyUp"><span class="ic"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><b>העלאת תמונה של המערכת</b><span>צילום מסך, צילום של הדף או PDF. ה־AI ימלא את הכל לבד</span></button>
       <button type="button" class="link tt-manual" id="ttEmptyManual">או להקליד את המערכת ידנית</button>
       <p class="muted-s tt-why">אחרי שתעלה את המערכת, שיעורי בית שתכתוב בלי תאריך ייכנסו ליום של השיעור הבא באותו מקצוע.</p>`;
-    $('ttEmptyUp').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
+    $('ttEmptyUp').onclick = () => ttPick();
     $('ttEmptyManual').onclick = () => { timetableDialog(); setTimeout(() => { const m = document.querySelector('#ttManual'); if (m) m.click(); }, 50); };
     return;
   }
@@ -5214,8 +5214,8 @@ function renderTT() {
   const open = events.filter(e => !e.done && e.date === key(tm));
   box.insertAdjacentHTML('beforeend', `<div class="card tt-tomorrow"><h3>מחר (${HE_DAYS[tm.getDay()]})</h3>${list.length ? `<p>${list.map(esc).join(' · ')}</p>` : '<p class="muted-s">אין לימודים מחר</p>'}${open.length ? `<p class="muted-s">להכין למחר: ${open.map(e => esc(e.title)).join(', ')}</p>` : ''}</div>`);
 }
-$('ttEdit').onclick = timetableDialog;
-$('ttUpload').onclick = () => { timetableDialog(); setTimeout(() => { const f = document.querySelector('#ttFile'); if (f) f.click(); }, 50); };
+$('ttEdit').onclick = () => timetableDialog();
+$('ttUpload').onclick = () => ttPick();
 
 // כשהמערכת משתנה: שיעורי בית שלא כתבת להם תאריך עוברים ליום של השיעור הבא
 function redateAuto() {
@@ -5498,8 +5498,8 @@ async function fileToAiPart(f) {
   if (/^(txt|csv)$/.test(ext) || /^text\//.test(f.type)) return 'הטקסט מהקובץ:\n' + (await f.text()).slice(0, 60000);
   throw Object.assign(new Error('type'), { code: 'type' });
 }
-async function testsDialog() {
-  if (!(await introOnce('tests'))) return;
+async function testsDialog(fromFile) {   // fromFile: נבחר כבר בלחיצה (pickFile) – בלי הסבר ובלי עוד לחיצה
+  try { localStorage.setItem('intro:tests', '1'); } catch {}
   dialog(d => {
     d.classList.add('tests-dlg');
     d.innerHTML = `<h3>לוח מבחנים</h3>
@@ -5530,8 +5530,8 @@ async function testsDialog() {
       paint();
     });
     d.querySelector('#tsUp').onclick = () => d.querySelector('#tsFile').click();
-    d.querySelector('#tsFile').onchange = async ev => {
-      const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
+    const readTests = async f => {
+      if (!f) return;
       const up = d.querySelector('#tsUp'); up.disabled = true; const stop = ticking(st, 'קורא את לוח המבחנים...'); list.innerHTML = ''; ok.classList.add('hidden');
       try {
         const part = await fileToAiPart(f);
@@ -5570,6 +5570,8 @@ async function testsDialog() {
         st.textContent = /busy|unavailable|503|overloaded|high demand/i.test(String(e && (e.code + ' ' + e.message))) ? 'גוגל (ה-AI) עמוסים מאוד עכשיו. נסה שוב בעוד דקה – בדרך כלל זה עובר.' : e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : e.code === 'big' ? 'הקובץ גדול מדי. נסה צילום מסך במקום.' : `לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור. (${String((e && (e.code || e.message)) || '').replace(/^functions\//, '').slice(0, 60)})`; }
       up.disabled = false;
     };
+    d.querySelector('#tsFile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; readTests(f); };
+    if (fromFile) setTimeout(() => readTests(fromFile), 0);
     ok.onclick = async () => {
       const pick = items.filter(x => x.on && (!cls || !x.cls || x.cls === cls)); if (!pick.length) return;
       ok.disabled = true; ok.textContent = 'מוסיף...';
@@ -5582,7 +5584,12 @@ async function testsDialog() {
     };
   });
 }
-$('testsBtn').onclick = testsDialog;
+// לחיצה אחת = בוחרים קובץ, ומיד קוראים אותו (עמית: "אם לוחצים להעלות קובץ – זה מעלה"). input נוצר ונלחץ בתוך הלחיצה עצמה (אייפון)
+function pickFile(accept, cb) { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.style.display = 'none'; i.onchange = () => { const f = i.files && i.files[0]; i.remove(); if (f) cb(f); }; document.body.appendChild(i); i.click(); setTimeout(() => i.remove(), 600000); }
+const TESTS_ACCEPT = 'image/*,application/pdf,.pdf,.docx,.xlsx,.xls,.csv,.txt';
+const testsPick = () => { track('tests_pick', {}); pickFile(TESTS_ACCEPT, f => testsDialog(f)); };
+const ttPick = () => { track('tt_pick', {}); pickFile('image/*,application/pdf', f => timetableDialog(f)); };
+$('testsBtn').onclick = testsPick;
 
 /* ---- הסמן והעכבר של מי שעורך איתך ---- */
 const LIVE_COLORS = ['#E5484D', '#10B981', '#F59E0B', '#3B82F6', '#D1478F', '#1F8FA3', '#8B5CF6'];
@@ -9520,7 +9527,7 @@ function ttNudge() {
       </div>`;
     const row = document.createElement('div'); row.className = 'row wl-end';
     const a = document.createElement('button'); a.className = 'btn btn-primary'; a.textContent = 'לשים את המערכת עכשיו';
-    a.onclick = () => { closeDialog(); track('tt_nudge_yes', {}); setTimeout(() => timetableDialog(), 200); };
+    a.onclick = () => { closeDialog(); track('tt_nudge_yes', {}); ttPick(); };
     const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = 'אחר כך';
     b.onclick = () => { closeDialog(); toast('אפשר תמיד דרך "מערכת שעות" בתפריט'); };
     row.append(a, b); d.appendChild(row);
