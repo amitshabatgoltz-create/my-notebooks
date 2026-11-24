@@ -6153,7 +6153,7 @@ const DAILY = { ocr: 3, sum: 2, qa: 3, fc: 3, chat: 21, cf: 3, kit: 3, pr: 3, wr
 // חשבונות בלי הגבלה (המנהל של האתר)
 const UNLIMITED_HASH = ['d480d79943873e56d1e096093086e83c75764b6af1c3d65cd0900a876e2bd622'];   // SHA-256 של 'my-notebooks:' + האימייל
 // מנהלים נוספים של עמוד "ניהול האתר" (ההורים) – רק רואים את הניהול, בלי AI בלי הגבלה. גם כאן SHA-256, בלי אימיילים בקוד
-const ADMIN_HASH = ['696992ad6f8db2e6bfec3398b9b1ed3b123f1d15c30724c3f9a858fd729cb8e8', '320f2461e41929bbcdff8136b5076f6a7bba98b91bfb7298eab89d02e165f2ee'];
+const ADMIN_HASH = ['696992ad6f8db2e6bfec3398b9b1ed3b123f1d15c30724c3f9a858fd729cb8e8', '320f2461e41929bbcdff8136b5076f6a7bba98b91bfb7298eab89d02e165f2ee', '848508550aed4b682f69211cefe1f810248ca9450b5c14d68e6b52d3b9e1dc7d'];
 let unlimitedEmail = null, unlimitedYes = false, adminYes = false;
 async function refreshUnlimited() {
   const e = ((me && me.email) || '').toLowerCase();
