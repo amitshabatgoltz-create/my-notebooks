@@ -3320,3 +3320,12 @@ body.editing-shared .nb-mem{display:none}
 .bp-card.sm{height:166px!important}
 .bp-gap{height:200px!important}
 @media (max-width:760px){.bp-track{grid-template-columns:repeat(var(--cols),124px)!important}}
+
+/* 🎁 מתנה שעוד לא פתחו – "חברים" זוהר */
+@keyframes frGlow{0%,100%{box-shadow:0 0 0 0 rgba(236,72,153,.55),0 0 14px 2px rgba(245,158,11,.45)}50%{box-shadow:0 0 0 6px rgba(236,72,153,0),0 0 22px 6px rgba(245,158,11,.7)}}
+.fr-glow{position:relative;animation:frGlow 1.6s ease-in-out infinite}
+.nav-fr.fr-glow,#inviteBtn.fr-glow{background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(236,72,153,.18))!important;color:#DB2777!important;font-weight:800}
+.nav-fr.fr-glow::after,#inviteBtn.fr-glow::after{content:"מתנה!";position:absolute;inset-inline-end:10px;top:50%;transform:translateY(-50%);font-size:10.5px;font-weight:900;color:#fff;padding:2px 8px;border-radius:999px;background:linear-gradient(135deg,#F59E0B,#EC4899)}
+#homeFriends.fr-glow{border-radius:18px}
+#userBtn.fr-glow::after{content:"";position:absolute;top:-1px;inset-inline-end:-1px;width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#F59E0B,#EC4899);border:2px solid var(--surface)}
+@media (prefers-reduced-motion:reduce){.fr-glow{animation:none;box-shadow:0 0 0 3px rgba(236,72,153,.6)}}

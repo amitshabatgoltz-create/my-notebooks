@@ -223,7 +223,7 @@ onAuthStateChanged(auth, user => {
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -2426,7 +2426,7 @@ function showTab(t) {
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
   else if (t === 'chat') { openId = null; setView('chatView'); renderSide(); }
   else if (t === 'admin') { openId = null; setView('adminView'); renderSide(); renderAdmin(); }
-  else if (t === 'fr') { openId = null; setView('friendsView', 'חברים'); renderSide(); renderFriends(); refLoad().then(() => { if (!$('friendsView').classList.contains('hidden')) renderFriends(); }); }
+  else if (t === 'fr') { openId = null; setView('friendsView', 'חברים'); renderSide(); renderFriends(); frGiftOpened(); refLoad().then(() => { if (!$('friendsView').classList.contains('hidden')) renderFriends(); }); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -9347,6 +9347,7 @@ async function seenPull() {
   try {
     const sn = await getDoc(doc(db, 'users', me.uid, 'meta', 'flags'));
     const have = (sn.exists() && sn.data().seen) || {};
+    frGiftSeen = sn.exists() && Number.isInteger(sn.data().frGift) ? sn.data().frGift : null; frFlagsOk = true; frGlowPaint();
     Object.keys(have).forEach(k => { try { if (SEEN_RE.test(k) && !localStorage.getItem(k)) lsSet.call(localStorage, k, '1'); } catch {} });
     // מה שכבר ראו במכשיר הזה ועוד לא בחשבון – מעלים
     for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && SEEN_RE.test(k) && !have[k] && seenMine(k)) seenQ[k] = 1; }
@@ -9595,6 +9596,29 @@ async function refLoad() {
   const k = 'refSeen:' + me.uid; let prev = refCount(); try { prev = +(localStorage.getItem(k) ?? refCount()); localStorage.setItem(k, refCount()); } catch {}
   const opened = REF_TIERS.filter(t => prev < t.n && refHas(t.n));
   if (opened.length) setTimeout(() => refCelebrate(opened[opened.length - 1]), 1500);
+  frGlowPaint(); frWatch();
+  if (!$('friendsView').classList.contains('hidden')) frGiftOpened();
+}
+// 🎁 מתנה שעוד לא פתחו: חבר הצטרף ועוד לא נכנסת לעמוד החברים → "חברים" זוהר (בצד, במסך הבית, בתפריט ובעיגול)
+// frGift ב-users/{uid}/meta/flags = כמה חברים היו כשנכנסת לעמוד החברים בפעם האחרונה
+let frGiftSeen = null, frFlagsOk = false, frWatchOff = null;
+function frGlowPaint() {
+  if (!me || !refLoaded || !frFlagsOk) return;
+  const n = Math.min(refCount(), REF_MAX);
+  if (frGiftSeen === null) { frGiftSeen = n; setDoc(doc(db, 'users', me.uid, 'meta', 'flags'), { frGift: n }, { merge: true }).catch(() => {}); }
+  const on = n > frGiftSeen;
+  document.querySelectorAll('[data-tab="fr"], #homeFriends, #inviteBtn, #userBtn').forEach(el => el.classList.toggle('fr-glow', on));
+}
+function frGiftOpened() {
+  if (!me || !refLoaded) return;
+  const n = Math.min(refCount(), REF_MAX); if (frGiftSeen === n) { frGlowPaint(); return; }
+  frGiftSeen = n; setDoc(doc(db, 'users', me.uid, 'meta', 'flags'), { frGift: n }, { merge: true }).catch(() => {}); frGlowPaint();
+}
+// חבר הצטרף בזמן שאתה באתר – רואים מיד (מאזין קטן לרשימת החברים)
+function frWatch() {
+  if (frWatchOff || !me) return;
+  let first = true;
+  frWatchOff = onSnapshot(collection(db, 'refs', me.uid, 'joined'), sn => { if (first) { first = false; return; } if (sn.size !== refCount()) refLoad(); }, () => {});
 }
 function refCelebrate(t) {
   toastAction(`חבר חדש הצטרף דרכך! פתחת: ${t.t}`, 'לראות', () => showTab('fr'));
