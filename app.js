@@ -5458,7 +5458,14 @@ const loadScript = src => new Promise((res, rej) => { if (document.querySelector
 async function fileToAiPart(f) {
   const ext = (f.name.split('.').pop() || '').toLowerCase();
   const b64 = () => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
-  if (/^image\//.test(f.type) && !/heic|heif/.test(f.type)) { const d = await shrink(f, 1280); return { inlineData: { mimeType: (d.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: d.split(',')[1] } }; }
+  // תמונה – גם כשהטלפון לא שולח סוג קובץ, וגם HEIC של אייפון: מקטינים ל-JPEG; אם הדפדפן לא מצליח לפתוח אותה – שולחים כמו שהיא (Gemini קורא גם HEIC)
+  const isImg = /^image\//.test(f.type) || /^(jpe?g|png|webp|gif|bmp|heic|heif|avif)$/.test(ext);
+  if (isImg) {
+    try { const d = await shrink(f, 1600); if (d && d.startsWith('data:image')) return { inlineData: { mimeType: (d.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg', data: d.split(',')[1] } }; } catch (e) { console.warn('shrink failed', e); }
+    if (f.size > 15e6) throw Object.assign(new Error('big'), { code: 'big' });
+    const mt = /heic/.test(f.type + ext) ? 'image/heic' : /heif/.test(f.type + ext) ? 'image/heif' : /^image\//.test(f.type) ? f.type : 'image/jpeg';
+    return { inlineData: { mimeType: mt, data: await b64() } };
+  }
   if (f.type === 'application/pdf' || ext === 'pdf') return { inlineData: { mimeType: 'application/pdf', data: await b64() } };
   if (/^(xlsx|xls|ods)$/.test(ext)) {
     await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
@@ -5541,7 +5548,8 @@ async function testsDialog() {
         const nNew = items.filter(x => x.on).length;
         st.textContent = `✓ מצאתי ${items.length} ${items.length === 1 ? 'פריט' : 'פריטים'}. ${nNew ? 'תבדוק שהתאריכים נכונים ותלחץ "הוספה ליומן".' : 'כולם כבר ביומן או שכבר עברו.'}`;
         up.classList.add('small'); paint();
-      } catch (e) { console.error(e); stop(); st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : 'לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור.'; }
+      } catch (e) { console.error(e); stop(); track('tests_fail', { why: String((e && (e.code || e.message)) || '').slice(0, 80) });
+        st.textContent = e.code === 'type' ? 'את סוג הקובץ הזה אי אפשר לקרוא. נסה תמונה, PDF, Word או Excel.' : e.code === 'big' ? 'הקובץ גדול מדי. נסה צילום מסך במקום.' : `לא הצלחתי לקרוא את הקובץ. נסה שוב, או צילום מסך ברור. (${String((e && (e.code || e.message)) || '').replace(/^functions\//, '').slice(0, 60)})`; }
       up.disabled = false;
     };
     ok.onclick = async () => {
