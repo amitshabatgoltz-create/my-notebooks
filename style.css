@@ -3512,3 +3512,4 @@ body.editing-shared .nb-mem{display:none}
 .shop-dlg .tk-here{position:absolute;top:-26px;font-style:normal;font-family:'Amatic SC',sans-serif;font-weight:700;font-size:20px;color:#FFB46B;white-space:nowrap}
 .shop-dlg .tk-n.next:not(.big) .tk-dot{opacity:.75}
 @media (prefers-reduced-motion:reduce){.chest:not(.open){animation:none}.chest .ch-lid,.chest .ch-glow{transition:none}}
+.shop-dlg .bq-note{margin:6px 0 0;font-size:12px;color:rgba(243,240,228,.65)}
