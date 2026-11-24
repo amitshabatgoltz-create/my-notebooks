@@ -3554,3 +3554,32 @@ html[data-theme="dark"] .cb-n{color:#7FD4FF!important}
 .streak-dlg .sp-chalk svg{width:22px;height:22px}
 @keyframes lxSpin{from{transform:rotateY(180deg) scale(.6)}}
 @media (prefers-reduced-motion:reduce){.cb-ic svg{animation:none}}
+/* ===== עיצובים לאתר שאפשר לראות (24.11.2026 – עמית: "הרקעים נראים גרועים, לא יבינו מה זה") =====
+   כל עיצוב: פס צבעוני בראש מסך הבית + הסרגל העליון בצבעים שלו, רקע עדין לכל הדף, והכפתורים בצבע שלו */
+html.skin-gold{--sk1:#F7C948;--sk2:#D98E04;--skbg:#FFFBF0}
+html.skin-chalk{--sk1:#2F7D5B;--sk2:#1E4D3A;--skbg:#F1F7F3}
+html.skin-sunset{--sk1:#FF9F5A;--sk2:#F0507A;--skbg:#FFF5F0}
+html.skin-ocean{--sk1:#2EC4C9;--sk2:#0B6FA8;--skbg:#EFF9FC}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean):not([data-theme="dark"]) body{background:var(--skbg)}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) .topbar{background:var(--sk1)!important;color:#fff}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) .topbar .crumb{color:rgba(255,255,255,.92)}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home .hero{position:relative;background:none!important}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home .hero::before{content:"";position:absolute;z-index:0;top:-14px;inset-inline:-16px;height:150px;border-radius:0 0 32px 32px;background:radial-gradient(60% 120% at 85% 0%,rgba(255,255,255,.28),transparent 60%),linear-gradient(180deg,var(--sk1),var(--sk2))}
+html.skin-ocean #home .hero::before{background:radial-gradient(40% 60% at 15% 110%,rgba(255,255,255,.25),transparent 70%),radial-gradient(60% 120% at 85% 0%,rgba(255,255,255,.25),transparent 60%),linear-gradient(180deg,var(--sk1),var(--sk2))}
+html.skin-chalk #home .hero::before{background:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1.3px) 0 0/9px 9px,linear-gradient(180deg,var(--sk1),var(--sk2))}
+html.skin-gold #home .hero::before{background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.55) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(255,255,255,.45) 0 1.5px,transparent 2.5px),radial-gradient(60% 120% at 85% 0%,rgba(255,255,255,.3),transparent 60%),linear-gradient(180deg,var(--sk1),var(--sk2))}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home .hero-in{position:relative;z-index:1}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home .hero :is(h1,.hero-date,.hero-sub){color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+html.skin-gold #home .hero :is(h1,.hero-date,.hero-sub){color:#3A2410;text-shadow:none}
+html.skin-gold .topbar{color:#3A2410}
+html.skin-gold .topbar .crumb{color:rgba(58,36,16,.85)}
+@media (min-width:701px){html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home .hero::before{inset-inline:-28px;top:-20px;height:170px}}
+/* בחנות: תמונה קטנה של המסך בעיצוב, וכפתור "לנסות" */
+.shop-dlg .bd-mock{width:40px;height:56px;flex:none;position:relative;border-radius:9px;overflow:hidden;background:#F6F6FA;border:1px solid var(--line);box-shadow:0 3px 8px -4px rgba(0,0,0,.25);display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:3px;padding:3px}
+.shop-dlg .bd-mock i{position:absolute;inset:0 0 auto;height:20px;background:linear-gradient(180deg,var(--a),var(--b))}
+.shop-dlg .bd-mock.plain i{background:linear-gradient(180deg,#8E8CFF,#5E5CE6)}
+.shop-dlg .bd-mock b{height:12px;border-radius:3px;background:#fff;border:1px solid #E7E7EE}
+.shop-dlg .bd-acts{display:flex;gap:6px;align-items:center}
+.shop-dlg .bd-try{height:38px;padding:0 12px;border:1px solid var(--accent);border-radius:12px;background:transparent;color:var(--accent);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+@media (max-width:700px){.shop-dlg .bd-it.skin{flex-wrap:wrap}.shop-dlg .bd-it.skin .bd-acts{width:100%;justify-content:flex-end}}
+html:is(.skin-gold,.skin-chalk,.skin-sunset,.skin-ocean) #home{overflow-x:clip}

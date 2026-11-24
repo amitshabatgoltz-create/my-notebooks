@@ -9580,9 +9580,9 @@ const SHOP = [
   { id: 'kit1', g: 'ai', p: 8, t: 'עוד שאלון חזרה', s: 'רק להיום · עד 2 ביום', ic: 'clipboard', k: 'kit', add: 1, max: 2 },
   { id: 'pr1', g: 'ai', p: 8, t: 'עוד דף תרגול', s: 'רק להיום · עד 2 ביום', ic: 'template', k: 'pr', add: 1, max: 2 },
   { id: 'shield', g: 'ai', p: 20, t: 'מגן רצף', s: 'יום אחד שתפספס לא ישבור את הרצף', ic: 'shield' },
-  { id: 'chalk', g: 'skin', p: 60, t: 'לוח ירוק', s: 'ירוק כהה כמו לוח בכיתה', sw: ['#2E7D5B', '#24412F'] },
-  { id: 'sunset', g: 'skin', p: 60, t: 'שקיעה', s: 'כתום וורוד חמים', sw: ['#E8613C', '#F4A259'] },
-  { id: 'ocean', g: 'skin', p: 60, t: 'ים', s: 'טורקיז רגוע', sw: ['#0E8FA8', '#5BC0BE'] },
+  { id: 'chalk', g: 'skin', p: 30, t: 'לוח ירוק', s: 'כל האתר בירוק של לוח בכיתה', sw: ['#2F7D5B', '#1E4D3A'] },
+  { id: 'sunset', g: 'skin', p: 30, t: 'שקיעה', s: 'כל האתר בכתום וורוד', sw: ['#FF9F5A', '#F0507A'] },
+  { id: 'ocean', g: 'skin', p: 30, t: 'ים', s: 'כל האתר בטורקיז וכחול', sw: ['#2EC4C9', '#0B6FA8'] },
   // הפרסים שהיו פעם של תוכנית החברים (PERK_ITEM). לא עיצוב לכל האתר – פותחים משהו
   { id: 'spcolors', g: 'perk', n: 1, p: 25, t: 'צבעים מיוחדים למחברות', s: 'זהב, ניאון, גלקסיה ועוד – בכפתור "צבע" של המחברת', ic: 'palette' },
   { id: 'spbg', g: 'perk', n: 2, p: 25, t: 'רקעים מיוחדים לדף', s: 'כוכבים, נקודות זהב, משבצות צבעוניות – ב"הגדרות" של המחברת', ic: 'template' },
@@ -9590,7 +9590,7 @@ const SHOP = [
   { id: 'accent', g: 'perk', n: 6, p: 30, t: 'צבע לכל האתר', s: 'ירוק, כתום, ורוד ועוד', ic: 'mark' },
   { id: 'frame', g: 'perk', n: 8, p: 30, t: 'מסגרת צבעונית לעיגול', s: 'ליד השם שלך, תמיד', ic: 'target' },
 ];
-const SKINS = { gold: '#C98A04', chalk: '#2E7D5B', sunset: '#E8613C', ocean: '#0E8FA8' };
+const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
 const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
 const QUESTS = [{ k: 'day', t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, { k: 'ocr', t: 'לצלם לוח אחד', done: 'צילמת לוח', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }], QUEST_BONUS = 10;
@@ -9646,11 +9646,22 @@ function chalkBurst(got, why, big, from, to) {
 // עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בלומיקס. נבחר אחד בכל פעם
 function skinOwned(id) { if (typeof isUnlimited === 'function' && isUnlimited()) return true;   // בעל האתר – כל העיצובים (עמית ביקש לראות)
   return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
+const SKINS_ON = false;   // (24.11.2026) עמית: העיצובים לאתר נראים גרוע – בינתיים כבויים לגמרי (הקוד נשאר לפעם הבאה)
 function skinNow() {
-  if (!me) return '';
+  if (!SKINS_ON || !me) return '';
   let v = null; try { v = localStorage.getItem('skinSel:' + me.uid); } catch {}
   if (v === null) { let old = null; try { old = localStorage.getItem('skin:' + me.uid); } catch {} v = skinOwned('gold') && old !== 'off' ? 'gold' : ''; }
   return v && SKINS[v] && skinOwned(v) ? v : '';
+}
+// "לנסות" עיצוב לפני שקונים: סוגרים את החנות, האתר כולו בעיצוב ל-6 שניות, ואז חוזר (עם כפתור לקנות)
+let skinTryT = 0;
+function skinTry(id) {
+  const it = SHOP.find(x => x.id === id); if (!it || !SKINS[id]) return;
+  track('skin_try', { id }); closeDialog(); if (!$('home').classList.contains('hidden')) {} else showTab('home');
+  const put = k => { Object.keys(SKINS).forEach(x => document.documentElement.classList.toggle('skin-' + x, x === k)); let st = document.getElementById('accentStyle'); if (!st) { st = document.createElement('style'); st.id = 'accentStyle'; document.head.appendChild(st); } const c = SKINS[k]; st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`; };
+  put(id); clearTimeout(skinTryT); window.scrollTo({ top: 0, behavior: 'smooth' });
+  toastAction(`ככה האתר נראה עם "${it.t}"`, `לקנות (${it.p})`, () => { clearTimeout(skinTryT); siteAccentApply(); shopOpen('skin'); }, 6500);
+  skinTryT = setTimeout(() => siteAccentApply(), 6500);
 }
 function skinSet(id) { try { localStorage.setItem('skinSel:' + me.uid, id || ''); } catch {} siteAccentApply(); track('skin_set', { id: id || 'none' }); }
 $('chalkBtn').onclick = e => { const st = e.target.closest('.cc-st'); track(st ? 'streak_open' : 'shop_open', {}); shopOpen(st ? 'streak' : 'ai'); };
@@ -9667,7 +9678,8 @@ function shopPaint(d) {
     if (it.g === 'skin') {
       const own = skinOwned(it.id), on = skinNow() === it.id;
       const act = own ? `<button class="bd-buy${on ? ' on' : ''}" data-skin="${it.id}">${on ? 'בשימוש ✓' : 'להשתמש'}</button>` : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg></button>`;
-      return `<div class="bd-it skin"><span class="bd-sw" style="--a:${it.sw[0]};--b:${it.sw[1]}"></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך' : it.s}</small></span>${act}</div>`;
+      const tryB = own ? '' : `<button class="bd-try" type="button" data-try="${it.id}">לנסות</button>`;
+      return `<div class="bd-it skin"><span class="bd-mock" style="--a:${it.sw[0]};--b:${it.sw[1]}" aria-hidden="true"><i></i><b></b><b></b><b></b><b></b></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך · ' : ''}${it.s}</small></span><span class="bd-acts">${tryB}${act}</span></div>`;
     }
     const used = (ex.n && ex.n[it.id]) || 0, full = it.max && used >= it.max, hasSh = it.id === 'shield' && dStreak && dStreak.shield;
     const lbl = full ? 'נגמר להיום' : hasSh ? 'כבר יש לך' : `${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg>`;
@@ -9678,7 +9690,7 @@ function shopPaint(d) {
   const streakHtml = () => {
     const td = usageDay(), today = wallet && wallet.day === td ? (wallet.dayEarn || {}) : {}, qDone = QUESTS.filter(q => today[q.k]).length, qd = (wallet && wallet.qd) || [];
     const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next', star = stt !== 'next' && qd.includes(td - (sD - dd));
-      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
+      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'lx' ? 'lumix' : p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
     return `<div class="bd-day-card">
       <div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `יום ${sN} ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
       <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} לומיקס`}</span></div>
@@ -9691,8 +9703,8 @@ function shopPaint(d) {
   const list = shopTab === 'streak' ? streakHtml() : shopTab === 'earn'
     ? EARN_LIST.map(([k, a, cap, s]) => `<div class="bd-it earn"><span class="bd-plus">+${a}</span><span class="bd-tx"><b>${EARN_TX[k]}</b><small>${s}${cap ? ` · היום: ${Math.min(today[k] || 0, cap)} מתוך ${cap}` : ''}</small></span></div>`).join('')
     : shopTab === 'skin'
-      ? `<div class="bd-it skin"><span class="bd-sw plain"></span><span class="bd-tx"><b>רגיל</b><small>העיצוב הרגיל של האתר</small></span><button class="bd-buy${!skinNow() ? ' on' : ''}" data-skin="">${!skinNow() ? 'בשימוש ✓' : 'להשתמש'}</button></div>`
-        + (skinOwned('gold') ? item({ id: 'gold', g: 'skin', t: 'זהב', s: 'פרס של 7 ימים ברצף', sw: ['#C98A04', '#F5C542'] }) : '')
+      ? (SKINS_ON ? '' : `<p class="bd-sub">דברים שפותחים לתמיד</p>` + SHOP.filter(x => x.g === 'perk').map(perkItem).join('') + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')) || `<div class="bd-it skin"><span class="bd-mock plain" aria-hidden="true"><i></i><b></b><b></b><b></b><b></b></span><span class="bd-tx"><b>רגיל</b><small>העיצוב הרגיל של האתר</small></span><button class="bd-buy${!skinNow() ? ' on' : ''}" data-skin="">${!skinNow() ? 'בשימוש ✓' : 'להשתמש'}</button></div>`
+        + (skinOwned('gold') ? item({ id: 'gold', g: 'skin', t: 'זהב', s: 'פרס של 7 ימים ברצף', sw: ['#F7C948', '#D98E04'] }) : '')
         + SHOP.filter(x => x.g === 'skin').map(item).join('')
         + `<p class="bd-sub">פותחים לתמיד</p>` + SHOP.filter(x => x.g === 'perk').map(perkItem).join('')
         + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')
@@ -9708,6 +9720,7 @@ function shopPaint(d) {
   d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
   d.querySelectorAll('.bd-accs [data-acc]').forEach(b => b.onclick = () => { try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); localStorage.setItem('skinSel:' + me.uid, ''); } catch {} siteAccentApply(); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
+  d.querySelectorAll('[data-try]').forEach(b => b.onclick = () => skinTry(b.dataset.try));
   d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); if (b.dataset.go === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else showTab('chat'); });
   if (shopTab === 'streak') setTimeout(() => { const tr = d.querySelector('.bd-track'), now = d.querySelector('.tk-n.now'); if (tr && now) tr.scrollLeft += now.getBoundingClientRect().left + now.offsetWidth / 2 - (tr.getBoundingClientRect().left + tr.clientWidth / 2); }, 60);
 }
@@ -9734,7 +9747,7 @@ async function shopBuy(id, btn) {
 // אותה טבלה כמו בשרת (STREAK_SMALL ב-functions/index.js)
 const STREAK_SMALL = [['chat', 3], ['ocr', 1], ['fc', 1], ['sum', 1], ['pr', 1], ['kit', 1], ['wr', 2]];
 const STREAK_SMALL_TX = { chat: n => `+${n} הודעות לעוזר`, ocr: () => '+1 צילום לוח', fc: () => '+1 כרטיסיות שינון', sum: () => '+1 סיכום למבחן', pr: () => '+1 דף תרגול', kit: () => '+1 שאלון חזרה', wr: n => `+${n} כתיבה עם AI` };
-const STREAK_BIG = { 7: { k: 'gold', t: 'עיצוב זהב לאתר', d: 'נשאר לתמיד' }, 14: { k: 'flash', t: 'שבוע של צילום מדויק', d: 'עוד צילום לוח מדויק כל יום, 7 ימים' }, 30: { k: 'x2', t: 'יום של פי 2', d: 'פי 2 מכל ה-AI, כל היום' } };
+const STREAK_BIG = { 7: { k: 'lx', t: 'בונוס גדול של לומיקס', d: '+25 לומיקס לחנות' }, 14: { k: 'flash', t: 'שבוע של צילום מדויק', d: 'עוד צילום לוח מדויק כל יום, 7 ימים' }, 30: { k: 'x2', t: 'יום של פי 2', d: 'פי 2 מכל ה-AI, כל היום' } };
 const streakDayOf = n => ((n - 1) % 30) + 1;
 const streakSmallOf = d => STREAK_SMALL[(d - 1) % STREAK_SMALL.length];
 const streakPrize = d => STREAK_BIG[d] ? { big: true, ...STREAK_BIG[d] } : (([k, a]) => ({ big: false, t: STREAK_SMALL_TX[k](a), d: 'רק להיום' }))(streakSmallOf(d));
@@ -9766,6 +9779,7 @@ function streakPaint() {
   el.classList.remove('hidden');
 }
 if (location.hostname === 'localhost') window.__frTest = (list) => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; refList = list || []; showTab('fr'); renderFriends(); };   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__skinTest = id => skinTry(id);   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__whereTest = () => streakWhere();   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית

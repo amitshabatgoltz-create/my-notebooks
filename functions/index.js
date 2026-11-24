@@ -72,7 +72,7 @@ const SHOP = {
   ocr1: { p: 10, k: 'ocr', add: 1, max: 3 }, sum1: { p: 10, k: 'sum', add: 1, max: 2 }, chat5: { p: 6, k: 'chat', add: 5, max: 3 },
   fc1: { p: 8, k: 'fc', add: 1, max: 2 }, kit1: { p: 8, k: 'kit', add: 1, max: 2 }, pr1: { p: 8, k: 'pr', add: 1, max: 2 },
   shield: { p: 20, shield: true },
-  chalk: { p: 60, skin: true }, sunset: { p: 60, skin: true }, ocean: { p: 60, skin: true },
+  chalk: { p: 30, skin: true }, sunset: { p: 30, skin: true }, ocean: { p: 30, skin: true },
   // (24.11.2026) הפרסים של תוכנית החברים עברו לחנות – כל אחד יכול לקנות בגירים. מי שכבר קיבל אותם מחברים – שומר (באתר: legacyHas)
   spcolors: { p: 25, skin: true }, spbg: { p: 25, skin: true }, funfont: { p: 20, skin: true }, accent: { p: 30, skin: true }, frame: { p: 30, skin: true },
 };
@@ -439,7 +439,7 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
     else { if (n > 1) reset = n; n = 1; shield = 1; }
     if (n > 1 && n % 7 === 0) shield = 1;                       // כל 7 ימים ברצף – המגן חוזר
     const d = streakDayOf(n), out = { last: today, n, best: Math.max(s.best || 0, n), shield, gold: !!s.gold, flashUntil: s.flashUntil || 0, x2Day: s.x2Day || 0, bonusDay: today, bonus: null, big: '' };
-    if (d === 7) { out.gold = true; out.big = 'gold'; }
+    if (d === 7) { out.big = 'lx'; }   // (24.11.2026) עיצוב הזהב כבוי בינתיים – ביום 7 בונוס גדול של לומיקס (earnIn 'big' למטה)
     else if (d === 14) { out.flashUntil = today + 6; out.big = 'flash'; }
     else if (d === 30) { out.x2Day = today; out.big = 'x2'; }
     else { const [k, add] = streakSmall(d); out.bonus = { k, add }; }
