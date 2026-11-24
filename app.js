@@ -217,8 +217,8 @@ onAuthStateChanged(auth, user => {
     showUser(user);
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
-    setTimeout(welcomeMaybe, 1600);
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); refLoad().then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; DAILY.ocr = OCR_BASE; DAILY.chat = CHAT_BASE; DAILY.sum = SUM_BASE; DAILY.fc = FC_BASE; $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -9244,6 +9244,35 @@ const TOUR = [
   { sel: '[data-tab="tt"]', e: 'tt', t: 'מערכת שעות', x: 'מצלמים את המערכת מבית הספר, והיא נבנית לבד.' },
   { sel: '[data-tab="gr"]', e: 'grades', t: 'ציונים', x: 'מצלמים את הציונים ורואים ממוצע בכל מקצוע.' },
 ];
+/* ===== "כבר ראיתי" בחשבון: סיורים, הסברים בפעם הראשונה וסרטון החברים – לא מופיעים שוב במכשיר אחר ===== */
+// כל מקום באתר ששומר "ראיתי" ב-localStorage (intro:, tour:, refVid1:, invPop:, ttNudge:) נשמר גם ב-users/{uid}/meta/flags.seen,
+// ובכניסה מושכים משם לפני שמחליטים אם להראות סיור/סרטון
+const SEEN_RE = /^(intro:|tour:|refVid1:|invPop:|ttNudge:)/;
+const lsSet = Storage.prototype.setItem;
+let seenQ = {}, seenT = 0;
+const seenMine = k => { const m = k.match(/:([A-Za-z0-9]{20,})$/); return !m || (me && m[1] === me.uid); };   // מפתח של משתמש אחר באותו מכשיר – לא שלנו
+function seenFlush() {
+  clearTimeout(seenT);
+  seenT = setTimeout(() => { if (!me || !Object.keys(seenQ).length) return; const q = seenQ; seenQ = {};
+    setDoc(doc(db, 'users', me.uid, 'meta', 'flags'), { seen: q }, { merge: true }).catch(() => { Object.assign(seenQ, q); }); }, 800);
+}
+try {
+  Storage.prototype.setItem = function (k, v) {
+    lsSet.call(this, k, v);
+    try { if (this === window.localStorage && SEEN_RE.test(k) && me && seenMine(k)) { seenQ[k] = 1; seenFlush(); } } catch {}
+  };
+} catch {}
+async function seenPull() {
+  if (!me) return;
+  try {
+    const sn = await getDoc(doc(db, 'users', me.uid, 'meta', 'flags'));
+    const have = (sn.exists() && sn.data().seen) || {};
+    Object.keys(have).forEach(k => { try { if (SEEN_RE.test(k) && !localStorage.getItem(k)) lsSet.call(localStorage, k, '1'); } catch {} });
+    // מה שכבר ראו במכשיר הזה ועוד לא בחשבון – מעלים
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && SEEN_RE.test(k) && !have[k] && seenMine(k)) seenQ[k] = 1; }
+    seenFlush();
+  } catch {}
+}
 const tourSeen = () => { try { return localStorage.getItem('tour:app:' + (me && me.uid)) === '1'; } catch { return true; } };
 const tourDone = () => { try { localStorage.setItem('tour:app:' + (me && me.uid), '1'); } catch {} $('tourChip')?.remove(); };
 const visibleEl = sel => [...document.querySelectorAll(sel)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; });
