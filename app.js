@@ -6104,7 +6104,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
       const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
       $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
       (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
-      saveHw().then(k => toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)));
+      saveHw().then(k => { toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)); shareMoment(); });
     };
     const sep = document.createElement('button'); sep.className = 'btn ' + (mode === 'new' || (!n && !openId) ? 'btn-primary' : 'btn-ghost'); sep.textContent = mode === 'new' || (!n && !openId) ? 'יצירת המחברת' : 'כמחברת חדשה';
     sep.onclick = () => {
@@ -6119,7 +6119,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
         try {
           const ref = doc(nbCol()); const now = Date.now();
           await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color: COLORS[notebooks.length % COLORS.length], html: h, createdAt: now, updatedAt: now });
-          closeDialog(); const k = await saveHw(); toast('נוצרה מחברת חדשה ✓' + hwToast(k));
+          closeDialog(); const k = await saveHw(); toast('נוצרה מחברת חדשה ✓' + hwToast(k)); shareMoment();
           const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
         } catch { ok.disabled = false; toast('לא הצלחתי לשמור'); }
       };
@@ -9593,6 +9593,22 @@ async function isDealUser() {
   return INVITE_POP_HASH.includes([...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join(''));
 }
 const inviteLink = () => location.origin + location.pathname + '?r=' + me.uid;
+// רגע שמח: אחרי צילום לוח שהצליח – מציעים לשלוח את הקישור האישי לחבר. לכל היותר פעם ב-3 ימים, ולא למנהלים
+function shareMoment() {
+  if (!me || isAdmin()) return;
+  const k = 'shareMoment:' + me.uid; let last = 0; try { last = +localStorage.getItem(k) || 0; } catch {}
+  if (Date.now() - last < 3 * 864e5) return;
+  try { localStorage.setItem(k, String(Date.now())); } catch {}
+  setTimeout(() => {
+    track('share_moment', {});
+    toastAction('יצא טוב? שלחו לחבר שגם מעתיק מהלוח', 'לשלוח', async () => {
+      track('share_moment_yes', {}); track('invite_send', { from: 'moment' });
+      const text = 'תראו מה מצאתי: מצלמים את הלוח והוא מקליד את זה למחברת. בחינם, ומי שנרשם מהקישור שלי מקבל מתנה:', url = inviteLink();
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
+    }, 10000);
+  }, 3500);
+}
 // חברים שעשו עסקה עם בעל האתר: בכניסה (פעם ביום, עד שמגיעים ליעד) קופץ להם החלון עם הקישור האישי
 const INVITE_POP_HASH = ['aa9d96ac3cb8f360698244404309411b16cf62fadde1fadda77f0979944b9427'];   // SHA-256 של 'my-notebooks:' + האימייל באותיות קטנות
 async function invitePopMaybe() {
