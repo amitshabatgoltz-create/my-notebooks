@@ -77,7 +77,7 @@ const whenIdle = f => setTimeout(() => (window.requestIdleCallback || (g => g())
 if (firebaseConfig.measurementId) whenIdle(() => import('https://www.gstatic.com/firebasejs/13.1.0/firebase-analytics.js').then(async m => { anMod = m; if (await m.isSupported()) analytics = m.getAnalytics(fb); }).catch(() => {}));
 const track = (name, params) => { try { if (analytics && anMod) anMod.logEvent(analytics, name, params || {}); } catch {} try { window.posthog?.capture(name, params || {}); } catch {} };
 // PostHog: מזהים רק לפי מספר המשתמש (uid) – בלי שם ובלי אימייל. המנהלים (בעל האתר וההורים) לא נספרים
-const phUser = u => { try { const P = window.posthog; if (!P) return; if (u) P.identify(u.uid); else P.reset(); } catch {} };
+const phUser = u => { try { const P = window.posthog; if (!P) return; if (u) P.identify(u.uid); else if (P.get_property?.('$user_state') === 'identified') P.reset(); } catch {} }; // reset רק ביציאה מחשבון – לא בכל כניסה של אורח (זה פיצל כל ביקור לכמה ביקורים קצרים)
 // App Check: מוכיח ל-Firebase שהבקשות לבינה המלאכותית מגיעות מהאתר שלנו (נדרש לסיכום למבחן)
 // נטען רק כשצריך (מחובר / לוחץ להתחבר / מחברת משותפת), כדי שמי שרק מנסה את הדוגמה לא יוריד כמעט 1MB
 let appCheckOn = false, appCheckReady = Promise.resolve();
