@@ -6880,14 +6880,20 @@ function planDialog(e) {
     d.innerHTML = `<h3>תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
       <label class="fl">מאיזה מחברות לומדים?</label>
       <div class="plan-nbs">${all.length ? all.map(n => `<label class="plan-nb" style="--c:${n.color || '#5E5CE6'}"><input type="checkbox" value="${n.id}"${pre.has(n.id) ? ' checked' : ''}><span>${esc(n.title)}</span></label>`).join('') : '<p class="noev">אין מחברות עדיין.</p>'}</div>
-      ${isUnlimited() ? `<label class="fl">חומר מהמשוב</label><div class="plan-msh"><button type="button" class="btn btn-ghost plan-msh-go"><svg aria-hidden="true"><use href="#i-search"/></svg>לחפש במשוב הודעות ושיעורי בית</button><div class="plan-msh-list"></div></div>` : ''}
+      <label class="fl">חומר למבחן <span class="muted-s">(הודעה מהמורה, מהמשוב או מהקבוצה)</span></label>
+      <div class="plan-mat">
+        <textarea class="pm-txt" rows="3" dir="auto" placeholder="מדביקים כאן את ההודעה על המבחן – מה החומר, אילו פרקים..."></textarea>
+        <div class="pm-row"><button type="button" class="btn btn-ghost pm-img"><svg aria-hidden="true"><use href="#i-camera"/></svg>צילום של ההודעה</button><button type="button" class="btn btn-primary pm-go">לחלק לפי החומר</button></div>
+        <input type="file" class="pm-file" accept="image/*,application/pdf" hidden>
+        <p class="pm-st muted-s"></p><div class="plan-mat-list"></div>
+      </div>
       <label class="fl">התוכנית</label><div class="plan-list"></div>
       ${old.length ? `<p class="muted-s">יש כבר תוכנית ביומן למבחן הזה (${old.length} ימים). הוספה תחליף אותה.</p>` : ''}`;
     const cd = d.querySelector('.cd-live'); const tick = () => { if (!cd.isConnected) return clearInterval(iv); cd.textContent = countdownText(e); }; const iv = setInterval(tick, 30000); tick();
-    let plan = [], mshItems = [];
+    let plan = [], topics = Array.isArray(e.topics) ? e.topics.slice(0, 30) : [];
     const paint = () => {
       const chosen = all.filter(n => d.querySelector(`.plan-nb input[value="${n.id}"]`)?.checked);
-      const extra = mshItems.filter(x => d.querySelector(`.plan-msh-list input[value="${x.id}"]`)?.checked).map(x => ({ nb: 'משוב', label: x.t.slice(0, 50) }));
+      const extra = topics.filter((t, i) => d.querySelector(`.plan-mat-list input[value="${i}"]`)?.checked).map(t => ({ nb: 'חומר', label: t.slice(0, 60) }));
       plan = buildPlan(e, chosen, extra);
       const box = d.querySelector('.plan-list');
       box.innerHTML = plan.length ? plan.map(p => `<div class="plan-day"><span class="pd">${esc(dayLabel(p.date))}</span><span class="pt">${esc(p.task)}</span></div>`).join('') : '<p class="noev">המבחן כבר מחר או היום – אין ימים לחלק. בהצלחה!</p>';
@@ -6908,22 +6914,34 @@ function planDialog(e) {
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
     row.append(ok, no); d.appendChild(row);
     d.querySelector('.plan-nbs').addEventListener('change', paint);
-    // חומר מהמשוב: מחפשים לפי המקצוע של המבחן, ומה שמסמנים נכנס לתוכנית כמו פרק ממחברת
-    const mg = d.querySelector('.plan-msh-go');
-    if (mg) {
-      const ml = d.querySelector('.plan-msh-list');
-      ml.addEventListener('change', paint);
-      mg.onclick = async () => {
-        const subj = (e.title.replace(/^(מבחן|בוחן|בחינה|בגרות|עבודה)\s*(ב|על)?\s*/, '').split(/[–\-:,(]/)[0] || e.title).trim().slice(0, 40);
-        mg.disabled = true; const stop = ticking(mg, 'מחפש במשוב...');
-        try {
-          const r = await mshCall({ a: 'mat', q: subj }); stop(); mshItems = (r && r.items) || [];
-          mg.classList.add('hidden');
-          ml.innerHTML = mshItems.length ? mshItems.map(x => `<label class="plan-mi"><input type="checkbox" value="${esc(x.id)}"><span class="pm-k">${x.k === 'mail' ? 'הודעה' : 'שיעורי בית'}</span><span class="pm-t" dir="auto">${esc(x.t)}</span><small>${esc((x.d || '').split('-').reverse().join('.'))}${x.from ? ' · ' + esc(x.from) : ''}${x.files && x.files.length ? ` · ${x.files.length} קבצים` : ''}</small>${x.text ? `<details><summary>להציג</summary><div class="pm-text" dir="auto">${esc(x.text).replace(/\n/g, '<br>')}</div></details>` : ''}</label>`).join('')
-            : `<p class="muted-s">לא מצאתי במשוב הודעות או שיעורי בית של "${esc(subj)}".</p>`;
-        } catch (err) { stop(); mg.disabled = false; mg.innerHTML = '<svg aria-hidden="true"><use href="#i-search"/></svg>לחפש במשוב הודעות ושיעורי בית'; toast(mshErr(err)); }
-      };
-    }
+    // חומר למבחן: מדביקים הודעה או מעלים צילום שלה → ה-AI מוציא רשימת נושאים, וכל נושא הוא יום/חלק בתוכנית
+    const ml = d.querySelector('.plan-mat-list'), pst = d.querySelector('.pm-st'), ptx = d.querySelector('.pm-txt'), pfile = d.querySelector('.pm-file'), pimg = d.querySelector('.pm-img');
+    let matFile = null;
+    const paintTopics = () => {
+      ml.innerHTML = topics.map((t, i) => `<label class="plan-mi"><input type="checkbox" value="${i}" checked><span class="pm-t" dir="auto">${esc(t)}</span></label>`).join('');
+      paint();
+    };
+    ml.addEventListener('change', paint);
+    pimg.onclick = () => pfile.click();
+    pfile.onchange = () => { matFile = pfile.files[0] || null; pimg.lastChild.textContent = matFile ? 'צילום: ' + matFile.name.slice(0, 22) : 'צילום של ההודעה'; };
+    d.querySelector('.pm-go').onclick = async ev => {
+      const txt = ptx.value.trim(); if (!txt && !matFile) { toast('מדביקים את ההודעה או מעלים צילום שלה'); return; }
+      const go = ev.currentTarget; go.disabled = true; const stop = ticking(pst, 'קורא את החומר...');
+      try {
+        const prompt = `זו הודעה של מורה (או של הכיתה) על מבחן: ${e.title}. מצא בה את החומר למבחן ורשום אותו כרשימת נושאים, לפי הסדר.
+כל נושא קצר וברור (עד 10 מילים): פרק, נושא, עמודים, דף עבודה. אל תמציא נושאים שלא כתובים. אם כתוב טווח (פרקים 1-4) – כל פרק נושא נפרד.
+החזר JSON בלבד: {"topics":["..."]}` + (txt ? '\n\nההודעה:\n' + txt.slice(0, 6000) : '');
+        aiKindNow = 'imp';
+        const out = await aiExtract(prompt, matFile ? await fileToAiPart(matFile) : '(אין תמונה)'); stop();
+        const j = JSON.parse((out.match(/\{[\s\S]*\}/) || ['{}'])[0]);
+        topics = (Array.isArray(j.topics) ? j.topics : []).map(t => String(t).replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 30);
+        pst.textContent = topics.length ? `✓ מצאתי ${topics.length} נושאים. אפשר להוריד סימון ממה שלא צריך.` : 'לא מצאתי נושאים בהודעה. אפשר לנסות לכתוב אותם בעצמך, נושא בכל שורה.';
+        if (topics.length) updateDoc(evDoc(e.id), { topics }).catch(() => {});   // נשמר עם המבחן לפעם הבאה
+        paintTopics();
+      } catch (err) { console.error(err); stop(); pst.textContent = 'לא הצלחתי לקרוא את החומר. נסה שוב, או הדבק את הטקסט.'; }
+      go.disabled = false;
+    };
+    if (topics.length) { pst.textContent = 'החומר ששמרת בפעם הקודמת:'; paintTopics(); }
     paint();
   });
 }

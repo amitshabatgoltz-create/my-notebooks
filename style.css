@@ -3260,3 +3260,13 @@ body.editing-shared .nb-mem{display:none}
 .plan-mi details{grid-column:1/-1;font-size:13px}
 .plan-mi summary{cursor:pointer;color:var(--accent);font-size:12.5px}
 .plan-mi .pm-text{margin-top:6px;padding:8px 10px;background:color-mix(in srgb,var(--ink) 4%,transparent);border-radius:10px;max-height:200px;overflow:auto;line-height:1.55}
+
+/* תוכנית למידה – חומר למבחן */
+.plan-mat{margin:4px 0 12px;display:flex;flex-direction:column;gap:8px}
+.plan-mat .pm-txt{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);resize:vertical}
+.plan-mat .pm-row{display:flex;gap:8px;flex-wrap:wrap}
+.plan-mat .pm-row .btn{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.plan-mat .pm-img svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+.plan-mat .pm-st:empty{display:none}
+.plan-mat-list{display:flex;flex-direction:column;gap:6px;max-height:30vh;overflow:auto}
+.plan-mat-list .plan-mi{grid-template-columns:auto 1fr}
