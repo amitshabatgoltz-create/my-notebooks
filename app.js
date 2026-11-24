@@ -9602,20 +9602,40 @@ function walletWatch() {
 function walletPaint(prev) {
   const b = $('chalkBtn'); if (!b) return;
   if (!wallet) { b.classList.add('hidden'); return; }
-  b.classList.remove('hidden'); $('chalkN').textContent = (wallet.bal || 0).toLocaleString('he-IL');
-  const got = prev ? (wallet.bal || 0) - (prev.bal || 0) : 0;
+  b.classList.remove('hidden');
+  const now = wallet.bal || 0, was = prev ? prev.bal || 0 : now, got = now - was;
   if (got > 0) {
-    chalkFloat('+' + got);
-    const why = wallet.log && wallet.log[0] && EARN_TX[wallet.log[0].t];
-    if (why) setTimeout(() => toast(`קיבלת ${got} גירים · ${why}`), 600);
-    track('chalk_earn', { n: got, t: (wallet.log && wallet.log[0] && wallet.log[0].t) || '' });
-  }
+    const t = (wallet.log && wallet.log[0] && wallet.log[0].t) || '';
+    chalkBurst(got, EARN_TX[t] || '', t === 'quest' || t === 'big' || t === 'friend', was, now);
+    track('chalk_earn', { n: got, t });
+  } else $('chalkN').textContent = now.toLocaleString('he-IL');
 }
-function chalkFloat(txt) {
-  const b = $('chalkBtn'); if (!b || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const r = b.getBoundingClientRect(), f = document.createElement('span');
-  f.className = 'chalk-float'; f.textContent = txt; f.style.left = (r.left + r.width / 2) + 'px'; f.style.top = (r.bottom + 4) + 'px';
-  document.body.appendChild(f); b.classList.add('bump'); setTimeout(() => { f.remove(); b.classList.remove('bump'); }, 1400);
+// רגע של פרס: "+N" גדול באמצע המסך, גירים קטנים עפים אל המונה למעלה, והמספר עולה (עמית: ההודעה הקטנה הייתה מכוערת)
+function chalkBurst(got, why, big, from, to) {
+  const b = $('chalkBtn'), num = $('chalkN');
+  const count = () => { const t0 = performance.now(), dur = 600; const step = t => { const k = Math.min(1, (t - t0) / dur); num.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))).toLocaleString('he-IL'); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
+  document.querySelector('.cb-wrap')?.remove();
+  const w = document.createElement('div'); w.className = 'cb-wrap' + (big ? ' big' : ''); w.setAttribute('role', 'status');
+  w.innerHTML = `<div class="cb-card"><span class="cb-ic"><svg aria-hidden="true"><use href="#i-chalk"/></svg></span><b class="cb-n">+${got}</b><span class="cb-l">גירים</span>${why ? `<small class="cb-why">${esc(why)}</small>` : ''}</div>`;
+  document.body.appendChild(w);
+  const card = w.querySelector('.cb-card');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !b || !card.animate) { num.textContent = to.toLocaleString('he-IL'); setTimeout(() => w.remove(), 1600); return; }
+  if (big) setTimeout(() => window.Motion?.confetti(card), 150);
+  // הגירים עפים אל המונה
+  setTimeout(() => {
+    const c = card.getBoundingClientRect(), t = b.getBoundingClientRect(), cx = c.left + c.width / 2, cy = c.top + c.height / 2, tx = t.left + t.width / 2 - cx, ty = t.top + t.height / 2 - cy;
+    const n = Math.min(10, Math.max(5, got + 3));
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('span'); p.className = 'cb-p'; p.style.left = cx + 'px'; p.style.top = cy + 'px';
+      p.innerHTML = '<svg aria-hidden="true"><use href="#i-chalk"/></svg>'; w.appendChild(p);
+      const ang = Math.random() * Math.PI * 2, rad = 40 + Math.random() * 50, mx = Math.cos(ang) * rad, my = Math.sin(ang) * rad - 30;
+      p.animate([{ transform: 'translate(-50%,-50%) scale(.4) rotate(0deg)', opacity: 0 }, { transform: `translate(calc(-50% + ${mx}px),calc(-50% + ${my}px)) scale(1) rotate(${(Math.random() * 120 - 60) | 0}deg)`, opacity: 1, offset: .35 }, { transform: `translate(calc(-50% + ${tx}px),calc(-50% + ${ty}px)) scale(.5) rotate(200deg)`, opacity: .9 }],
+        { duration: 750 + i * 35, delay: i * 45, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' }).onfinish = () => p.remove();
+    }
+    setTimeout(() => { b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); count(); }, 700);
+  }, 380);
+  setTimeout(() => { card.classList.add('out'); }, big ? 1900 : 1500);
+  setTimeout(() => { w.remove(); b.classList.remove('bump'); }, big ? 2300 : 1900);
 }
 // עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בגירים. נבחר אחד בכל פעם
 function skinOwned(id) { return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
@@ -9729,6 +9749,7 @@ function streakPaint() {
     <span class="sk-dots" aria-hidden="true">${dots}</span>${dStreak.shield ? '<span class="sk-sh" title="מגן רצף: יום אחד שפספסת לא ישבור את הרצף"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>' : ''}`;
   el.classList.remove('hidden');
 }
+if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
 

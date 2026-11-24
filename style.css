@@ -3499,3 +3499,21 @@ body.editing-shared .nb-mem{display:none}
 .shop-dlg .tk-n.big b{font-weight:700}
 .shop-dlg .tk-here{position:absolute;top:-24px;font-style:normal;font-weight:800;font-size:12px;color:#F97316;white-space:nowrap}
 @media (max-width:700px){.dialog.shop-dlg{padding:18px 14px 14px}.shop-dlg .bd-tabs button{font-size:13px}.shop-dlg .bd-it{gap:10px;padding:10px}}
+/* רגע של פרס כשמרוויחים גירים */
+.cb-wrap{position:fixed;inset:0;z-index:95;pointer-events:none;display:grid;place-items:center}
+.cb-card{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:150px;padding:18px 26px 16px;border-radius:24px;background:var(--surface);color:var(--ink);box-shadow:0 24px 60px -20px rgba(20,20,60,.45),0 0 0 1px var(--line);animation:cbIn .45s cubic-bezier(.3,1.6,.5,1) both}
+.cb-card.out{animation:cbOut .35s ease forwards}
+.cb-ic{width:52px;height:52px;display:grid;place-items:center;border-radius:16px;background:var(--accent);margin-bottom:4px;box-shadow:0 10px 22px -10px var(--accent)}
+.cb-ic svg{width:28px;height:28px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cb-n{direction:ltr;unicode-bidi:isolate;font-size:40px;font-weight:800;line-height:1;color:var(--accent)}
+.cb-l{font-size:14px;font-weight:700;color:var(--ink)}
+.cb-why{font-size:12.5px;color:var(--muted);margin-top:2px}
+.cb-wrap.big .cb-card{background:linear-gradient(160deg,#FFF6D6,var(--surface) 70%);box-shadow:0 24px 60px -18px rgba(201,138,4,.5),0 0 0 2px #F5C542}
+.cb-wrap.big .cb-ic{background:linear-gradient(160deg,#F5C542,#E8A317);box-shadow:0 10px 22px -10px #E8A317}
+.cb-wrap.big .cb-n{color:#B7791F}
+html[data-theme="dark"] .cb-wrap.big .cb-card{background:linear-gradient(160deg,#3a2f0c,var(--surface) 70%)}
+.cb-p{position:fixed;z-index:1;width:22px;height:22px;display:grid;place-items:center;border-radius:7px;background:var(--accent);box-shadow:0 4px 10px -4px var(--accent)}
+.cb-p svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2}
+@keyframes cbIn{from{opacity:0;transform:scale(.6) translateY(16px)}}
+@keyframes cbOut{to{opacity:0;transform:scale(.85) translateY(-10px)}}
+@media (prefers-reduced-motion:reduce){.cb-card,.cb-card.out{animation:none}}
