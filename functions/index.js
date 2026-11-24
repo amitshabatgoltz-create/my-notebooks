@@ -24,7 +24,8 @@ const PER_MINUTE = 10;              // לכל משתמש, כל הסוגים יח
 const SITE_DAY_CAP = +process.env.AI_SITE_DAY_CAP || 500;
 const GLOBAL_PER_MIN = +process.env.AI_GLOBAL_PER_MIN || 14, QUEUE_WAIT_MS = +process.env.AI_QUEUE_WAIT_MS || 25000;
 const MODELS = ['gemini-3.5-flash-lite'];
-const ALT_LITE = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];   // גיבוי כשהמודל הרגיל עמוס (503) – שרת אחר אצל גוגל, מכסה נפרדת               // המודל של כולם (גם של בעל האתר)
+const ALT_LITE = ['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite'];   // (24.11.2026: gemini-flash-lite-latest מחזיר 404)
+const DOWN = { HIGH: 'MEDIUM', MEDIUM: 'LOW', LOW: 'LOW', MINIMAL: 'MINIMAL' };   // גיבוי כשהמודל הרגיל עמוס (503) – שרת אחר אצל גוגל, מכסה נפרדת               // המודל של כולם (גם של בעל האתר)
 // תמונה לטקסט (מצב "מדויק"): המודל החזק קורא כתב יד הרבה יותר טוב. ל-Flash יש מכסה קטנה (20 ביום לכל הפרויקט),
 // אז סופרים כאן, ואחרי OCR_FLASH_DAY ביום – או אם Gemini אומר שנגמר – עוברים לבד ל-Lite
 // Flash גם לשאלות קשות (עוזר, שאלונים, תרגול, סיכום) – כל עוד נשארה מכסה חינמית היום. משאירים ל-OCR לפחות 6 ביום
@@ -308,7 +309,8 @@ exports.ai = onCall({
     const no429 = new Set();   // מודלים שכבר אמרו "נגמרה המכסה" – לא מנסים אותם שוב בבקשה הזאת
     const tStart = Date.now();
     // עומס אצל גוגל הוא לכל מודל בנפרד: קודם קופצים מיד למודל קל אחר (בלי לחכות), ורק אחר כך מחכים ומנסים שוב (24.11.2026)
-    const plan = [[model, 0], [ALT_LITE[0], 0], [MODELS[0], 500], [ALT_LITE[1], 500], [ALT_LITE[0], 1500], [MODELS[0], 1500], [ALT_LITE[1], 2500], [MODELS[0], 3000], [ALT_LITE[0], 3000], [MODELS[0], 4000]];
+    // אחרי כל כישלון החשיבה יורדת רמה, אז קודם שוב אותו מודל מהיר (בחשיבה נמוכה יותר הוא כמעט תמיד עונה תוך שנייה), ורק אז הגיבוי
+    const plan = [[model, 0], [MODELS[0], 0], [MODELS[0], 800], [ALT_LITE[0], 800], [MODELS[0], 2000], [ALT_LITE[0], 2500], [MODELS[0], 3500], [MODELS[0], 5000]];
     let last;
     for (const [m, wait] of plan) {
       if (Date.now() - tStart > (heavy || deep ? 90000 : 60000)) break;   // תקרה לכל הניסיונות יחד
@@ -325,7 +327,10 @@ exports.ai = onCall({
         if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg) && !/prepayment|credits|billing/i.test(msg)) { no429.add(model); console.warn('quota, next model', model, msg.slice(0, 120)); continue; }
         // הגדרה שהמודל לא מקבל (400) – פעם אחת בלי רמת חשיבה ורזולוציה
         if (/INVALID_ARGUMENT|400/.test(msg) && (lim.thinkingConfig || lim.mediaResolution)) { console.warn('bad arg, retry plain', msg.slice(0, 160)); delete lim.thinkingConfig; delete lim.mediaResolution; continue; }
+        if (/404|NOT_FOUND/.test(msg)) { no429.add(model); continue; }   // מודל שכבר לא קיים – הבא בתור
         if (!transient(e)) throw e;
+        // נבדק 24.11.2026: בזמן עומס גוגל דוחים קודם בקשות עם חשיבה גבוהה (503), ובחשיבה נמוכה זה עובר מיד – אז מורידים רמה בכל ניסיון
+        if (lim.thinkingConfig && lim.thinkingConfig.thinkingLevel) lim.thinkingConfig = { thinkingLevel: DOWN[lim.thinkingConfig.thinkingLevel] || 'LOW' };
         console.warn('gemini busy, retry', model, msg.slice(0, 160));
       }
     }
