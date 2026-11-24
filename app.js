@@ -3102,7 +3102,7 @@ function homeFirstPaint() {
   el.classList.toggle('hidden', !show);
   if (show && !homeFirstSeen) { homeFirstSeen = true; track('first_nb_card', {}); }
 }
-$('homeFirstOcr').onclick = () => { track('first_nb_photo', {}); openId = null; ocrDialog(); };
+$('homeFirstOcr').onclick = () => { track('first_nb_photo', {}); openId = null; ocrDialog({ noIntro: true }); };
 $('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
 function renderHome() {
   renderStats(); homeAskChips();
@@ -5990,17 +5990,18 @@ function ocrStrongLeft() {
 function ocrStrongUse() {
   try { const k = 'ocrStrong:' + (me && me.uid), o = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ d: todayKey(), n: (o.d === todayKey() ? o.n || 0 : 0) + 1 })); } catch {}
 }
-async function ocrDialog() {
+async function ocrDialog(o = {}) {   // o.noIntro: מהכרטיס של המחברת הראשונה – בלי ההסבר בכמה שלבים, ישר לצילום
   let n = notebooks.find(x => x.id === openId) || null;
   if (openId && !n && !String(openId).startsWith('share:')) return;
   const left = await usageLeft('ocr'); if (left <= 0) { limitDialog('ocr'); return; }
   const fromHome = !openId;
-  if (!(await introOnce('ocr'))) return;
+  if (o.noIntro) { try { localStorage.setItem('intro:ocr', '1'); } catch {} }
+  else if (!(await introOnce('ocr'))) return;
   dialog(d => {
     d.classList.add('ocr-dlg');
     const recent = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     d.innerHTML = `<h3>תמונה לטקסט</h3><p class="muted-s">מצלמים לוח, דף ממחברת או דף מודפס, והאתר מקליד את זה בשבילך.${left === Infinity ? ' אם הלוח ארוך, אפשר לצלם אותו בכמה חלקים והם נקראים יחד.' : ` נשארו לך היום <b>${left === 1 ? 'תמונה אחת' : left + ' תמונות'}</b>.`}</p>
-      ${fromHome ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
+      ${fromHome && recent.length ? `<label class="oc-pick top"><span>1. לאיזו מחברת?</span><select id="ocTarget">${recent.map(x => `<option value="${x.id}">${(x.title || 'מחברת').replace(/</g, '&lt;')}</option>`).join('')}<option value="__new">מחברת חדשה</option></select></label><p class="oc-step">2. בוחרים תמונות</p>` : ''}
       <div class="oc-modes" role="radiogroup" aria-label="מהירות או דיוק">
         <button type="button" class="oc-mode" data-m="fast" role="radio"><b>מהיר</b><span>בערך 5 שניות</span><small>יכולות להיות כמה טעויות</small></button>
         <button type="button" class="oc-mode" data-m="exact" role="radio"><em class="rec">מומלץ</em><b>מדויק</b><span>בערך 25 שניות</span><small>${(() => { const sl = ocrStrongLeft(); return sl === Infinity ? 'קורא לאט ובודק את עצמו' : sl > 0 ? `עם הקריאה החזקה: נשארו ${sl === 1 ? 'אחת' : sl} היום` : 'קורא לאט ובודק את עצמו (הקריאה החזקה נגמרה להיום)'; })()}</small></button>
@@ -6029,7 +6030,7 @@ async function ocrDialog() {
     go.onclick = async () => {
       if (!files.length) return;
       let mode = '';
-      if (fromHome) { const v = d.querySelector('#ocTarget').value; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
+      if (fromHome) { const v = d.querySelector('#ocTarget') ? d.querySelector('#ocTarget').value : '__new'; if (v === '__new') { n = null; mode = 'new'; } else n = notebooks.find(x => x.id === v) || null; }
       go.disabled = true; d.querySelector('#ocUp').disabled = true; if (d.querySelector('#ocTarget')) d.querySelector('#ocTarget').disabled = true;
       const exact = ocMode === 'exact';
       const st = d.querySelector('#ocStatus'); const stop = ticking(st, exact ? 'קורא בעיון ובודק את עצמו... (עד חצי דקה)' : 'מקליד מהר... (בערך 5 שניות)');
