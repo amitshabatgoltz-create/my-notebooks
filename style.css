@@ -3287,3 +3287,24 @@ body.editing-shared .nb-mem{display:none}
 .rv-wrap .rv-now{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 20px;font-weight:800;background:linear-gradient(135deg,#FF9F43,#E0488F)!important;color:#fff!important;border:0}
 .rv-wrap .dv-skip{background:transparent!important;color:#fff!important;border:1.5px solid rgba(255,255,255,.55)}
 @media (max-width:700px){.rv-wrap .rv-now{flex:1.4}.rv-wrap .dv-skip{flex:1}}
+
+/* באטל פאס – כרטיסים מסודרים (24.11.2026): התגית בתוך הזרימה (לא על האייקון), טקסט שלא יוצא מהמלבן */
+.bp-scroll{padding-top:24px!important}
+.bp-track{grid-template-columns:repeat(var(--cols),138px)!important;gap:12px!important}
+.bp-card,.bp-card.sm,.bp-card.big{height:auto!important;min-height:0;justify-content:flex-start!important;gap:6px!important;padding:12px 10px 14px!important;overflow:hidden}
+.bp-card.big{overflow:visible}
+.bp-col{justify-content:flex-start}
+.bp-card .bp-ribbon,.bp-card.big .bp-ribbon{position:static!important;transform:none!important;align-self:center;margin:0 0 2px}
+.bp-card.big .bp-ribbon{margin-top:6px}
+.bp-card .bp-ic{margin:0!important;flex:none}
+.bp-card b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px!important;line-height:1.3;max-width:100%;overflow-wrap:anywhere}
+.bp-card small{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:11px!important;line-height:1.35;max-width:100%}
+.bp-card.sm{margin-top:34px!important}
+.bp-card.sm small{-webkit-line-clamp:2}
+.bp-lock{top:8px!important;inset-inline-end:8px!important}
+.bp-card.big .bp-lock{top:10px!important}
+/* כל הכרטיסים באותו טור באותו גובה כדי שהפס והעיגולים יהיו בקו אחד */
+.bp-card.big{height:200px!important}
+.bp-card.sm{height:166px!important}
+.bp-gap{height:200px!important}
+@media (max-width:760px){.bp-track{grid-template-columns:repeat(var(--cols),124px)!important}}

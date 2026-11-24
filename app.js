@@ -9520,7 +9520,7 @@ const REF_TIERS = [
   { n: REF_GOAL, big: true, ic: 'camera', t: `${REF_OCR} תמונות לטקסט ביום`, d: `במקום ${OCR_BASE}` },
   { n: 8, ic: 'target', t: 'מסגרת לעיגול הפרופיל', d: 'צבעונית, רואים אותה תמיד' },
   { n: 9, ic: 'cards', t: '+1 כרטיסיות שינון ביום', d: 'עוד סט כרטיסיות כל יום' },
-  { n: 10, big: true, ic: 'crown', t: 'שגריר: כל ה-AI פי 2', d: 'כל יום: פי 2 תמונות לטקסט, סיכומים, הודעות לעוזר, כרטיסיות ועוד. ותג שגריר ליד השם' },
+  { n: 10, big: true, ic: 'crown', t: 'שגריר: כל ה-AI פי 2', d: 'פי 2 מכל ה-AI כל יום, ותג שגריר ליד השם' },
 ];
 const REF_BIG = REF_TIERS.filter(t => t.big);
 // אפשרויות במחברת שנפתחות בשלב מסוים
@@ -9744,7 +9744,7 @@ function renderFriends() {
       <div class="bp-scroll" id="bpScroll"><div class="bp-track" style="--cols:${REF_MAX};--fill:${n <= 0 ? 0 : Math.min(1, (Math.min(n, REF_MAX) - .5) / REF_MAX)}">
         ${Array.from({ length: REF_MAX }, (_, k) => { const lv = k + 1, t = REF_TIERS.find(x => x.n === lv), st = n >= lv ? 'got' : lv === n + 1 ? 'next' : 'lock';
           return `<div class="bp-col ${st}${lv === n ? ' me' : ''}" data-lv="${lv}">
-            ${t ? `<div class="bp-card${t.big ? ' big' : ' sm'}">${t.big ? '<span class="bp-bigtag">פרס גדול</span>' : ''}<span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b>${esc(t.t)}</b><small>${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
+            ${t ? `<div class="bp-card${t.big ? ' big' : ' sm'}">${t.big ? '<span class="bp-bigtag">פרס גדול</span>' : ''}<span class="bp-ribbon">${st === 'got' ? 'נפתח ✓' : `עוד ${lv - n}`}</span><span class="bp-ic"><svg aria-hidden="true"><use href="#i-${t.ic}"/></svg></span><b title="${esc(t.t)}">${esc(t.t)}</b><small title="${esc(t.d)}">${esc(t.d)}</small>${st === 'got' ? '' : '<span class="bp-lock"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>'}</div>` : `<div class="bp-gap"><i></i>${st === 'got' ? '' : `<small>עוד ${lv - n}</small>`}</div>`}
             <div class="bp-node"><span>${lv}</span>${lv === n ? '<em>אתה</em>' : ''}</div>
           </div>`; }).join('')}
         <div class="bp-bar"><i></i></div>
