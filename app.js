@@ -2487,8 +2487,18 @@ function subscribeEvents() {
     if (!$('home').classList.contains('hidden')) renderHome();
     if (!$('hwView').classList.contains('hidden')) renderHW();
     remind();
-  }, err => console.error(err));
+  }, err => {   // הקשבה שנפלה לא חוזרת לבד – אז היומן במחשב "נתקע" (מבחנים מהטלפון לא הופיעו). מתחברים מחדש
+    console.error(err); unsubEv = null;
+    setTimeout(() => { if (me && !unsubEv) subscribeEvents(); }, 5000);
+  });
 }
+// חוזרים ללשונית אחרי זמן (מחשב שנרדם): מתחברים מחדש ליומן כדי לקבל מה שנוסף ממכשיר אחר
+let evHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { evHiddenAt = Date.now(); return; }
+  if (me && evHiddenAt && Date.now() - evHiddenAt > 120000) { if (unsubEv) { unsubEv(); unsubEv = null; } subscribeEvents(); }
+  evHiddenAt = 0;
+});
 
 let hiddenTypes = new Set(); try { hiddenTypes = new Set(JSON.parse(localStorage.getItem('hiddenTypes') || '[]')); } catch {}
 const shown = e => !hiddenTypes.has(e.type || 'other');
