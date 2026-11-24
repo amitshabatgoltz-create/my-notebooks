@@ -60,8 +60,9 @@ function cleanConfig(c) {
   // אם האתר שלח רמה – משתמשים בה (אסור לשלוח את שניהם יחד), ואם לא – בתקציב הישן
   const tl = c && c.thinkingConfig && c.thinkingConfig.thinkingLevel;
   const tb = c && c.thinkingConfig && c.thinkingConfig.thinkingBudget;
-  if (['minimal', 'low', 'medium', 'high'].includes(tl)) out.thinkingConfig = { thinkingLevel: tl.toUpperCase() };
-  else if (Number.isInteger(tb)) out.thinkingConfig = { thinkingBudget: Math.min(8192, Math.max(0, tb)) };
+  // (נבדק 24.11.2026: thinkingBudget מחזיר 400 ב-gemini-3.5 – אז תמיד רמה)
+  const lv = ['minimal', 'low', 'medium', 'high'].includes(tl) ? tl : Number.isInteger(tb) ? (tb <= 0 ? 'minimal' : tb <= 512 ? 'low' : tb <= 1024 ? 'medium' : 'high') : '';
+  if (lv) out.thinkingConfig = { thinkingLevel: lv.toUpperCase() };
   // רזולוציה של תמונות (לקריאת כתב יד ולוח – HIGH)
   if (c && ['MEDIA_RESOLUTION_LOW', 'MEDIA_RESOLUTION_MEDIUM', 'MEDIA_RESOLUTION_HIGH'].includes(c.mediaResolution)) out.mediaResolution = c.mediaResolution;
   return out;
@@ -200,20 +201,28 @@ exports.ai = onCall({
     // קישורים בהודעה (urls): Gemini נכנס לדפים וקורא אותם. אפשר יחד עם חיפוש ב-Google
     const tools = [...(urls === true ? [{ urlContext: {} }] : []), ...(search === true ? [{ googleSearch: {} }] : [])];
     if (tools.length) { try { return await run({ ...config, tools }); } catch (e) { if (sent) throw e; console.warn('tools failed, trying without', String(e && e.message).slice(0, 200)); } }
-    try { return await run(config); }
-    catch (e) {
-      // Flash עמוס / נגמרה לו המכסה / לא קיים – קוראים עם Lite
-      if (!sent && model === OCR_MODEL && /429|RESOURCE_EXHAUSTED|quota|404|NOT_FOUND|not found|unavailable|503|overloaded/i.test(String(e && e.message))) {
-        console.warn('ocr flash failed, using lite', String(e && e.message).slice(0, 200)); model = MODELS[0];
-        return await run(config);
+    // גוגל לפעמים עמוסים (503) או שהקריאה נתקעת: מנסים שוב אחרי הפסקה קצרה, ואז עם המודל השני.
+    // כל ניסיון מוגבל בזמן, כדי שלא יחכה דקות. ברגע שהתחיל טקסט לזרום לאתר – לא מנסים שוב.
+    const transient = e => /503|500|UNAVAILABLE|overloaded|high demand|INTERNAL|DEADLINE|timed? ?out|aborted|fetch failed|ECONNRESET|socket/i.test(String(e && e.message));
+    const lim = { ...config, httpOptions: { timeout: 100000 } };
+    const plan = [[model, 0], [model, 2000], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 3000], [MODELS[0], 6000]];
+    let last;
+    for (const [m, wait] of plan) {
+      if (wait) await new Promise(ok => setTimeout(ok, wait));
+      model = m;
+      try { return await run(lim); }
+      catch (e) {
+        last = e; if (sent) throw e;
+        const msg = String(e && e.message);
+        // Flash: נגמרה המכסה / לא קיים – ישר ל-Lite
+        if (model === OCR_MODEL && /429|RESOURCE_EXHAUSTED|quota|404|NOT_FOUND|not found/i.test(msg)) { console.warn('flash off, using lite', msg.slice(0, 160)); continue; }
+        // הגדרה שהמודל לא מקבל (400) – פעם אחת בלי רמת חשיבה ורזולוציה
+        if (/INVALID_ARGUMENT|400/.test(msg) && (lim.thinkingConfig || lim.mediaResolution)) { console.warn('bad arg, retry plain', msg.slice(0, 160)); delete lim.thinkingConfig; delete lim.mediaResolution; continue; }
+        if (!transient(e)) throw e;
+        console.warn('gemini busy, retry', model, msg.slice(0, 160));
       }
-      // המודל לא קיבל thinkingLevel / mediaResolution – מנסים שוב בדרך הישנה
-      if (sent || !(config.thinkingConfig?.thinkingLevel || config.mediaResolution)) throw e;
-      console.warn('level failed, trying budget', String(e && e.message).slice(0, 200));
-      const { mediaResolution, thinkingConfig, ...rest } = config;
-      const tb = cfg && cfg.thinkingConfig && cfg.thinkingConfig.thinkingBudget;
-      return await run(Number.isInteger(tb) ? { ...rest, thinkingConfig: { thinkingBudget: Math.min(8192, Math.max(0, tb)) } } : rest);
     }
+    throw last;
   } catch (e) {
     if (!sent) await failed();
     if (e instanceof HttpsError) throw e;
