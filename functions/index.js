@@ -278,15 +278,16 @@ exports.ai = onCall({
     const transient = e => /503|500|UNAVAILABLE|overloaded|high demand|INTERNAL|DEADLINE|timed? ?out|aborted|fetch failed|ECONNRESET|socket/i.test(String(e && e.message));
     // כל ניסיון: עד 30 שנ' (תמונות ומסמכים – 60), כדי שבזמן עומס אצל גוגל לא נחכה דקות ארוכות
     const heavy = contents[0].parts.some(p => p.inlineData) || kind === 'ocr';
-    const lim = { ...config, httpOptions: { timeout: heavy ? 60000 : 30000 } };
+    // (24.11.2026, נמדד: תמונה שעוברת חוזרת תוך 1–3 שנ'; כשגוגל עמוסים בקשה יכולה להיתקע דקה-שתיים ואז 503) – אז ניסיונות קצרים ורבים
+    const lim = { ...config, httpOptions: { timeout: model === OCR_MODEL ? 45000 : heavy ? 25000 : 30000 } };
     const tStart = Date.now();
     // עומס אצל גוגל הוא לכל מודל בנפרד: קודם קופצים מיד למודל קל אחר (בלי לחכות), ורק אחר כך מחכים ומנסים שוב (24.11.2026)
-    const plan = [[model, 0], [ALT_LITE[0], 0], [ALT_LITE[1], 800], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 0], [MODELS[0], 2500], [ALT_LITE[0], 3000], [MODELS[0], 6000]];
+    const plan = [[model, 0], [ALT_LITE[0], 0], [MODELS[0], 500], [ALT_LITE[1], 500], [ALT_LITE[0], 1500], [MODELS[0], 1500], [ALT_LITE[1], 2500], [MODELS[0], 3000], [ALT_LITE[0], 3000], [MODELS[0], 4000]];
     let last;
     for (const [m, wait] of plan) {
-      if (Date.now() - tStart > (heavy ? 150000 : 75000)) break;   // תקרה לכל הניסיונות יחד
+      if (Date.now() - tStart > (heavy ? 80000 : 60000)) break;   // תקרה לכל הניסיונות יחד
       if (wait) await new Promise(ok => setTimeout(ok, wait));
-      model = m;
+      model = m; lim.httpOptions = { timeout: m === OCR_MODEL ? 45000 : heavy ? 25000 : 30000 };
       try { return await run(lim); }
       catch (e) {
         last = e; if (sent) throw e;
