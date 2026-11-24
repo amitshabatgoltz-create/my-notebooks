@@ -4,3 +4,4 @@ functions/node_modules/
 *.log
 CLAUDE.md
 functions/.env
+.claude/
