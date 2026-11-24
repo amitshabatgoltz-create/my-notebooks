@@ -64,9 +64,11 @@ async function streakBoost(uid) {
 }
 // ===== גירים (24.11.2026): מטבע שמרוויחים באתר וקונים בו שימושים ב-AI ועיצובים. רק השרת כותב ל-wallet/{uid} =====
 // מרוויחים: כניסה יומית (ברצף), צילום לוח, מחברת חדשה, חבר שהצטרף. לכל סוג יש תקרה יומית כדי שאי אפשר "לחרוש"
-const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 20, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 } };
+const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 20, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 }, fc: { a: 2, cap: 1 }, sum: { a: 2, cap: 1 }, pr: { a: 2, cap: 1 } };
 // משימות היום (24.11.2026): נכנסים (day) + מצלמים לוח (ocr) + שואלים את העוזר (ask) → בונוס quest. אותה רשימה באתר (QUESTS)
-const QUEST_KINDS = ['day', 'ocr', 'ask'];
+// (24.11.2026) המשימות מתחלפות כל יום: 'day' קבוע + זוג מהטבלה לפי היום (אותה טבלה באתר – QUEST_PAIRS)
+const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask'], ['sum', 'pr'], ['ocr', 'ask'], ['nb', 'fc'], ['pr', 'ask']];
+const questKinds = day => ['day', ...QUEST_PAIRS[((day % QUEST_PAIRS.length) + QUEST_PAIRS.length) % QUEST_PAIRS.length]];
 // החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
 const SHOP = {
   ocr1: { p: 10, k: 'ocr', add: 1, max: 3 }, sum1: { p: 10, k: 'sum', add: 1, max: 2 }, chat5: { p: 6, k: 'chat', add: 5, max: 3 },
@@ -85,7 +87,7 @@ function earnIn(tx, w, kind, n = 1) {
   de[kind] = (de[kind] || 0) + times;
   let got = e.a * times, log = [{ t: kind, a: got, at: Date.now() }, ...(w.log || [])];
   let qd = w.qd || [];
-  if (kind !== 'quest' && !de.quest && QUEST_KINDS.every(k => de[k])) { de.quest = 1; got += EARN.quest.a; log = [{ t: 'quest', a: EARN.quest.a, at: Date.now() + 1 }, ...log]; qd = [...qd.filter(x => x !== day), day].slice(-40); }   // qd = ימים שהושלמו (כוכב במסלול)   // כל משימות היום – בונוס
+  if (kind !== 'quest' && !de.quest && questKinds(day).every(k => de[k])) { de.quest = 1; got += EARN.quest.a; log = [{ t: 'quest', a: EARN.quest.a, at: Date.now() + 1 }, ...log]; qd = [...qd.filter(x => x !== day), day].slice(-40); }   // qd = ימים שהושלמו (כוכב במסלול)   // כל משימות היום – בונוס
   log = log.slice(0, 20);
   return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log, qd }, got };
 }
@@ -224,7 +226,8 @@ exports.ai = onCall({
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
   if (kind === 'ocr') await earn(req.auth.uid, 'ocr');   // גם בעל האתר מרוויח גירים (לא משפיע על המכסה)
-  if (kind === 'chat' && !image) await earn(req.auth.uid, 'ask');   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
+  if (kind === 'chat' && !image) await earn(req.auth.uid, 'ask');
+  if (kind === 'fc' || kind === 'sum' || kind === 'pr') await earn(req.auth.uid, kind);   // משימות מתחלפות: כרטיסיות, סיכום, דף תרגול   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashSmart) {

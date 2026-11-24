@@ -9591,10 +9591,14 @@ const SHOP = [
   { id: 'frame', g: 'perk', n: 8, p: 30, t: 'מסגרת צבעונית לעיגול', s: 'ליד השם שלך, תמיד', ic: 'target' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
-const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!' };
+const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
-const QUESTS = [{ k: 'day', t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, { k: 'ocr', t: 'לצלם לוח אחד', done: 'צילמת לוח', go: 'לצלם' }, { k: 'ask', t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }], QUEST_BONUS = 10;
-const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3'], ['friend', 20, 0, 'כל חבר שמצטרף מהקישור שלך (עד 10 בחודש)']];
+// (24.11.2026) המשימות מתחלפות כל יום – אותה טבלה בשרת (QUEST_PAIRS). 'day' תמיד ראשון
+const QUEST_DEF = { day: { t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, ocr: { t: 'לצלם לוח', done: 'צילמת לוח', go: 'לצלם' }, ask: { t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }, fc: { t: 'להכין כרטיסיות שינון', done: 'הכנת כרטיסיות', go: 'למחברות' }, sum: { t: 'לעשות סיכום למבחן', done: 'עשית סיכום', go: 'למחברות' }, nb: { t: 'לפתוח מחברת חדשה', done: 'פתחת מחברת', go: 'לפתוח' }, pr: { t: 'לעשות דף תרגול דומה', done: 'עשית דף תרגול', go: 'לתרגל' } };
+const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask'], ['sum', 'pr'], ['ocr', 'ask'], ['nb', 'fc'], ['pr', 'ask']];
+const questsToday = () => { const d = usageDay(), n = QUEST_PAIRS.length; return ['day', ...QUEST_PAIRS[((d % n) + n) % n]].map(k => ({ k, ...QUEST_DEF[k] })); };
+const QUEST_BONUS = 10;
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['fc', 2, 1, 'כרטיסיות שינון'], ['sum', 2, 1, 'סיכום למבחן'], ['pr', 2, 1, 'דף תרגול דומה'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3 (המשימות מתחלפות כל יום)'], ['friend', 20, 0, 'כל חבר שמצטרף מהקישור שלך (עד 10 בחודש)']];
 let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
 const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
 function walletWatch() {
@@ -9688,7 +9692,7 @@ function shopPaint(d) {
   if (shopTab === 'streak' && !dStreak) shopTab = 'ai';
   const sN = dStreak ? dStreak.n || 0 : 0, sD = sN ? streakDayOf(sN) : 1, sCyc = sN ? Math.floor((sN - 1) / 30) : 0;
   const streakHtml = () => {
-    const td = usageDay(), today = wallet && wallet.day === td ? (wallet.dayEarn || {}) : {}, qDone = QUESTS.filter(q => today[q.k]).length, qd = (wallet && wallet.qd) || [];
+    const td = usageDay(), today = wallet && wallet.day === td ? (wallet.dayEarn || {}) : {}, QUESTS = questsToday(), qDone = QUESTS.filter(q => today[q.k]).length, qd = (wallet && wallet.qd) || [];
     const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next', star = stt !== 'next' && qd.includes(td - (sD - dd));
       return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'lx' ? 'lumix' : p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
     return `<div class="bd-day-card">
@@ -9696,7 +9700,7 @@ function shopPaint(d) {
       <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} לומיקס`}</span></div>
       <div class="bq-bar"><i style="width:${Math.round(qDone / 3 * 100)}%"></i></div>
       ${QUESTS.map(q => `<div class="bq${today[q.k] ? ' ok' : ''}"><i>${today[q.k] ? '✓' : ''}</i><span>${today[q.k] ? q.done : q.t}</span>${!today[q.k] && q.go ? `<button type="button" class="bq-go" data-go="${q.k}">${q.go}</button>` : ''}</div>`).join('')}
-      <p class="bq-note">נספר מכל מקום באתר. הכניסה שומרת על הרצף, ו-2 הצעדים האחרים הם בונוס של היום.</p></div>
+      <p class="bq-note">נספר מכל מקום באתר. הכניסה שומרת על הרצף, ו-2 הצעדים האחרים מתחלפים כל יום.</p></div>
     <div class="bd-track" tabindex="0" aria-label="מסלול 30 הימים"><div class="tk-bar"><i style="--p:${Math.round((sD - 1) / 29 * 100)}%"></i></div><ol class="tk-row">${nodes}</ol></div>
     <p class="bq-note">★ = יום שהשלמת את כל 3 הצעדים</p>`;
   };
@@ -9721,7 +9725,7 @@ function shopPaint(d) {
   d.querySelectorAll('.bd-accs [data-acc]').forEach(b => b.onclick = () => { try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); localStorage.setItem('skinSel:' + me.uid, ''); } catch {} siteAccentApply(); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
   d.querySelectorAll('[data-try]').forEach(b => b.onclick = () => skinTry(b.dataset.try));
-  d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); if (b.dataset.go === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else showTab('chat'); });
+  d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); const g = b.dataset.go; if (g === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else if (g === 'ask') showTab('chat'); else if (g === 'nb') newNotebook(); else if (g === 'pr') $('homePr')?.click(); else { showTab('notes'); toast(g === 'fc' ? 'פותחים מחברת ולוחצים "כרטיסיות"' : 'פותחים מחברת ולוחצים "סיכום"'); } });
   if (shopTab === 'streak') setTimeout(() => { const tr = d.querySelector('.bd-track'), now = d.querySelector('.tk-n.now'); if (tr && now) tr.scrollLeft += now.getBoundingClientRect().left + now.offsetWidth / 2 - (tr.getBoundingClientRect().left + tr.clientWidth / 2); }, 60);
 }
 async function shopBuy(id, btn) {
