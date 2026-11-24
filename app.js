@@ -9570,7 +9570,7 @@ function siteAccentApply() {
   st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`;
 }
 let refList = [], refLoaded = false;
-/* ===== גירים: מטבע שמרוויחים באתר (כניסה יומית, צילום לוח, מחברת חדשה, חבר) וקונים בו שימושים ועיצובים. השרת סופר ומוכר (exports.shop), האתר רק מציג ===== */
+/* ===== לומיקס: מטבע שמרוויחים באתר (כניסה יומית, צילום לוח, מחברת חדשה, חבר) וקונים בו שימושים ועיצובים. השרת סופר ומוכר (exports.shop), האתר רק מציג ===== */
 // אותה רשימה כמו SHOP ב-functions/index.js
 const SHOP = [
   { id: 'ocr1', g: 'ai', p: 10, t: 'עוד צילום לוח', s: 'רק להיום · עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
@@ -9616,24 +9616,24 @@ function walletPaint(prev) {
     track('chalk_earn', { n: got, t });
   } else $('chalkN').textContent = now.toLocaleString('he-IL');
 }
-// רגע של פרס: "+N" גדול באמצע המסך, גירים קטנים עפים אל המונה למעלה, והמספר עולה (עמית: ההודעה הקטנה הייתה מכוערת)
+// רגע של פרס: "+N" גדול באמצע המסך, לומיקס קטנים עפים אל המונה למעלה, והמספר עולה (עמית: ההודעה הקטנה הייתה מכוערת)
 function chalkBurst(got, why, big, from, to) {
   const b = $('chalkBtn'), num = $('chalkN');
   const count = () => { const t0 = performance.now(), dur = 600; const step = t => { const k = Math.min(1, (t - t0) / dur); num.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))).toLocaleString('he-IL'); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
   document.querySelector('.cb-wrap')?.remove();
   const w = document.createElement('div'); w.className = 'cb-wrap' + (big ? ' big' : ''); w.setAttribute('role', 'status');
-  w.innerHTML = `<div class="cb-card"><span class="cb-ic"><svg aria-hidden="true"><use href="#i-chalk"/></svg></span><b class="cb-n">+${got}</b><span class="cb-l">גירים</span>${why ? `<small class="cb-why">${esc(why)}</small>` : ''}</div>`;
+  w.innerHTML = `<div class="cb-card"><span class="cb-ic"><svg aria-hidden="true"><use href="#i-lumix"/></svg></span><b class="cb-n">+${got}</b><span class="cb-l">לומיקס</span>${why ? `<small class="cb-why">${esc(why)}</small>` : ''}</div>`;
   document.body.appendChild(w);
   const card = w.querySelector('.cb-card');
   if (matchMedia('(prefers-reduced-motion: reduce)').matches || !b || !card.animate) { num.textContent = to.toLocaleString('he-IL'); setTimeout(() => w.remove(), 1600); return; }
   if (big) setTimeout(() => window.Motion?.confetti(card), 150);
-  // הגירים עפים אל המונה
+  // הלומיקס עפים אל המונה
   setTimeout(() => {
     const c = card.getBoundingClientRect(), t = b.getBoundingClientRect(), cx = c.left + c.width / 2, cy = c.top + c.height / 2, tx = t.left + t.width / 2 - cx, ty = t.top + t.height / 2 - cy;
     const n = Math.min(10, Math.max(5, got + 3));
     for (let i = 0; i < n; i++) {
       const p = document.createElement('span'); p.className = 'cb-p'; p.style.left = cx + 'px'; p.style.top = cy + 'px';
-      p.innerHTML = '<svg aria-hidden="true"><use href="#i-chalk"/></svg>'; w.appendChild(p);
+      p.innerHTML = '<svg aria-hidden="true"><use href="#i-lumix"/></svg>'; w.appendChild(p);
       const ang = Math.random() * Math.PI * 2, rad = 40 + Math.random() * 50, mx = Math.cos(ang) * rad, my = Math.sin(ang) * rad - 30;
       p.animate([{ transform: 'translate(-50%,-50%) scale(.4) rotate(0deg)', opacity: 0 }, { transform: `translate(calc(-50% + ${mx}px),calc(-50% + ${my}px)) scale(1) rotate(${(Math.random() * 120 - 60) | 0}deg)`, opacity: 1, offset: .35 }, { transform: `translate(calc(-50% + ${tx}px),calc(-50% + ${ty}px)) scale(.5) rotate(200deg)`, opacity: .9 }],
         { duration: 750 + i * 35, delay: i * 45, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' }).onfinish = () => p.remove();
@@ -9643,7 +9643,7 @@ function chalkBurst(got, why, big, from, to) {
   setTimeout(() => { card.classList.add('out'); }, big ? 1900 : 1500);
   setTimeout(() => { w.remove(); b.classList.remove('bump'); }, big ? 2300 : 1900);
 }
-// עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בגירים. נבחר אחד בכל פעם
+// עיצוב לאתר: זהב (מהרצף) או עיצוב שקנו בלומיקס. נבחר אחד בכל פעם
 function skinOwned(id) { if (typeof isUnlimited === 'function' && isUnlimited()) return true;   // בעל האתר – כל העיצובים (עמית ביקש לראות)
   return id === 'gold' ? !!(dStreak && dStreak.gold) : !!(wallet && (wallet.owned || []).includes(id)); }
 function skinNow() {
@@ -9662,15 +9662,15 @@ function shopPaint(d) {
   d = d || $('dialogRoot').querySelector('.shop-dlg'); if (!d) return;
   const bal = (wallet && wallet.bal) || 0, ex = walletToday();
   const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {};
-  const perkItem = it => { const own = perkHas(it.n); return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך ✓ · ' : ''}${esc(it.s)}</small></span>${own ? '<button class="bd-buy on" disabled>שלך ✓</button>' : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg></button>`}</div>`; };
+  const perkItem = it => { const own = perkHas(it.n); return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך ✓ · ' : ''}${esc(it.s)}</small></span>${own ? '<button class="bd-buy on" disabled>שלך ✓</button>' : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg></button>`}</div>`; };
   const item = it => {
     if (it.g === 'skin') {
       const own = skinOwned(it.id), on = skinNow() === it.id;
-      const act = own ? `<button class="bd-buy${on ? ' on' : ''}" data-skin="${it.id}">${on ? 'בשימוש ✓' : 'להשתמש'}</button>` : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg></button>`;
+      const act = own ? `<button class="bd-buy${on ? ' on' : ''}" data-skin="${it.id}">${on ? 'בשימוש ✓' : 'להשתמש'}</button>` : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg></button>`;
       return `<div class="bd-it skin"><span class="bd-sw" style="--a:${it.sw[0]};--b:${it.sw[1]}"></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך' : it.s}</small></span>${act}</div>`;
     }
     const used = (ex.n && ex.n[it.id]) || 0, full = it.max && used >= it.max, hasSh = it.id === 'shield' && dStreak && dStreak.shield;
-    const lbl = full ? 'נגמר להיום' : hasSh ? 'כבר יש לך' : `${it.p}<svg aria-hidden="true"><use href="#i-chalk"/></svg>`;
+    const lbl = full ? 'נגמר להיום' : hasSh ? 'כבר יש לך' : `${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg>`;
     return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${used && !full ? `קנית היום ${used} · ` : ''}${it.s}</small></span><button class="bd-buy" data-id="${it.id}" ${full || hasSh || bal < it.p ? 'disabled' : ''}>${lbl}</button></div>`;
   };
   if (shopTab === 'streak' && !dStreak) shopTab = 'ai';
@@ -9681,7 +9681,7 @@ function shopPaint(d) {
       return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
     return `<div class="bd-day-card">
       <div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `יום ${sN} ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
-      <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} גירים`}</span></div>
+      <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} לומיקס`}</span></div>
       <div class="bq-bar"><i style="width:${Math.round(qDone / 3 * 100)}%"></i></div>
       ${QUESTS.map(q => `<div class="bq${today[q.k] ? ' ok' : ''}"><i>${today[q.k] ? '✓' : ''}</i><span>${today[q.k] ? q.done : q.t}</span>${!today[q.k] && q.go ? `<button type="button" class="bq-go" data-go="${q.k}">${q.go}</button>` : ''}</div>`).join('')}
       <p class="bq-note">נספר מכל מקום באתר. הכניסה שומרת על הרצף, ו-2 הצעדים האחרים הם בונוס של היום.</p></div>
@@ -9698,10 +9698,10 @@ function shopPaint(d) {
         + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')
       : SHOP.filter(x => x.g === 'ai').map(item).join('');
   d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
-    <div class="bd-head"><h3>חנות הגירים</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-chalk"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>גירים</span></div></div>
+    <div class="bd-head"><h3>חנות הלומיקס</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-lumix"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>לומיקס</span></div></div>
     <div class="bd-tabs" role="tablist">${[...(dStreak ? [['streak', 'רצף']] : []), ['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>
     <div class="bd-list">${list}</div>
-    ${shopTab !== 'earn' && bal < 6 ? '<p class="bd-hint">עוד אין לך מספיק גירים? בלשונית "איך מרוויחים" רואים מה עושים.</p>' : ''}
+    ${shopTab !== 'earn' && bal < 6 ? '<p class="bd-hint">עוד אין לך מספיק לומיקס? בלשונית "איך מרוויחים" רואים מה עושים.</p>' : ''}
     <div class="bd-tray" aria-hidden="true"><i></i><i></i><i></i><em></em></div>`;
   d.querySelector('.bd-x').onclick = closeDialog;
   d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
@@ -9726,7 +9726,7 @@ async function shopBuy(id, btn) {
     btn.closest('.bd-it')?.classList.add('bought');
   } catch (e) {
     const m = String(e && e.message || '');
-    toast(/no-chalk/.test(m) ? 'אין מספיק גירים' : /max-today/.test(m) ? 'הגעת למקסימום להיום' : /owned|has-shield/.test(m) ? 'כבר יש לך את זה' : 'לא הצלחתי לקנות, נסו שוב');
+    toast(/no-chalk/.test(m) ? 'אין מספיק לומיקס' : /max-today/.test(m) ? 'הגעת למקסימום להיום' : /owned|has-shield/.test(m) ? 'כבר יש לך את זה' : 'לא הצלחתי לקנות, נסו שוב');
     shopPaint();
   }
 }
@@ -9755,7 +9755,7 @@ async function streakLoad() {
 }
 function streakPaint() {
   const st = $('ccStreak'); if (st) { st.classList.toggle('hidden', !dStreak); $('streakN').textContent = dStreak ? dStreak.n || 0 : 0; if (dStreak) { $('chalkBtn').classList.remove('hidden'); $('chalkBtn').title = `${dStreak.n} ימים ברצף`; } }
-  const el = $('homeStreak'); if (!el) return;   // הכרטיס במסך הבית הוסר (עמית: הרצף עובר ללוח הקטן למעלה, ליד הגירים)
+  const el = $('homeStreak'); if (!el) return;   // הכרטיס במסך הבית הוסר (עמית: הרצף עובר ללוח הקטן למעלה, ליד הלומיקס)
   if (!dStreak) { el.classList.add('hidden'); return; }
   const n = dStreak.n || 0, d = streakDayOf(n);
   const nextBig = [7, 14, 30].find(b => b > d) || 7, left = nextBig > d ? nextBig - d : 30 - d + 7;
@@ -9785,7 +9785,7 @@ function streakPop(left = 8) {
       <button type="button" class="chest${p.big ? ' big' : ''}" aria-label="לפתוח את הפרס של היום"><span class="ch-lid"></span><span class="ch-box"><i class="ch-lock"></i></span><span class="ch-glow"></span></button>
       <p class="ch-tap">${p.big ? 'פרס גדול מחכה לך! ' : ''}לחצו לפתוח</p>
       <div class="ch-out hidden"><div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
-      ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-chalk"/></svg>קיבלת ${dStreak.chalk} גירים לחנות</p>` : ''}</div>`;
+      ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-lumix"/></svg>קיבלת ${dStreak.chalk} לומיקס לחנות</p>` : ''}</div>`;
     const row = document.createElement('div'); row.className = 'row hidden';
     const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = () => { closeDialog(); if (firstEver) setTimeout(streakWhere, 350); };
     const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'המסלול והיום שלך'; all.onclick = () => { closeDialog(); setTimeout(() => shopOpen('streak'), 250); };
@@ -9807,7 +9807,7 @@ function streakWhere() {
   try { localStorage.setItem('intro:streak:' + me.uid, '1'); } catch {}
   if (!$('chalkBtn') || $('chalkBtn').classList.contains('hidden')) return;
   track('streak_where', {});
-  runTour([{ sel: '#chalkBtn', e: 'flame', t: 'כאן הרצף והגירים שלך', x: 'הלהבה = כמה ימים ברצף, הגיר = כמה גירים יש לך. לוחצים כאן כדי לראות את המסלול, את "היום שלך" ואת החנות. כל יום בכניסה הראשונה יופיע לך הפרס של היום.' }], () => {});
+  runTour([{ sel: '#chalkBtn', e: 'flame', t: 'כאן הרצף והלומיקס שלך', x: 'הלהבה = כמה ימים ברצף, המטבע = כמה לומיקס יש לך. לוחצים כאן כדי לראות את המסלול, את "היום שלך" ואת החנות. כל יום בכניסה הראשונה יופיע לך הפרס של היום.' }], () => {});
 }
 // שיתוף רצף: תמונה של לוח עם המספר + הקישור האישי (מביא חברים). בטלפון – שיתוף עם התמונה, במחשב – וואטסאפ עם טקסט
 async function streakShare() {
@@ -9880,7 +9880,7 @@ async function refJoin() {
 }
 const refCount = () => refList.length;
 const refHas = k => refCount() >= k;
-// (24.11.2026) עמית: מטבע אחד. מדרגות החברים בוטלו – כל חבר = 20 גירים, והפרסים עברו לחנות. מי שכבר הגיע למדרגה לפני השינוי – שומר אותה
+// (24.11.2026) עמית: מטבע אחד. מדרגות החברים בוטלו – כל חבר = 20 לומיקס, והפרסים עברו לחנות. מי שכבר הגיע למדרגה לפני השינוי – שומר אותה
 const REF_CUTOVER = Date.UTC(2026, 10, 24, 20, 0, 0);
 const legacyN = () => refList.filter(x => (x.at || 0) < REF_CUTOVER).length;
 const legacyHas = k => legacyN() >= k;
@@ -9894,7 +9894,7 @@ function refApply() {
   DAILY.fc = FC_BASE + (legacyHas(9) ? 1 : 0);
   ['qa', 'cf', 'kit', 'pr', 'wr'].forEach(k => { DAILY[k] = DAILY_BASE[k]; });
   const sb = streakToday(); if (sb.bonus && DAILY[sb.bonus.k] !== undefined) DAILY[sb.bonus.k] += sb.bonus.add;   // רצף יומי: הפרס הקטן של היום
-  const wx = walletToday().add || {}; Object.keys(wx).forEach(k => { if (DAILY[k] !== undefined) DAILY[k] += +wx[k] || 0; });   // גירים: שימושים שנקנו להיום
+  const wx = walletToday().add || {}; Object.keys(wx).forEach(k => { if (DAILY[k] !== undefined) DAILY[k] += +wx[k] || 0; });   // לומיקס: שימושים שנקנו להיום
   if (sb.x2) Object.keys(DAILY).forEach(k => { DAILY[k] *= 2; });                                                   // רצף: יום 30 – פי 2 מהכל
   if (refHas(10)) Object.keys(DAILY).forEach(k => { DAILY[k] *= AMB_X; });   // שגריר: הכל פי 2 (גם בשרת)
   $('userBtn').classList.toggle('framed', perkHas(8));
@@ -9991,7 +9991,7 @@ function refPushMaybe() {
 }
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
-  return false;   // (24.11.2026) הסרטון/ההדרכה על המדרגות כבר לא נכונים – כל חבר = 20 גירים
+  return false;   // (24.11.2026) הסרטון/ההדרכה על המדרגות כבר לא נכונים – כל חבר = 20 לומיקס
   if (!me || shareParam) return false;
   if (onbNew()) return !onbDone();                                        // משתמש חדש: הסרטון מגיע בתורו (onbRun)
   const k = 'refVid1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
@@ -10069,7 +10069,7 @@ const refNext = () => REF_TIERS.find(t => refCount() < t.n) || null;
 function paintFriendsBanner() {
   const b = $('homeFriendsTx'); if (!b) return;
   const n = refCount(), nx = refNext(), left = nx ? nx.n - n : 0;
-  b.innerHTML = `<b>${n >= 10 ? 'שגריר' : 'הזמנת חברים'}</b><small>כל חבר = 20 גירים${n ? ` · הבאת ${n}` : ''}</small>`; void nx; void left;
+  b.innerHTML = `<b>${n >= 10 ? 'שגריר' : 'הזמנת חברים'}</b><small>כל חבר = 20 לומיקס${n ? ` · הבאת ${n}` : ''}</small>`; void nx; void left;
 }
 function renderFriends() {
   const box = $('frBody'); if (!box || !me) return;
@@ -10081,18 +10081,18 @@ function renderFriends() {
     <div class="fr-hero">
       <div class="fr-hero-l">
         <div class="fr-big"><b>${n}</b><span>${n === 1 ? 'חבר הצטרף דרכך' : 'חברים הצטרפו דרכך'}</span></div>
-        <p class="fr-next"><b>כל חבר שמצטרף = 20 גירים</b> לחנות. החבר מקבל מתנה ביום הראשון.</p>
+        <p class="fr-next"><b>כל חבר שמצטרף = 20 לומיקס</b> לחנות. החבר מקבל מתנה ביום הראשון.</p>
         <div class="fr-cta"><button class="btn fr-share" type="button" id="frShare"><svg aria-hidden="true"><use href="#i-send"/></svg>שליחה לחברים</button><button class="btn fr-copy" type="button" id="frCopy"><svg aria-hidden="true"><use href="#i-copy"/></svg>העתקת הקישור</button></div>
-        <small class="fr-cap">החודש: ${fm} מתוך 10 חברים שנותנים גירים</small>
+        <small class="fr-cap">החודש: ${fm} מתוך 10 חברים שנותנים לומיקס</small>
       </div>
       <div class="fr-ring" style="--p:${Math.round(Math.min(n, 10) / 10 * 100)}" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52"/><circle class="fr-ring-on" cx="60" cy="60" r="52" pathLength="100"/></svg><span><svg><use href="#i-crown"/></svg><small>${Math.min(n, 10)}/10</small></span></div>
     </div>
-    <div class="card fr-amb"><span class="fr-amb-ic"><svg aria-hidden="true"><use href="#i-crown"/></svg></span><div><b>${n >= 10 ? 'אתה שגריר!' : `שגריר ב-10 חברים${toAmb ? ` · עוד ${toAmb}` : ''}`}</b><small>שגריר מקבל פי 2 מכל ה-AI כל יום ותג ליד השם שחברים רואים.</small></div><button type="button" class="btn btn-ghost" id="frShop">לחנות הגירים</button></div>
+    <div class="card fr-amb"><span class="fr-amb-ic"><svg aria-hidden="true"><use href="#i-crown"/></svg></span><div><b>${n >= 10 ? 'אתה שגריר!' : `שגריר ב-10 חברים${toAmb ? ` · עוד ${toAmb}` : ''}`}</b><small>שגריר מקבל פי 2 מכל ה-AI כל יום ותג ליד השם שחברים רואים.</small></div><button type="button" class="btn btn-ghost" id="frShop">לחנות הלומיקס</button></div>
     <div class="fr-cols">
       <div class="card fr-how"><h3>איך זה עובד</h3>
         <ol><li><span><svg aria-hidden="true"><use href="#i-send"/></svg></span><div><b>שולחים את הקישור שלך</b><small>בוואטסאפ, בקבוצה של הכיתה, איפה שרוצים</small></div></li>
         <li><span><svg aria-hidden="true"><use href="#i-users"/></svg></span><div><b>חבר נרשם דרכו</b><small>רק חבר חדש נספר, מי שכבר רשום לא</small></div></li>
-        <li><span><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><b>שניכם מקבלים</b><small>אתה מקבל 20 גירים, והוא מקבל ביום הראשון עוד תמונה לטקסט ועוד סיכום</small></div></li></ol>
+        <li><span><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><b>שניכם מקבלים</b><small>אתה מקבל 20 לומיקס, והוא מקבל ביום הראשון עוד תמונה לטקסט ועוד סיכום</small></div></li></ol>
       </div>
       <div class="card fr-who"><h3>מי הצטרף דרכך</h3>${n ? `<div class="fr-list">${refList.slice().reverse().map(x => `<div class="fr-p"><span class="fr-av" style="--c:${colorOf(x.name || 'x')}">${esc(String(x.name || 'ח').trim().charAt(0))}</span><b dir="auto">${esc(x.name || 'חבר')}</b><small>${ago(x.at)}</small></div>`).join('')}</div>` : `<div class="fr-empty"><svg aria-hidden="true"><use href="#i-users"/></svg><p>עוד אף אחד. החבר הראשון כבר פותח לך צבעים מיוחדים למחברות!</p></div>`}
         <div class="inv-link fr-link"><input readonly dir="ltr" aria-label="הקישור האישי שלך" id="frLinkInp"><button class="btn btn-ghost" type="button" id="frCopy2">העתקה</button></div>

@@ -3537,3 +3537,20 @@ html[data-theme="dark"] .cb-wrap.big .cb-card{background:linear-gradient(160deg,
 .shop-dlg .bd-accs button{width:30px;height:30px;border-radius:50%;border:2px solid var(--surface);background:var(--c);box-shadow:0 0 0 1px var(--line);cursor:pointer}
 .shop-dlg .bd-accs button.on{box-shadow:0 0 0 2px var(--c)}
 @media (max-width:700px){.fr-amb{flex-wrap:wrap}.fr-amb .btn{width:100%}}
+/* לומיקס – המטבע של האתר (24.11.2026): גביש משושה כחול-תכלת עם L, האייקון צבוע מעצמו */
+.chalk-chip .cc-ch svg,.shop-dlg .bd-bal svg,.shop-dlg .bd-buy svg{filter:drop-shadow(0 1px 2px rgba(18,56,184,.35))}
+.chalk-chip .cc-ch svg{width:20px;height:20px}
+.shop-dlg .bd-bal{background:linear-gradient(135deg,#E6F6FF,#D7E8FF);color:#1238B8}
+html[data-theme="dark"] .shop-dlg .bd-bal{background:linear-gradient(135deg,#0E2A5C,#14306E);color:#9BEBFF}
+.shop-dlg .bd-bal svg{width:22px;height:22px}
+.shop-dlg .bd-buy svg{width:17px;height:17px}
+.cb-ic{background:radial-gradient(circle,rgba(91,192,255,.35),transparent 70%)!important;box-shadow:none!important;width:72px!important;height:72px!important}
+.cb-ic svg{width:58px!important;height:58px!important;filter:drop-shadow(0 6px 14px rgba(47,139,255,.55));animation:lxSpin 1.2s cubic-bezier(.3,1.4,.5,1) both}
+.cb-n{color:#1E6BFF!important}
+html[data-theme="dark"] .cb-n{color:#7FD4FF!important}
+.cb-p{background:transparent!important;box-shadow:none!important;width:24px!important;height:24px!important}
+.cb-p svg{width:22px!important;height:22px!important;filter:drop-shadow(0 2px 5px rgba(47,139,255,.5))}
+.streak-dlg .sp-chalk{color:#1E6BFF}
+.streak-dlg .sp-chalk svg{width:22px;height:22px}
+@keyframes lxSpin{from{transform:rotateY(180deg) scale(.6)}}
+@media (prefers-reduced-motion:reduce){.cb-ic svg{animation:none}}
