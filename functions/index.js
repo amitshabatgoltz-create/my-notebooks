@@ -37,6 +37,25 @@ async function isAmb(uid) {
   try { v = (await db.collection(`refs/${uid}/joined`).count().get()).data().count >= AMB_MIN; } catch (e) { console.warn('amb', String(e && e.message).slice(0, 80)); }
   ambCache.set(uid, { v, t: Date.now() }); return v;
 }
+// ===== רצף יומי (24.11.2026): נכנסים כל יום → פרס קטן כל יום, ופרס גדול ביום 7, 14 ו-30 (ואז מתחילים סבב חדש) =====
+// רק השרת כותב ל-streaks/{uid}, כדי שאי אפשר לרמות מהדפדפן. אותה טבלה בדיוק יש באתר (STREAK_SMALL ב-app.js) – לשנות בשני המקומות
+const STREAK_SMALL = [['chat', 3], ['ocr', 1], ['fc', 1], ['sum', 1], ['pr', 1], ['kit', 1], ['wr', 2]];
+const STREAK_SERVER_KIND = { kit: 'chat', wr: 'chat', cf: 'chat' };   // סוגים שהשרת סופר תחת סוג אחר
+const streakDayOf = n => ((n - 1) % 30) + 1;
+const streakSmall = d => STREAK_SMALL[(d - 1) % STREAK_SMALL.length];
+const streakCache = new Map();
+async function streakBoost(uid) {
+  const day = israelDay(), c = streakCache.get(uid);
+  if (c && c.day === day && Date.now() - c.t < 600000) return c.v;
+  let v = { add: {}, x2: false, flash: 0 };
+  try {
+    const sn = await db.doc(`streaks/${uid}`).get(); const s = sn.exists ? sn.data() : {};
+    if (s.bonusDay === day && s.bonus && s.bonus.k) { const k = STREAK_SERVER_KIND[s.bonus.k] || s.bonus.k; v.add[k] = (+s.bonus.add || 0); }
+    v.x2 = s.x2Day === day;
+    v.flash = (s.flashUntil || 0) >= day ? 1 : 0;
+  } catch (e) { console.warn('streak', String(e && e.message).slice(0, 80)); }
+  streakCache.set(uid, { day, v, t: Date.now() }); return v;
+}
 const israelDay = () => Math.floor((Date.now() + 10800000) / 864e5);
 
 function isOwner(token) {
@@ -112,7 +131,8 @@ async function refundOne(uid, kind) {
 }
 // סופרים קודם, ורק אז שואלים את Gemini. הכול בטרנזקציה, אז גם הרבה בקשות בבת אחת לא עוברות את המכסה.
 async function takeOne(uid, kind) {
-  const max = LIMIT[kind] * (await isAmb(uid) ? AMB_X : 1);
+  const sb = await streakBoost(uid);
+  const max = (LIMIT[kind] + (sb.add[kind] || 0)) * (await isAmb(uid) ? AMB_X : 1) * (sb.x2 ? 2 : 1);
   const ref = db.doc(`aiQuota/${uid}`);
   await db.runTransaction(async tx => {
     const sn = await tx.get(ref);
@@ -155,7 +175,7 @@ exports.ai = onCall({
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashOcr) {
     try {
-      const flashMine = OCR_FLASH_USER * (!owner && await isAmb(req.auth.uid) ? AMB_X : 1);
+      const flashMine = owner ? 0 : (OCR_FLASH_USER + (await streakBoost(req.auth.uid)).flash) * (await isAmb(req.auth.uid) ? AMB_X : 1);
       const ok = await db.runTransaction(async tx => {
         const ref = db.doc('aiQuota/_site'), uref = db.doc(`aiQuota/${req.auth.uid}`);
         const sn = await tx.get(ref), un = await tx.get(uref);
@@ -314,6 +334,31 @@ exports.shareMirror = onDocumentWritten({ document: 'shares/{id}', region: 'euro
 // השרת בודק שהמחברת באמת שלו, ומוסיף לרשימה (members) כל מי שפתח ועוד לא ברשימה – עם שם ואימייל.
 // מי שהועף (mode: none) נשאר מועף. מי שפתח בלי להיות מחובר לא נשמר אף פעם, ולכן אי אפשר למצוא אותו.
 const { getAuth } = require('firebase-admin/auth');
+// נקרא פעם אחת בכל כניסה לאתר: סופר את היום, מחליט על הפרס ומחזיר את המצב
+exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const ref = db.doc(`streaks/${uid}`), today = israelDay();
+  return db.runTransaction(async tx => {
+    const sn = await tx.get(ref); const s = sn.exists ? sn.data() : { n: 0, best: 0, shield: 1 };
+    if (s.last === today) return { ...s, fresh: false };
+    const gap = s.last ? today - s.last : 0;
+    let n = s.n || 0, shield = s.shield === undefined ? 1 : s.shield, usedShield = false, reset = 0;
+    if (s.last && gap === 1) n += 1;
+    else if (s.last && gap === 2 && shield) { n += 1; shield = 0; usedShield = true; }
+    else { if (n > 1) reset = n; n = 1; shield = 1; }
+    if (n > 1 && n % 7 === 0) shield = 1;                       // כל 7 ימים ברצף – המגן חוזר
+    const d = streakDayOf(n), out = { last: today, n, best: Math.max(s.best || 0, n), shield, gold: !!s.gold, flashUntil: s.flashUntil || 0, x2Day: s.x2Day || 0, bonusDay: today, bonus: null, big: '' };
+    if (d === 7) { out.gold = true; out.big = 'gold'; }
+    else if (d === 14) { out.flashUntil = today + 6; out.big = 'flash'; }
+    else if (d === 30) { out.x2Day = today; out.big = 'x2'; }
+    else { const [k, add] = streakSmall(d); out.bonus = { k, add }; }
+    tx.set(ref, out);
+    streakCache.delete(uid);
+    return { ...out, fresh: true, usedShield, reset };
+  });
+});
+
 exports.sharePeople = onCall({ region: 'europe-west1', timeoutSeconds: 60 }, async req => {
   const uid = req.auth && req.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'צריך להתחבר');

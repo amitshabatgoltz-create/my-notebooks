@@ -220,10 +220,10 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(paintAdmin).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; document.documentElement.classList.remove('skin-gold'); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -4638,7 +4638,7 @@ function renderStats() {
   const vals = days.map(d => activity[key(d)] || 0), max = Math.max(10, ...vals), week = vals.reduce((a, b) => a + b, 0);
   const from = key(days[0]), tk = todayKey();
   const doneWeek = events.filter(e => e.done && e.date >= from && e.date <= tk).length;
-  const st = streak();
+  const st = dStreak ? dStreak.n : streak();   // אם הרצף היומי (באטל פאס) נטען – אותו מספר כמו בכרטיס
   c.innerHTML = `<h3>השבוע שלך</h3>
     <div class="stats">
       <div class="stat"><span class="n">${st}${st ? '' : ''}</span><span class="l">${st === 1 ? 'יום ברצף' : 'ימים ברצף'}</span></div>
@@ -5987,7 +5987,7 @@ async function ocrPart(f, exact) {
 const OCR_STRONG_DAY = 2;
 function ocrStrongLeft() {
   if (isUnlimited()) return Infinity;
-  try { const o = JSON.parse(localStorage.getItem('ocrStrong:' + (me && me.uid)) || '{}'); return Math.max(0, OCR_STRONG_DAY * (refHas(10) ? AMB_X : 1) - (o.d === todayKey() ? o.n || 0 : 0)); } catch { return OCR_STRONG_DAY * (refHas(10) ? AMB_X : 1); }
+  try { const o = JSON.parse(localStorage.getItem('ocrStrong:' + (me && me.uid)) || '{}'); return Math.max(0, (OCR_STRONG_DAY + streakToday().flash) * (refHas(10) ? AMB_X : 1) - (o.d === todayKey() ? o.n || 0 : 0)); } catch { return (OCR_STRONG_DAY + streakToday().flash) * (refHas(10) ? AMB_X : 1); }
 }
 function ocrStrongUse() {
   try { const k = 'ocrStrong:' + (me && me.uid), o = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ d: todayKey(), n: (o.d === todayKey() ? o.n || 0 : 0) + 1 })); } catch {}
@@ -9534,12 +9534,85 @@ const refOptLock = (k, v) => { const lv = REF_LOCKED_OPT[k] && REF_LOCKED_OPT[k]
 const SITE_ACCENTS = [['', 'סגול', '#5E5CE6'], ['#10B981', 'ירוק', '#10B981'], ['#F97316', 'כתום', '#F97316'], ['#EC4899', 'ורוד', '#EC4899'], ['#0EA5E9', 'תכלת', '#0EA5E9'], ['#E11D48', 'אדום', '#E11D48']];
 function siteAccentGet() { try { return (me && localStorage.getItem('accent:' + me.uid)) || ''; } catch { return ''; } }
 function siteAccentApply() {
-  let st = document.getElementById('accentStyle'); const c = refHas(6) ? siteAccentGet() : '';
+  let st = document.getElementById('accentStyle'); const gold = streakGoldOn(); document.documentElement.classList.toggle('skin-gold', gold);
+  const c = gold ? '#C98A04' : refHas(6) ? siteAccentGet() : '';
   if (!c) { if (st) st.remove(); return; }
   if (!st) { st = document.createElement('style'); st.id = 'accentStyle'; document.head.appendChild(st); }
   st.textContent = `html:root:root{--accent:${c};--solid:${c};--accent-soft:color-mix(in srgb,${c} 14%,var(--surface,#fff))}`;
 }
 let refList = [], refLoaded = false;
+/* ===== רצף יומי (באטל פאס): כל יום שנכנסים – פרס קטן, ובימים 7, 14, 30 – פרס גדול. השרת סופר (exports.streak), האתר רק מציג ===== */
+// אותה טבלה כמו בשרת (STREAK_SMALL ב-functions/index.js)
+const STREAK_SMALL = [['chat', 3], ['ocr', 1], ['fc', 1], ['sum', 1], ['pr', 1], ['kit', 1], ['wr', 2]];
+const STREAK_SMALL_TX = { chat: n => `+${n} הודעות לעוזר`, ocr: () => '+1 צילום לוח', fc: () => '+1 כרטיסיות שינון', sum: () => '+1 סיכום למבחן', pr: () => '+1 דף תרגול', kit: () => '+1 שאלון חזרה', wr: n => `+${n} כתיבה עם AI` };
+const STREAK_BIG = { 7: { k: 'gold', t: 'עיצוב זהב לאתר', d: 'נשאר לתמיד' }, 14: { k: 'flash', t: 'שבוע של צילום מדויק', d: 'עוד צילום לוח מדויק כל יום, 7 ימים' }, 30: { k: 'x2', t: 'יום של פי 2', d: 'פי 2 מכל ה-AI, כל היום' } };
+const streakDayOf = n => ((n - 1) % 30) + 1;
+const streakSmallOf = d => STREAK_SMALL[(d - 1) % STREAK_SMALL.length];
+const streakPrize = d => STREAK_BIG[d] ? { big: true, ...STREAK_BIG[d] } : (([k, a]) => ({ big: false, t: STREAK_SMALL_TX[k](a), d: 'רק להיום' }))(streakSmallOf(d));
+let dStreak = null, streakCall = null;
+function streakToday() {
+  const day = usageDay(), s = dStreak || {};
+  return { bonus: s.bonusDay === day && s.bonus ? s.bonus : null, x2: s.x2Day === day, flash: (s.flashUntil || 0) >= day ? 1 : 0 };
+}
+function streakGoldOn() { if (!dStreak || !dStreak.gold) return false; try { return localStorage.getItem('skin:' + (me && me.uid)) !== 'off'; } catch { return true; } }
+async function streakLoad() {
+  if (!me) return;
+  try {
+    if (!streakCall) streakCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'streak', { timeout: 20000 });
+    const r = (await streakCall({})).data; if (!me) return;
+    dStreak = r; refApply(); streakPaint(); if (!$('home').classList.contains('hidden')) renderStats();
+    if (r.fresh) { track('streak_day', { n: r.n, big: r.big || '' }); if (r.reset) track('streak_reset', { was: r.reset }); setTimeout(() => streakPop(), 2500); }
+  } catch (e) { console.warn('streak', e && e.message); }
+}
+function streakPaint() {
+  const el = $('homeStreak'); if (!el) return;
+  if (!dStreak) { el.classList.add('hidden'); return; }
+  const n = dStreak.n || 0, d = streakDayOf(n);
+  const nextBig = [7, 14, 30].find(b => b > d) || 7, left = nextBig > d ? nextBig - d : 30 - d + 7;
+  const dots = Array.from({ length: 7 }, (_, i) => { const dd = d + i; const big = !!STREAK_BIG[((dd - 1) % 30) + 1]; return `<i class="${i === 0 ? 'on' : ''}${big ? ' big' : ''}"></i>`; }).join('');
+  el.innerHTML = `<span class="sk-ic"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${n}</b></span>
+    <span class="sk-tx"><b>${n === 1 ? 'יום ראשון ברצף' : `${n} ימים ברצף`}</b><small>${left === 1 ? 'מחר' : `עוד ${left} ימים`}: ${esc(STREAK_BIG[nextBig].t)}</small></span>
+    <span class="sk-dots" aria-hidden="true">${dots}</span>${dStreak.shield ? '<span class="sk-sh" title="מגן רצף: יום אחד שפספסת לא ישבור את הרצף"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>' : ''}`;
+  el.classList.remove('hidden');
+}
+if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
+$('homeStreak').onclick = () => { track('streak_open', {}); streakDialog(); };
+function streakPop(left = 8) {
+  if (!dStreak) return;
+  if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
+  if (dStreak.n === 1 && !dStreak.reset) return;            // יום ראשון: רק הכרטיס, בלי חלון (יש מספיק חלונות למשתמש חדש)
+  const d = streakDayOf(dStreak.n), p = streakPrize(d);
+  dialog(dl => {
+    dl.classList.add('streak-dlg');
+    dl.innerHTML = `<div class="sp-flame${p.big ? ' big' : ''}"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${dStreak.n}</b></div>
+      <h3>${dStreak.reset ? 'מתחילים רצף חדש' : p.big ? `יום ${dStreak.n} ברצף! פרס גדול` : `יום ${dStreak.n} ברצף`}</h3>
+      ${dStreak.reset ? `<p class="muted-s">הרצף הקודם היה ${dStreak.reset} ימים. היום יום 1, קדימה.</p>` : ''}
+      ${dStreak.usedShield ? '<p class="sp-note"><svg aria-hidden="true"><use href="#i-shield"/></svg>המגן שמר לך על הרצף ביום שפספסת</p>' : ''}
+      <div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>`;
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'יאללה'; ok.onclick = closeDialog;
+    const all = document.createElement('button'); all.className = 'btn btn-ghost'; all.textContent = 'כל הפרסים'; all.onclick = () => { closeDialog(); setTimeout(streakDialog, 250); };
+    row.append(ok, all); dl.appendChild(row);
+    if (p.big) setTimeout(() => window.Motion?.confetti(dl.querySelector('.sp-flame')), 300);
+  });
+}
+function streakDialog() {
+  if (!dStreak) return;
+  const n = dStreak.n || 0, d = streakDayOf(n), cycle = Math.floor((n - 1) / 30);
+  dialog(dl => {
+    dl.classList.add('streak-dlg', 'wide');
+    const cells = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), st = dd < d ? 'done' : dd === d ? 'now' : ''; return `<div class="sd-c ${st}${p.big ? ' big' : ''}"><i>${dd + cycle * 30}</i><b>${esc(p.t)}</b></div>`; }).join('');
+    dl.innerHTML = `<h3><svg class="sd-h" aria-hidden="true"><use href="#i-flame"/></svg>${n} ימים ברצף</h3>
+      <p class="muted-s">נכנסים לאתר כל יום ומקבלים פרס. פרס קטן הוא רק לאותו יום. מפספסים יום – הרצף מתחיל מחדש${dStreak.shield ? ', אבל <b>יש לך מגן</b>: יום אחד שתפספס לא ישבור את הרצף.' : '. המגן חוזר כל 7 ימים ברצף.'} השיא שלך: ${dStreak.best || n} ימים.</p>
+      <div class="sd-grid">${cells}</div>
+      ${dStreak.gold ? `<label class="sd-gold"><input type="checkbox" id="sdGold" ${streakGoldOn() ? 'checked' : ''}> עיצוב זהב לאתר</label>` : ''}`;
+    const g = dl.querySelector('#sdGold'); if (g) g.onchange = () => { try { localStorage.setItem('skin:' + me.uid, g.checked ? 'on' : 'off'); } catch {} siteAccentApply(); };
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn btn-primary'; ok.textContent = 'סגירה'; ok.onclick = closeDialog;
+    row.append(ok); dl.appendChild(row);
+    setTimeout(() => dl.querySelector('.sd-c.now')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150);
+  });
+}
 try {
   const r = new URLSearchParams(location.search).get('r');
   if (r && /^[A-Za-z0-9]{20,40}$/.test(r)) {
@@ -9578,6 +9651,8 @@ function refApply() {
   DAILY.sum = SUM_BASE + (fresh ? 1 : 0) + (refHas(5) ? 1 : 0);
   DAILY.fc = FC_BASE + (refHas(9) ? 1 : 0);
   ['qa', 'cf', 'kit', 'pr', 'wr'].forEach(k => { DAILY[k] = DAILY_BASE[k]; });
+  const sb = streakToday(); if (sb.bonus && DAILY[sb.bonus.k] !== undefined) DAILY[sb.bonus.k] += sb.bonus.add;   // רצף יומי: הפרס הקטן של היום
+  if (sb.x2) Object.keys(DAILY).forEach(k => { DAILY[k] *= 2; });                                                   // רצף: יום 30 – פי 2 מהכל
   if (refHas(10)) Object.keys(DAILY).forEach(k => { DAILY[k] *= AMB_X; });   // שגריר: הכל פי 2 (גם בשרת)
   $('userBtn').classList.toggle('framed', refHas(8));
   siteAccentApply();

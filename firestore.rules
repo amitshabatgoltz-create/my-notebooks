@@ -94,6 +94,10 @@ service cloud.firestore {
       allow update: if false;
     }
     // 🔒 ספירת ה-AI: רק השרת כותב. בעל האתר יכול לקרוא את הספירה של כל האתר (aiQuota/_site) בעמוד "ניהול האתר"
+    // רצף יומי: רק השרת כותב (exports.streak), כל אחד קורא רק את שלו
+    match /streaks/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+    }
     match /aiQuota/{id} {
       allow get: if id == '_site' && isAdmin();
     }
