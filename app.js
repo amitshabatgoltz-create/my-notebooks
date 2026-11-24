@@ -234,13 +234,14 @@ const nbCol = () => collection(db, 'users', me.uid, 'notebooks');
 const nbDoc = id => doc(db, 'users', me.uid, 'notebooks', id);
 
 function subscribe() {
-  $('loading').classList.remove('hidden'); $('loading').innerHTML = '<div class="skel-grid">' + '<div class="skel"><i></i><b></b><b></b></div>'.repeat(4) + '</div>';
+  if (unsub) { unsub(); unsub = null; }
+  if (!nbSnapOk) $('loading').classList.remove('hidden'); $('loading').innerHTML = '<div class="skel-grid">' + '<div class="skel"><i></i><b></b><b></b></div>'.repeat(4) + '</div>';
   $('sample').classList.add('hidden');
   unsub = onSnapshot(query(nbCol(), orderBy('updatedAt', 'desc')), snap => {
     $('loading').classList.add('hidden');
     const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     notebooks = allNb.filter(n => !n.trashed); nbSnapOk = true; trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
-    waMerge();
+    ownRemote(snap); waMerge();
     purgeTrash(); renderTrashBtn();
     // עומס: בכל שמירה אוטומטית (כל ~1.2 שנ׳ בזמן כתיבה) מגיע עדכון. מציירים את כל הרשימה רק כשהיא על המסך
     if (!$('library').classList.contains('hidden')) renderGrid(); else renderSide();
@@ -248,8 +249,9 @@ function subscribe() {
     $('sample').classList.toggle('hidden', notebooks.length > 0);
     if (openId && !String(openId).startsWith('share:') && !notebooks.find(n => n.id === openId)) showLibrary();
   }, err => {
-    console.error(err);
-    $('loading').textContent = 'לא ניתן לטעון את המחברות. בדוק את כללי האבטחה ב-Firebase (ראה README).';
+    console.error(err); unsub = null;
+    if (!nbSnapOk) $('loading').textContent = 'לא ניתן לטעון את המחברות. בודק שוב...';
+    liveRetry('nb', subscribe);
   });
 }
 
@@ -476,6 +478,7 @@ function openNotebook(id) {
   renderFiles($('editor'));
   renderCanvases($('editor'));
   applyBoxSizes($('editor'));
+  own = { id, srv: n.html || '', base: clean($('editor').innerHTML), sent: [] };
   setSave('נשמר בענן', 'ok');
   libMode = isPres(n) ? 'pres' : 'nb';
   setView('notebook', (isPres(n) ? 'מצגות › ' : 'מחברות › ') + (n.title || ''));
@@ -642,6 +645,7 @@ async function flush() {
   } else {
     const nbw = notebooks.find(x => x.id === id); if (nbw) fields.words = trackWords(nbw, fields.html);
     pr = updateDoc(nbDoc(id), fields);
+    if (own && own.id === id) { own.srv = localHtml; own.base = localHtml; own.sent = [localHtml, ...own.sent].slice(0, 5); }
     const nbx = notebooks.find(x => x.id === id);
     if (nbx && nbx.shareId) updateDoc(shareDoc(nbx.shareId), { title: fields.title, html: fields.html, updatedAt: fields.updatedAt, color: nbx.color || COLORS[0], updatedBy: me.uid, updatedByName: myName() }).catch(e => console.warn('share sync', e));
   }
@@ -2479,6 +2483,7 @@ async function autoPlanOld(e) {
   toastAction(`בניתי לך תוכנית למידה ל${subj}: ${plan.length === 1 ? 'יום אחד' : plan.length + ' ימים'} ביומן`, 'לראות ולשנות', () => planDialog(e));
 }
 function subscribeEvents() {
+  if (unsubEv) { unsubEv(); unsubEv = null; }
   unsubEv = onSnapshot(evCol(), snap => {
     events = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
@@ -2488,17 +2493,28 @@ function subscribeEvents() {
     if (!$('hwView').classList.contains('hidden')) renderHW();
     remind();
   }, err => {   // הקשבה שנפלה לא חוזרת לבד – אז היומן במחשב "נתקע" (מבחנים מהטלפון לא הופיעו). מתחברים מחדש
-    console.error(err); unsubEv = null;
-    setTimeout(() => { if (me && !unsubEv) subscribeEvents(); }, 5000);
+    console.error(err); unsubEv = null; liveRetry('ev', subscribeEvents);
   });
 }
-// חוזרים ללשונית אחרי זמן (מחשב שנרדם): מתחברים מחדש ליומן כדי לקבל מה שנוסף ממכשיר אחר
+// הקשבה לענן שנפלה (אינטרנט קפץ, המחשב נרדם) לא חוזרת לבד – ואז מה שנוסף בטלפון (מבחנים, צילום לוח, ציונים...) לא מופיע במחשב.
+// אז: אחרי שגיאה מנסים שוב (עם המתנה שגדלה), וכשחוזרים ללשונית אחרי 2 דק׳ – מתחברים מחדש לכל הנתונים
+const liveTries = {};
+function liveRetry(name, fn) {
+  const n = liveTries[name] = (liveTries[name] || 0) + 1; if (n > 8) return;
+  setTimeout(() => { if (me) fn(); }, Math.min(60000, 3000 * 2 ** (n - 1)));
+}
+function relistenAll() {
+  if (!me) return;
+  for (const k in liveTries) delete liveTries[k];
+  [subscribe, subscribeEvents, subscribeShared, subscribeActivity, subscribeTimetable, subscribeGrades, subscribeAiMem, walletWatch].forEach(f => { try { f(); } catch (e) { console.warn('relisten', e); } });
+}
 let evHiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { evHiddenAt = Date.now(); return; }
-  if (me && evHiddenAt && Date.now() - evHiddenAt > 120000) { if (unsubEv) { unsubEv(); unsubEv = null; } subscribeEvents(); }
+  if (evHiddenAt && Date.now() - evHiddenAt > 120000) relistenAll();
   evHiddenAt = 0;
 });
+addEventListener('online', () => relistenAll());
 
 let hiddenTypes = new Set(); try { hiddenTypes = new Set(JSON.parse(localStorage.getItem('hiddenTypes') || '[]')); } catch {}
 const shown = e => !hiddenTypes.has(e.type || 'other');
@@ -4522,10 +4538,11 @@ async function copyShare(id, s) {
 
 // ---- רשימת "שותפו איתי"
 function subscribeShared() {
+  if (unsubSh) { unsubSh(); unsubSh = null; }
   unsubSh = onSnapshot(collection(db, 'users', me.uid, 'shared'), snap => {
     sharedList = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => !shGone.has(x.id)).sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
     syncSharedWatch(); renderShared();
-  }, err => console.warn('shared', err));
+  }, err => { console.warn('shared', err); unsubSh = null; liveRetry('sh', subscribeShared); });
 }
 // כל מחברת ברשימה "שיתפו איתי": בודקים בלייב מה בעל המחברת קבע לי – גם אם הוא שינה כשלא הייתי באתר.
 // הועפתי / הקישור בוטל / המחברת ננעלה ואני לא ברשימה → המחברת נעלמת לגמרי
@@ -4637,7 +4654,7 @@ function trackWords(nb, html) {
 }
 function subscribeActivity() {
   if (unsubAct) unsubAct();
-  unsubAct = onSnapshot(actDoc(), snap => { activity = (snap.exists() && snap.data().days) || {}; if (!$('home').classList.contains('hidden')) renderStats(); }, () => {});
+  unsubAct = onSnapshot(actDoc(), snap => { activity = (snap.exists() && snap.data().days) || {}; if (!$('home').classList.contains('hidden')) renderStats(); }, () => { unsubAct = null; liveRetry('act', subscribeActivity); });
 }
 function streak() {
   const d = new Date(); let n = 0;
@@ -5079,7 +5096,7 @@ function subscribeTimetable() {
       const ds = timetable.days; let changed = false; const nd = {};
       for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
       if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
-    } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => {});
+    } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
@@ -6991,7 +7008,7 @@ let grades = [], grCats = {}, unsubGr = null;   // grCats: לכל מקצוע –
 const grDoc = () => doc(db, 'users', me.uid, 'meta', 'grades');
 function subscribeGrades() {
   if (unsubGr) unsubGr();
-  unsubGr = onSnapshot(grDoc(), sn => { grades = (sn.exists() && sn.data().items) || []; grCats = (sn.exists() && sn.data().cats) || {}; if (!$('gradesView').classList.contains('hidden')) renderGrades(); if (!$('home').classList.contains('hidden')) renderGradesMini(); }, () => {});
+  unsubGr = onSnapshot(grDoc(), sn => { grades = (sn.exists() && sn.data().items) || []; grCats = (sn.exists() && sn.data().cats) || {}; if (!$('gradesView').classList.contains('hidden')) renderGrades(); if (!$('home').classList.contains('hidden')) renderGradesMini(); }, () => { unsubGr = null; liveRetry('gr', subscribeGrades); });
 }
 const saveGrades = () => setDoc(grDoc(), { items: grades, cats: grCats, updatedAt: Date.now() });
 const GR_TYPES = ['מבחנים', 'בחנים', 'עבודות', 'שיעורי בית', 'השתתפות'];
@@ -7810,7 +7827,7 @@ const AIMEM_MAX = 40;
 const aiMemDoc = () => doc(db, 'users', me.uid, 'meta', 'aimem');
 function subscribeAiMem() {
   if (unsubAiMem) unsubAiMem();
-  unsubAiMem = onSnapshot(aiMemDoc(), sn => { const it = sn.exists() && sn.data().items; aiMem = Array.isArray(it) ? it.filter(x => x && x.t).slice(0, AIMEM_MAX) : []; }, () => {});
+  unsubAiMem = onSnapshot(aiMemDoc(), sn => { const it = sn.exists() && sn.data().items; aiMem = Array.isArray(it) ? it.filter(x => x && x.t).slice(0, AIMEM_MAX) : []; }, () => { unsubAiMem = null; liveRetry('mem', subscribeAiMem); });
 }
 function aiMemPrompt() {
   if (!aiMem.length) return '';
@@ -7938,6 +7955,22 @@ let waCallFn = null;
 const waLinkCall = data => { if (!waCallFn) waCallFn = httpsCallable(getFunctions(fb, 'europe-west1'), 'waLink', { timeout: 30000 }); return appCheckReady.then(() => waCallFn(data)).then(r => r.data); };
 // הבוט הוסיף תמונה למחברת שפתוחה עכשיו: מראים אותה, וגם דואגים שהשמירה הבאה מהמסך לא תמחק אותה
 const waSeen = {};
+// אותה מחברת פתוחה בשני מכשירים של אותו משתמש (למשל צילום לוח מהטלפון כשהמחברת פתוחה במחשב):
+// מכניסים את השינוי לעורך בלי לדרוס את מה שמקלידים, וכך גם השמירה הבאה מהמחשב לא מוחקת את מה שנוסף בטלפון
+let own = null;
+function ownRemote(snap) {
+  if (!own || openId !== own.id || live) return;
+  const ds = snap.docs.find(x => x.id === own.id); if (!ds || ds.metadata.hasPendingWrites) return;
+  const n = ds.data(); if (typeof n.html !== 'string' || n.html === own.srv || own.sent.includes(n.html)) return;   // לא לפי שעה – השעון בטלפון ובמחשב יכול להיות שונה
+  const ed = $('editor'), srv = n.html, local = clean(ed.innerHTML);
+  const out = (!dirty && !saving) || local === own.base ? srv : mergeHtml(own.base, local, srv, 'other-device');
+  applyRemoteHtml(out);
+  own.srv = srv; own.base = clean(ed.innerHTML);
+  if (n.title && document.activeElement !== $('title') && !dirty) $('title').value = n.title;
+  if (dirty || out !== srv) markDirty();
+  if (n.wa && n.wa.at && n.wa.at > (waSeen[own.id] || 0)) { waSeen[own.id] = n.wa.at; toast('נכנסה תמונה מהוואטסאפ לסוף המחברת'); }
+  else toast('המחברת עודכנה ממכשיר אחר');
+}
 function waMerge() {
   if (!openId || String(openId).startsWith('share:')) return;
   const n = notebooks.find(x => x.id === openId); if (!n || !n.wa || !n.wa.at) return;
@@ -9617,7 +9650,7 @@ function walletWatch() {
     const prev = wallet; wallet = sn.exists() ? sn.data() : { bal: 0 };
     refApply(); walletPaint(prev);
     if ($('dialogRoot').querySelector('.shop-dlg')) shopPaint();
-  }, () => {});
+  }, () => { walletOff = null; liveRetry('wal', walletWatch); });
 }
 function walletPaint(prev) {
   const b = $('chalkBtn'); if (!b) return;
