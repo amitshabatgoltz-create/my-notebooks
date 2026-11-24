@@ -8505,7 +8505,7 @@ function chatRemember(files) {
 }
 // קוד השגיאה שחזר מהשרת (503 וכו'). 0 = לא הגענו לשרת בכלל.
 const chatStatus = e => e?.customErrorData?.status || +(String(e?.message).match(/\[(\d{3})\b/) || [])[1] || 0;
-const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e));
+const chatBusyErr = e => [500, 502, 503, 504].includes(chatStatus(e)) || /gemini-busy|UNAVAILABLE|high demand|overloaded|503/i.test(String(e && (e.message || e.code)));
 // כש-Gemini עמוס זה בדרך כלל עובר תוך שניות, אז מנסים שוב לבד לפני שמראים שגיאה
 async function chatAsk(parts, onText, onWait, short, deep) {
   const models = aiModels(deep);
@@ -8529,7 +8529,7 @@ function chatWhy(e) {
   const detail = m.replace(/^.*?https?:\/\/\S+:\s*/, '').replace(/\s*\(AI\/[\w-]+\)\s*$/, '');
   let why = 'לא הצלחתי לענות. נסה שוב בעוד דקה.';
   if (chatStatus(e) === 404) why = 'המודל של Gemini שהאתר משתמש בו כבר לא זמין. צריך לעדכן את האתר.';
-  else if (chatBusyErr(e)) why = 'Gemini עמוס כרגע, וגם אחרי כמה ניסיונות הוא לא ענה. נסה שוב בעוד דקה. מה שכתבת נשמר.';
+  else if (chatBusyErr(e)) return 'גוגל (שמפעילים את העוזר) עמוסים מאוד עכשיו, וגם אחרי כמה ניסיונות לא הצלחתי לקבל תשובה. נסה שוב בעוד דקה או שתיים – זה בדרך כלל עובר מהר. ההודעה לא נספרה לך.';
   else if (e && e.blocked === 'RECITATION') why = 'Gemini עצר את התשובה כי היא מעתיקה טקסט מוגן, וזה קורה לפעמים עם חומר מספר. נסה לבקש הסבר במילים אחרות, או להדביק חלק קטן יותר.';
   else if (e && /MALFORMED|UNEXPECTED/.test(e.blocked || '')) why = 'Gemini התבלבל בתשובה הזאת. נסה לשלוח שוב, זה בדרך כלל עובר בפעם השנייה.';
   else if (e && e.blocked) why = 'Gemini סירב לענות על הטקסט הזה. נסה לנסח אחרת, או להדביק חלק קטן יותר.';

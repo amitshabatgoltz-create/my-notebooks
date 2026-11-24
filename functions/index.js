@@ -215,7 +215,7 @@ exports.ai = onCall({
     // כל ניסיון מוגבל בזמן, כדי שלא יחכה דקות. ברגע שהתחיל טקסט לזרום לאתר – לא מנסים שוב.
     const transient = e => /503|500|UNAVAILABLE|overloaded|high demand|INTERNAL|DEADLINE|timed? ?out|aborted|fetch failed|ECONNRESET|socket/i.test(String(e && e.message));
     const lim = { ...config, httpOptions: { timeout: 100000 } };
-    const plan = [[model, 0], [model, 2000], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 3000], [MODELS[0], 6000]];
+    const plan = [[model, 0], [model, 2000], [model === OCR_MODEL ? MODELS[0] : OCR_MODEL, 3000], [MODELS[0], 6000], [OCR_MODEL, 4000], [MODELS[0], 10000]];
     let last;
     for (const [m, wait] of plan) {
       if (wait) await new Promise(ok => setTimeout(ok, wait));
@@ -240,6 +240,8 @@ exports.ai = onCall({
     console.error('gemini', msg);
     if (/prepayment|credits? (are )?depleted|billing/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-credits: ' + msg);
     if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) throw new HttpsError('resource-exhausted', 'gemini-quota: ' + msg);
+    // גוגל עמוסים גם אחרי כל הניסיונות – קוד ברור, כדי שהאתר יציג הודעה בעברית
+    if (/503|UNAVAILABLE|overloaded|high demand/i.test(msg)) throw new HttpsError('unavailable', 'gemini-busy');
     throw new HttpsError('internal', 'gemini: ' + msg);
   }
 });
