@@ -205,6 +205,8 @@ $('userBtn').addEventListener('click', e => {
 document.addEventListener('click', e => { if (!e.target.closest('.user')) { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); } });
 
 onAuthStateChanged(auth, user => {
+  try { if (user) localStorage.setItem('wasIn', '1'); else localStorage.removeItem('wasIn'); } catch {}
+  document.documentElement.classList.remove('boot-in');
   if (user) ensureAppCheck();
   if (unsub) { unsub(); unsub = null; }
   if (unsubEv) { unsubEv(); unsubEv = null; }

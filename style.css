@@ -64,6 +64,18 @@ html[data-theme="dark"] .aurora i{opacity:.4}
 .app-icon.sm svg{width:17px;height:17px}
 
 /* ---------- מסך כניסה ---------- */
+/* מסך פתיחה למי שכבר מחובר (במקום להבהב מסך כניסה) */
+#bootSplash{display:none}
+html.boot-in #login{display:none!important}
+html.boot-in #bootSplash{display:flex;position:fixed;inset:0;z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg)}
+#bootSplash .bs-ic{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;background:var(--accent);color:#fff;box-shadow:0 18px 40px -18px var(--accent);animation:bsPulse 1.4s ease-in-out infinite}
+#bootSplash .bs-ic svg{width:36px;height:36px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#bootSplash b{font-size:20px;color:var(--ink)}
+#bootSplash .bs-bar{width:120px;height:4px;border-radius:4px;background:color-mix(in srgb,var(--accent) 18%,transparent);overflow:hidden;position:relative}
+#bootSplash .bs-bar::after{content:"";position:absolute;inset:0 60% 0 0;border-radius:4px;background:var(--accent);animation:bsBar 1.1s ease-in-out infinite}
+@keyframes bsPulse{50%{transform:scale(.94)}}
+@keyframes bsBar{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){#bootSplash .bs-ic,#bootSplash .bs-bar::after{animation:none}}
 #login{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:28px 18px;position:relative;overflow:hidden}
 .login-card{position:relative;width:100%;max-width:400px;background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);
   border:1px solid color-mix(in srgb,var(--surface) 60%,transparent);border-radius:28px;padding:36px 30px 28px;box-shadow:var(--shadow-lg);text-align:center;animation:rise .6s var(--ease) both}
