@@ -5039,11 +5039,11 @@ $('qaFileInput').onchange = async () => {
 
 /* ===== מערכת שעות: יודעים מתי השיעור הבא בכל מקצוע ===== */
 const TT_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'], TT_ROWS = 10;
-let timetable = { days: {} }, unsubTT = null;
+let timetable = { days: {} }, unsubTT = null, ttReady = false;
 const ttDoc = () => doc(db, 'users', me.uid, 'meta', 'timetable');
 function subscribeTimetable() {
   if (unsubTT) unsubTT();
-  unsubTT = onSnapshot(ttDoc(), snap => { timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {};
+  unsubTT = onSnapshot(ttDoc(), snap => { ttReady = true; timetable = (snap.exists() && snap.data()) || { days: {} }; if (!timetable.days) timetable.days = {};
     // תיקון למערכת שנקראה עם שעה 0 ריקה בתור "שעה 1": אם השורה הראשונה ריקה בכל הימים, מזיזים הכל שורה למעלה
     if (timetable.start !== 0 && ttSubjects().length) {
       const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
@@ -9265,7 +9265,7 @@ const TOUR = [
 /* ===== "כבר ראיתי" בחשבון: סיורים, הסברים בפעם הראשונה וסרטון החברים – לא מופיעים שוב במכשיר אחר ===== */
 // כל מקום באתר ששומר "ראיתי" ב-localStorage (intro:, tour:, refVid1:, invPop:, ttNudge:) נשמר גם ב-users/{uid}/meta/flags.seen,
 // ובכניסה מושכים משם לפני שמחליטים אם להראות סיור/סרטון
-const SEEN_RE = /^(intro:|tour:|refVid1:|invPop:|ttNudge:)/;
+const SEEN_RE = /^(intro:|tour:|refVid1:|invPop:|ttNudge:|onbNb:)/;
 const lsSet = Storage.prototype.setItem;
 let seenQ = {}, seenT = 0;
 const seenMine = k => { const m = k.match(/:([A-Za-z0-9]{20,})$/); return !m || (me && m[1] === me.uid); };   // מפתח של משתמש אחר באותו מכשיר – לא שלנו
@@ -9295,12 +9295,45 @@ const tourSeen = () => { try { return localStorage.getItem('tour:app:' + (me && 
 const tourDone = () => { try { localStorage.setItem('tour:app:' + (me && me.uid), '1'); } catch {} $('tourChip')?.remove(); };
 const visibleEl = sel => [...document.querySelectorAll(sel)].find(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; });
 // משתמש חדש (נרשם בשבוע האחרון) שעוד לא ראה – מקבל הזמנה לסיור
-function welcomeMaybe() {
-  if (!me || tourSeen() || shareParam) return;
-  const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
-  if (Date.now() - born > 7 * 864e5) return;
-  if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay')) { setTimeout(welcomeMaybe, 2500); return; }
-  welcomeCard();
+function welcomeMaybe() { onbRun(); }
+/* ===== משתמש חדש: דבר אחד בכל יום שנכנסים (לא הכל בבת אחת) ===== */
+// היום הראשון שנכנס: מחברת ראשונה. היום הבא שנכנס: מערכת שעות. היום שאחריו: סרטון החברים. צעד שכבר נעשה – מדלגים עליו.
+// נשמר ב-localStorage עם התאריך (onbNb:, ttNudge:, refVid1:) וגם בחשבון דרך SEEN_RE (שם רק "ראה", אז מכשיר אחר = כאילו ביום אחר)
+const ONB_DAYS = 21;
+const onbNew = () => { const born = Date.parse(me && me.metadata && me.metadata.creationTime || '') || 0; return Date.now() - born < ONB_DAYS * 864e5; };
+const onbGet = k => { try { return me ? localStorage.getItem(k + ':' + me.uid) : '1'; } catch { return '1'; } };
+const onbSet = (k, v) => { try { localStorage.setItem(k + ':' + me.uid, v || todayKey()); } catch {} };
+const onbToday = () => ['onbNb', 'ttNudge', 'refVid1'].some(k => onbGet(k) === todayKey());
+const onbDone = () => ['onbNb', 'ttNudge', 'refVid1'].every(k => onbGet(k));
+function onbRun(left = 8) {
+  if (!me || shareParam || !onbNew() || onbDone() || onbToday()) return;
+  const ready = $('loading').classList.contains('hidden') && ttReady;
+  if (!ready || $('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => onbRun(left - 1), 2500); return; }
+  if (!onbGet('onbNb')) {
+    if (notebooks.length || tourSeen()) onbSet('onbNb', '1');           // התחיל לפני השינוי – הצעד הראשון כבר מאחוריו
+    else { onbSet('onbNb'); firstNbCard(); return; }
+  }
+  if (!onbGet('ttNudge')) {
+    if (ttSubjects().length) onbSet('ttNudge', '1');                     // כבר יש מערכת – מדלגים
+    else { ttNudge(); return; }
+  }
+  if (!onbGet('refVid1')) { onbSet('refVid1'); refVideo(); }
+}
+// היום הראשון: רק דבר אחד – ליצור מחברת
+function firstNbCard() {
+  track('onb_nb', {});
+  const name = firstName ? firstName() : '';
+  dialog(d => {
+    d.classList.add('welcome-dlg');
+    d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-book"/></svg></div><h3>היי${name ? ' ' + esc(name) : ''}, ברוך הבא!</h3>
+      <p>בוא נתחיל ממחברת אחת. לוקח 10 שניות, ואחר כך אפשר לצלם לתוכה את הלוח ולקבל סיכום.</p>`;
+    const row = document.createElement('div'); row.className = 'row wl-end';
+    const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'ליצור מחברת ראשונה';
+    go.onclick = () => { closeDialog(); track('onb_nb_yes', {}); setTimeout(() => { newNotebook(); tourChip(); }, 200); };
+    const later = document.createElement('button'); later.className = 'btn btn-ghost'; later.textContent = 'אחר כך';
+    later.onclick = () => { closeDialog(); tourChip(); };
+    row.append(go, later); d.appendChild(row);
+  });
 }
 function welcomeCard() {
   const name = firstName ? firstName() : '';
@@ -9388,7 +9421,8 @@ function tourFinish() {
 const ttNudgeKey = () => 'ttNudge:' + (me && me.uid);
 function ttNudge() {
   if (!me || ttSubjects().length) return false;
-  try { if (localStorage.getItem(ttNudgeKey())) return false; localStorage.setItem(ttNudgeKey(), '1'); } catch {}
+  if (onbNew() && onbGet('onbNb') === todayKey()) return false;          // משתמש חדש: לא באותו יום של המחברת הראשונה
+  try { if (localStorage.getItem(ttNudgeKey())) return false; localStorage.setItem(ttNudgeKey(), todayKey()); } catch {}
   track('tt_nudge', {});
   dialog(d => {
     d.classList.add('welcome-dlg', 'tt-nudge');
@@ -9519,6 +9553,7 @@ async function invitePopMaybe() {
 // ההדרכה: 3 שקפים מונפשים שמסבירים את התוכנית. פעם אחת לכל משתמש (לא באותו יום שנרשם – אז יש את הסיור של האתר)
 function refGuideMaybe() {
   if (!me || shareParam) return false;
+  if (onbNew()) return !onbDone();                                        // משתמש חדש: הסרטון מגיע בתורו (onbRun)
   const k = 'refVid1:' + me.uid; try { if (localStorage.getItem(k)) return false; } catch { return false; }
   const born = Date.parse(me.metadata && me.metadata.creationTime || '') || 0;
   if (Date.now() - born < 864e5) return false;
