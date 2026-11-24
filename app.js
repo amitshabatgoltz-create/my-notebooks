@@ -99,7 +99,7 @@ try { db = initializeFirestore(fb, { localCache: persistentLocalCache({ tabManag
 catch (e) { console.warn('offline cache', e); db = getFirestore(fb); }
 auth.languageCode = 'he';
 
-let me = null, unsub = null, unsubEv = null, notebooks = [], events = [];
+let me = null, unsub = null, unsubEv = null, notebooks = [], events = [], nbSnapOk = false;
 let openId = null, dirty = false, saving = false, saveTimer = null, mode = 'login';
 
 /* ================= כניסה / הרשמה ================= */
@@ -237,7 +237,7 @@ function subscribe() {
   unsub = onSnapshot(query(nbCol(), orderBy('updatedAt', 'desc')), snap => {
     $('loading').classList.add('hidden');
     const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    notebooks = allNb.filter(n => !n.trashed); trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
+    notebooks = allNb.filter(n => !n.trashed); nbSnapOk = true; trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
     waMerge();
     purgeTrash(); renderTrashBtn();
     // עומס: בכל שמירה אוטומטית (כל ~1.2 שנ׳ בזמן כתיבה) מגיע עדכון. מציירים את כל הרשימה רק כשהיא על המסך
@@ -3094,8 +3094,19 @@ function renderWeek() {
   }
   scroll.appendChild(grid); box.append(head, scroll);
 }
+// אין עדיין אף מחברת: כרטיס גדול בראש מסך הבית. מי שיוצר מחברת חוזר הרבה יותר (77% מול 25%)
+let homeFirstSeen = false;
+function homeFirstPaint() {
+  const el = $('homeFirst'); if (!el) return;
+  const show = !!me && nbSnapOk && !notebooks.some(n => !isPres(n));
+  el.classList.toggle('hidden', !show);
+  if (show && !homeFirstSeen) { homeFirstSeen = true; track('first_nb_card', {}); }
+}
+$('homeFirstOcr').onclick = () => { track('first_nb_photo', {}); openId = null; ocrDialog(); };
+$('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
 function renderHome() {
   renderStats(); homeAskChips();
+  homeFirstPaint();
   $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;

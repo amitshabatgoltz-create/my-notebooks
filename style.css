@@ -1610,6 +1610,16 @@ html[data-theme="dark"]{--c-ocr:#8F8DF5;--c-sum:#B197FC;--c-qa:#34D399;--c-fc:#F
 /* מסך הבית: 4 אריחים ברורים במקום שורת כפתורים */
 .hero-actions.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%}
 .hero:has(.tiles){align-items:stretch}
+/* מסך הבית: עוד אין מחברת */
+.first-nb{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;width:100%;margin:0 0 12px;padding:16px 18px;border-radius:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--surface)),var(--surface));border:1.5px solid color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 12px 28px -18px color-mix(in srgb,var(--accent) 70%,transparent)}
+.first-nb.hidden{display:none}
+.first-nb .fn-ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:var(--accent);color:#fff}
+.first-nb .fn-ic svg{width:24px;height:24px}
+.first-nb .fn-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.first-nb .fn-tx b{font-size:17px}
+.first-nb .fn-tx small{color:var(--muted);font-size:13.5px;line-height:1.45}
+.first-nb .fn-btns{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:700px){.first-nb{grid-template-columns:auto 1fr;padding:14px}.first-nb .fn-btns{grid-column:1/-1}.first-nb .fn-btns .btn{flex:1;min-height:44px}}
 .hero:has(.tiles) .hero-in{width:100%}
 .tile{--c:var(--accent);display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px;border-radius:18px;background:var(--surface);border:1px solid var(--line);text-align:start;color:var(--ink);transition:transform .15s var(--ease),border-color .15s,box-shadow .15s;min-height:44px}
 .tile:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--c) 45%,var(--line));box-shadow:0 10px 24px -14px color-mix(in srgb,var(--c) 60%,transparent)}
