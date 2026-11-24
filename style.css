@@ -3234,3 +3234,16 @@ body.editing-shared .nb-mem{display:none}
 /* כפילויות במחברת (העוזר) */
 #editor .dup-mark{background:color-mix(in srgb,#EF4444 14%,transparent);outline:2px dashed color-mix(in srgb,#EF4444 55%,transparent);outline-offset:2px;border-radius:6px}
 .ce-item.ce-del{text-decoration:line-through;color:var(--muted)}
+
+/* טלפון (24.11.2026) */
+/* כלי ה-AI במחברת: כולם על המסך (שתי עמודות), במקום שורה ארוכה שרואים בה רק אחד וחצי */
+@media (max-width:700px){
+  .ai-strip{flex-wrap:wrap!important;overflow:visible!important;margin-inline:0!important;padding:2px!important;gap:6px!important}
+  .ai-strip .ai-card{flex:1 1 calc(50% - 3px)!important;min-width:0;justify-content:flex-start}
+  .ai-strip .ai-card b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px!important}
+  .ai-strip .ai-card.wr{flex-basis:100%!important}
+}
+/* "המבחן הבא" בלי מבחנים */
+.nt-none{font-size:17px;font-weight:700;margin:10px 0 4px}
+/* מערכת שעות ריקה: הכפתור הקטן למעלה מיותר (יש כרטיס גדול להעלאה) */
+.tt-head-btns:has(#ttEdit.hidden) #ttUpload{display:none}

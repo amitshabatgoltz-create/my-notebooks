@@ -3128,10 +3128,9 @@ function renderHome() {
     if (d > 1 && !homeAnimated) countUp(num, d);
     nt.classList.toggle('soon', d <= 3);
   } else {
-    const big = document.createElement('div'); big.className = 'big'; big.innerHTML = '<span class="num word">אין</span>';
-    const what = document.createElement('div'); what.className = 'what'; what.textContent = 'אין מבחנים ביומן כרגע';
+    const what = document.createElement('div'); what.className = 'what nt-none'; what.textContent = 'אין מבחנים ביומן כרגע';
     const add = document.createElement('button'); add.className = 'link'; add.textContent = 'העלאת לוח המבחנים'; add.onclick = () => testsDialog();
-    nt.append(h, big, what, add); nt.classList.remove('soon');
+    nt.append(h, what, add); nt.classList.remove('soon');
   }
 
   renderGradesMini();
@@ -9478,7 +9477,7 @@ function refGuideMaybe() {
   if (Date.now() - born < 864e5) return false;
   const tryShow = (left = 6) => {
     if (!me) return;
-    if ($('home').classList.contains('hidden') || document.querySelector('.overlay')) { if (left) setTimeout(() => tryShow(left - 1), 4000); return; }
+    if ($('home').classList.contains('hidden') || document.querySelector('.overlay, .tour-ov, .tour-bub')) { if (left) setTimeout(() => tryShow(left - 1), 4000); return; }
     try { localStorage.setItem(k, '1'); } catch {}
     refVideo();
   };
