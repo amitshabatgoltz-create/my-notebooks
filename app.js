@@ -9000,8 +9000,8 @@ function admMarketers(list, brought, promoIds) {
     .sort((a, b) => b.n - a.n || (b.deal ? 1 : 0) - (a.deal ? 1 : 0));
   const total = Object.values(brought).reduce((a, v) => a + v, 0);
   return `<div class="card adm-mk"><h3>משווקים${total ? ` · ${total} הצטרפו דרך קישור` : ''}</h3>${rows.length ? rows.map(r => `<div class="adm-mk-row">
-      <div class="adm-mk-top"><b>${esc(r.u.name || r.u.email || 'משתמש')}</b>${r.deal ? '<span class="adm-mk-tag">עסקה</span>' : ''}<span class="adm-mk-n">צירף ${r.n === 1 ? 'אחד' : r.n}${r.deal || r.n < REF_GOAL ? ` מתוך ${REF_GOAL}` : ''}${r.n >= REF_GOAL ? ' ✓' : ''}</span></div>
-      <div class="adm-mk-bar"><i style="width:${Math.min(100, r.n / REF_GOAL * 100)}%"></i></div>
+      <div class="adm-mk-top"><b>${esc(r.u.name || r.u.email || 'משתמש')}</b>${r.deal ? '<span class="adm-mk-tag">עסקה</span>' : ''}<span class="adm-mk-n">צירף ${r.n === 1 ? 'אחד' : r.n}${r.n < REF_MAX ? ` מתוך ${REF_MAX}` : ''}${r.n >= REF_MAX ? ' ✓' : ''}</span></div>
+      <div class="adm-mk-bar"><i style="width:${Math.min(100, r.n / REF_MAX * 100)}%"></i></div>
       ${r.who.length ? `<div class="adm-mk-who">${r.who.map(x => `<span>${esc(x.name || 'חבר')}</span>`).join('')}</div>` : '<small class="muted-s">עוד אף אחד לא נרשם דרכו.</small>'}
     </div>`).join('') : '<p class="noev">עוד אף אחד לא הביא חברים דרך קישור אישי.</p>'}
     <p class="muted-s">כל מי שהביא לפחות חבר אחד מופיע כאן לבד. ב-${REF_GOAL} חברים מקבלים ${REF_OCR} תמונות לטקסט ביום.</p></div>`;
