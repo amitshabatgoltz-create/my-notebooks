@@ -3139,6 +3139,8 @@ $('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
 // נשמר ב-users/<uid>/meta/school {c: סמל מוסד (0 = הוקלד ידנית), n: שם, t: יישוב, g: שכבה 1–12, k: מספר כיתה, at}
 // ועותק קטן ב-stats/<uid>.sch בשביל ניהול האתר. הרשימה: schools.json מהמידע הפתוח של משרד החינוך (data.gov.il), נטענת רק כשפותחים את החלון
 // "לא עכשיו" – הכרטיס חוזר עוד פעם אחת בלבד אחרי שבועיים. תמיד אפשר לשנות מתפריט החשבון
+// (25.11.2026) SCH_ON = false: עמית ביקש לחכות עד שהכללים מודבקים ב-Firebase – בינתיים רק מנהלים רואים (כרטיס ותפריט)
+const SCH_ON = false;
 const SCH_AFTER = 3, SCH_AGAIN = 14 * 864e5, SCH_GAP = 30 * 60000;
 const GRADE_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'];
 const classLabel = s => s && s.g ? GRADE_HE[s.g - 1] + (s.k ? s.k : '') : '';
@@ -3158,7 +3160,7 @@ function schoolEnter() {
 function schoolPaint() {
   const el = $('homeSchool'); if (!el) return;
   const ent = me && schLs('schEnt'), sk = me && schLs('schSkip');
-  const show = !!me && schoolLoaded && !school && !!ent && ent.n >= SCH_AFTER && !shareParam
+  const show = !!me && (SCH_ON || isAdmin()) && schoolLoaded && !school && !!ent && ent.n >= SCH_AFTER && !shareParam
     && (!sk || (sk.n < 2 && Date.now() - sk.t > SCH_AGAIN))
     && $('homeFirst').classList.contains('hidden');   // מי שעוד אין לו מחברת – קודם המחברת
   if (show && el.classList.contains('hidden')) track('school_card', {});
