@@ -91,6 +91,22 @@ function earnIn(tx, w, kind, n = 1) {
   log = log.slice(0, 20);
   return { w: { ...w, bal: (w.bal || 0) + got, total: (w.total || 0) + got, day, dayEarn: de, log, qd }, got };
 }
+// "כרטיס" שמחכה: ה-AI הכין משהו, והלומיקס יינתנו רק כשהמשתמש באמת משתמש בו (questDone)
+const PEND_KINDS = ['ocr', 'fc', 'sum', 'pr'];
+async function pendOne(uid, k) {
+  const ref = db.doc(`wallet/${uid}`), day = israelDay();
+  await db.runTransaction(async tx => { const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {}; const p = w.pend && w.pend.day === day ? { ...w.pend } : { day }; p[k] = Math.min(3, (p[k] || 0) + 1); tx.set(ref, { pend: p }, { merge: true }); });
+}
+// חברים שהצטרפו לפני שהיו לומיקס (24.11.2026 18:40) – מקבלים עכשיו 20 לכל חבר (עד 10), פעם אחת (refBack)
+const WALLET_START = Date.UTC(2026, 10, 24, 16, 40, 0);
+async function refBackCount(uid) { try { return (await db.collection(`refs/${uid}/joined`).where('at', '<', WALLET_START).count().get()).data().count; } catch (e) { console.warn('refBack', String(e && e.message).slice(0, 80)); return -1; } }
+function refBackIn(w, cnt) {
+  if (w.refBack || cnt < 0) return { w, got: 0 };
+  const got = EARN.friend.a * Math.min(cnt, 10);
+  const out = { ...w, refBack: 1 };
+  if (got) Object.assign(out, { bal: (w.bal || 0) + got, total: (w.total || 0) + got, log: [{ t: 'friendBack', a: got, at: Date.now() }, ...(w.log || [])].slice(0, 20) });
+  return { w: out, got };
+}
 async function earn(uid, kind, n = 1) {
   const ref = db.doc(`wallet/${uid}`);
   try {
@@ -225,9 +241,10 @@ exports.ai = onCall({
   const contents = [{ role: 'user', parts: cleanParts(parts) }];
   const config = cleanConfig(cfg);
   if (!owner) await takeOne(req.auth.uid, kind);
-  if (kind === 'ocr') await earn(req.auth.uid, 'ocr');   // גם בעל האתר מרוויח גירים (לא משפיע על המכסה)
-  if (kind === 'chat' && !image) await earn(req.auth.uid, 'ask');
-  if (kind === 'fc' || kind === 'sum' || kind === 'pr') await earn(req.auth.uid, kind);   // משימות מתחלפות: כרטיסיות, סיכום, דף תרגול   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
+  // (25.11.2026, עמית: "שיהיה אמיתי") לומיקס רק אחרי שה-AI באמת ענה: שאלה לעוזר – מיד; צילום/כרטיסיות/סיכום/דף תרגול – רק "כרטיס" (pend),
+  // והלומיקס ניתנים כשהמשתמש באמת סיים באתר (הכניס למחברת / עבר על 5 כרטיסיות) – questDone. מי שסוגר באמצע לא מקבל
+  let credited = false;
+  const credit = async t => { if (credited || !String(t || '').trim()) return; credited = true; try { if (kind === 'chat' && !image) await earn(req.auth.uid, 'ask'); else if (PEND_KINDS.includes(kind)) await pendOne(req.auth.uid, kind); } catch {} };   // משימות מתחלפות: כרטיסיות, סיכום, דף תרגול   // משימת היום: לשאול את העוזר   // צילום לוח = גירים (עד 3 ביום)
   try { await takeGlobal(kind, owner); } catch (e) { if (!owner) await refundOne(req.auth.uid, kind); throw e; }
   const failed = async () => { if (!owner) await refundOne(req.auth.uid, kind); };
   if (flashSmart) {
@@ -298,10 +315,10 @@ exports.ai = onCall({
         all += t; src = src.concat(sources(ch)); if (t) sent = true;
         await res.sendChunk({ t, f: ch.candidates?.[0]?.finishReason || '', b: ch.promptFeedback?.blockReason || '' });
       }
-      return { t: all, src };
+      await credit(all); return { t: all, src };
     }
     const r = await ai.models.generateContent({ model, contents, config: cfg2 });
-    return { t: r.text || '', f: r.candidates?.[0]?.finishReason || '', b: r.promptFeedback?.blockReason || '', src: sources(r) };
+    await credit(r.text); return { t: r.text || '', f: r.candidates?.[0]?.finishReason || '', b: r.promptFeedback?.blockReason || '', src: sources(r) };
   };
   try {
     // קישורים בהודעה (urls): Gemini נכנס לדפים וקורא אותם. אפשר יחד עם חיפוש ב-Google
@@ -427,13 +444,15 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
   const uid = req.auth && req.auth.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'login');
   const ref = db.doc(`streaks/${uid}`), today = israelDay();
+  const w0 = (await db.doc(`wallet/${uid}`).get()).data() || {}, back = w0.refBack ? 0 : await refBackCount(uid);
   return db.runTransaction(async tx => {
     const wref = db.doc(`wallet/${uid}`);
     const sn = await tx.get(ref); const s = sn.exists ? sn.data() : { n: 0, best: 0, shield: 1 };
     const wsn = await tx.get(wref); let w = wsn.exists ? wsn.data() : {};
+    const rb = refBackIn(w, back); if (rb.w !== w) { w = rb.w; tx.set(wref, w); }
     if (s.last === today) {   // כבר נספר היום – אבל אם הגירים של הכניסה עוד לא ניתנו (למשל נספר לפני שהיו גירים), נותנים עכשיו
       const r = earnIn(tx, w, 'day'); if (r.got) { tx.set(wref, r.w); }
-      return { ...s, fresh: false, chalk: r.got };
+      return { ...s, fresh: false, chalk: r.got + rb.got, friendBack: rb.got };
     }
     const gap = s.last ? today - s.last : 0;
     let n = s.n || 0, shield = s.shield === undefined ? 1 : s.shield, usedShield = false, reset = 0;
@@ -450,7 +469,7 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
     let chalk = 0; { const r1 = earnIn(tx, w, 'day'); w = r1.w; chalk += r1.got; } if (out.big) { const r2 = earnIn(tx, w, 'big'); w = r2.w; chalk += r2.got; }
     if (chalk) tx.set(wref, w);
     streakCache.delete(uid);
-    return { ...out, fresh: true, usedShield, reset, chalk };
+    return { ...out, fresh: true, usedShield, reset, chalk: chalk + rb.got, friendBack: rb.got };
   });
 });
 
@@ -486,9 +505,26 @@ exports.shop = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req 
   return res;
 });
 // מחברת חדשה = גירים (עד 2 ביום). מצגות לא נספרות
-exports.chalkNotebook = onDocumentCreated({ document: 'users/{uid}/notebooks/{id}', region: 'europe-west1', retry: false }, async ev => {
-  const d = ev.data && ev.data.data(); if (!d || d.layout === 'slides' || d.trashed) return;
-  await earn(ev.params.uid, 'nb');
+// (25.11.2026) רק כשבאמת כתבו בה: הפעם הראשונה שיש בה לפחות 30 אותיות (מחברת ריקה שנפתחה ונסגרה לא נחשבת)
+const nbChars = d => String((d && d.html) || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|\s+/g, '').length;
+exports.chalkNb2 = onDocumentWritten({ document: 'users/{uid}/notebooks/{id}', region: 'europe-west1', retry: false }, async ev => {
+  const b = ev.data && ev.data.before && ev.data.before.exists ? ev.data.before.data() : null, a = ev.data && ev.data.after && ev.data.after.exists ? ev.data.after.data() : null;
+  if (!a || a.layout === 'slides' || a.kind === 'pres' || a.trashed || nbChars(a) < 30 || (b && nbChars(b) >= 30)) return;
+  const ref = db.doc(`wallet/${ev.params.uid}`), id = ev.params.id;
+  try { await db.runTransaction(async tx => { const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {}; const ids = w.nbIds || []; if (ids.includes(id)) return; const r = earnIn(tx, w, 'nb'); tx.set(ref, { ...r.w, nbIds: [...ids, id].slice(-40) }); }); } catch (e) { console.warn('chalkNb2', String(e && e.message).slice(0, 80)); }
+});
+// המשתמש באמת סיים (הכניס למחברת / עבר על כרטיסיות): אם ה-AI הכין לו את זה היום – מקבל את הלומיקס
+exports.questDone = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req => {
+  const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const k = String((req.data || {}).k || ''); if (!PEND_KINDS.includes(k)) throw new HttpsError('invalid-argument', 'bad-kind');
+  const ref = db.doc(`wallet/${uid}`), day = israelDay();
+  return db.runTransaction(async tx => {
+    const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {};
+    const p = w.pend && w.pend.day === day ? { ...w.pend } : null;
+    if (!p || !(p[k] > 0)) return { got: 0 };
+    p[k] -= 1; const r = earnIn(tx, w, k); tx.set(ref, { ...r.w, pend: p });
+    return { got: r.got };
+  });
 });
 // חבר שהצטרף דרך הקישור שלך = 30 גירים
 // (24.11.2026) כל חבר = 20 גירים, עד 10 חברים בחודש (נגד חשבונות מזויפים). fm = {m: 'YYYY-MM', n}

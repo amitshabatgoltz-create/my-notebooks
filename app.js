@@ -3044,14 +3044,14 @@ function showSummary(n, html, topics) {
       const wrap = document.createElement('div'); wrap.innerHTML = html;
       $('editor').append(...wrap.childNodes); markDirty(); closeDialog();
       $('editor').lastElementChild && $('editor').lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      toast('הסיכום נוסף לסוף המחברת');
+      toast('הסיכום נוסף לסוף המחברת'); questClaim('sum');
     };
     const sep = document.createElement('button'); sep.className = 'btn btn-ghost'; sep.textContent = 'כמחברת חדשה';
     sep.onclick = async () => {
       try {
         const ref = doc(nbCol()); const now = Date.now();
         await setDoc(ref, { title: topics ? `סיכום – ${topics.slice(0, 40)}` : `סיכום – ${n.title || 'מחברת'}`, color: '#e08a1e', html, createdAt: now, updatedAt: now });
-        closeDialog(); toast('נוצרה מחברת סיכום חדשה');
+        closeDialog(); toast('נוצרה מחברת סיכום חדשה'); questClaim('sum');
         const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
       } catch { toast('לא הצלחתי לשמור'); }
     };
@@ -6158,7 +6158,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
       const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild;
       $('editor').append(...wrap.childNodes); loadImages($('editor')); markDirty(); closeDialog();
       (first || $('editor').lastElementChild) && (first || $('editor').lastElementChild).scrollIntoView({ behavior: 'smooth', block: 'start' });
-      saveHw().then(k => { toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)); shareMoment(); });
+      questClaim('ocr'); saveHw().then(k => { toast('הטקסט נוסף לסוף המחברת ✓' + hwToast(k)); shareMoment(); });
     };
     const sep = document.createElement('button'); sep.className = 'btn ' + (mode === 'new' || (!n && !openId) ? 'btn-primary' : 'btn-ghost'); sep.textContent = mode === 'new' || (!n && !openId) ? 'יצירת המחברת' : 'כמחברת חדשה';
     sep.onclick = () => {
@@ -6172,7 +6172,7 @@ function ocrResult(n, html, title, hw = [], mode = '') {
         ok.disabled = true;
         try {
           const ref = doc(nbCol()); const now = Date.now();
-          await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color: COLORS[notebooks.length % COLORS.length], html: h, createdAt: now, updatedAt: now });
+          await setDoc(ref, { title: inp.value.trim() || 'מחברת חדשה', color: COLORS[notebooks.length % COLORS.length], html: h, createdAt: now, updatedAt: now }); questClaim('ocr');
           closeDialog(); const k = await saveHw(); toast('נוצרה מחברת חדשה ✓' + hwToast(k)); shareMoment();
           const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait();
         } catch { ok.disabled = false; toast('לא הצלחתי לשמור'); }
@@ -6611,6 +6611,7 @@ function prResult(n, html, sol) {
     const final = () => qaForNotebook(box.innerHTML);
     const row = document.createElement('div'); row.className = 'row';
     const toNb = async (h, msg) => {
+      questClaim('pr');
       if (n) { if (openId !== n.id) openNotebook(n.id); const wrap = document.createElement('div'); wrap.innerHTML = h; const first = wrap.firstElementChild; $('editor').append(...wrap.childNodes); markDirty(); closeDialog(); first && first.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast(msg); return; }
       try { const ref = doc(nbCol()); const now = Date.now(); await setDoc(ref, { title: 'דף תרגול', color: '#F97316', html: h, createdAt: now, updatedAt: now }); closeDialog(); toast('נוצרה מחברת עם דף התרגול ✓'); const wait = () => notebooks.find(x => x.id === ref.id) ? openNotebook(ref.id) : setTimeout(wait, 100); wait(); } catch { toast('לא הצלחתי לשמור'); }
     };
@@ -6816,7 +6817,7 @@ async function fcMake(n) {
 }
 function esc(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function fcView(n, items, updatedAt) {
-  let deck = [], i = 0, onlyHard = false, saveT = 0;
+  let deck = [], i = 0, onlyHard = false, saveT = 0, rated = 0;
   const save = () => { clearTimeout(saveT); saveT = setTimeout(() => setDoc(fcDoc(n.id), { items, title: n.title, updatedAt: updatedAt || Date.now() }).catch(() => {}), 600); };
   const build = (hard) => { onlyHard = hard; deck = items.map((c, k) => k).filter(k => !hard || items[k].k !== 1); if (!hard) deck.sort((a, b) => (items[a].k === 1) - (items[b].k === 1)); i = 0; };
   build(false);
@@ -6855,7 +6856,7 @@ function fcView(n, items, updatedAt) {
       d.querySelector('.fc-front b').textContent = c.q; d.querySelector('.fc-back b').textContent = c.a;
       const card = d.querySelector('.fc-card');
       card.onclick = () => { card.classList.toggle('flip'); d.querySelector('.fc-ans').classList.toggle('hidden', !card.classList.contains('flip')); };
-      d.querySelectorAll('.fc-ans button').forEach(b => b.onclick = () => { c.k = +b.dataset.k; save(); i++; paint(); });
+      d.querySelectorAll('.fc-ans button').forEach(b => b.onclick = () => { c.k = +b.dataset.k; save(); i++; rated++; if (rated === Math.min(5, items.length)) questClaim('fc'); paint(); });
       d.querySelector('#fcClose').onclick = closeDialog;
       d.querySelector('#fcRe').onclick = () => { closeDialog(); fcMake(n); };
     };
@@ -9634,10 +9635,13 @@ const SHOP = [
   { id: 'frame', g: 'perk', n: 8, p: 30, t: 'מסגרת צבעונית לעיגול', s: 'ליד השם שלך, תמיד', ic: 'target' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
-const EARN_TX = { day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
+const EARN_TX = { friendBack: 'על החברים שכבר הבאת', day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
 // (24.11.2026) המשימות מתחלפות כל יום – אותה טבלה בשרת (QUEST_PAIRS). 'day' תמיד ראשון
-const QUEST_DEF = { day: { t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, ocr: { t: 'לצלם לוח', done: 'צילמת לוח', go: 'לצלם' }, ask: { t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }, fc: { t: 'להכין כרטיסיות שינון', done: 'הכנת כרטיסיות', go: 'למחברות' }, sum: { t: 'לעשות סיכום למבחן', done: 'עשית סיכום', go: 'למחברות' }, nb: { t: 'לפתוח מחברת חדשה', done: 'פתחת מחברת', go: 'לפתוח' }, pr: { t: 'לעשות דף תרגול דומה', done: 'עשית דף תרגול', go: 'לתרגל' } };
+// (25.11.2026) משימה נספרת רק כשבאמת סיימו (הכניסו למחברת / עברו על כרטיסיות). השרת בודק שה-AI באמת הכין את זה היום
+let questCallFn = null;
+function questClaim(k) { if (!me) return; try { if (!questCallFn) questCallFn = httpsCallable(getFunctions(fb, 'europe-west1'), 'questDone', { timeout: 20000 }); questCallFn({ k }).catch(() => {}); } catch {} }
+const QUEST_DEF = { day: { t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, ocr: { t: 'לצלם לוח ולהכניס למחברת', done: 'צילמת לוח', go: 'לצלם' }, ask: { t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }, fc: { t: 'להכין כרטיסיות ולעבור על 5', done: 'עברת על כרטיסיות', go: 'למחברות' }, sum: { t: 'לעשות סיכום ולשמור אותו', done: 'עשית סיכום', go: 'למחברות' }, nb: { t: 'לפתוח מחברת חדשה ולכתוב בה', done: 'כתבת במחברת חדשה', go: 'לפתוח' }, pr: { t: 'לעשות דף תרגול ולשמור אותו', done: 'עשית דף תרגול', go: 'לתרגל' } };
 const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask'], ['sum', 'pr'], ['ocr', 'ask'], ['nb', 'fc'], ['pr', 'ask']];
 const questsToday = () => { const d = usageDay(), n = QUEST_PAIRS.length; return ['day', ...QUEST_PAIRS[((d % n) + n) % n]].map(k => ({ k, ...QUEST_DEF[k] })); };
 const QUEST_BONUS = 10;
@@ -9662,6 +9666,7 @@ function walletPaint(prev) {
     chalkBurst(got, EARN_TX[t] || '', t === 'quest' || t === 'big' || t === 'friend', was, now);
     track('chalk_earn', { n: got, t });
   } else $('chalkN').textContent = now.toLocaleString('he-IL');
+  earnTagsPaint();
 }
 // רגע של פרס: "+N" גדול באמצע המסך, לומיקס קטנים עפים אל המונה למעלה, והמספר עולה (עמית: ההודעה הקטנה הייתה מכוערת)
 function chalkBurst(got, why, big, from, to) {
@@ -9810,7 +9815,9 @@ async function streakLoad() {
     if (!streakCall) streakCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'streak', { timeout: 20000 });
     const r = (await streakCall({})).data; if (!me) return;
     dStreak = r; refApply(); streakPaint(); if (!$('home').classList.contains('hidden')) renderStats();
-    if (r.fresh) { track('streak_day', { n: r.n, big: r.big || '' }); if (r.reset) track('streak_reset', { was: r.reset }); setTimeout(() => streakPop(), 2500); }
+    if (r.fresh) { track('streak_day', { n: r.n, big: r.big || '' }); if (r.reset) track('streak_reset', { was: r.reset }); }
+    if (!lumixIntroSeen()) setTimeout(() => lumixIntro(r.fresh ? streakPrize(streakDayOf(r.n)).t : ''), 2500);
+    else if (r.fresh) setTimeout(() => streakPop(), 2500);
   } catch (e) { console.warn('streak', e && e.message); }
 }
 function streakPaint() {
@@ -9827,6 +9834,7 @@ function streakPaint() {
 }
 if (location.hostname === 'localhost') window.__frTest = (list) => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; refList = list || []; showTab('fr'); renderFriends(); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__skinTest = id => skinTry(id);   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__introTest = prize => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; try { localStorage.removeItem('intro:lumix:localtest'); } catch {} lumixIntro(prize); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__whereTest = () => streakWhere();   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
@@ -9843,7 +9851,7 @@ function streakPop(left = 8) {
     dl.innerHTML = `<h3>${dStreak.reset ? 'מתחילים רצף חדש' : `יום ${dStreak.n} ברצף`}</h3>
       ${dStreak.reset ? `<p class="muted-s">הרצף הקודם היה ${dStreak.reset} ימים. היום יום 1, קדימה.</p>` : ''}
       ${dStreak.usedShield ? '<p class="sp-note"><svg aria-hidden="true"><use href="#i-shield"/></svg>המגן שמר לך על הרצף ביום שפספסת</p>' : ''}
-      <button type="button" class="chest${p.big ? ' big' : ''}" aria-label="לפתוח את הפרס של היום"><span class="ch-lid"></span><span class="ch-box"><i class="ch-lock"></i></span><span class="ch-glow"></span></button>
+      <button type="button" class="chest${p.big ? ' big' : ''}" aria-label="לפתוח את הפרס של היום"><span class="ch-rays"></span><span class="ch-shadow"></span>${chestArt()}<span class="ch-gem"></span><span class="ch-glow"></span><span class="ch-flash"></span><i class="ch-sp s1"></i><i class="ch-sp s2"></i><i class="ch-sp s3"></i><i class="ch-sp s4"></i></button>
       <p class="ch-tap">${p.big ? 'פרס גדול מחכה לך! ' : ''}לחצו לפתוח</p>
       <div class="ch-out hidden"><div class="sp-prize${p.big ? ' big' : ''}"><small>הפרס של היום</small><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div>
       ${dStreak.chalk ? `<p class="sp-chalk"><svg aria-hidden="true"><use href="#i-lumix"/></svg>קיבלת ${dStreak.chalk} לומיקס לחנות</p>` : ''}</div>`;
@@ -9856,9 +9864,9 @@ function streakPop(left = 8) {
     const chest = dl.querySelector('.chest');
     const open = () => {
       if (chest.classList.contains('open')) return;
-      chest.classList.add('open'); track('streak_chest', { n: dStreak.n, big: p.big ? 1 : 0 });
+      chest.classList.add('charge'); setTimeout(() => chest.classList.add('open'), 480); track('streak_chest', { n: dStreak.n, big: p.big ? 1 : 0 });
       dl.querySelector('.ch-tap').classList.add('hidden');
-      setTimeout(() => { dl.querySelector('.ch-out').classList.remove('hidden'); row.classList.remove('hidden'); if (p.big) window.Motion?.confetti(chest); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650);
+      setTimeout(() => { dl.querySelector('.ch-out').classList.remove('hidden'); row.classList.remove('hidden'); window.Motion?.confetti(chest); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1150);
     };
     chest.onclick = open;
   });
@@ -9869,6 +9877,96 @@ function streakWhere() {
   if (!$('chalkBtn') || $('chalkBtn').classList.contains('hidden')) return;
   track('streak_where', {});
   runTour([{ sel: '#chalkBtn', e: 'flame', t: 'כאן הרצף והלומיקס שלך', x: 'הלהבה = כמה ימים ברצף, המטבע = כמה לומיקס יש לך. לוחצים כאן כדי לראות את המסלול, את "היום שלך" ואת החנות. כל יום בכניסה הראשונה יופיע לך הפרס של היום.' }], () => {});
+}
+// ===== רגע פתיחה (25.11.2026 – עמית: "שלא יהיה משעמם עם חצים, משהו מגניב") =====
+// פעם אחת לכל אחד: אש ← מטבע ← חנות, כל אחד קופץ פנימה עם משפט אחד, ואז תיבה שלוחצים – והלומיקס עפים למונה. אחרי זה הזרקור על המונה
+// (25.11.2026, עמית: "נראה מנייר") תיבה מצוירת כמו במשחק: עץ עם סיבים, פסי מתכת זהב עם בליטות, ברגים, פינות ומנעול. המכסה והתיבה בנפרד כדי שהמכסה יעוף
+let chestN = 0;
+function chestArt() {
+  const u = 'c' + (++chestN);
+  const gold = `<linearGradient id="${u}g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7A4A00"/><stop offset=".22" stop-color="#F7C843"/><stop offset=".45" stop-color="#FFF1A8"/><stop offset=".7" stop-color="#E9A90E"/><stop offset="1" stop-color="#7A4A00"/></linearGradient>
+    <linearGradient id="${u}gv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF1A8"/><stop offset=".45" stop-color="#F2B91C"/><stop offset="1" stop-color="#8A5600"/></linearGradient>
+    <radialGradient id="${u}r" cx=".35" cy=".3" r=".7"><stop offset="0" stop-color="#FFF8D0"/><stop offset=".5" stop-color="#E7A512"/><stop offset="1" stop-color="#7A4A00"/></radialGradient>`;
+  const rivet = (x, y) => `<circle cx="${x}" cy="${y}" r="3.2" fill="url(#${u}r)" stroke="#5A3400" stroke-width=".8"/>`;
+  const lid = `<svg class="ch-lid" viewBox="0 0 180 74" aria-hidden="true"><defs>${gold}
+    <linearGradient id="${u}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D98A45"/><stop offset=".55" stop-color="#A2531F"/><stop offset="1" stop-color="#6E3311"/></linearGradient>
+    <clipPath id="${u}c"><path d="M8 70V38C8 14 40 5 90 5s82 9 82 33v32z"/></clipPath></defs>
+    <path d="M8 70V38C8 14 40 5 90 5s82 9 82 33v32z" fill="url(#${u}w)"/>
+    <g clip-path="url(#${u}c)" fill="none" stroke="#5A2A0C" stroke-opacity=".55" stroke-width="1.6"><path d="M8 30C40 20 140 20 172 30"/><path d="M8 50C40 42 140 42 172 50"/>
+      <path d="M20 38c14-3 26-3 34 0M112 24c14-3 30-2 40 2M70 58c12-2 26-2 36 0" stroke-opacity=".3" stroke-width="1.2"/></g>
+    <g clip-path="url(#${u}c)"><rect x="30" y="0" width="17" height="74" fill="url(#${u}g)"/><rect x="133" y="0" width="17" height="74" fill="url(#${u}g)"/>
+      <ellipse cx="62" cy="16" rx="54" ry="9" fill="#fff" opacity=".22"/></g>
+    <rect x="3" y="58" width="174" height="14" rx="4" fill="url(#${u}gv)" stroke="#5A3400" stroke-width="1.5"/>
+    ${rivet(38.5, 22)}${rivet(141.5, 22)}${rivet(14, 65)}${rivet(166, 65)}${rivet(60, 65)}${rivet(120, 65)}
+    <path d="M8 70V38C8 14 40 5 90 5s82 9 82 33v32" fill="none" stroke="#3A1606" stroke-width="3.5" stroke-linejoin="round"/></svg>`;
+  const box = `<svg class="ch-box" viewBox="0 0 172 92" aria-hidden="true"><defs>${gold}
+    <linearGradient id="${u}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B9652B"/><stop offset="1" stop-color="#5C2A0C"/></linearGradient>
+    <radialGradient id="${u}in" cx=".5" cy="0" r=".9"><stop offset="0" stop-color="#FFE7A0"/><stop offset=".35" stop-color="#C97A1E"/><stop offset="1" stop-color="#2A1004"/></radialGradient></defs>
+    <path d="M8 4h156v12H8z" fill="url(#${u}in)"/>
+    <path d="M6 10h160v70c0 6-4 10-10 10H16c-6 0-10-4-10-10z" fill="url(#${u}b)" stroke="#3A1606" stroke-width="3.5" stroke-linejoin="round"/>
+    <g fill="none" stroke="#4A200A" stroke-opacity=".55" stroke-width="1.6"><path d="M8 36h156M8 62h156"/><path d="M24 24c12-2 22-2 30 0M104 50c14-2 26-2 36 0M40 76c10-2 22-2 30 0" stroke-opacity=".3" stroke-width="1.2"/></g>
+    <rect x="26" y="10" width="17" height="80" fill="url(#${u}g)"/><rect x="129" y="10" width="17" height="80" fill="url(#${u}g)"/>
+    <rect x="4" y="8" width="164" height="11" rx="3" fill="url(#${u}gv)" stroke="#5A3400" stroke-width="1.4"/>
+    <path d="M6 66v14c0 6 4 10 10 10h16v-8H18c-2 0-4-2-4-4V66z" fill="url(#${u}gv)" stroke="#5A3400" stroke-width="1.2"/>
+    <path d="M166 66v14c0 6-4 10-10 10h-16v-8h14c2 0 4-2 4-4V66z" fill="url(#${u}gv)" stroke="#5A3400" stroke-width="1.2"/>
+    <path d="M70 16h32v22c0 9-7 15-16 15s-16-6-16-15z" fill="url(#${u}gv)" stroke="#5A3400" stroke-width="1.6"/>
+    <path d="M86 30a4 4 0 0 1 2.4 7.2l1.6 7.8h-8l1.6-7.8A4 4 0 0 1 86 30z" fill="#3A1606"/>
+    ${rivet(34.5, 50)}${rivet(137.5, 50)}${rivet(34.5, 76)}${rivet(137.5, 76)}${rivet(74, 22)}${rivet(98, 22)}
+    <rect x="6" y="10" width="160" height="80" rx="10" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2"/></svg>`;
+  return box + lid;
+}
+function lumixIntroSeen() { try { return !me || !!localStorage.getItem('intro:lumix:' + me.uid); } catch { return true; } }
+function lumixIntro(prize, left = 8) {
+  if (!me || lumixIntroSeen()) return false;
+  if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro')) { if (left) setTimeout(() => lumixIntro(prize, left - 1), 4000); return true; }
+  try { localStorage.setItem('intro:lumix:' + me.uid, '1'); localStorage.setItem('intro:streak:' + me.uid, '1'); } catch {}
+  track('lumix_intro', {});
+  const n = (dStreak && dStreak.n) || 1, reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const w = document.createElement('div'); w.className = 'lx-intro'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'רצף ולומיקס');
+  w.innerHTML = `<button class="lx-skip" type="button">דילוג</button>
+    <div class="lx-stage">
+      <div class="lx-beat b1"><span class="lx-fire"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${n}</b></span><div><h3>רצף</h3><p>נכנסים כל יום – והאש גדלה. כל יום יש פרס.</p></div></div>
+      <div class="lx-beat b2"><span class="lx-coin"><svg aria-hidden="true"><use href="#i-lumix"/></svg></span><div><h3>לומיקס</h3><p>מרוויחים כשלומדים: צילום לוח, שאלה לעוזר, מחברת חדשה.</p></div></div>
+      <div class="lx-beat b3"><span class="lx-shop"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><h3>חנות</h3><p>קונים בלומיקס עוד AI ודברים מגניבים למחברות.</p></div></div>
+    </div>
+    <div class="lx-final"><button type="button" class="chest lx-chest" aria-label="לפתוח את הפרס הראשון"><span class="ch-rays"></span><span class="ch-shadow"></span>${chestArt()}<span class="ch-gem"></span><span class="ch-glow"></span><span class="ch-flash"></span><i class="ch-sp s1"></i><i class="ch-sp s2"></i><i class="ch-sp s3"></i><i class="ch-sp s4"></i></button>
+      <button type="button" class="btn btn-primary lx-open">לפתוח את הפרס הראשון שלי</button>
+      <div class="lx-got hidden"><b>${esc(prize || 'הלומיקס הראשונים שלך!')}</b><small>כל מה שקיבלת נמצא למעלה, ליד האש</small></div></div>`;
+  document.body.appendChild(w);
+  requestAnimationFrame(() => w.classList.add('in'));
+  const end = () => { w.classList.add('out'); setTimeout(() => { w.remove(); streakWhere(); }, 350); };
+  w.querySelector('.lx-skip').onclick = () => { track('lumix_intro_skip', {}); w.remove(); };
+  const open = () => {
+    const chest = w.querySelector('.lx-chest'); if (chest.classList.contains('open')) return;
+    chest.classList.add('charge'); setTimeout(() => chest.classList.add('open'), reduce ? 0 : 480); w.querySelector('.lx-open').classList.add('hidden'); track('lumix_intro_open', {});
+    setTimeout(() => {
+      w.querySelector('.lx-got').classList.remove('hidden');
+      // הלומיקס עפים מהתיבה אל המונה למעלה
+      const b = $('chalkBtn'), c = chest.getBoundingClientRect();
+      if (b && !reduce && chest.animate) {
+        const t = b.getBoundingClientRect(), cx = c.left + c.width / 2, cy = c.top + c.height / 3;
+        for (let i = 0; i < 9; i++) {
+          const p = document.createElement('span'); p.className = 'cb-p lx-p'; p.style.left = cx + 'px'; p.style.top = cy + 'px'; p.innerHTML = '<svg aria-hidden="true"><use href="#i-lumix"/></svg>'; document.body.appendChild(p);
+          const ang = Math.random() * Math.PI * 2, mx = Math.cos(ang) * (50 + Math.random() * 60), my = Math.sin(ang) * 50 - 60;
+          p.animate([{ transform: 'translate(-50%,-50%) scale(.3)', opacity: 0 }, { transform: `translate(calc(-50% + ${mx}px),calc(-50% + ${my}px)) scale(1.1)`, opacity: 1, offset: .35 }, { transform: `translate(calc(-50% + ${t.left + t.width / 2 - cx}px),calc(-50% + ${t.top + t.height / 2 - cy}px)) scale(.5) rotate(220deg)`, opacity: .9 }], { duration: 900 + i * 40, delay: i * 50, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' }).onfinish = () => p.remove();
+        }
+        setTimeout(() => { b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }, 900);
+      }
+      window.Motion?.confetti(chest);
+      setTimeout(end, 2600);
+    }, reduce ? 0 : 1100);
+  };
+  w.querySelector('.lx-chest').onclick = open; w.querySelector('.lx-open').onclick = open;
+  return true;
+}
+// תגיות "+2" ליד מה שמביא לומיקס (עד שמגיעים לתקרה של היום)
+function earnTagsPaint() {
+  const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {}, q = typeof questsToday === 'function' ? questsToday().map(x => x.k) : [];
+  const tag = (el, n, on) => { if (!el) return; let t = el.querySelector(':scope > .earn-tag'); if (!on || !me || !wallet) { t?.remove(); return; } if (!t) { t = document.createElement('span'); t.className = 'earn-tag'; el.appendChild(t); } t.innerHTML = `<svg aria-hidden="true"><use href="#i-lumix"/></svg>+${n}`; };
+  tag($('homeOcr'), 2, (today.ocr || 0) < 3);
+  tag($('homeNew'), 5, (today.nb || 0) < 2);
+  tag($('homePr'), 2, q.includes('pr') && !today.pr);
+  tag(document.querySelector('#home .home-ask'), 1, !today.ask);
 }
 // שיתוף רצף: תמונה של לוח עם המספר + הקישור האישי (מביא חברים). בטלפון – שיתוף עם התמונה, במחשב – וואטסאפ עם טקסט
 async function streakShare() {
