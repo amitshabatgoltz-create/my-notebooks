@@ -513,6 +513,17 @@ exports.chalkNb2 = onDocumentWritten({ document: 'users/{uid}/notebooks/{id}', r
   const ref = db.doc(`wallet/${ev.params.uid}`), id = ev.params.id;
   try { await db.runTransaction(async tx => { const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {}; const ids = w.nbIds || []; if (ids.includes(id)) return; const r = earnIn(tx, w, 'nb'); tx.set(ref, { ...r.w, nbIds: [...ids, id].slice(-40) }); }); } catch (e) { console.warn('chalkNb2', String(e && e.message).slice(0, 80)); }
 });
+// (25.11.2026) תשלום חד-פעמי לכולם עכשיו – לא מחכים לכניסה הבאה. מפעילים ע"י יצירת מסמך ב-adminJobs (רק מהקונסול/CLI; לדפדפן אין גישה)
+exports.refBackRun = onDocumentCreated({ document: 'adminJobs/{id}', region: 'europe-west1', retry: false }, async ev => {
+  const d = ev.data && ev.data.data(); if (!d || d.job !== 'refBack') return;
+  const sn = await db.collectionGroup('joined').get(), cnt = {};
+  sn.forEach(x => { const ref = x.ref.parent.parent; if (!ref || ref.parent.id !== 'refs') return; const at = +(x.data().at || 0); if (at && at < WALLET_START && ref.id !== x.id) cnt[ref.id] = (cnt[ref.id] || 0) + 1; });
+  let people = 0, paid = 0;
+  for (const [uid, n] of Object.entries(cnt)) {
+    try { const got = await db.runTransaction(async tx => { const wref = db.doc(`wallet/${uid}`); const w0 = await tx.get(wref); const r = refBackIn(w0.exists ? w0.data() : {}, n); if (r.got || !(w0.exists && w0.data().refBack)) tx.set(wref, r.w); return r.got; }); if (got) { people++; paid += got; } } catch (e) { console.warn('refBackRun', String(e && e.message).slice(0, 80)); }
+  }
+  await ev.data.ref.set({ done: Date.now(), referrers: Object.keys(cnt).length, people, paid }, { merge: true });
+});
 // המשתמש באמת סיים (הכניס למחברת / עבר על כרטיסיות): אם ה-AI הכין לו את זה היום – מקבל את הלומיקס
 exports.questDone = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req => {
   const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');
