@@ -60,7 +60,7 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref', 'mins', 'days'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'first', 'last', 'lastDay', 'nb', 'device', 'ai', 'ref', 'mins', 'days', 'sch'])
         && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() < 100))
         && (!('email' in request.resource.data) || (request.resource.data.email is string && request.resource.data.email.size() < 200))
         && (!('device' in request.resource.data) || (request.resource.data.device is string && request.resource.data.device.size() < 40))
@@ -68,7 +68,8 @@ service cloud.firestore {
         && (!('ai' in request.resource.data) || request.resource.data.ai is map)
         && (!('ref' in request.resource.data) || (request.resource.data.ref is string && request.resource.data.ref.size() < 60))
         && (!('mins' in request.resource.data) || request.resource.data.mins is int)
-        && (!('days' in request.resource.data) || (request.resource.data.days is map && request.resource.data.days.size() < 40));
+        && (!('days' in request.resource.data) || (request.resource.data.days is map && request.resource.data.days.size() < 40))
+        && (!('sch' in request.resource.data) || (request.resource.data.sch is map && request.resource.data.sch.keys().hasOnly(['c', 'n', 't', 'g', 'k']) && request.resource.data.sch.n is string && request.resource.data.sch.n.size() <= 80 && request.resource.data.sch.t is string && request.resource.data.sch.t.size() <= 60 && request.resource.data.sch.g is int && request.resource.data.sch.k is int && request.resource.data.sch.c is int));
     }
     // בעל האתר מעדכן רק את השדה "ref" (מי הביא את המשתמש) – שיוך ידני מעמוד הניהול
     match /stats/{uid} {

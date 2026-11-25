@@ -3662,3 +3662,30 @@ html[data-theme="dark"] .earn-tag{background:linear-gradient(135deg,#0E2A5C,#143
 .chest .ch-gem{bottom:52px;width:22px;height:22px;margin-left:-11px;border-width:2px}
 .chest.open .ch-lid{transform:translate(-26px,-44px) rotate(-32deg);opacity:0;transition:transform .65s cubic-bezier(.25,1.6,.45,1),opacity .35s ease .7s}
 .chest.open .ch-glow{bottom:-30px}
+/* בית ספר וכיתה (25.11.2026) */
+.sch-dlg{max-width:480px}
+.sch-dlg .sch-l{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+.sch-search input{width:100%;padding:11px 13px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:15px}
+.sch-search input:focus{outline:none;border-color:var(--accent)}
+.sch-res{display:flex;flex-direction:column;gap:2px;margin-top:6px;max-height:248px;overflow-y:auto}
+.sch-res:empty{display:none}
+.sch-opt{display:flex;justify-content:space-between;align-items:baseline;gap:10px;text-align:start;padding:9px 11px;border-radius:10px;background:transparent;color:var(--ink);font:inherit}
+.sch-opt:hover,.sch-opt:focus-visible{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.sch-opt b{font-weight:500;font-size:14.5px;min-width:0}
+.sch-opt small{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.sch-opt.sch-own b{color:var(--accent);font-weight:600}
+.sch-msg{color:var(--muted);font-size:13.5px;padding:8px 11px}
+.sch-picked{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:12px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1.5px solid color-mix(in srgb,var(--accent) 45%,var(--line))}
+.sch-picked.hidden,.sch-search.hidden{display:none}
+.sch-pn{font-weight:600;min-width:0}
+.sch-grades{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.sch-grades .chip-btn{padding:8px 0;text-align:center}
+.sch-k{padding:9px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;min-width:96px}
+.sch-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.sch-btns .btn[disabled]{opacity:.5;cursor:default}
+.adm-sch-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.adm-sch-row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid var(--line)}
+.adm-sch-n{font-weight:700;font-size:18px;color:var(--accent)}
+.adm-sch-cls{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px}
+.adm-sch-cls .chip-btn{font-size:12.5px;padding:2px 9px;cursor:default}
+@media (max-width:700px){.sch-btns .btn{flex:1;min-height:44px}}

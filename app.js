@@ -220,7 +220,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); schoolLoad(); schoolEnter(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -3135,9 +3135,113 @@ function homeFirstPaint() {
 }
 $('homeFirstOcr').onclick = () => { track('first_nb_photo', {}); openId = null; ocrDialog({ noIntro: true }); };
 $('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
+/* ===== בית ספר וכיתה (25.11.2026): שואלים רק מהכניסה ה-3 לאתר, בכרטיס במסך הבית ===== */
+// נשמר ב-users/<uid>/meta/school {c: סמל מוסד (0 = הוקלד ידנית), n: שם, t: יישוב, g: שכבה 1–12, k: מספר כיתה, at}
+// ועותק קטן ב-stats/<uid>.sch בשביל ניהול האתר. הרשימה: schools.json מהמידע הפתוח של משרד החינוך (data.gov.il), נטענת רק כשפותחים את החלון
+// "לא עכשיו" – הכרטיס חוזר עוד פעם אחת בלבד אחרי שבועיים. תמיד אפשר לשנות מתפריט החשבון
+const SCH_AFTER = 3, SCH_AGAIN = 14 * 864e5, SCH_GAP = 30 * 60000;
+const GRADE_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'];
+const classLabel = s => s && s.g ? GRADE_HE[s.g - 1] + (s.k ? s.k : '') : '';
+let school = null, schoolLoaded = false, schoolList = null;
+const schoolDoc = () => doc(db, 'users', me.uid, 'meta', 'school');
+const schLs = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k + ':' + me.uid) || 'null'); localStorage.setItem(k + ':' + me.uid, JSON.stringify(v)); } catch { return null; } };
+async function schoolLoad() {
+  if (!me) return; const uid = me.uid; school = null; schoolLoaded = false;
+  try { const sn = await getDoc(schoolDoc()); if (!me || me.uid !== uid) return; school = sn.exists() && sn.data().n ? sn.data() : null; schoolLoaded = true; schoolPaint(); } catch {}
+}
+// כניסה = פתיחה של האתר, או חזרה אליו אחרי חצי שעה בלי להיות בו (כמו statsEnter)
+function schoolEnter() {
+  if (!me) return; const c = schLs('schEnt') || { n: 0, t: 0 };
+  if (Date.now() - c.t > SCH_GAP) c.n++; c.t = Date.now(); schLs('schEnt', c);
+  schoolPaint();
+}
+function schoolPaint() {
+  const el = $('homeSchool'); if (!el) return;
+  const ent = me && schLs('schEnt'), sk = me && schLs('schSkip');
+  const show = !!me && schoolLoaded && !school && !!ent && ent.n >= SCH_AFTER && !shareParam
+    && (!sk || (sk.n < 2 && Date.now() - sk.t > SCH_AGAIN))
+    && $('homeFirst').classList.contains('hidden');   // מי שעוד אין לו מחברת – קודם המחברת
+  if (show && el.classList.contains('hidden')) track('school_card', {});
+  el.classList.toggle('hidden', !show);
+}
+$('homeSchoolGo').onclick = () => { track('school_open', { from: 'card' }); schoolDialog(); };
+$('homeSchoolSkip').onclick = () => { const sk = schLs('schSkip') || { n: 0 }; schLs('schSkip', { n: sk.n + 1, t: Date.now() }); track('school_skip', { n: sk.n + 1 }); schoolPaint(); };
+$('schoolBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); track('school_open', { from: 'menu' }); schoolDialog(); });
+const schNorm = s => String(s || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+async function schoolListGet() {
+  if (schoolList) return schoolList;
+  const r = await fetch('schools.json?v=1'); const a = await r.json();
+  schoolList = a.map(([c, n, t]) => { const k = schNorm(n + ' ' + t); return { c, n, t, k, w: k.split(' '), kn: schNorm(n) }; });
+  return schoolList;
+}
+function schoolFind(q) {
+  const w = schNorm(q).split(' ').filter(Boolean); if (!w.length || !schoolList) return [];
+  const out = [];
+  for (const s of schoolList) if (w.every(x => s.w.some(y => y.startsWith(x) || y.startsWith('ה' + x)))) out.push(s);   // כל מילה – תחילת מילה בשם או ביישוב
+  const qn = w.join(' ');
+  out.sort((a, b) => (b.kn.startsWith(qn) - a.kn.startsWith(qn)) || a.n.length - b.n.length);
+  return out.slice(0, 8);
+}
+function schoolDialog() {
+  let pick = school ? { c: school.c || 0, n: school.n, t: school.t || '' } : null, g = school ? school.g || 0 : 0, k = school ? school.k || 0 : 0;
+  dialog(d => {
+    d.classList.add('sch-dlg');
+    d.innerHTML = `<h3>בית הספר והכיתה שלך</h3><p class="muted-s">ככה נוכל לחבר אותך לחברים מהכיתה. רק את/ה ומנהלי האתר רואים את זה.</p>
+      <label class="sch-l" for="schQ">בית ספר</label>
+      <div class="sch-picked hidden"><span class="sch-pn" dir="auto"></span><button type="button" class="link sch-chg">שינוי</button></div>
+      <div class="sch-search"><input id="schQ" type="search" dir="auto" autocomplete="off" placeholder="שם בית הספר או היישוב…"><div class="sch-res" role="listbox" aria-label="בתי ספר"></div></div>
+      <label class="sch-l">שכבה</label><div class="sch-grades">${GRADE_HE.map((x, i) => `<button type="button" class="chip-btn" data-g="${i + 1}">${x}</button>`).join('')}</div>
+      <label class="sch-l" for="schK">מספר כיתה <small class="muted-s">(לא חובה)</small></label>
+      <select id="schK" class="sch-k"><option value="0">–</option>${Array.from({ length: 15 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>
+      <div class="sch-btns"><button type="button" class="btn btn-ghost" data-a="x">${school ? 'סגירה' : 'לא עכשיו'}</button><button type="button" class="btn btn-primary" data-a="ok" disabled>שמירה</button></div>`;
+    const q = d.querySelector('#schQ'), res = d.querySelector('.sch-res'), ok = d.querySelector('[data-a="ok"]'), picked = d.querySelector('.sch-picked'), search = d.querySelector('.sch-search');
+    const sel = d.querySelector('#schK'); sel.value = String(k);
+    const valid = () => { ok.disabled = !(pick && pick.n && g); };
+    const paintPick = () => {
+      picked.classList.toggle('hidden', !pick); search.classList.toggle('hidden', !!pick);
+      if (pick) picked.querySelector('.sch-pn').textContent = pick.n + (pick.t ? ' · ' + pick.t : '');
+      valid();
+    };
+    const paintG = () => { d.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', +b.dataset.g === g)); valid(); };
+    const paintRes = () => {
+      const v = q.value.trim(); res.innerHTML = '';
+      if (!v) return;
+      if (!schoolList) { res.innerHTML = '<div class="sch-msg">טוען את הרשימה…</div>'; return; }
+      schoolFind(v).forEach(s => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'sch-opt'; b.setAttribute('role', 'option');
+        b.innerHTML = `<b dir="auto">${esc(s.n)}</b><small>${esc(s.t)}</small>`;
+        b.onclick = () => { pick = { c: s.c, n: s.n, t: s.t }; paintPick(); }; res.appendChild(b);
+      });
+      if (v.length >= 2) {
+        const m = document.createElement('button'); m.type = 'button'; m.className = 'sch-opt sch-own';
+        m.innerHTML = `<b>לא מצאתי – לשמור "${esc(v.slice(0, 60))}"</b>`;
+        m.onclick = () => { pick = { c: 0, n: v.slice(0, 80), t: '' }; paintPick(); }; res.appendChild(m);
+      }
+    };
+    schoolListGet().then(paintRes).catch(() => { schoolList = []; paintRes(); });
+    q.addEventListener('input', paintRes);
+    picked.querySelector('.sch-chg').onclick = () => { pick = null; paintPick(); q.focus(); paintRes(); };
+    d.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { g = +b.dataset.g; paintG(); });
+    sel.onchange = () => { k = +sel.value || 0; };
+    d.querySelector('[data-a="x"]').onclick = closeDialog;
+    ok.onclick = async () => {
+      if (ok.disabled) return; ok.disabled = true;
+      const v = { c: +pick.c || 0, n: pick.n, t: pick.t || '', g, k };
+      try {
+        await setDoc(schoolDoc(), { ...v, at: Date.now() });
+        school = v; schoolPaint(); closeDialog(); toast('נשמר ✓');
+        track('school_save', { known: v.c ? 1 : 0, g });
+        if (!isAdmin()) setDoc(statsDoc(me.uid), { sch: v }, { merge: true }).catch(() => {});
+      } catch { ok.disabled = false; toast('לא הצלחתי לשמור. לנסות שוב?'); }
+    };
+    paintPick(); paintG();
+    if (!pick) setTimeout(() => q.focus(), 50);
+  });
+}
 function renderHome() {
   renderStats(); homeAskChips();
   homeFirstPaint();
+  schoolPaint();
   $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
@@ -9052,7 +9156,7 @@ let statsMinBuf = 0, statsLastAct = Date.now();
 let statsCarry = 0;
 setInterval(() => { if (me && document.visibilityState === 'visible') statsSeen(); if (me && document.visibilityState === 'visible' && Date.now() - statsLastAct < 300000) { statsMinBuf += 30; statsFlush(); } }, 30000);
 addEventListener('pagehide', () => { statsFlush(); statsSeen(); });
-addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { statsFlush(); statsSeen(); } else statsEnter(); });
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { statsFlush(); statsSeen(); } else { statsEnter(); schoolEnter(); } });
 // שעות כניסה: כל כניסה לאתר (או חזרה אחרי 30 דקות שלא היה בו) נשמרת כשעה "HH:MM" בשעון ישראל ב-days[יום].h – עד 30 ביום
 const STATS_GAP = 30 * 60000, STATS_ENT_MAX = 30;
 const hmIL = (t = Date.now()) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
@@ -9281,6 +9385,14 @@ function admToday(list, tk, dMin, dAi, fmtMin, toolName) {
     ${people.length ? `<div class="adm-ppl">${people.map(u => { const ai = Object.entries(dAi(u)).sort((a, b) => b[1] - a[1]); return `<div class="adm-p"><div class="adm-p-top"><button type="button" class="link adm-user" data-uid="${esc(u.id)}" dir="auto"><b>${esc(u.name || u.email || 'משתמש')}</b></button><span class="adm-p-min">${dMin(u) ? fmtMin(dMin(u)) : 'פחות מדקה'}</span></div>${hrsOf(u.days && u.days[tk]).length ? `<div class="adm-p-hrs"><span class="muted-s">נכנס ב:</span>${hrsOf(u.days[tk]).map(t => `<span dir="ltr">${esc(t)}</span>`).join('')}</div>` : ''}${ai.length ? `<div class="adm-p-tools">${ai.map(([k, v]) => `<span>${esc(toolName(k))} <b>${v}</b></span>`).join('')}</div>` : '<small class="muted-s">בלי כלים</small>'}</div>`; }).join('')}</div>` : '<p class="noev">עוד אף אחד לא נכנס היום.</p>'}
     <p class="muted-s">הזמן נספר רק כשהאתר פתוח ומשתמשים בו (לא כשהוא סתם פתוח ברקע). נשמר כל 30 שניות, ומה שקרה ממש עכשיו מופיע אחרי "↻ רענון". נספר מ-12 בנובמבר.</p></div>`;
 }
+// בתי ספר וכיתות: כמה משתמשים בכל בית ספר, ובאיזה כיתות (25.11.2026)
+function admSchools(list) {
+  const has = list.filter(u => u.sch && u.sch.n); const by = {};
+  has.forEach(u => { const id = u.sch.c ? 'c' + u.sch.c : 'n' + schNorm(u.sch.n); const s = by[id] || (by[id] = { n: u.sch.n, t: u.sch.t || '', users: 0, cls: {} }); s.users++; const cl = classLabel(u.sch) || 'בלי כיתה'; s.cls[cl] = (s.cls[cl] || 0) + 1; });
+  const rows = Object.values(by).sort((a, b) => b.users - a.users);
+  return `<div class="card adm-sch"><h3>בתי ספר וכיתות</h3><p class="muted-s">${has.length} מתוך ${list.length} משתמשים מילאו (הכרטיס מופיע להם מהכניסה ה-3).</p>
+    ${rows.length ? `<div class="adm-sch-list">${rows.map(s => `<div class="adm-sch-row"><div><b dir="auto">${esc(s.n)}</b>${s.t ? ` <small class="muted-s">${esc(s.t)}</small>` : ''}</div><span class="adm-sch-n">${s.users}</span><div class="adm-sch-cls">${Object.entries(s.cls).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<span class="chip-btn">${esc(c)}${n > 1 ? ` · ${n}` : ''}</span>`).join('')}</div></div>`).join('')}</div>` : '<p class="noev">עוד אף אחד לא מילא.</p>'}</div>`;
+}
 async function renderAdmin() {
   statsFlush();
   const box = $('admBody');
@@ -9344,6 +9456,7 @@ async function renderAdmin() {
     ${admMarketers(list, brought, promoIds)}
     ${admToday(list, tk, dMin, dAi, fmtMin, toolName)}
     ${admHours(list)}
+    ${admSchools(list)}
     <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
       <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}">${byDay[k] ? `<b>${byDay[k]}</b>` : ''}<i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 86) : 0}%"></i></div>`).join('')}</div>
       ${admDayAx(days)}</div>
@@ -9351,8 +9464,8 @@ async function renderAdmin() {
       <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
     <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div>${admDayAx(days14)}<p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
-    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>שעות כניסה היום</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>לומיקס</th><th>הביא חברים</th><th>הגיע דרך</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
-      ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}${u.last && now - u.last < day ? ` <small class="muted-s" dir="ltr">${hmIL(u.last)}</small>` : ''}</td><td dir="ltr" class="adm-tt">${hrsOf(u.days && u.days[tk]).join(' · ') || '–'}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${lx[u.id] ? `<b>${lx[u.id].bal || 0}</b> <small class="muted-s">(הרוויח ${lx[u.id].total || 0})</small>` : '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
+    <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>שעות כניסה היום</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>לומיקס</th><th>הביא חברים</th><th>הגיע דרך</th><th>בית ספר</th><th>כיתה</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
+      ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}${u.last && now - u.last < day ? ` <small class="muted-s" dir="ltr">${hmIL(u.last)}</small>` : ''}</td><td dir="ltr" class="adm-tt">${hrsOf(u.days && u.days[tk]).join(' · ') || '–'}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${lx[u.id] ? `<b>${lx[u.id].bal || 0}</b> <small class="muted-s">(הרוויח ${lx[u.id].total || 0})</small>` : '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${u.sch ? `${esc(u.sch.n || '')}${u.sch.t ? ` <small class="muted-s">${esc(u.sch.t)}</small>` : ''}` : '–'}</td><td>${esc(classLabel(u.sch)) || '–'}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
     </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
   // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
   const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);
