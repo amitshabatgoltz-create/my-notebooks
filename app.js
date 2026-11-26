@@ -3149,7 +3149,7 @@ const schoolDoc = () => doc(db, 'users', me.uid, 'meta', 'school');
 const schLs = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k + ':' + me.uid) || 'null'); localStorage.setItem(k + ':' + me.uid, JSON.stringify(v)); } catch { return null; } };
 async function schoolLoad() {
   if (!me) return; const uid = me.uid; school = null; schoolLoaded = false;
-  try { const sn = await getDoc(schoolDoc()); if (!me || me.uid !== uid) return; school = sn.exists() && sn.data().n ? sn.data() : null; schoolLoaded = true; schoolPaint(); } catch {}
+  try { const sn = await getDoc(schoolDoc()); if (!me || me.uid !== uid) return; school = sn.exists() && sn.data().n ? sn.data() : null; schoolLoaded = true; schoolPaint(); classLoad(); } catch {}
 }
 // כניסה = פתיחה של האתר, או חזרה אליו אחרי חצי שעה בלי להיות בו (כמו statsEnter)
 function schoolEnter() {
@@ -3167,6 +3167,95 @@ function schoolPaint() {
   el.classList.toggle('hidden', !show);
   if (show && !schLs('schPop')) schoolPopSoon();
 }
+// ===== הכיתה שלי (26.11.2026, רעיון של עמית) =====
+// השרת (classInfo) מחזיר רק מספרים והצעות – לא שמות ולא מי העלה (כל אחד יכול לכתוב שהוא בכיתה). הצעה רק כש-3 מהכיתה מסכימים.
+// מערכת שעות של הכיתה – רק למי שאין לו; מבחנים של הכיתה – רק מה שעוד אין ביומן. פעם ביום (localStorage cls:<uid>)
+let classData = null;
+const clsK = t => String(t || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().replace(/^(מבחן|בוחן|מבדק|בחינה|test|quiz)( ב| ב-| ב)?\s*/, '').replace(/^ב/, '').trim();
+const ttEmptyNow = () => !Object.values((timetable && timetable.days) || {}).some(a => Array.isArray(a) && a.some(Boolean));
+const classTestsNew = () => ((classData && classData.tests) || []).filter(t => !events.some(e => e.date === t.date && (clsK(e.title) === clsK(t.title) || clsK(e.title).includes(clsK(t.title)) || clsK(t.title).includes(clsK(e.title)))));
+async function classLoad(force) {
+  if (!me || !school || !school.g) { classData = null; classPaint(); return; }
+  const day = usageDay(), c = schLs('cls');
+  if (!force && c && c.day === day && c.key === school.n + school.g + school.k) { classData = c.d; classPaint(); return; }
+  try {
+    const r = await httpsCallable(getFunctions(fb, 'europe-west1'), 'classInfo', { timeout: 30000 })({});
+    classData = r.data && r.data.ok ? r.data : null; schLs('cls', { day, key: school.n + school.g + school.k, d: classData });
+  } catch (e) { console.warn('classInfo', e && e.message); }
+  classPaint();
+}
+function classPaint() {
+  const el = $('homeClass'); if (!el) return;
+  const d = classData, hide = schLs('clsHide') || {};
+  if (!me || !d || !school) { el.classList.add('hidden'); return; }
+  const tt = d.tt && ttReady && ttEmptyNow(), tests = classTestsNew(), lbl = classLabel(school);
+  const sig = (tt ? 'tt' : '') + tests.length;
+  if (hide.day === usageDay() || (hide.sig === sig && Date.now() - (hide.t || 0) < 7 * 864e5)) { el.classList.add('hidden'); return; }
+  const n = d.k ? d.cls : d.grade, where = d.k ? `מהכיתה שלך (${lbl})` : `מהשכבה שלך (${lbl})`;
+  $('homeClassT').textContent = n ? `${n} ${where} כבר באתר` : `עוד אף אחד ${where} לא באתר`;
+  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'כשעוד חברים מהכיתה מצטרפים, מערכת השעות ולוח המבחנים נכנסים לכולם בקלות';
+  const btns = $('homeClassBtns'); btns.innerHTML = '';
+  const mk = (t, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = t; b.onclick = fn; btns.appendChild(b); };
+  if (tt) mk('להוסיף מערכת שעות', 'btn-primary', classTTDialog);
+  if (tests.length) mk(`להוסיף מבחנים (${tests.length})`, tt ? 'btn-ghost' : 'btn-primary', classTestsDialog);
+  mk('להזמין חברים לכיתה', tt || tests.length ? 'btn-ghost' : 'btn-primary', classInvite);
+  if (el.classList.contains('hidden')) track('class_card', { n, tt: tt ? 1 : 0, tests: tests.length });
+  el.classList.remove('hidden');
+  if (tt && !schLs('clsPopTT')) classPopSoon();
+}
+$('homeClassX').onclick = () => { const d = classData, tests = classTestsNew(), tt = d && d.tt && ttEmptyNow(); schLs('clsHide', { day: usageDay(), t: Date.now(), sig: (tt ? 'tt' : '') + tests.length }); $('homeClass').classList.add('hidden'); track('class_hide', {}); };
+let clsPopT = 0;
+function classPopSoon(left = 10) {
+  clearTimeout(clsPopT);
+  clsPopT = setTimeout(() => {
+    if (!me || schLs('clsPopTT') || !classData || !classData.tt || !ttEmptyNow()) return;
+    if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro, .cb-wrap')) { if (left) classPopSoon(left - 1); return; }
+    schLs('clsPopTT', Date.now()); track('class_tt_pop', {}); classTTDialog();
+  }, 5000);
+}
+function classTTDialog() {
+  const tt = classData && classData.tt; if (!tt) return;
+  track('class_tt_open', {});
+  dialog(d => {
+    d.classList.add('cls-dlg');
+    const rows = [0, 1, 2, 3, 4, 5].map(i => ({ i, l: (tt.days[i] || []) })).filter(r => r.l.some(Boolean));
+    d.innerHTML = `<h3>מערכת השעות של הכיתה</h3><p class="muted-s">${esc(classLabel(school))} – ככה רוב הכיתה שלך הכניסו. אפשר לשנות אחר כך.</p>
+      <div class="cls-tt">${rows.map(r => `<div class="cls-day"><b>${HE_DAYS[r.i]}</b><ol start="${tt.start === 0 ? 0 : 1}">${r.l.map(x => `<li>${x ? esc(x) : '<span class="muted-s">–</span>'}</li>`).join('')}</ol></div>`).join('')}</div>
+      <div class="row"><button class="btn btn-primary" type="button" data-a="ok">להוסיף לי</button><button class="btn btn-ghost" type="button" data-a="x">לא עכשיו</button></div>`;
+    d.querySelector('[data-a="x"]').onclick = closeDialog;
+    d.querySelector('[data-a="ok"]').onclick = async e => {
+      e.target.disabled = true;
+      try { const days = {}; for (let i = 0; i < 6; i++) days[i] = (tt.days[i] || []).slice(0, 14); await setDoc(ttDoc(), { days, start: tt.start === 0 ? 0 : 1, times: tt.times || {}, updatedAt: Date.now() }); closeDialog(); toast('מערכת השעות נוספה ✓'); track('class_tt_add', {}); setTimeout(classPaint, 800); }
+      catch { e.target.disabled = false; toast('לא הצלחתי לשמור. לנסות שוב?'); }
+    };
+  });
+}
+function classTestsDialog() {
+  const list = classTestsNew(); if (!list.length) return;
+  track('class_tests_open', { n: list.length });
+  dialog(d => {
+    d.classList.add('cls-dlg');
+    d.innerHTML = `<h3>מבחנים של הכיתה</h3><p class="muted-s">כמה ילדים מהכיתה שלך הכניסו את המבחנים האלה ליומן, ואצלך הם עוד לא. מסמנים מה להוסיף:</p>
+      <div class="cls-tests">${list.map((t, i) => `<label class="cls-t"><input type="checkbox" data-i="${i}" checked><span><b dir="auto">${esc(t.title)}</b><small class="muted-s">${esc(clsDate(t.date))}${t.time ? ' · ' + esc(t.time) : ''}</small></span></label>`).join('')}</div>
+      <div class="row"><button class="btn btn-primary" type="button" data-a="ok">להוסיף ליומן</button><button class="btn btn-ghost" type="button" data-a="x">לא עכשיו</button></div>`;
+    d.querySelector('[data-a="x"]').onclick = closeDialog;
+    d.querySelector('[data-a="ok"]').onclick = async e => {
+      const pick = [...d.querySelectorAll('input[data-i]')].filter(x => x.checked).map(x => list[+x.dataset.i]);
+      if (!pick.length) { closeDialog(); return; }
+      e.target.disabled = true;
+      for (const t of pick) await addDoc(evCol(), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, createdAt: Date.now() }).catch(() => {});
+      closeDialog(); toast(pick.length === 1 ? 'המבחן נוסף ליומן ✓' : `${pick.length} מבחנים נוספו ליומן ✓`); track('class_tests_add', { n: pick.length }); setTimeout(classPaint, 800);
+    };
+  });
+}
+const clsDate = s => { const [y, m, d] = String(s).split('-').map(Number); if (!d) return s; const dt = new Date(y, m - 1, d); return `יום ${HE_DAYS[dt.getDay()]}, ${d}.${m}`; };
+async function classInvite() {
+  const url = inviteLink(), text = 'אני משתמש במחברות שלי – מצלמים את הלוח והוא נכנס למחברת, וכל הכיתה מקבלת את מערכת השעות ולוח המבחנים. תצטרפו (חינם, עדיף מהמחשב או מכרום/ספארי):';
+  track('invite_send', { from: 'class' });
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
+}
+if (location.hostname === 'localhost') window.__classTest = (d, tt) => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; school = { n: 'בדיקה', g: 8, k: 3 }; classData = d; ttReady = true; if (tt === 'empty') timetable = { days: {} }; try { localStorage.removeItem('clsHide:localtest'); localStorage.setItem('clsPopTT:localtest', '1'); } catch {} $('home').classList.remove('hidden'); classPaint(); };   // רק לבדיקה מקומית
 // (26.11.2026, עמית: "שיקפוץ להם") פעם אחת החלון קופץ לבד – רק כשאין חלון אחר פתוח (תיבת הרצף, הסבר לומיקס, סיור). אחר כך נשאר הכרטיס
 let schPopT = 0;
 function schoolPopSoon(left = 10) {
@@ -3243,7 +3332,7 @@ function schoolDialog() {
       const v = { c: +pick.c || 0, n: pick.n, t: pick.t || '', g, k };
       try {
         await setDoc(schoolDoc(), { ...v, at: Date.now() });
-        school = v; schoolPaint(); closeDialog(); toast('נשמר ✓');
+        school = v; schoolPaint(); closeDialog(); toast('נשמר ✓'); setTimeout(() => classLoad(true), 1500);
         track('school_save', { known: v.c ? 1 : 0, g });
         if (!isAdmin()) setDoc(statsDoc(me.uid), { sch: v }, { merge: true }).catch(() => {});
       } catch { ok.disabled = false; toast('לא הצלחתי לשמור. לנסות שוב?'); }

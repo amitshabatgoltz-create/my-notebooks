@@ -525,6 +525,53 @@ exports.refBackRun = onDocumentCreated({ document: 'adminJobs/{id}', region: 'eu
   }
   await ev.data.ref.set({ done: Date.now(), referrers: Object.keys(cnt).length, people, paid }, { merge: true });
 });
+// ===== הכיתה שלי (26.11.2026, רעיון של עמית) =====
+// לפי בית הספר + שכבה + מספר כיתה (מ-users/{uid}/meta/school). מחזיר רק מספרים והצעות – אף פעם לא שמות או מי העלה מה,
+// כי כל אחד יכול לכתוב שהוא בכיתה מסוימת. הצעה רק כש-3 ילדים לפחות מהכיתה מסכימים (CLASS_MIN)
+const CLASS_MIN = 3;
+const clsNorm = t => String(t || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+const testKey = t => clsNorm(t).replace(/^(מבחן|בוחן|מבדק|בחינה|test|quiz)( ב| ב-| ב)?\s*/, '').replace(/^ב/, '').trim();
+exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async req => {
+  const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const me = (await db.doc(`users/${uid}/meta/school`).get()).data();
+  if (!me || !me.g || !me.n) return { ok: false };
+  let q = db.collection('stats').where('sch.g', '==', me.g);
+  q = me.c ? q.where('sch.c', '==', me.c) : q.where('sch.n', '==', me.n);
+  const sn = await q.limit(400).get();
+  const grade = sn.docs.filter(d => d.id !== uid);
+  const cls = me.k ? grade.filter(d => (d.data().sch || {}).k === me.k).slice(0, 40) : [];
+  const out = { ok: true, grade: grade.length, cls: cls.length, k: me.k || 0, tt: null, tests: [] };
+  if (cls.length < CLASS_MIN) return out;
+  // מערכת שעות: לכל יום ושעה – המקצוע שרוב הכיתה כתבו (רק מי שיש לו מערכת)
+  const tts = (await Promise.all(cls.map(d => db.doc(`users/${d.id}/meta/timetable`).get().catch(() => null))))
+    .map(x => x && x.exists ? x.data() : null).filter(t => t && t.days && Object.values(t.days).some(a => Array.isArray(a) && a.some(Boolean)));
+  if (tts.length >= CLASS_MIN) {
+    const days = {}; let slots = 0, agree = 0;
+    for (let i = 0; i < 6; i++) {
+      const len = Math.max(0, ...tts.map(t => (t.days[i] || []).length)); const row = [];
+      for (let j = 0; j < len; j++) {
+        const c = {}; tts.forEach(t => { const v = String((t.days[i] || [])[j] || '').trim(); if (v) c[clsNorm(v)] = c[clsNorm(v)] ? { n: c[clsNorm(v)].n + 1, v: c[clsNorm(v)].v } : { n: 1, v }; });
+        const best = Object.values(c).sort((a, b) => b.n - a.n)[0];
+        if (best) { slots++; if (best.n >= CLASS_MIN) { agree++; row[j] = best.v.slice(0, 40); } else row[j] = ''; } else row[j] = '';
+      }
+      while (row.length && !row[row.length - 1]) row.pop();
+      days[i] = row;
+    }
+    if (slots && agree / slots >= 0.6) {
+      const st = {}; tts.forEach(t => { const k = t.start === 0 ? 0 : 1; st[k] = (st[k] || 0) + 1; });
+      const ref = tts.find(t => t.times && Object.keys(t.times).length) || {};
+      out.tt = { days, start: (st[0] || 0) > (st[1] || 0) ? 0 : 1, times: ref.times || {} };
+    }
+  }
+  // מבחנים: מבחן שלפחות 3 מהכיתה הכניסו ליומן, באותו תאריך ובאותו שם (בערך)
+  const today = new Date(Date.now() + 10800000).toISOString().slice(0, 10);
+  const evs = await Promise.all(cls.map(d => db.collection(`users/${d.id}/events`).where('date', '>=', today).limit(120).get().catch(() => null)));
+  const by = {};
+  evs.forEach((s2, idx) => { if (!s2) return; const seen = new Set(); s2.forEach(e => { const x = e.data(); if (x.type !== 'test') return; const k = x.date + '|' + testKey(x.title); if (!x.date || !testKey(x.title) || seen.has(k)) return; seen.add(k); const b = by[k] || (by[k] = { n: 0, date: x.date, titles: {}, time: {} }); b.n++; b.titles[x.title] = (b.titles[x.title] || 0) + 1; if (x.time) b.time[x.time] = (b.time[x.time] || 0) + 1; }); });
+  out.tests = Object.values(by).filter(b => b.n >= CLASS_MIN).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 25)
+    .map(b => ({ title: Object.entries(b.titles).sort((a, c) => c[1] - a[1])[0][0].slice(0, 80), date: b.date, time: (Object.entries(b.time).sort((a, c) => c[1] - a[1])[0] || [''])[0] }));
+  return out;
+});
 // המשתמש באמת סיים (הכניס למחברת / עבר על כרטיסיות): אם ה-AI הכין לו את זה היום – מקבל את הלומיקס
 exports.questDone = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req => {
   const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');

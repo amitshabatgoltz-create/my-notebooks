@@ -3689,3 +3689,16 @@ html[data-theme="dark"] .earn-tag{background:linear-gradient(135deg,#0E2A5C,#143
 .adm-sch-cls{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px}
 .adm-sch-cls .chip-btn{font-size:12.5px;padding:2px 9px;cursor:default}
 @media (max-width:700px){.sch-btns .btn{flex:1;min-height:44px}}
+/* ===== הכיתה שלי (26.11.2026) ===== */
+.cls-card{position:relative}
+.cls-card .cls-x{position:absolute;top:8px;inset-inline-end:8px;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:14px;cursor:pointer}
+.cls-card .cls-x:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.cls-card .fn-tx{padding-inline-end:22px}
+.cls-dlg .cls-tt{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:12px 0 16px;max-height:52vh;overflow:auto}
+.cls-dlg .cls-day{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--surface)}
+.cls-dlg .cls-day b{display:block;margin-bottom:4px;color:var(--accent)}
+.cls-dlg .cls-day ol{margin:0;padding-inline-start:22px;font-size:14px;line-height:1.6}
+.cls-dlg .cls-tests{display:flex;flex-direction:column;gap:8px;margin:12px 0 16px;max-height:52vh;overflow:auto}
+.cls-dlg .cls-t{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:14px;cursor:pointer}
+.cls-dlg .cls-t input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.cls-dlg .cls-t span{display:flex;flex-direction:column;gap:2px;min-width:0}
