@@ -102,6 +102,10 @@ service cloud.firestore {
     match /streaks/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
     }
+    // מה קונים בחנות (26.11.2026): רק השרת כותב, רק מנהלים קוראים
+    match /shopStats/{id} {
+      allow get: if isAdmin();
+    }
     match /aiQuota/{id} {
       allow get: if id == '_site' && isAdmin();
     }

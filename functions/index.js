@@ -72,7 +72,7 @@ const questKinds = day => ['day', ...QUEST_PAIRS[((day % QUEST_PAIRS.length) + Q
 // החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
 const SHOP = {
   // (26.11.2026) מחירים עלו – שיהיה בשביל מה לחסוך. אותם מחירים ב-app.js
-  ocr1: { p: 15, k: 'ocr', add: 1, max: 3 }, sum1: { p: 15, k: 'sum', add: 1, max: 2 }, chat5: { p: 10, k: 'chat', add: 5, max: 3 },
+  ocr1: { p: 25, k: 'ocr', add: 1, max: 3 },   // (26.11.2026) הדבר היחיד שקונים – עלה ל-25 sum1: { p: 15, k: 'sum', add: 1, max: 2 }, chat5: { p: 10, k: 'chat', add: 5, max: 3 },
   fc1: { p: 12, k: 'fc', add: 1, max: 2 }, kit1: { p: 12, k: 'kit', add: 1, max: 2 }, pr1: { p: 12, k: 'pr', add: 1, max: 2 },
   shield: { p: 40, shield: true },
   chalk: { p: 30, skin: true }, sunset: { p: 30, skin: true }, ocean: { p: 30, skin: true },
@@ -503,6 +503,11 @@ exports.shop = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req 
     return { bal: out.bal };
   });
   walletCache.delete(uid); streakCache.delete(uid);
+  // (26.11.2026) מעקב: מה קונים בחנות – shopStats/all (רק השרת כותב, רק מנהלים קוראים). בלי מי קנה – רק כמה. בעל האתר לא נספר
+  if (!isOwner(req.auth.token)) {
+    const inc = FieldValue.increment;
+    await db.doc('shopStats/all').set({ n: { [id]: inc(1) }, lx: { [id]: inc(it.p) }, days: { [day]: { [id]: inc(1) } }, buyers: { [id]: { [uid.slice(0, 6)]: true } }, last: Date.now() }, { merge: true }).catch(e => console.warn('shopStats', String(e && e.message).slice(0, 80)));
+  }
   return res;
 });
 // מחברת חדשה = גירים (עד 2 ביום). מצגות לא נספרות

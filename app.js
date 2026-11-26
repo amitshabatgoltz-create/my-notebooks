@@ -9365,6 +9365,15 @@ const ADMIN_RULES = uid => `    // ניהול האתר: כל משתמש כותב
     }`;
 // כמה בקשות ל-Gemini נשלחו היום מכל האתר יחד, מתוך המכסה היומית (Flash Lite, Free tier: 500 ביום, 15 בדקה)
 const SITE_AI_DAY = 500;
+// מה קונים בחנות (26.11.2026) – מ-shopStats/all שהשרת סופר. רק מספרים, בלי שמות
+function admShop(st) {
+  const n = (st && st.n) || {}, lx = (st && st.lx) || {}, by = (st && st.buyers) || {}, days = (st && st.days) || {}, td = usageDay();
+  const week = id => Object.entries(days).filter(([d]) => +d > td - 7).reduce((s, [, v]) => s + ((v && v[id]) || 0), 0);
+  const rows = SHOP.filter(x => x.g !== 'skin' || n[x.id]).map(x => ({ x, n: n[x.id] || 0, lx: lx[x.id] || 0, w: week(x.id), p: Object.keys(by[x.id] || {}).length })).sort((a, b) => b.n - a.n || a.x.p - b.x.p);
+  const tot = rows.reduce((s, r) => s + r.n, 0), max = Math.max(1, ...rows.map(r => r.n));
+  return `<div class="card adm-shop"><h3>מה קונים בחנות</h3><p class="muted-s">${tot ? `${tot} קניות, ${rows.reduce((s, r) => s + r.lx, 0)} לומיקס. בלי הקניות שלך.` : 'עוד אף אחד לא קנה כלום (בלי הקניות שלך). מתחיל לספור מ-26.11.2026.'}</p>
+    <div class="adm-shop-list">${rows.map(r => `<div class="adm-shop-row${r.n ? '' : ' zero'}"><span class="as-t"><b>${esc(r.x.t)}</b><small>${r.x.p} לומיקס${r.n ? ` · ${r.p} ${r.p === 1 ? 'ילד' : 'ילדים'} · השבוע ${r.w}` : ''}</small></span><span class="as-bar"><i style="width:${Math.round(r.n / max * 100)}%"></i></span><b class="as-n">${r.n}</b></div>`).join('')}</div></div>`;
+}
 function admSiteAi(g) {
   const day = Math.floor((Date.now() + 10800000) / 864e5);
   if (!g) return '<div class="card adm-site"><h3>AI היום בכל האתר</h3><p class="muted-s">עוד אין נתונים. זה מתחיל להיספר מהבקשה הבאה ל-AI.</p></div>';
@@ -9528,7 +9537,8 @@ async function renderAdmin() {
   await refreshUnlimited().catch(() => {});
   if (!isAdmin()) { box.innerHTML = '<p class="noev">העמוד הזה רק למנהלי האתר.</p>'; return; }
   box.innerHTML = '<div class="card"><p class="muted-s">טוען...</p></div>';
-  let list, site = null;
+  let list, site = null, shopSt = null;
+  try { const ss = await getDoc(doc(db, 'shopStats', 'all')); if (ss.exists()) shopSt = ss.data(); } catch (e) { console.warn('shop stats', e && e.message); }
   try { const sq = await getDoc(doc(db, 'aiQuota', '_site')); if (sq.exists()) site = sq.data(); } catch (e) { console.warn('site ai', e && e.message); }
   const lx = {};   // לומיקס של כל אחד (25.11.2026)
   try { const ws = await getDocs(collection(db, 'wallet')); ws.forEach(d => { lx[d.id] = d.data(); }); } catch (e) { console.warn('wallet', e && e.message); }
@@ -9582,6 +9592,7 @@ async function renderAdmin() {
       <div class="card adm-kpi"><b>${new7}</b><span>חדשים השבוע</span></div>
     </div>
     ${admSiteAi(site)}
+    ${admShop(shopSt)}
     ${admMarketers(list, brought, promoIds)}
     ${admToday(list, tk, dMin, dAi, fmtMin, toolName)}
     ${admHours(list)}
@@ -9861,7 +9872,7 @@ let refList = [], refLoaded = false;
 /* ===== לומיקס: מטבע שמרוויחים באתר (כניסה יומית, צילום לוח, מחברת חדשה, חבר) וקונים בו שימושים ועיצובים. השרת סופר ומוכר (exports.shop), האתר רק מציג ===== */
 // אותה רשימה כמו SHOP ב-functions/index.js
 const SHOP = [
-  { id: 'ocr1', g: 'ai', p: 15, t: 'עוד תמונה אחת לטקסט להיום', s: 'מצלמים לוח או דף – והוא נכנס למחברת. אפשר לקנות עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
+  { id: 'ocr1', g: 'ai', p: 25, t: 'עוד תמונה אחת לטקסט להיום', s: 'מצלמים לוח או דף – והוא נכנס למחברת. אפשר לקנות עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
   { id: 'chat5', g: 'ai', p: 10, t: 'עוד 5 הודעות לעוזר להיום', s: 'עוד 5 שאלות לעוזר הלימודי. אפשר לקנות עד 3 פעמים ביום', ic: 'chat', k: 'chat', add: 5, max: 3 },
   { id: 'sum1', g: 'ai', p: 15, t: 'עוד סיכום אחד למבחן להיום', s: 'סיכום מהמחברת שלך. אפשר לקנות עד 2 ביום', ic: 'doc', k: 'sum', add: 1, max: 2 },
   { id: 'fc1', g: 'ai', p: 12, t: 'עוד חבילת כרטיסיות אחת להיום', s: 'כרטיסיות שינון מהמחברת. אפשר לקנות עד 2 ביום', ic: 'cards', k: 'fc', add: 1, max: 2 },
