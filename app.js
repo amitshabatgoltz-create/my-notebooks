@@ -3193,12 +3193,12 @@ function classPaint() {
   if (hide.day === usageDay() || (hide.sig === sig && Date.now() - (hide.t || 0) < 7 * 864e5)) { el.classList.add('hidden'); return; }
   const n = d.k ? d.cls : d.grade, where = d.k ? `מהכיתה שלך (${lbl})` : `מהשכבה שלך (${lbl})`;
   $('homeClassT').textContent = n ? `${n} ${where} כבר באתר` : `עוד אף אחד ${where} לא באתר`;
-  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'כל חבר שמצטרף מהקישור שלך = 20 לומיקס. וככל שיותר מהכיתה באתר, מערכת השעות ולוח המבחנים נכנסים לכולם בלחיצה';
+  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'ככל שיותר מהכיתה באתר, מערכת השעות ולוח המבחנים נכנסים לכולם בלחיצה';
   const btns = $('homeClassBtns'); btns.innerHTML = '';
   const mk = (t, cls, fn, lx) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = t; if (lx) { const sp = document.createElement('span'); sp.className = 'cls-lx'; sp.innerHTML = '+' + lx + '<svg aria-hidden="true"><use href="#i-lumix"/></svg>'; b.appendChild(sp); } b.onclick = fn; btns.appendChild(b); };
   if (tt) mk('להוסיף מערכת שעות', 'btn-primary', classTTDialog);
   if (tests.length) mk(`להוסיף מבחנים (${tests.length})`, tt ? 'btn-ghost' : 'btn-primary', classTestsDialog);
-  mk('להזמין חברים לכיתה', tt || tests.length ? 'btn-ghost' : 'btn-primary', classInvite, 20);
+  mk('להזמין חברים לכיתה', tt || tests.length ? 'btn-ghost' : 'btn-primary', classInvite);
   if (el.classList.contains('hidden')) track('class_card', { n, tt: tt ? 1 : 0, tests: tests.length });
   el.classList.remove('hidden');
   if (tt && !schLs('clsPopTT')) classPopSoon();
@@ -3250,7 +3250,8 @@ function classTestsDialog() {
 }
 const clsDate = s => { const [y, m, d] = String(s).split('-').map(Number); if (!d) return s; const dt = new Date(y, m - 1, d); return `יום ${HE_DAYS[dt.getDay()]}, ${d}.${m}`; };
 async function classInvite() {
-  const lbl = classLabel(school), url = inviteLink() + (school && school.c && school.g ? `&cl=${school.c}-${school.g}-${school.k || 0}` : '');
+  // (26.11.2026, עמית) הזמנה לכיתה לא נותנת לומיקס – קישור בלי ?r= (לא נספר כחבר שהבאת)
+  const lbl = classLabel(school), base = location.origin + location.pathname, url = school && school.c && school.g ? `${base}?cl=${school.c}-${school.g}-${school.k || 0}` : base;
   const text = `תצטרפו לכיתה שלי${lbl ? ' ' + lbl : ''} במחברות שלי! מצלמים את הלוח והוא נכנס למחברת, ומי שבכיתה מקבל את מערכת השעות ולוח המבחנים של הכיתה בלחיצה. חינם (עדיף לפתוח מהמחשב או מכרום/ספארי):`;
   track('invite_send', { from: 'class' });
   if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
