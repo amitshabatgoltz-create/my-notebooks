@@ -9734,22 +9734,22 @@ let refList = [], refLoaded = false;
 /* ===== לומיקס: מטבע שמרוויחים באתר (כניסה יומית, צילום לוח, מחברת חדשה, חבר) וקונים בו שימושים ועיצובים. השרת סופר ומוכר (exports.shop), האתר רק מציג ===== */
 // אותה רשימה כמו SHOP ב-functions/index.js
 const SHOP = [
-  { id: 'ocr1', g: 'ai', p: 10, t: 'עוד צילום לוח', s: 'רק להיום · עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
-  { id: 'chat5', g: 'ai', p: 6, t: 'עוד 5 הודעות לעוזר', s: 'רק להיום · עד 3 ביום', ic: 'chat', k: 'chat', add: 5, max: 3 },
-  { id: 'sum1', g: 'ai', p: 10, t: 'עוד סיכום למבחן', s: 'רק להיום · עד 2 ביום', ic: 'doc', k: 'sum', add: 1, max: 2 },
-  { id: 'fc1', g: 'ai', p: 8, t: 'עוד כרטיסיות שינון', s: 'רק להיום · עד 2 ביום', ic: 'cards', k: 'fc', add: 1, max: 2 },
-  { id: 'kit1', g: 'ai', p: 8, t: 'עוד שאלון חזרה', s: 'רק להיום · עד 2 ביום', ic: 'clipboard', k: 'kit', add: 1, max: 2 },
-  { id: 'pr1', g: 'ai', p: 8, t: 'עוד דף תרגול', s: 'רק להיום · עד 2 ביום', ic: 'template', k: 'pr', add: 1, max: 2 },
-  { id: 'shield', g: 'ai', p: 20, t: 'מגן רצף', s: 'יום אחד שתפספס לא ישבור את הרצף', ic: 'shield' },
+  { id: 'ocr1', g: 'ai', p: 15, t: 'עוד תמונה אחת לטקסט להיום', s: 'מצלמים לוח או דף – והוא נכנס למחברת. אפשר לקנות עד 3 ביום', ic: 'camera', k: 'ocr', add: 1, max: 3 },
+  { id: 'chat5', g: 'ai', p: 10, t: 'עוד 5 הודעות לעוזר להיום', s: 'עוד 5 שאלות לעוזר הלימודי. אפשר לקנות עד 3 פעמים ביום', ic: 'chat', k: 'chat', add: 5, max: 3 },
+  { id: 'sum1', g: 'ai', p: 15, t: 'עוד סיכום אחד למבחן להיום', s: 'סיכום מהמחברת שלך. אפשר לקנות עד 2 ביום', ic: 'doc', k: 'sum', add: 1, max: 2 },
+  { id: 'fc1', g: 'ai', p: 12, t: 'עוד חבילת כרטיסיות אחת להיום', s: 'כרטיסיות שינון מהמחברת. אפשר לקנות עד 2 ביום', ic: 'cards', k: 'fc', add: 1, max: 2 },
+  { id: 'kit1', g: 'ai', p: 12, t: 'עוד שאלון חזרה אחד להיום', s: 'שאלות חזרה למבחן. אפשר לקנות עד 2 ביום', ic: 'clipboard', k: 'kit', add: 1, max: 2 },
+  { id: 'pr1', g: 'ai', p: 12, t: 'עוד דף תרגול אחד להיום', s: 'דף כמו של המורה עם שאלות חדשות. אפשר לקנות עד 2 ביום', ic: 'template', k: 'pr', add: 1, max: 2 },
+  { id: 'shield', g: 'ai', p: 40, t: 'מגן לרצף', s: 'אם תפספס יום אחד – הרצף לא נשבר. נשאר אצלך עד שתצטרך', ic: 'shield' },
   { id: 'chalk', g: 'skin', p: 30, t: 'לוח ירוק', s: 'כל האתר בירוק של לוח בכיתה', sw: ['#2F7D5B', '#1E4D3A'] },
   { id: 'sunset', g: 'skin', p: 30, t: 'שקיעה', s: 'כל האתר בכתום וורוד', sw: ['#FF9F5A', '#F0507A'] },
   { id: 'ocean', g: 'skin', p: 30, t: 'ים', s: 'כל האתר בטורקיז וכחול', sw: ['#2EC4C9', '#0B6FA8'] },
   // הפרסים שהיו פעם של תוכנית החברים (PERK_ITEM). לא עיצוב לכל האתר – פותחים משהו
-  { id: 'spcolors', g: 'perk', n: 1, p: 25, t: 'צבעים מיוחדים למחברות', s: 'זהב, ניאון, גלקסיה ועוד – בכפתור "צבע" של המחברת', ic: 'palette' },
-  { id: 'spbg', g: 'perk', n: 2, p: 25, t: 'רקעים מיוחדים לדף', s: 'כוכבים, נקודות זהב, משבצות צבעוניות – ב"הגדרות" של המחברת', ic: 'template' },
-  { id: 'funfont', g: 'perk', n: 4, p: 20, t: 'גופן כיפי למחברת', s: 'ב"הגדרות" של המחברת', ic: 'type' },
-  { id: 'accent', g: 'perk', n: 6, p: 30, t: 'צבע לכל האתר', s: 'ירוק, כתום, ורוד ועוד', ic: 'mark' },
-  { id: 'frame', g: 'perk', n: 8, p: 30, t: 'מסגרת צבעונית לעיגול', s: 'ליד השם שלך, תמיד', ic: 'target' },
+  { id: 'spcolors', g: 'perk', n: 1, p: 120, t: 'צבעים מיוחדים למחברות – לתמיד', s: 'זהב, ניאון, גלקסיה ועוד. נמצא בכפתור "צבע" של המחברת', ic: 'palette' },
+  { id: 'spbg', g: 'perk', n: 2, p: 100, t: 'רקעים מיוחדים לדף – לתמיד', s: 'כוכבים, נקודות זהב, משבצות צבעוניות. נמצא ב"הגדרות" של המחברת', ic: 'template' },
+  { id: 'funfont', g: 'perk', n: 4, p: 80, t: 'גופן כיפי למחברת – לתמיד', s: 'כתב מיוחד למחברות שלך. נמצא ב"הגדרות" של המחברת', ic: 'type' },
+  { id: 'accent', g: 'perk', n: 6, p: 150, t: 'צבע לכל האתר – לתמיד', s: 'כל האתר בצבע שבוחרים: ירוק, כתום, ורוד ועוד', ic: 'mark' },
+  { id: 'frame', g: 'perk', n: 8, p: 100, t: 'מסגרת צבעונית לתמונה שלך – לתמיד', s: 'מסגרת מיוחדת לעיגול עם האות שלך, למעלה במסך', ic: 'target' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
 const EARN_TX = { friendBack: 'על החברים שכבר הבאת', day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
@@ -9877,7 +9877,7 @@ function shopPaint(d) {
         + SHOP.filter(x => x.g === 'skin').map(item).join('')
         + `<p class="bd-sub">פותחים לתמיד</p>` + SHOP.filter(x => x.g === 'perk').map(perkItem).join('')
         + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')
-      : SHOP.filter(x => x.g === 'ai').map(item).join('');
+      : `<p class="bd-sub">נגמר לך היום? קונים עוד. זה רק להיום – בחצות מתחיל יום חדש</p>` + SHOP.filter(x => x.g === 'ai').map(item).join('');
   d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
     <div class="bd-head"><h3>חנות הלומיקס</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-lumix"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>לומיקס</span></div></div>
     <div class="bd-tabs" role="tablist">${[...(dStreak ? [['streak', 'רצף']] : []), ['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>

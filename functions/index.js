@@ -71,12 +71,13 @@ const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask']
 const questKinds = day => ['day', ...QUEST_PAIRS[((day % QUEST_PAIRS.length) + QUEST_PAIRS.length) % QUEST_PAIRS.length]];
 // החנות – אותה רשימה ב-app.js (SHOP). שימוש ב-AI שנקנה טוב רק לאותו יום
 const SHOP = {
-  ocr1: { p: 10, k: 'ocr', add: 1, max: 3 }, sum1: { p: 10, k: 'sum', add: 1, max: 2 }, chat5: { p: 6, k: 'chat', add: 5, max: 3 },
-  fc1: { p: 8, k: 'fc', add: 1, max: 2 }, kit1: { p: 8, k: 'kit', add: 1, max: 2 }, pr1: { p: 8, k: 'pr', add: 1, max: 2 },
-  shield: { p: 20, shield: true },
+  // (26.11.2026) מחירים עלו – שיהיה בשביל מה לחסוך. אותם מחירים ב-app.js
+  ocr1: { p: 15, k: 'ocr', add: 1, max: 3 }, sum1: { p: 15, k: 'sum', add: 1, max: 2 }, chat5: { p: 10, k: 'chat', add: 5, max: 3 },
+  fc1: { p: 12, k: 'fc', add: 1, max: 2 }, kit1: { p: 12, k: 'kit', add: 1, max: 2 }, pr1: { p: 12, k: 'pr', add: 1, max: 2 },
+  shield: { p: 40, shield: true },
   chalk: { p: 30, skin: true }, sunset: { p: 30, skin: true }, ocean: { p: 30, skin: true },
   // (24.11.2026) הפרסים של תוכנית החברים עברו לחנות – כל אחד יכול לקנות בגירים. מי שכבר קיבל אותם מחברים – שומר (באתר: legacyHas)
-  spcolors: { p: 25, skin: true }, spbg: { p: 25, skin: true }, funfont: { p: 20, skin: true }, accent: { p: 30, skin: true }, frame: { p: 30, skin: true },
+  spcolors: { p: 120, skin: true }, spbg: { p: 100, skin: true }, funfont: { p: 80, skin: true }, accent: { p: 150, skin: true }, frame: { p: 100, skin: true },
 };
 // מוסיף גירים בתוך טרנזקציה קיימת (או חדשה). מחזיר כמה באמת נוספו (0 אם עברנו את התקרה של היום)
 function earnIn(tx, w, kind, n = 1) {
