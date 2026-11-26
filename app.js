@@ -453,7 +453,7 @@ function renderSide() {
     b.append(dot, t, o); b.onclick = () => openShare(x.id); sh.appendChild(b);
   });
 }
-const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView', 'friendsView'];
+const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView', 'friendsView', 'shopView'];
 const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin', friendsView: 'fr', shopView: 'shop' };
 function setView(v, crumb) {
   if (v !== 'notebook' && typeof mathDockHide === 'function') mathDockHide();
