@@ -3193,12 +3193,12 @@ function classPaint() {
   if (hide.day === usageDay() || (hide.sig === sig && Date.now() - (hide.t || 0) < 7 * 864e5)) { el.classList.add('hidden'); return; }
   const n = d.k ? d.cls : d.grade, where = d.k ? `מהכיתה שלך (${lbl})` : `מהשכבה שלך (${lbl})`;
   $('homeClassT').textContent = n ? `${n} ${where} כבר באתר` : `עוד אף אחד ${where} לא באתר`;
-  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'כשעוד חברים מהכיתה מצטרפים, מערכת השעות ולוח המבחנים נכנסים לכולם בקלות';
+  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'כל חבר שמצטרף מהקישור שלך = 20 לומיקס. וככל שיותר מהכיתה באתר, מערכת השעות ולוח המבחנים נכנסים לכולם בלחיצה';
   const btns = $('homeClassBtns'); btns.innerHTML = '';
-  const mk = (t, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = t; b.onclick = fn; btns.appendChild(b); };
+  const mk = (t, cls, fn, lx) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = t; if (lx) { const sp = document.createElement('span'); sp.className = 'cls-lx'; sp.innerHTML = '+' + lx + '<svg aria-hidden="true"><use href="#i-lumix"/></svg>'; b.appendChild(sp); } b.onclick = fn; btns.appendChild(b); };
   if (tt) mk('להוסיף מערכת שעות', 'btn-primary', classTTDialog);
   if (tests.length) mk(`להוסיף מבחנים (${tests.length})`, tt ? 'btn-ghost' : 'btn-primary', classTestsDialog);
-  mk('להזמין חברים לכיתה', tt || tests.length ? 'btn-ghost' : 'btn-primary', classInvite);
+  mk('להזמין חברים לכיתה', tt || tests.length ? 'btn-ghost' : 'btn-primary', classInvite, 20);
   if (el.classList.contains('hidden')) track('class_card', { n, tt: tt ? 1 : 0, tests: tests.length });
   el.classList.remove('hidden');
   if (tt && !schLs('clsPopTT')) classPopSoon();

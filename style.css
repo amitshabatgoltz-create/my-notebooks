@@ -3705,3 +3705,6 @@ html[data-theme="dark"] .earn-tag{background:linear-gradient(135deg,#0E2A5C,#143
 .sch-cls{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .sch-cls .chip-btn{padding:8px 0;text-align:center}
 .sch-cls .sch-k0{grid-column:span 2}
+.cls-card .btn .cls-lx{display:inline-flex;align-items:center;gap:2px;margin-inline-start:6px;padding:1px 7px 1px 5px;border-radius:999px;background:color-mix(in srgb,#2F8BFF 14%,transparent);color:#1E6BFF;font-size:12.5px;font-weight:800;direction:ltr}
+.cls-card .btn-primary .cls-lx{background:rgba(255,255,255,.22);color:#fff}
+.cls-card .btn .cls-lx svg{width:15px;height:15px}
