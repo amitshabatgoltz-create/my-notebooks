@@ -3165,6 +3165,17 @@ function schoolPaint() {
     && $('homeFirst').classList.contains('hidden');   // מי שעוד אין לו מחברת – קודם המחברת
   if (show && el.classList.contains('hidden')) track('school_card', {});
   el.classList.toggle('hidden', !show);
+  if (show && !schLs('schPop')) schoolPopSoon();
+}
+// (26.11.2026, עמית: "שיקפוץ להם") פעם אחת החלון קופץ לבד – רק כשאין חלון אחר פתוח (תיבת הרצף, הסבר לומיקס, סיור). אחר כך נשאר הכרטיס
+let schPopT = 0;
+function schoolPopSoon(left = 10) {
+  clearTimeout(schPopT);
+  schPopT = setTimeout(() => {
+    if (!me || school || schLs('schPop') || $('homeSchool').classList.contains('hidden')) return;
+    if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro, .cb-wrap')) { if (left) schoolPopSoon(left - 1); return; }
+    schLs('schPop', Date.now()); track('school_open', { from: 'pop' }); schoolDialog();
+  }, 6000);
 }
 $('homeSchoolGo').onclick = () => { track('school_open', { from: 'card' }); schoolDialog(); };
 $('homeSchoolSkip').onclick = () => { const sk = schLs('schSkip') || { n: 0 }; schLs('schSkip', { n: sk.n + 1, t: Date.now() }); track('school_skip', { n: sk.n + 1 }); schoolPaint(); };
