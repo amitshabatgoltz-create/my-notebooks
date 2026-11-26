@@ -3192,10 +3192,10 @@ const classTestsNew = () => ((classData && classData.tests) || []).filter(t => !
 async function classLoad(force) {
   if (!me || !school || !school.g) { classData = null; classPaint(); return; }
   const day = usageDay(), c = schLs('cls');
-  if (!force && c && c.day === day && c.key === school.n + school.g + school.k) { classData = c.d; classPaint(); return; }
+  if (!force && c && c.day === day && c.key === school.n + school.g + school.k && Date.now() - (c.t || 0) < 36e5) { classData = c.d; classPaint(); return; }   // (26.11.2026) רק שעה – אחרת לא רואים ילדים שהצטרפו היום
   try {
     const r = await httpsCallable(getFunctions(fb, 'europe-west1'), 'classInfo', { timeout: 30000 })({});
-    classData = r.data && r.data.ok ? r.data : null; schLs('cls', { day, key: school.n + school.g + school.k, d: classData });
+    classData = r.data && r.data.ok ? r.data : null; schLs('cls', { day, t: Date.now(), key: school.n + school.g + school.k, d: classData });
   } catch (e) { console.warn('classInfo', e && e.message); }
   classPaint();
 }
@@ -9529,7 +9529,7 @@ function admSchools(list) {
   has.forEach(u => { const id = u.sch.c ? 'c' + u.sch.c : 'n' + schNorm(u.sch.n); const s = by[id] || (by[id] = { n: u.sch.n, t: u.sch.t || '', users: 0, cls: {} }); s.users++; const cl = classLabel(u.sch) || 'בלי כיתה'; s.cls[cl] = (s.cls[cl] || 0) + 1; });
   const rows = Object.values(by).sort((a, b) => b.users - a.users);
   return `<div class="card adm-sch"><h3>בתי ספר וכיתות</h3><p class="muted-s">${has.length} מתוך ${list.length} משתמשים מילאו (הכרטיס מופיע להם מהכניסה ה-3).</p>
-    ${rows.length ? `<div class="adm-sch-list">${rows.map(s => `<div class="adm-sch-row"><div><b dir="auto">${esc(s.n)}</b>${s.t ? ` <small class="muted-s">${esc(s.t)}</small>` : ''}</div><span class="adm-sch-n">${s.users}</span><div class="adm-sch-cls">${Object.entries(s.cls).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<span class="chip-btn">${esc(c)}${n > 1 ? ` · ${n}` : ''}</span>`).join('')}</div></div>`).join('')}</div>` : '<p class="noev">עוד אף אחד לא מילא.</p>'}</div>`;
+    ${rows.length ? `<div class="adm-sch-list">${rows.map(s => `<div class="adm-sch-row"><div><b dir="auto">${esc(s.n)}</b>${s.t ? ` <small class="muted-s">${esc(s.t)}</small>` : ''}</div><span class="adm-sch-n">${s.users}</span><div class="adm-sch-cls">${Object.entries(s.cls).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<span class="chip-btn">${esc(c)}: ${n === 1 ? 'ילד אחד' : n + ' ילדים'}</span>`).join('')}</div></div>`).join('')}</div>` : '<p class="noev">עוד אף אחד לא מילא.</p>'}</div>`;
 }
 async function renderAdmin() {
   statsFlush();
