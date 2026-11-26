@@ -3160,7 +3160,7 @@ function schoolEnter() {
 function schoolPaint() {
   const el = $('homeSchool'); if (!el) return;
   const ent = me && schLs('schEnt'), sk = me && schLs('schSkip');
-  const show = !!me && (SCH_ON || isAdmin()) && schoolLoaded && !school && !!ent && ent.n >= SCH_AFTER && !shareParam
+  const show = !!me && (SCH_ON || isAdmin()) && schoolLoaded && !school && !!ent && (ent.n >= SCH_AFTER || !!clsInvGet()) && !shareParam
     && (!sk || (sk.n < 2 && Date.now() - sk.t > SCH_AGAIN))
     && $('homeFirst').classList.contains('hidden');   // מי שעוד אין לו מחברת – קודם המחברת
   if (show && el.classList.contains('hidden')) track('school_card', {});
@@ -3250,7 +3250,8 @@ function classTestsDialog() {
 }
 const clsDate = s => { const [y, m, d] = String(s).split('-').map(Number); if (!d) return s; const dt = new Date(y, m - 1, d); return `יום ${HE_DAYS[dt.getDay()]}, ${d}.${m}`; };
 async function classInvite() {
-  const url = inviteLink(), text = 'אני משתמש במחברות שלי – מצלמים את הלוח והוא נכנס למחברת, וכל הכיתה מקבלת את מערכת השעות ולוח המבחנים. תצטרפו (חינם, עדיף מהמחשב או מכרום/ספארי):';
+  const lbl = classLabel(school), url = inviteLink() + (school && school.c && school.g ? `&cl=${school.c}-${school.g}-${school.k || 0}` : '');
+  const text = `תצטרפו לכיתה שלי${lbl ? ' ' + lbl : ''} במחברות שלי! מצלמים את הלוח והוא נכנס למחברת, ומי שבכיתה מקבל את מערכת השעות ולוח המבחנים של הכיתה בלחיצה. חינם (עדיף לפתוח מהמחשב או מכרום/ספארי):`;
   track('invite_send', { from: 'class' });
   if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'המחברות שלי', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener');
@@ -3294,18 +3295,23 @@ function schoolDialog() {
       <div class="sch-picked hidden"><span class="sch-pn" dir="auto"></span><button type="button" class="link sch-chg">שינוי</button></div>
       <div class="sch-search"><input id="schQ" type="search" dir="auto" autocomplete="off" placeholder="שם בית הספר או היישוב…"><div class="sch-res" role="listbox" aria-label="בתי ספר"></div></div>
       <label class="sch-l">שכבה</label><div class="sch-grades">${GRADE_HE.map((x, i) => `<button type="button" class="chip-btn" data-g="${i + 1}">${x}</button>`).join('')}</div>
-      <label class="sch-l" for="schK">מספר כיתה <small class="muted-s">(לא חובה)</small></label>
-      <select id="schK" class="sch-k"><option value="0">–</option>${Array.from({ length: 15 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>
+      <div class="sch-kwrap hidden"><label class="sch-l">באיזו כיתה?</label><div class="sch-cls"></div></div>
       <div class="sch-btns"><button type="button" class="btn btn-ghost" data-a="x">${school ? 'סגירה' : 'לא עכשיו'}</button><button type="button" class="btn btn-primary" data-a="ok" disabled>שמירה</button></div>`;
     const q = d.querySelector('#schQ'), res = d.querySelector('.sch-res'), ok = d.querySelector('[data-a="ok"]'), picked = d.querySelector('.sch-picked'), search = d.querySelector('.sch-search');
-    const sel = d.querySelector('#schK'); sel.value = String(k);
+    const kwrap = d.querySelector('.sch-kwrap'), kbox = d.querySelector('.sch-cls');
     const valid = () => { ok.disabled = !(pick && pick.n && g); };
     const paintPick = () => {
       picked.classList.toggle('hidden', !pick); search.classList.toggle('hidden', !!pick);
       if (pick) picked.querySelector('.sch-pn').textContent = pick.n + (pick.t ? ' · ' + pick.t : '');
       valid();
     };
-    const paintG = () => { d.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', +b.dataset.g === g)); valid(); };
+    // (26.11.2026, עמית) אחרי השכבה – בוחרים כיתה: ט׳1, ט׳2... (ו"לא יודע/ת")
+    const paintK = () => {
+      kwrap.classList.toggle('hidden', !g); if (!g) return;
+      kbox.innerHTML = Array.from({ length: 12 }, (_, i) => `<button type="button" class="chip-btn${k === i + 1 ? ' on' : ''}" data-k="${i + 1}">${GRADE_HE[g - 1]}${i + 1}</button>`).join('') + `<button type="button" class="chip-btn sch-k0${!k ? ' on' : ''}" data-k="0">לא יודע/ת</button>`;
+      kbox.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { k = +b.dataset.k; paintK(); });
+    };
+    const paintG = () => { d.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', +b.dataset.g === g)); paintK(); valid(); };
     const paintRes = () => {
       const v = q.value.trim(); res.innerHTML = '';
       if (!v) return;
@@ -3321,18 +3327,20 @@ function schoolDialog() {
         m.onclick = () => { pick = { c: 0, n: v.slice(0, 80), t: '' }; paintPick(); }; res.appendChild(m);
       }
     };
-    schoolListGet().then(paintRes).catch(() => { schoolList = []; paintRes(); });
+    // הגיע מהזמנה לכיתה (?cl=סמל-שכבה-כיתה): ממלאים מראש, רק בודקים ושומרים
+    const inv = !school && clsInvGet();
+    schoolListGet().then(() => { if (inv && !pick) { const s = schoolList.find(x => x.c === inv.c); if (s) { pick = { c: s.c, n: s.n, t: s.t }; g = inv.g; k = inv.k; paintPick(); paintG(); } } paintRes(); }).catch(() => { schoolList = []; paintRes(); });
+    paintG();
     q.addEventListener('input', paintRes);
     picked.querySelector('.sch-chg').onclick = () => { pick = null; paintPick(); q.focus(); paintRes(); };
     d.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { g = +b.dataset.g; paintG(); });
-    sel.onchange = () => { k = +sel.value || 0; };
     d.querySelector('[data-a="x"]').onclick = closeDialog;
     ok.onclick = async () => {
       if (ok.disabled) return; ok.disabled = true;
       const v = { c: +pick.c || 0, n: pick.n, t: pick.t || '', g, k };
       try {
         await setDoc(schoolDoc(), { ...v, at: Date.now() });
-        school = v; schoolPaint(); closeDialog(); toast('נשמר ✓'); setTimeout(() => classLoad(true), 1500);
+        school = v; schoolPaint(); closeDialog(); toast('נשמר ✓'); setTimeout(() => classLoad(true), 1500); try { localStorage.removeItem('clsInv'); } catch {}
         track('school_save', { known: v.c ? 1 : 0, g });
         if (!isAdmin()) setDoc(statsDoc(me.uid), { sch: v }, { merge: true }).catch(() => {});
       } catch { ok.disabled = false; toast('לא הצלחתי לשמור. לנסות שוב?'); }
@@ -10233,7 +10241,10 @@ try {
   if (r && /^[A-Za-z0-9]{20,40}$/.test(r)) {
     try { localStorage.setItem('refBy', r); } catch {}
   }
+  const cl = new URLSearchParams(location.search).get('cl');   // הזמנה לכיתה: סמל מוסד-שכבה-כיתה
+  if (cl && /^\d{3,8}-\d{1,2}-\d{1,2}$/.test(cl)) { try { localStorage.setItem('clsInv', cl); } catch {} }
 } catch {}
+function clsInvGet() { try { const v = localStorage.getItem('clsInv'); if (!v) return null; const [c, g, k] = v.split('-').map(Number); return g >= 1 && g <= 12 ? { c, g, k: k <= 15 ? k : 0 } : null; } catch { return null; } }
 // דפדפן בתוך אפליקציה (אינסטגרם, טיקטוק, פייסבוק): הכניסה עם Google לא עובדת שם. מציעים לפתוח בדפדפן רגיל (הקישור נשאר עם ההזמנה)
 (() => { try {
   if (!/Instagram|FBAN|FBAV|TikTok|musical_ly|BytedanceWebview|Line\/|Snapchat/i.test(navigator.userAgent)) return;

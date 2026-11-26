@@ -3702,3 +3702,6 @@ html[data-theme="dark"] .earn-tag{background:linear-gradient(135deg,#0E2A5C,#143
 .cls-dlg .cls-t{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:14px;cursor:pointer}
 .cls-dlg .cls-t input{width:20px;height:20px;accent-color:var(--accent);flex:none}
 .cls-dlg .cls-t span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sch-cls{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sch-cls .chip-btn{padding:8px 0;text-align:center}
+.sch-cls .sch-k0{grid-column:span 2}
