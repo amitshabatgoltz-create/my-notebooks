@@ -338,6 +338,9 @@ function clean(html) {
       if (pb) ch.setAttribute('data-pb', '');                                                  // מעבר לדף הבא (במחברת של דפים)                                               // שקופית (מחברת של שקופיות)
       if (fr) ch.setAttribute(fr, '');                                                          // שבר (מתמטיקה)
       if (ch.tagName === 'SPAN' && TXT_COLORS.includes(dc)) ch.setAttribute('data-c', dc);   // צבע טקסט
+      const hx = /^#[0-9a-f]{6}$/i.test(dc || '') ? dc.toLowerCase() : '';                    // (26.11.2026) כל צבע שרוצים – רק #rrggbb, והסגנון נבנה כאן
+      if (hx && ch.tagName === 'SPAN') { ch.setAttribute('data-c', hx); ch.setAttribute('style', 'color:' + hx); }
+      if (hx && ch.tagName === 'MARK') { ch.setAttribute('data-c', hx); ch.setAttribute('style', 'background-color:' + hx + '80'); }
       if (ch.tagName === 'SPAN' && TXT_SIZES.includes(ds)) ch.setAttribute('data-s', ds);    // גודל טקסט
       if (ch.tagName === 'MARK' && HL_COLORS.includes(dc)) ch.setAttribute('data-c', dc);    // צבע מרקר
       if (ch.tagName === 'UL' && chk) ch.setAttribute('data-check', '');                      // רשימת משימות
@@ -1011,9 +1014,11 @@ function selectNodes(list) {
   const s = getSelection(), r = document.createRange();
   r.setStartBefore(list[0]); r.setEndAfter(list[list.length - 1]); s.removeAllRanges(); s.addRange(r); savedRange = r.cloneRange();
 }
+if (location.hostname === 'localhost') window.__cleanTest = h => clean(h);   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__stTest = () => openStylePop(document.querySelector('h1,h2,button'));   // רק לבדיקה מקומית
 function applyInline(attr, val, plain) {
   const sel = `span[${attr}]`;
-  const made = wrapSel(() => { const sp = document.createElement('span'); sp.setAttribute(attr, val); return sp; }, sel);
+  const made = wrapSel(() => { const sp = document.createElement('span'); sp.setAttribute(attr, val); if (attr === 'data-c' && val[0] === '#') sp.style.color = val; return sp; }, sel);
   if (!made) return;
   if (val === plain) {                       // "רגיל": אם אין צבע/גודל מסביב – לא צריך בכלל את העטיפה
     const nodes = [];
@@ -1028,7 +1033,7 @@ function applyHl(c) {
     [...$('editor').querySelectorAll('mark')].filter(m => r.intersectsNode(m)).forEach(m => m.replaceWith(...m.childNodes));
     markDirty(); return;
   }
-  if (wrapSel(() => { const m = document.createElement('mark'); if (c !== 'yellow') m.setAttribute('data-c', c); return m; }, 'mark')) markDirty();
+  if (wrapSel(() => { const m = document.createElement('mark'); if (c !== 'yellow') m.setAttribute('data-c', c); if (c[0] === '#') m.style.backgroundColor = c + '80'; return m; }, 'mark')) markDirty();
 }
 function clearFormat() {
   restoreSelection(); const s = getSelection();
@@ -1045,8 +1050,10 @@ $('styleBtn').addEventListener('click', () => openStylePop($('styleBtn')));
 function openStylePop(at) {
   if (edPopEl && edPopEl.classList.contains('st-pop')) { closeEdPop(); return; }
   edPop(at, p => {
-    p.innerHTML = `<div class="ep-h">צבע טקסט</div><div class="ep-sw">${TXT_COLORS.slice().sort((a, b) => (b === 'ink') - (a === 'ink')).map(c => `<button type="button" data-tc="${c}" title="${C_NAMES[c]}" aria-label="${C_NAMES[c]}"><i class="tc" data-c="${c}">א</i></button>`).join('')}</div>
-      <div class="ep-h">מרקר</div><div class="ep-sw">${['yellow', ...HL_COLORS, 'none'].map(c => `<button type="button" data-hl="${c}" title="${H_NAMES[c]}" aria-label="${H_NAMES[c]}"><i class="hl" data-c="${c}"></i></button>`).join('')}</div>
+    const mine = k => { try { return JSON.parse(localStorage.getItem('myColors:' + k) || '[]').filter(x => /^#[0-9a-f]{6}$/i.test(x)).slice(0, 4); } catch { return []; } };
+    const any = k => `<label class="ep-any" title="כל צבע שרוצים" aria-label="כל צבע שרוצים"><input type="color" data-any="${k}" value="${mine(k)[0] || (k === 'tc' ? '#e5484d' : '#ffd400')}"></label>`;
+    p.innerHTML = `<div class="ep-h">צבע טקסט</div><div class="ep-sw">${TXT_COLORS.slice().sort((a, b) => (b === 'ink') - (a === 'ink')).map(c => `<button type="button" data-tc="${c}" title="${C_NAMES[c]}" aria-label="${C_NAMES[c]}"><i class="tc" data-c="${c}">א</i></button>`).join('')}${mine('tc').map(c => `<button type="button" data-tc="${c}" title="${c}"><i class="tc" style="color:${c}">א</i></button>`).join('')}${any('tc')}</div>
+      <div class="ep-h">מרקר</div><div class="ep-sw">${['yellow', ...HL_COLORS].map(c => `<button type="button" data-hl="${c}" title="${H_NAMES[c]}" aria-label="${H_NAMES[c]}"><i class="hl" data-c="${c}"></i></button>`).join('')}${mine('hl').map(c => `<button type="button" data-hl="${c}" title="${c}"><i class="hl" style="background:${c}80"></i></button>`).join('')}${any('hl')}<button type="button" data-hl="none" title="${H_NAMES.none}" aria-label="${H_NAMES.none}"><i class="hl" data-c="none"></i></button></div>
       <div class="ep-h">גודל</div><div class="ep-sz">${TXT_SIZES.map(z => `<button type="button" data-sz="${z}"><span data-s="${z}">${S_NAMES[z]}</span></button>`).join('')}</div>
       <button type="button" class="ep-item" data-clear><svg><use href="#i-eraser"/></svg><span class="tx"><b>ניקוי עיצוב</b></span><kbd>Ctrl+\\</kbd></button>`;
     p.onclick = ev => {
@@ -1057,6 +1064,13 @@ function openStylePop(at) {
       else if (b.dataset.sz) applyInline('data-s', b.dataset.sz, 'm');
       else if (b.hasAttribute('data-clear')) clearFormat();
     };
+    // "כל צבע": בוחרים בגלגל הצבעים, והצבע נשמר לפעם הבאה (עד 4)
+    p.querySelectorAll('[data-any]').forEach(inp => inp.addEventListener('change', () => {
+      const k = inp.dataset.any, v = inp.value.toLowerCase(); if (!/^#[0-9a-f]{6}$/.test(v)) return;
+      try { const l = JSON.parse(localStorage.getItem('myColors:' + k) || '[]').filter(x => x !== v); localStorage.setItem('myColors:' + k, JSON.stringify([v, ...l].slice(0, 4))); } catch {}
+      closeEdPop(); track('any_color', { k });
+      if (k === 'tc') applyInline('data-c', v, 'ink'); else applyHl(v);
+    }));
   }, 'st-pop');
 }
 
