@@ -451,7 +451,7 @@ function renderSide() {
   });
 }
 const VIEWS = ['home', 'library', 'notebook', 'calendar', 'ttView', 'hwView', 'gradesView', 'chatView', 'adminView', 'friendsView'];
-const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin', friendsView: 'fr' };
+const TAB_OF = { home: 'home', library: 'notes', notebook: 'notes', calendar: 'cal' , ttView: 'tt', hwView: 'hw', gradesView: 'gr', chatView: 'chat', adminView: 'admin', friendsView: 'fr', shopView: 'shop' };
 function setView(v, crumb) {
   if (v !== 'notebook' && typeof mathDockHide === 'function') mathDockHide();
   VIEWS.forEach(x => { const el = $(x); const on = x === v; el.classList.toggle('hidden', !on); if (on) { el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); window.Motion?.view(el, v); } });
@@ -2430,6 +2430,7 @@ function showTab(t) {
   else if (t === 'gr') { openId = null; setView('gradesView'); renderGrades(); renderSide(); }
   else if (t === 'chat') { openId = null; setView('chatView'); renderSide(); }
   else if (t === 'admin') { openId = null; setView('adminView'); renderSide(); renderAdmin(); }
+  else if (t === 'shop') { openId = null; setView('shopView', 'חנות'); renderSide(); shopPaint($('shopBody')); track('shop_open', { from: 'page' }); }
   else if (t === 'fr') { openId = null; setView('friendsView', 'חברים'); renderSide(); renderFriends(); frGiftOpened(); refLoad().then(() => { if (!$('friendsView').classList.contains('hidden')) renderFriends(); }); }
   else { openId = null; setView('home'); renderHome(); renderSide(); }
 }
@@ -9882,7 +9883,7 @@ function walletWatch() {
   walletOff = onSnapshot(doc(db, 'wallet', me.uid), sn => {
     const prev = wallet; wallet = sn.exists() ? sn.data() : { bal: 0 };
     refApply(); walletPaint(prev);
-    if ($('dialogRoot').querySelector('.shop-dlg')) shopPaint();
+    if ($('dialogRoot').querySelector('.shop-dlg') || !$('shopView').classList.contains('hidden')) shopPaint();
   }, () => { walletOff = null; liveRetry('wal', walletWatch); });
 }
 function walletPaint(prev) {
@@ -9948,10 +9949,11 @@ function skinSet(id) { try { localStorage.setItem('skinSel:' + me.uid, id || '')
 $('chalkBtn').onclick = e => { const st = e.target.closest('.cc-st'); track(st ? 'streak_open' : 'shop_open', {}); shopOpen(st ? 'streak' : 'ai'); };
 function shopOpen(tab) {
   if (tab) shopTab = tab;
-  dialog(d => { d.classList.add('shop-dlg'); shopPaint(d); });
+  closeDialog(); showTab('shop');   // (26.11.2026, עמית) החנות היא עמוד שלם עם לשונית בצד
 }
 function shopPaint(d) {
-  d = d || $('dialogRoot').querySelector('.shop-dlg'); if (!d) return;
+  d = d || $('dialogRoot').querySelector('.shop-dlg') || (!$('shopView').classList.contains('hidden') && $('shopBody')); if (!d) return;
+  const page = d.id === 'shopBody';
   const bal = (wallet && wallet.bal) || 0, ex = walletToday();
   const today = wallet && wallet.day === usageDay() ? (wallet.dayEarn || {}) : {};
   const perkItem = it => { const own = perkHas(it.n); return `<div class="bd-it"><span class="bd-ic"><svg aria-hidden="true"><use href="#i-${it.ic}"/></svg></span><span class="bd-tx"><b>${it.t}</b><small>${own ? 'שלך ✓ · ' : ''}${esc(it.s)}</small></span>${own ? '<button class="bd-buy on" disabled>שלך ✓</button>' : `<button class="bd-buy" data-id="${it.id}" ${bal < it.p ? 'disabled' : ''}>${it.p}<svg aria-hidden="true"><use href="#i-lumix"/></svg></button>`}</div>`; };
@@ -9990,13 +9992,19 @@ function shopPaint(d) {
         + `<p class="bd-sub">פותחים לתמיד</p>` + SHOP.filter(x => x.g === 'perk').map(perkItem).join('')
         + (perkHas(6) ? `<div class="bd-it acc"><span class="bd-tx"><b>הצבע של האתר</b><small>לוחצים ובוחרים</small></span><div class="bd-accs">${SITE_ACCENTS.map(([v, nm, c]) => `<button type="button" data-acc="${v}" title="${nm}" aria-label="${nm}" style="--c:${c}" class="${siteAccentGet() === v ? 'on' : ''}"></button>`).join('')}</div></div>` : '')
       : `<p class="bd-sub">נגמר לך היום? קונים עוד. זה רק להיום – בחצות מתחיל יום חדש</p>` + SHOP.filter(x => x.g === 'ai').map(item).join('');
-  d.innerHTML = `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
-    <div class="bd-head"><h3>חנות הלומיקס</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-lumix"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>לומיקס</span></div></div>
+  const head = page
+    ? `<div class="sp-hero"><i class="sp-c c1"></i><i class="sp-c c2"></i><i class="sp-c c3"></i><i class="sp-c c4"></i><i class="sp-c c5"></i>
+        <div class="sp-hx"><h2>חנות הלומיקס</h2><p>לומדים, מרוויחים לומיקס – וקונים עוד AI ודברים מיוחדים למחברות</p>
+          ${dStreak ? `<span class="sp-st"><svg aria-hidden="true"><use href="#i-flame"/></svg>${dStreak.n || 0} ימים ברצף</span>` : ''}</div>
+        <div class="sp-bal"><span class="sp-coin"><svg aria-hidden="true"><use href="#i-lumix"/></svg></span><b>${bal.toLocaleString('he-IL')}</b><small>לומיקס שלך</small></div></div>`
+    : `<button class="bd-x" type="button" aria-label="סגירה">✕</button>
+    <div class="bd-head"><h3>חנות הלומיקס</h3><div class="bd-bal"><svg aria-hidden="true"><use href="#i-lumix"/></svg><b>${bal.toLocaleString('he-IL')}</b><span>לומיקס</span></div></div>`;
+  d.innerHTML = `${head}
     <div class="bd-tabs" role="tablist">${[...(dStreak ? [['streak', 'רצף']] : []), ['ai', 'שימושים'], ['skin', 'עיצובים'], ['earn', 'איך מרוויחים']].map(([k, t]) => `<button role="tab" data-tab="${k}" class="${shopTab === k ? 'on' : ''}" aria-selected="${shopTab === k}">${t}</button>`).join('')}</div>
-    <div class="bd-list">${list}</div>
+    <div class="bd-list${page && shopTab !== 'streak' ? ' sp-grid' : ''}">${list}</div>
     ${shopTab !== 'earn' && bal < 6 ? '<p class="bd-hint">עוד אין לך מספיק לומיקס? בלשונית "איך מרוויחים" רואים מה עושים.</p>' : ''}
     <div class="bd-tray" aria-hidden="true"><i></i><i></i><i></i><em></em></div>`;
-  d.querySelector('.bd-x').onclick = closeDialog;
+  d.querySelector('.bd-x')?.addEventListener('click', closeDialog);
   d.querySelectorAll('.bd-tabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.tab; shopPaint(d); });
   d.querySelectorAll('[data-skin]').forEach(b => b.onclick = () => { skinSet(b.dataset.skin); shopPaint(d); });
   d.querySelectorAll('.bd-accs [data-acc]').forEach(b => b.onclick = () => { try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); localStorage.setItem('skinSel:' + me.uid, ''); } catch {} siteAccentApply(); shopPaint(d); });
