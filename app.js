@@ -3140,7 +3140,7 @@ $('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
 // ועותק קטן ב-stats/<uid>.sch בשביל ניהול האתר. הרשימה: schools.json מהמידע הפתוח של משרד החינוך (data.gov.il), נטענת רק כשפותחים את החלון
 // "לא עכשיו" – הכרטיס חוזר עוד פעם אחת בלבד אחרי שבועיים. תמיד אפשר לשנות מתפריט החשבון
 // (25.11.2026) SCH_ON = false: עמית ביקש לחכות עד שהכללים מודבקים ב-Firebase – בינתיים רק מנהלים רואים (כרטיס ותפריט)
-const SCH_ON = false;
+const SCH_ON = true;   // (26.11.2026) הכללים עלו – פתוח לכולם
 const SCH_AFTER = 3, SCH_AGAIN = 14 * 864e5, SCH_GAP = 30 * 60000;
 const GRADE_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'];
 const classLabel = s => s && s.g ? GRADE_HE[s.g - 1] + (s.k ? s.k : '') : '';
@@ -3184,6 +3184,7 @@ function schoolFind(q) {
   out.sort((a, b) => (b.kn.startsWith(qn) - a.kn.startsWith(qn)) || a.n.length - b.n.length);
   return out.slice(0, 8);
 }
+if (location.hostname === 'localhost') window.__schTest = () => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; schoolDialog(); };   // רק לבדיקה מקומית
 function schoolDialog() {
   let pick = school ? { c: school.c || 0, n: school.n, t: school.t || '' } : null, g = school ? school.g || 0 : 0, k = school ? school.k || 0 : 0;
   dialog(d => {
