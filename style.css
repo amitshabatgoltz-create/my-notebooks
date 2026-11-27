@@ -3963,3 +3963,27 @@ html[data-theme="dark"] .morning.han{--mo-a:#1E3A78;--mo-b:#142045;--mo-c:#3A321
 #home.has-mo #homeDate,#home.has-mo #greet,#home.has-mo #greetSub{display:none}
 @media (max-width:900px){.mo-grid{grid-template-columns:1fr 1fr}.mo-grid .mo-box:first-child{grid-column:1/-1}}
 @media (max-width:560px){.morning{padding:18px 14px 14px;border-radius:22px}.mo-head{gap:12px}.mo-art{width:60px;height:60px;border-radius:18px}.mo-art .mo-svg{width:44px;height:44px}.mo-art .menorah{width:52px;height:52px}.mo-grid{grid-template-columns:1fr}.mo-sub{font-size:14px}}
+
+/* ===== הרצף היומי (27.11.2026): כרטיס קטן בפינה במקום חלון במרכז ===== */
+.sk-nudge{position:fixed;z-index:55;bottom:24px;inset-inline-end:24px;display:flex;align-items:center;gap:4px;max-width:min(360px,calc(100vw - 24px));padding:6px;border-radius:20px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 14px 34px -14px rgba(20,20,40,.35);animation:sknIn .45s cubic-bezier(.2,.8,.2,1) both}
+.sk-nudge.out{animation:sknOut .3s ease both}
+.skn-main{flex:1;min-width:0;display:flex;align-items:center;gap:11px;padding:6px 8px;border:0;border-radius:14px;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}
+.skn-main:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.skn-ic{position:relative;flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(160deg,#FFB547,#FF6A3D);color:#fff;box-shadow:0 6px 14px -6px rgba(255,106,61,.7)}
+.skn-ic svg{width:22px;height:22px;margin-top:-6px;animation:sknFlame 1.8s ease-in-out infinite;transform-origin:50% 100%}
+.skn-ic b{position:absolute;bottom:3px;font-size:12px;font-weight:800;line-height:1}
+.skn-tx{display:flex;flex-direction:column;min-width:0}
+.skn-tx b{font-size:14.5px;font-weight:800}
+.skn-tx small{font-size:12.5px;color:var(--muted)}
+.skn-go{flex:none;margin-inline-start:auto;padding:6px 12px;border-radius:999px;background:var(--accent);color:#fff;font-size:13px;font-weight:700}
+.skn-x{flex:none;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:12px;cursor:pointer}
+.skn-x:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.sk-nudge.big .skn-ic{background:linear-gradient(160deg,#FFE27A,#F2A900)}
+.sk-nudge.big{border-color:color-mix(in srgb,#F2A900 45%,var(--line))}
+@keyframes sknIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes sknOut{to{opacity:0;transform:translateY(10px)}}
+@keyframes sknFlame{0%,100%{transform:scale(1)}50%{transform:scale(1.1,.94)}}
+@media (max-width:820px){.sk-nudge{bottom:auto;top:calc(62px + env(safe-area-inset-top));inset-inline:12px;max-width:none;animation-name:sknInTop}
+  @keyframes sknInTop{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+  .sk-nudge.out{animation-name:sknOutTop}@keyframes sknOutTop{to{opacity:0;transform:translateY(-10px)}}}
+@media (prefers-reduced-motion:reduce){.sk-nudge,.sk-nudge *{animation:none!important}}

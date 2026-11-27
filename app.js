@@ -10495,7 +10495,7 @@ async function streakLoad() {
     dStreak = r; refApply(); streakPaint(); if (!$('home').classList.contains('hidden')) renderStats();
     if (r.fresh) { track('streak_day', { n: r.n, big: r.big || '' }); if (r.reset) track('streak_reset', { was: r.reset }); }
     if (!lumixIntroSeen()) setTimeout(() => lumixIntro(r.fresh ? streakPrize(streakDayOf(r.n)).t : ''), 2500);
-    else if (r.fresh) setTimeout(() => streakPop(), 2500);
+    else if (r.fresh) setTimeout(() => streakNudge(), 2500);
   } catch (e) { console.warn('streak', e && e.message); }
 }
 function streakPaint() {
@@ -10516,8 +10516,27 @@ if (location.hostname === 'localhost') window.__introTest = prize => { me = me |
 if (location.hostname === 'localhost') window.__whereTest = () => streakWhere();   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__burstTest = (got, why, big) => { const was = (wallet && wallet.bal) || 0; chalkBurst(got, why, big, was, was + got); if (wallet) wallet.bal = was + got; };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__walletTest = (w, tab) => { const prev = wallet; wallet = w; walletPaint(prev); if (tab) shopOpen(tab); };   // רק לבדיקה מקומית
-if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__streakTest = (s, what) => { dStreak = s; streakPaint(); siteAccentApply(); if (what === 'pop') streakPop(); if (what === 'nudge') streakNudge(); if (what === 'all') streakDialog(); };   // רק לבדיקה מקומית
 
+// (27.11.2026, אבא: החלון במרכז המסך מטריד) בכניסה היומית – כרטיס קטן שמחליק בפינה. לחיצה פותחת את התיבה; נעלם לבד אחרי 12 שנ׳
+// (הפרס כבר ניתן בשרת – החלון רק מראה אותו. אפשר תמיד לפתוח מהלהבה למעלה)
+function streakNudge(left = 8) {
+  if (!dStreak || !me) return;
+  if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro')) { if (left) setTimeout(() => streakNudge(left - 1), 4000); return; }
+  document.querySelector('.sk-nudge')?.remove();
+  const p = streakPrize(streakDayOf(dStreak.n)), n = dStreak.n || 1;
+  const w = document.createElement('div'); w.className = 'sk-nudge' + (p.big ? ' big' : ''); w.setAttribute('role', 'status');
+  w.innerHTML = `<button type="button" class="skn-main"><span class="skn-ic"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${n}</b></span>
+    <span class="skn-tx"><b>${dStreak.reset ? 'מתחילים רצף חדש' : n === 1 ? 'יום ראשון ברצף' : `יום ${n} ברצף`}</b><small>${p.big ? 'פרס גדול מחכה לך' : 'הפרס של היום מחכה לך'}</small></span>
+    <span class="skn-go">לפתוח</span></button><button type="button" class="skn-x" aria-label="סגירה">✕</button>`;
+  document.body.appendChild(w);
+  let t = 0; const bye = () => { clearTimeout(t); w.classList.add('out'); setTimeout(() => w.remove(), 350); };
+  const arm = () => { clearTimeout(t); t = setTimeout(bye, 12000); };
+  w.addEventListener('mouseenter', () => clearTimeout(t)); w.addEventListener('mouseleave', arm); arm();
+  w.querySelector('.skn-main').onclick = () => { track('streak_nudge_open', { n }); bye(); streakPop(); };
+  w.querySelector('.skn-x').onclick = () => { track('streak_nudge_x', { n }); bye(); };
+  track('streak_nudge', { n, big: p.big ? 1 : 0 });
+}
 function streakPop(left = 8) {
   if (!dStreak) return;
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
