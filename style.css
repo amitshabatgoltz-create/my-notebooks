@@ -3987,3 +3987,21 @@ html[data-theme="dark"] .morning.han{--mo-a:#1E3A78;--mo-b:#142045;--mo-c:#3A321
   @keyframes sknInTop{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
   .sk-nudge.out{animation-name:sknOutTop}@keyframes sknOutTop{to{opacity:0;transform:translateY(-10px)}}}
 @media (prefers-reduced-motion:reduce){.sk-nudge,.sk-nudge *{animation:none!important}}
+
+/* ===== הוספה למסך הבית (27.11.2026) ===== */
+.pwa-card .pwa-ic{background:none;padding:0;overflow:hidden}
+.pwa-card .pwa-ic img{width:48px;height:48px;border-radius:14px;display:block}
+.pwa-dlg .pwa-top{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.pwa-dlg .pwa-top img{border-radius:16px;box-shadow:0 6px 16px -8px rgba(0,0,0,.35)}
+.pwa-dlg .pwa-top h3{margin:0}
+.pwa-dlg .pwa-top p{margin:2px 0 0}
+.pwa-steps{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:10px}
+.pwa-steps li{display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 7%,var(--surface));border:1px solid var(--line);font-size:15px}
+.pwa-steps li>span:last-child{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.pwa-steps small{flex-basis:100%;font-size:12.5px;color:var(--muted)}
+.pwa-n{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font-weight:800;font-size:13px}
+.pwa-sym{width:22px;height:22px;color:#0A84FF;vertical-align:middle}
+.pwa-after{margin:0 0 12px}
+.pwa-arrow{position:fixed;left:50%;bottom:calc(6px + env(safe-area-inset-bottom));width:0;height:0;margin-left:-10px;border:10px solid transparent;border-top:14px solid var(--accent);z-index:80;animation:pwaBob 1s ease-in-out infinite}
+@keyframes pwaBob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){.pwa-arrow{animation:none}}

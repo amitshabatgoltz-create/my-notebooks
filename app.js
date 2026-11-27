@@ -3458,6 +3458,53 @@ function schoolPopSoon(left = 10) {
     schLs('schPop2', Date.now()); track('school_open', { from: 'pop' }); schoolDialog();
   }, 6000);
 }
+// ===== הוספה למסך הבית בטלפון (27.11.2026, אבא) – מהכניסה השנייה, כרטיס במסך הבית (רק כשאין כרטיס מחברת ראשונה/בית ספר) =====
+// אנדרואיד (כרום): האירוע beforeinstallprompt → החלון של הדפדפן. אייפון: אין אירוע – חלון עם הסבר (שיתוף ← הוספה למסך הבית).
+// "לא עכשיו" – חוזר אחרי שבוע, עד 3 פעמים. לא בתוך וואטסאפ/אינסטגרם (שם אי אפשר להוסיף)
+let pwaEvt = null, pwaOpenSent = false;
+const pwaStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pwaIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const pwaInApp = () => /FBAN|FBAV|Instagram|Line\/|WhatsApp|TikTok|Snapchat|; wv\)/.test(navigator.userAgent);
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); pwaEvt = e; if (me) pwaPaint(); });
+addEventListener('appinstalled', () => { track('pwa_installed', {}); pwaEvt = null; try { localStorage.setItem('pwaDone', '1'); } catch {} if (me) pwaPaint(); });
+function pwaPaint() {
+  const el = $('homeInstall'); if (!el || !me) return;
+  if (pwaStandalone() && !pwaOpenSent) { pwaOpenSent = true; track('pwa_open', { ios: pwaIOS() ? 1 : 0 }); }
+  const ent = schLs('schEnt'), sk = schLs('pwaSkip');
+  let done = ''; try { done = localStorage.getItem('pwaDone') || ''; } catch {}
+  const show = matchMedia('(pointer: coarse)').matches && !pwaStandalone() && !done && !shareParam && (pwaEvt || (pwaIOS() && !pwaInApp()))
+    && !!ent && ent.n >= 2 && (!sk || (sk.n < 3 && Date.now() - sk.t > 7 * 864e5))
+    && $('homeSchool').classList.contains('hidden') && $('homeFirst').classList.contains('hidden');
+  if (show && el.classList.contains('hidden')) track('pwa_card', { ios: pwaIOS() ? 1 : 0 });
+  el.classList.toggle('hidden', !show);
+}
+$('homeInstallSkip').onclick = () => { const sk = schLs('pwaSkip') || { n: 0 }; schLs('pwaSkip', { n: sk.n + 1, t: Date.now() }); track('pwa_skip', { n: sk.n + 1 }); pwaPaint(); };
+$('homeInstallGo').onclick = async () => {
+  track('pwa_go', { ios: pwaIOS() ? 1 : 0 });
+  if (pwaEvt) {
+    const e = pwaEvt; pwaEvt = null;
+    try { await e.prompt(); const r = await e.userChoice; track('pwa_choice', { ok: r && r.outcome === 'accepted' ? 1 : 0 }); if (r && r.outcome === 'accepted') { try { localStorage.setItem('pwaDone', '1'); } catch {} toast('נוסף למסך הבית ✓'); } }
+    catch {} pwaPaint(); return;
+  }
+  pwaIosHelp();
+};
+function pwaIosHelp() {
+  const chrome = /CriOS/.test(navigator.userAgent), share = '<svg class="pwa-sym" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+  const plus = '<svg class="pwa-sym" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>';
+  dialog(d => {
+    d.classList.add('pwa-dlg');
+    d.innerHTML = `<div class="pwa-top"><img src="icon-192.png" alt="" width="56" height="56"><div><h3>הוספה למסך הבית</h3><p class="muted-s">3 צעדים, פעם אחת</p></div></div>
+      <ol class="pwa-steps">
+        <li><span class="pwa-n">1</span><span>לוחצים על <b>שיתוף</b> ${share}<small>${chrome ? 'בכרום – למעלה, ליד הכתובת' : 'בספארי – בסרגל למטה (או ⋯ ואז שיתוף)'}</small></span></li>
+        <li><span class="pwa-n">2</span><span>גוללים ובוחרים <b>הוספה למסך הבית</b> ${plus}</span></li>
+        <li><span class="pwa-n">3</span><span>לוחצים <b>הוספה</b> למעלה בצד</span></li>
+      </ol>
+      <p class="muted-s pwa-after">אחרי זה האתר יופיע במסך הבית עם הסמל, כמו כל אפליקציה.</p>
+      <div class="row"><button class="btn btn-primary" type="button" data-a="ok">הבנתי</button></div>
+      ${chrome ? '' : '<span class="pwa-arrow" aria-hidden="true"></span>'}`;
+    d.querySelector('[data-a="ok"]').onclick = closeDialog;
+  });
+}
 $('homeSchoolGo').onclick = () => { track('school_open', { from: 'card' }); schoolDialog(); };
 $('homeSchoolSkip').onclick = () => { const sk = schLs('schSkip2') || { n: 0 }; schLs('schSkip2', { n: sk.n + 1, t: Date.now() }); track('school_skip', { n: sk.n + 1 }); schoolPaint(); };
 $('schoolBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); track('school_open', { from: 'menu' }); schoolDialog(); });
@@ -3544,7 +3591,7 @@ function renderHome() {
   renderStats(); homeAskChips();
   morningPaint();
   homeFirstPaint();
-  schoolPaint();
+  schoolPaint(); pwaPaint();
   $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
@@ -11154,3 +11201,4 @@ addEventListener('afterprint', () => { document.body.classList.remove('printing-
 // ליתר ביטחון (טלפונים שלא שולחים afterprint): כשחוזרים לכתוב – מחזירים את המחברת למצב הרגיל
 $('editor').addEventListener('focusin', () => { if ($('editor').querySelector('.pr-sec')) { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); } });
 if (location.hostname === 'localhost') window.__moTest = (o = {}) => { me = me || { uid: 'localtest', displayName: 'עמית שבת', metadata: {} }; if (o.tt) timetable = o.tt; if (o.ev) events = o.ev; if (o.g) school = { g: o.g }; moOn = null; try { localStorage.removeItem('morning:localtest'); } catch {} $('home').classList.remove('hidden'); homeAnimated = false; morningPaint(); };   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__pwaTest = k => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; if (k === 'ios') return pwaIosHelp(); schoolLoaded = true; school = { n: 'x', g: 8 }; schLs('schEnt', { n: 3, t: Date.now() }); pwaEvt = pwaEvt || { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) }; $('home').classList.remove('hidden'); pwaPaint(); return !$('homeInstall').classList.contains('hidden'); };   // רק לבדיקה מקומית
