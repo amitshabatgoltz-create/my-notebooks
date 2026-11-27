@@ -2545,6 +2545,7 @@ function autoPlanNewTests(snap) {
   if (!evSeen) { evSeen = ids; return; }            // הטעינה הראשונה: לא נוגעים במה שכבר היה
   const fresh = events.filter(e => !evSeen.has(e.id) && e.type === 'test' && !e.done && !e.fromClass && (Date.now() - (e.createdAt || 0)) < 120000);
   evSeen = ids;
+  if (fresh.length) setTimeout(() => pushOffer(fresh.length > 2 ? 'board' : 'test'), 14000);   // אחרי ההודעה של תוכנית הלמידה
   if (!fresh.length || fresh.length > 2) return;   // ייבוא של לוח מבחנים שלם – לא ממלאים את היומן לבד
   fresh.forEach(e => setTimeout(() => autoPlan(e), 900));
 }
@@ -2570,7 +2571,7 @@ function subscribeEvents() {
     events = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
     autoPlanNewTests(snap);
-    if (!evReady) { evReady = true; setTimeout(classAutoSync, 1500); }
+    if (!evReady) { evReady = true; setTimeout(classAutoSync, 1500); setTimeout(pushSubscribe, 5000); }
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
     if (!$('home').classList.contains('hidden')) renderHome();
     if (!$('hwView').classList.contains('hidden')) renderHW();
@@ -3753,6 +3754,7 @@ function morningPaint() {
   const rest = tests.filter(e => e.date !== tk);
   if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span></li>`).join('')}</ul>`;
   if (!tests.length) tx = `<p class="mo-empty">אין מבחנים בשבוע הקרוב. שבוע רגוע!</p>`;
+  else if (!pushOn() && !(canNotify && Notification.permission === 'denied') && (PUSH_OK || pwaIOS())) tx += '<button type="button" class="link mo-push" data-mo="push"><svg aria-hidden="true"><use href="#i-bell"/></svg>להזכיר לי בערב שלפני</button>';
   // החופש הבא
   let hol = '';
   if (inHol) {
@@ -3777,6 +3779,7 @@ $('morning').addEventListener('click', ev => {
   const b = ev.target.closest('[data-mo],[data-ev]'); if (!b) return;
   if (b.dataset.mo === 'x') { moOn = false; track('morning_close', {}); morningPaint(); }
   else if (b.dataset.mo === 'ttadd') timetableDialog();
+  else if (b.dataset.mo === 'push') pushEnable('morning');
   else if (b.dataset.ev) showTab('cal');
 });
 
@@ -4491,12 +4494,69 @@ async function remind(force) {
   catch { try { new Notification(title, opts); } catch {} }
 }
 if ($('bellBtn')) $('bellBtn').onclick = async () => {
-  if (!canNotify) return;
-  if (Notification.permission === 'denied') { toast('ההתראות חסומות. אפשר להפעיל אותן בהגדרות האתר בדפדפן'); return; }
-  if (Notification.permission !== 'granted') await Notification.requestPermission();
-  bellState();
-  if (Notification.permission === 'granted') remind(true);
+  if (!canNotify && !pwaIOS()) return;
+  await pushEnable('bell');
+  if (canNotify && Notification.permission === 'granted') remind(true);
 };
+// ===== תזכורות גם כשהאתר סגור (Push, 27.11.2026, אבא) =====
+// מנוי נשמר ב-users/{uid}/push/{id}; השרת (pushDaily) שולח כל ערב ב-18:30 אם יש מבחן/ש"ב למחר או מבחן בעוד 3 ימים.
+// באייפון – רק כשהאתר נוסף למסך הבית (בלי זה אין PushManager). מציעים: בפעמון, אחרי שמכניסים מבחן, ובכרטיס "בוקר טוב"
+const VAPID_PUBLIC = 'BFL6jvPSyZE4B1BkVHHdeJw3fTdfGlemsHrWqR96nY3bk1RyBi-ZrJjc33bS9irogF87B-JFH7fvKcZfq6ydmMA';
+const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && location.protocol === 'https:';
+const pushOn = () => PUSH_OK && Notification.permission === 'granted';
+const b64u = x => { const b = atob((x + '='.repeat((4 - x.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+async function pushSubscribe() {
+  if (!pushOn() || !me) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) });
+    const j = sub.toJSON(), h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(j.endpoint));
+    const id = [...new Uint8Array(h)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join(''), k = 'pushSaved:' + me.uid;
+    let saved = ''; try { saved = localStorage.getItem(k) || ''; } catch {}
+    if (saved !== id + usageDay()) {   // פעם ביום מרעננים (at) – השרת לוקח את המשתמש האחרון במכשיר
+      await setDoc(doc(db, 'users', me.uid, 'push', id), { sub: { endpoint: j.endpoint, keys: j.keys }, at: Date.now(), dev: deviceName() });
+      try { localStorage.setItem(k, id + usageDay()); } catch {}
+    }
+    return true;
+  } catch (e) { console.warn('push', e && e.message); return false; }
+}
+async function pushEnable(from) {
+  track('push_ask', { from });
+  if (!PUSH_OK) {
+    if (pwaIOS() && !pwaStandalone()) dialog(d => {
+      d.innerHTML = '<h3>תזכורות באייפון</h3><p>באייפון תזכורות עובדות רק כשהאתר נמצא במסך הבית, כמו אפליקציה. מוסיפים פעם אחת, פותחים מהסמל, ומפעילים שוב את התזכורות.</p>';
+      const row = document.createElement('div'); row.className = 'row';
+      const go = document.createElement('button'); go.className = 'btn btn-primary'; go.textContent = 'איך מוסיפים'; go.onclick = () => { closeDialog(); setTimeout(pwaIosHelp, 250); };
+      const x = document.createElement('button'); x.className = 'btn btn-ghost'; x.textContent = 'סגירה'; x.onclick = closeDialog;
+      row.append(go, x); d.appendChild(row);
+    });
+    else toast('הדפדפן הזה לא תומך בתזכורות');
+    return false;
+  }
+  if (Notification.permission === 'denied') { toast('ההתראות חסומות. אפשר להפעיל אותן בהגדרות האתר בדפדפן'); return false; }
+  const p = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  track('push_perm', { ok: p === 'granted' ? 1 : 0, from });
+  bellState();
+  if (p !== 'granted') return false;
+  const ok = await pushSubscribe();
+  if (ok) {
+    toast('מעולה! נזכיר לך בערב לפני מבחנים ושיעורי בית ✓');
+    try { await ensureAppCheck(); await httpsCallable(getFunctions(fb, 'europe-west1'), 'pushTest', { timeout: 20000 })({}); } catch {}
+    if (!$('home').classList.contains('hidden')) morningPaint();
+  } else toast('לא הצלחתי להפעיל. לנסות שוב?');
+  return ok;
+}
+// הצעה עדינה (הודעה למטה) אחרי שמכניסים מבחן ליומן – לכל היותר פעם ב-3 ימים, עד 4 פעמים
+function pushOffer(from) {
+  if (!me || pushOn() || (canNotify && Notification.permission === 'denied') || (!PUSH_OK && !(pwaIOS() && pwaStandalone()))) return;
+  const o = schLs('pushOffer') || { n: 0, t: 0 };
+  if (o.n >= 4 || Date.now() - o.t < 3 * 864e5) return;
+  schLs('pushOffer', { n: o.n + 1, t: Date.now() }); track('push_offer', { from });
+  toastAction('רוצה שנזכיר לך בערב שלפני המבחן?', 'כן, להזכיר', () => pushEnable('offer-' + from), 10000);
+}
+navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.t === 'push-open') track('push_open', {}); });
+if (new URLSearchParams(location.search).get('n') === 'push') { track('push_open', {}); history.replaceState(null, '', location.pathname); }
 bellState();
 
 /* ===== אפליקציה במסך הבית + עבודה בלי אינטרנט ===== */

@@ -1092,3 +1092,58 @@ exports.aclBackfill = onCall({ region: 'europe-west1', timeoutSeconds: 300 }, as
   }
   return { shares: n, members: u };
 });
+
+// ===== תזכורות בהתראות (Push, 27.11.2026, אבא) =====
+// האתר שומר מנוי ב-users/{uid}/push/{id} {sub: {endpoint, keys}, at, dev}. כל ערב ב-18:30 (שעון ישראל) – לכל מי שיש לו מנוי:
+// מבחן מחר → "מחר מבחן ב..."; אחרת שיעורי בית למחר שלא סומנו; אחרת מבחן בעוד 3 ימים. לכל היותר התראה אחת ביום לכל מכשיר.
+// Web Push רגיל (לא FCM) עם מפתחות VAPID: הציבורי באתר (VAPID_PUBLIC ב-app.js), הפרטי בסוד VAPID_PRIVATE.
+const VAPID_PRIVATE = defineSecret('VAPID_PRIVATE');
+const VAPID_PUBLIC = 'BFL6jvPSyZE4B1BkVHHdeJw3fTdfGlemsHrWqR96nY3bk1RyBi-ZrJjc33bS9irogF87B-JFH7fvKcZfq6ydmMA';
+const SITE_URL = 'https://amitshabatgoltz-create.github.io/my-notebooks/';
+function pushLib() { const wp = require('web-push'); wp.setVapidDetails(SITE_URL, VAPID_PUBLIC, VAPID_PRIVATE.value().trim()); return wp; }
+const ilKey = add => { const d = new Date(Date.now() + 3 * 3600000 + add * 864e5); return d.toISOString().slice(0, 10); };   // תאריך בשעון ישראל (בערך – +3)
+const shortT = t => { t = String(t || '').trim(); return t.length > 60 ? t.slice(0, 58) + '…' : t; };
+function pushMsgFor(evs, tm, d3) {
+  const open = evs.filter(e => !e.done);
+  const testsT = open.filter(e => e.type === 'test' && e.date === tm);
+  if (testsT.length) return { title: testsT.length === 1 ? `מחר: ${shortT(testsT[0].title)}` : `מחר ${testsT.length} מבחנים`, body: testsT.length === 1 ? 'בהצלחה! עוד חזרה קצרה הערב – אפשר דף תרגול או כרטיסיות באתר.' : testsT.map(e => shortT(e.title)).join(' · '), tag: 'test-' + tm };
+  const hw = open.filter(e => e.type === 'hw' && e.date === tm);
+  if (hw.length) return { title: hw.length === 1 ? 'שיעורי בית למחר' : `${hw.length} שיעורי בית למחר`, body: hw.slice(0, 3).map(e => shortT(e.title)).join(' · '), tag: 'hw-' + tm };
+  const t3 = open.filter(e => e.type === 'test' && e.date === d3);
+  if (t3.length) return { title: `עוד 3 ימים: ${shortT(t3[0].title)}`, body: 'זמן טוב להתחיל לחזור על החומר. באתר אפשר לבנות תוכנית למידה.', tag: 'test3-' + d3 };
+  return null;
+}
+async function pushSendAll(wp, subs, msg) {
+  let ok = 0;
+  for (const s of subs) {
+    try { await wp.sendNotification(s.data().sub, JSON.stringify({ ...msg, url: './?n=push' }), { TTL: 6 * 3600, urgency: 'normal' }); ok++; }
+    catch (e) { const c = e && e.statusCode; if (c === 404 || c === 410) await s.ref.delete().catch(() => {}); else console.warn('push send', c, String(e && e.body || e && e.message).slice(0, 120)); }
+  }
+  return ok;
+}
+exports.pushDaily = onSchedule({ schedule: '30 18 * * *', timeZone: 'Asia/Jerusalem', region: 'europe-west1', secrets: [VAPID_PRIVATE], timeoutSeconds: 300 }, async () => {
+  const wp = pushLib(), tm = ilKey(1), d3 = ilKey(3);
+  const all = await db.collectionGroup('push').get();
+  // אותו מכשיר (endpoint) רשום אצל כמה משתמשים (החליפו חשבון) – רק האחרון
+  const byEp = {}; all.docs.forEach(d => { const x = d.data(); if (!x.sub || !x.sub.endpoint) return; const o = byEp[x.sub.endpoint]; if (!o || (x.at || 0) > (o.data().at || 0)) byEp[x.sub.endpoint] = d; });
+  const byUid = {}; Object.values(byEp).forEach(d => { const uid = d.ref.parent.parent.id; (byUid[uid] = byUid[uid] || []).push(d); });
+  let users = 0, sent = 0;
+  for (const [uid, subs] of Object.entries(byUid)) {
+    try {
+      const sn = await db.collection(`users/${uid}/events`).where('date', 'in', [tm, d3]).limit(40).get();
+      const msg = pushMsgFor(sn.docs.map(d => d.data()), tm, d3); if (!msg) continue;
+      users++; sent += await pushSendAll(wp, subs, msg);
+    } catch (e) { console.warn('pushDaily', uid.slice(0, 6), String(e && e.message).slice(0, 100)); }
+  }
+  console.log('pushDaily', JSON.stringify({ devices: Object.keys(byEp).length, users, sent, tm }));
+});
+// מיד אחרי שמפעילים: התראת ניסיון למכשירים של מי שביקש (פעם בדקה לכל היותר)
+exports.pushTest = onCall({ region: 'europe-west1', secrets: [VAPID_PRIVATE], timeoutSeconds: 30 }, async req => {
+  const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const ref = db.doc(`users/${uid}/meta/pushTest`), last = (await ref.get()).data();
+  if (last && Date.now() - (last.at || 0) < 60000) return { ok: false, wait: true };
+  await ref.set({ at: Date.now() });
+  const subs = (await db.collection(`users/${uid}/push`).get()).docs;
+  const n = await pushSendAll(pushLib(), subs, { title: 'התזכורות פועלות ✓', body: 'ככה זה ייראה: ערב לפני מבחן או שיעורי בית, תקבל/י כאן תזכורת.', tag: 'push-test' });
+  return { ok: n > 0, n };
+});

@@ -4005,3 +4005,6 @@ html[data-theme="dark"] .morning.han{--mo-a:#1E3A78;--mo-b:#142045;--mo-c:#3A321
 .pwa-arrow{position:fixed;left:50%;bottom:calc(6px + env(safe-area-inset-bottom));width:0;height:0;margin-left:-10px;border:10px solid transparent;border-top:14px solid var(--accent);z-index:80;animation:pwaBob 1s ease-in-out infinite}
 @keyframes pwaBob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){.pwa-arrow{animation:none}}
+.mo-box .mo-push{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:13px;text-decoration:none;opacity:.85;background:none;border:0;padding:0;cursor:pointer;color:inherit;font-weight:700}
+.mo-box .mo-push svg{width:15px;height:15px}
+.mo-box .mo-push:hover{opacity:1;text-decoration:underline}
