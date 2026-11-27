@@ -9601,6 +9601,182 @@ function admSchools(list) {
   return `<div class="card adm-sch"><h3>בתי ספר וכיתות</h3><p class="muted-s">${has.length} מתוך ${list.length} משתמשים מילאו (הכרטיס מופיע להם מהכניסה ה-3).</p>
     ${rows.length ? `<div class="adm-sch-list">${rows.map(s => `<div class="adm-sch-row"><div><b dir="auto">${esc(s.n)}</b>${s.t ? ` <small class="muted-s">${esc(s.t)}</small>` : ''}</div><span class="adm-sch-n">${s.users}</span><div class="adm-sch-cls">${Object.entries(s.cls).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<span class="chip-btn">${esc(c)}: ${n === 1 ? 'ילד אחד' : n + ' ילדים'}</span>`).join('')}</div></div>`).join('')}</div>` : '<p class="noev">עוד אף אחד לא מילא.</p>'}</div>`;
 }
+/* ---- ניהול האתר: לשוניות – תמונת מצב (דשבורד), ניתוח, היום, משתמשים, עוד (27.11.2026) ---- */
+// הנתונים לפי יום (days) נשמרים 21 יום ונספרים מ-12.11.2026, אז כל ההשוואות הן בתוך החלון הזה
+const ADM_DATA0 = '2026-11-12';
+const ADM_TABS = [['dash', 'תמונת מצב'], ['an', 'ניתוח'], ['today', 'היום'], ['users', 'משתמשים'], ['more', 'חנות, חברים ובתי ספר']];
+let admTab = (() => { try { return localStorage.getItem('admTab') || 'dash'; } catch { return 'dash'; } })();
+const admKeys = (n, back = 0) => Array.from({ length: n }, (_, i) => key(new Date(Date.now() - (back + n - 1 - i) * 864e5)));
+const admOn = (u, k) => u.lastDay === k || !!(u.days && u.days[k]);
+const admOnAny = (u, ks) => ks.some(k => admOn(u, k));
+const admDays = (u, ks) => ks.filter(k => admOn(u, k)).length;
+const admMinIn = (u, ks) => ks.reduce((a, k) => { const d = u.days && u.days[k]; return a + (d ? (+d.m || 0) + (+d.s || 0) / 60 : 0); }, 0);
+const admAiIn = (u, ks) => { const t = {}; ks.forEach(k => { const d = u.days && u.days[k]; Object.entries((d && d.ai) || {}).forEach(([x, v]) => { t[x] = (t[x] || 0) + (+v || 0); }); }); return t; };
+const admSum = o => Object.values(o).reduce((a, v) => a + v, 0);
+const admFirstKey = u => u.first ? key(new Date(u.first)) : '';
+const admPct = (a, b) => b ? Math.round(a / b * 100) : 0;
+// חץ שינוי לעומת שבוע שעבר
+function admDelta(cur, prev, unit = '') {
+  if (!prev && !cur) return '<span class="adm-d flat">ללא שינוי</span>';
+  if (!prev) return '<span class="adm-d up">חדש</span>';
+  const p = Math.round((cur - prev) / prev * 100);
+  if (Math.abs(p) < 3) return `<span class="adm-d flat">כמו שבוע שעבר</span>`;
+  return `<span class="adm-d ${p > 0 ? 'up' : 'down'}">${p > 0 ? '↑' : '↓'} ${Math.abs(p)}%</span>`;
+}
+// חישוב של כל המדדים פעם אחת – גם לדשבורד וגם לניתוח
+function admCalc(list, site) {
+  const tk = todayKey(), w0 = admKeys(7), w1 = admKeys(7, 7);
+  const win = admKeys(21).filter(k => k >= ADM_DATA0);
+  const wau = list.filter(u => admOnAny(u, w0)), wauP = list.filter(u => admOnAny(u, w1));
+  const dau = k => list.filter(u => admOn(u, k)).length;
+  const new0 = list.filter(u => w0.includes(admFirstKey(u))), new1 = list.filter(u => w1.includes(admFirstKey(u)));
+  const min0 = list.reduce((a, u) => a + admMinIn(u, w0), 0), min1 = list.reduce((a, u) => a + admMinIn(u, w1), 0);
+  const ai0 = {}, ai1 = {}, aiUsers0 = {};
+  list.forEach(u => { const a = admAiIn(u, w0), b = admAiIn(u, w1); Object.entries(a).forEach(([k, v]) => { ai0[k] = (ai0[k] || 0) + v; if (v) aiUsers0[k] = (aiUsers0[k] || 0) + 1; }); Object.entries(b).forEach(([k, v]) => { ai1[k] = (ai1[k] || 0) + v; }); });
+  const dauAvg0 = w0.reduce((a, k) => a + dau(k), 0) / 7, dauAvg1 = w1.reduce((a, k) => a + dau(k), 0) / 7;
+  // בסיכון: היו פעילים לפחות יומיים בשבועיים שלפני, ולא נכנסו בכלל השבוע
+  const older = admKeys(14, 7).filter(k => k >= ADM_DATA0);
+  const risk = list.filter(u => !admOnAny(u, w0) && admDays(u, older) >= 2).sort((a, b) => (b.last || 0) - (a.last || 0));
+  // חדשים שלא חזרו: נרשמו לפני 2–14 ימים ונכנסו רק ביום ההרשמה
+  const newOld = list.filter(u => { const f = admFirstKey(u); return f && f >= ADM_DATA0 && f < key(new Date(Date.now() - 864e5)) && f >= key(new Date(Date.now() - 14 * 864e5)); });
+  const newBack = newOld.filter(u => win.some(k => k > admFirstKey(u) && admOn(u, k)));
+  const noNb = list.filter(u => !u.nb && u.first && Date.now() - u.first > 864e5);
+  const hrs = admHourCounts(list.flatMap(u => w0.map(k => u.days && u.days[k]).filter(Boolean)));
+  return { tk, w0, w1, win, wau, wauP, dau, new0, new1, min0, min1, ai0, ai1, aiUsers0, dauAvg0, dauAvg1, risk, newOld, newBack, noNb, hrs, site };
+}
+function admKpi(n, label, delta, sub) {
+  return `<div class="card adm-kpi2"><span class="adm-kl">${label}</span><b>${n}</b>${delta || ''}${sub ? `<small>${sub}</small>` : ''}</div>`;
+}
+// "מה חשוב עכשיו": משפטים קצרים שנבנים לבד מהמספרים, הכי חשוב קודם
+function admInsights(c, list) {
+  const out = [];   // [רמה bad|warn|good|info, טקסט, לשונית, אזור]
+  const w = c.wau.length, wp = c.wauP.length;
+  if (wp && Math.abs(w - wp) / wp >= .15) out.push([w < wp ? 'bad' : 'good', `${w < wp ? 'ירידה' : 'עלייה'} של ${Math.abs(Math.round((w - wp) / wp * 100))}% בפעילים השבוע (${w} לעומת ${wp} בשבוע שעבר).`, 'an', 'eng']);
+  if (c.risk.length) out.push(['warn', `${c.risk.length} ${c.risk.length === 1 ? 'משתמש שהיה קבוע לא נכנס' : 'משתמשים שהיו קבועים לא נכנסו'} כבר שבוע.`, 'an', 'risk']);
+  if (c.newOld.length >= 2) { const p = admPct(c.newBack.length, c.newOld.length); out.push([p < 40 ? 'bad' : p < 60 ? 'warn' : 'good', `מתוך ${c.newOld.length} שנרשמו בשבועיים האחרונים, ${c.newBack.length} (${p}%) חזרו ליום נוסף.`, 'an', 'funnel']); }
+  const day = Math.floor((Date.now() + 10800000) / 864e5), g = c.site, n = g && g.day === day ? g.today || 0 : 0;
+  if (n / SITE_AI_DAY >= .7) out.push([n / SITE_AI_DAY >= .9 ? 'bad' : 'warn', `ה-AI היום כבר ב-${Math.round(n / SITE_AI_DAY * 100)}% מהמכסה של כל האתר (${n} מתוך ${SITE_AI_DAY}).`, 'today', '']);
+  if (c.noNb.length && list.length) out.push([admPct(c.noNb.length, list.length) >= 30 ? 'warn' : 'info', `${c.noNb.length} משתמשים (${admPct(c.noNb.length, list.length)}%) עוד לא יצרו אף מחברת.`, 'an', 'funnel']);
+  const tools = Object.entries(c.ai0).sort((a, b) => b[1] - a[1]);
+  if (tools.length) { const [k, v] = tools[0]; out.push(['info', `הכלי הכי פופולרי השבוע: ${USE_NAME[k] || k} (${v} שימושים, ${c.aiUsers0[k] || 0} משתמשים).`, 'an', 'tools']); }
+  const grow = Object.entries(c.ai0).filter(([k, v]) => (c.ai1[k] || 0) >= 3 && v >= (c.ai1[k] || 0) * 1.5).sort((a, b) => b[1] / (c.ai1[b[0]] || 1) - a[1] / (c.ai1[a[0]] || 1))[0];
+  if (grow) out.push(['good', `${USE_NAME[grow[0]] || grow[0]} בעלייה: ${grow[1]} שימושים השבוע לעומת ${c.ai1[grow[0]]} בשבוע שעבר.`, 'an', 'tools']);
+  const pk = admPeak(c.hrs); if (pk) out.push(['info', pk + ' (השבוע).', 'an', 'hours']);
+  const rank = { bad: 0, warn: 1, good: 2, info: 3 };
+  return out.sort((a, b) => rank[a[0]] - rank[b[0]]);
+}
+// גרף פעילים לפי יום: חלק כהה = חוזרים, חלק בהיר = נרשמו באותו יום
+function admActChart(c, list) {
+  const ks = c.win, rows = ks.map(k => { const on = list.filter(u => admOn(u, k)); const nw = on.filter(u => admFirstKey(u) === k).length; return { k, n: on.length, nw }; });
+  const mx = Math.max(1, ...rows.map(r => r.n));
+  return `<div class="adm-bars adm-stack" role="img" aria-label="משתמשים פעילים לפי יום">${rows.map(r => `<div class="adm-bar" title="${esc(dayLabel(r.k))}: ${r.n} פעילים, מתוכם ${r.nw} חדשים">${r.n ? `<b>${r.n}</b>` : ''}<span class="adm-stk" style="height:${r.n ? Math.max(6, r.n / mx * 86) : 0}%"><i class="nw" style="flex:${r.nw}"></i><i style="flex:${r.n - r.nw}"></i></span></div>`).join('')}</div>${admDayAx(ks)}
+    <div class="adm-legend"><span><i></i>חזרו</span><span><i class="nw"></i>נרשמו באותו יום</span></div>`;
+}
+function admDash(c, list) {
+  const w = c.wau.length, stick = admPct(c.dauAvg0, w), stickP = admPct(c.dauAvg1, c.wauP.length);
+  const mpu = w ? Math.round(c.min0 / w) : 0, mpuP = c.wauP.length ? Math.round(c.min1 / c.wauP.length) : 0;
+  const ai = admSum(c.ai0), aiP = admSum(c.ai1);
+  const todayN = c.dau(c.tk), lastWk = c.dau(key(new Date(Date.now() - 7 * 864e5)));
+  const ins = admInsights(c, list);
+  const day = Math.floor((Date.now() + 10800000) / 864e5), g = c.site, aiN = g && g.day === day ? g.today || 0 : 0, aiPct = Math.min(100, aiN / SITE_AI_DAY * 100);
+  return `<div class="adm-kpis adm-kpis2">
+      ${admKpi(w, 'פעילים השבוע', admDelta(w, c.wauP.length), `שבוע שעבר: ${c.wauP.length} · מתוך ${list.length} משתמשים`)}
+      ${admKpi(todayN, 'נכנסו היום', admDelta(todayN, lastWk), `באותו יום בשבוע שעבר: ${lastWk}`)}
+      ${admKpi(c.new0.length, 'נרשמו השבוע', admDelta(c.new0.length, c.new1.length), `שבוע שעבר: ${c.new1.length}`)}
+      ${admKpi(fmtMinS(mpu), 'זמן לכל פעיל בשבוע', admDelta(mpu, mpuP), `שבוע שעבר: ${fmtMinS(mpuP)}`)}
+      ${admKpi(ai, 'שימושים בכלי AI השבוע', admDelta(ai, aiP), `שבוע שעבר: ${aiP}`)}
+      ${admKpi(stick + '%', 'חוזרים כל יום', admDelta(stick, stickP), 'כמה מהפעילים בשבוע נכנסים ביום ממוצע')}
+    </div>
+    <div class="adm-dash-grid">
+      <div class="card adm-ins"><h3>מה חשוב עכשיו</h3>${ins.length ? `<ul>${ins.map(([lv, t, tab, sec]) => `<li class="${lv}"><span class="adm-dot"></span><span class="adm-ins-t">${esc(t)}</span><button type="button" class="link" data-go="${tab}" data-sec="${sec}">לפרטים</button></li>`).join('')}</ul>` : '<p class="noev">הכל רגוע. אין משהו מיוחד.</p>'}</div>
+      <div class="card adm-health"><h3>AI היום בכל האתר</h3>
+        <div class="adm-site-n"><b>${aiN}</b><span>מתוך ${SITE_AI_DAY}</span></div>
+        <div class="adm-site-bar ${aiPct >= 90 ? 'hot' : aiPct >= 70 ? 'warm' : ''}"><i style="width:${aiPct}%"></i></div>
+        <p class="muted-s">${c.risk.length ? `${c.risk.length} בסיכון לעזוב · ` : ''}${c.noNb.length} בלי מחברת</p>
+        <button type="button" class="link" data-go="today" data-sec="">מה קורה היום</button></div>
+    </div>
+    <div class="card"><h3>משתמשים פעילים בכל יום</h3>${admActChart(c, list)}<p class="muted-s">פעיל = נכנס לאתר באותו יום. נספר מ-12 בנובמבר, עד 3 שבועות אחורה.</p></div>`;
+}
+const fmtMinS = m => !m ? '0' : m < 60 ? `${m} דק׳` : `${Math.floor(m / 60)}:${pad(m % 60)} שע׳`;
+function admAnalysis(c, list) {
+  const sumAi = u => Object.values(u.ai || {}).reduce((a, v) => a + (+v || 0), 0);
+  const winD = u => admDays(u, c.win);
+  // 1. משפך: מהרשמה ועד משתמש קבוע
+  // כל שלב סופר רק מי שעבר גם את כל השלבים שלפניו
+  const conds = [
+    ['נרשמו', () => true],
+    ['יצרו מחברת', u => u.nb > 0],
+    ['חזרו ביום אחר', u => winD(u) >= 2 || (u.last && u.first && u.last - u.first > 864e5)],
+    ['השתמשו בכלי AI', u => sumAi(u) > 0],
+    ['פעילים השבוע', u => admOnAny(u, c.w0)],
+    ['קבועים (3+ ימים השבוע)', u => admDays(u, c.w0) >= 3],
+  ];
+  let pool = list; const steps = conds.map(([t, f]) => { pool = pool.filter(f); return [t, pool.length]; });
+  const funnel = `<div class="adm-fun">${steps.map(([t, n], i) => `<div class="adm-fun-row"><span class="adm-fun-t">${t}</span><span class="adm-fun-bar"><i style="width:${Math.max(2, admPct(n, list.length))}%"></i></span><b>${n}</b><small>${admPct(n, list.length)}%${i ? ` <em>${steps[i - 1][1] ? `(${admPct(n, steps[i - 1][1])}% מהשלב הקודם)` : ''}</em>` : ''}</small></div>`).join('')}</div>`;
+  // 2. שימור לפי שבוע הרשמה
+  const cohorts = [0, 1, 2].map(b => { const ks = admKeys(7, b * 7).filter(k => k >= ADM_DATA0); if (!ks.length) return null;
+    const us = list.filter(u => ks.includes(admFirstKey(u)));
+    const back = us.filter(u => { const f = admFirstKey(u); return c.win.some(k => k > f && admOn(u, k)); }).length;
+    const wk2 = us.filter(u => { const f = fromKey(admFirstKey(u)).getTime(); return c.win.some(k => { const t = fromKey(k).getTime(); return t >= f + 7 * 864e5 && t < f + 14 * 864e5 && admOn(u, k); }); }).length;
+    const elig2 = us.filter(u => Date.now() - fromKey(admFirstKey(u)).getTime() >= 8 * 864e5).length;
+    const now = us.filter(u => admOnAny(u, c.w0)).length;
+    return { lbl: b === 0 ? 'השבוע' : b === 1 ? 'לפני שבוע' : 'לפני שבועיים', range: `${fromKey(ks[0]).getDate()}.${fromKey(ks[0]).getMonth() + 1}–${fromKey(ks[ks.length - 1]).getDate()}.${fromKey(ks[ks.length - 1]).getMonth() + 1}`, n: us.length, back, wk2, elig2, now }; }).filter(Boolean);
+  const heat = (a, b) => b ? `<td class="adm-heat" style="--h:${admPct(a, b)}"><b>${admPct(a, b)}%</b><small>${a} מתוך ${b}</small></td>` : '<td class="muted-s">–</td>';
+  const coh = `<div class="adm-scroll"><table class="gr-table adm-coh"><thead><tr><th>נרשמו</th><th>כמה</th><th>חזרו ליום נוסף</th><th>היו בשבוע השני</th><th>פעילים השבוע</th></tr></thead><tbody>${cohorts.map(r => `<tr><td><b>${r.lbl}</b><br><small class="muted-s" dir="ltr">${r.range}</small></td><td>${r.n}</td>${heat(r.back, r.n)}${heat(r.wk2, r.elig2)}${heat(r.now, r.n)}</tr>`).join('')}</tbody></table></div>`;
+  // 3. כמה קבועים: כמה ימים כל פעיל נכנס ב-14 הימים האחרונים
+  const k14 = admKeys(14).filter(k => k >= ADM_DATA0), act14 = list.filter(u => admOnAny(u, k14));
+  const bins = [['יום אחד', 1, 1], ['2–3 ימים', 2, 3], ['4–7 ימים', 4, 7], ['8 ימים ומעלה', 8, 99]].map(([t, a, b]) => [t, act14.filter(u => { const d = admDays(u, k14); return d >= a && d <= b; }).length]);
+  const bMax = Math.max(1, ...bins.map(b => b[1]));
+  const eng = `<div class="adm-dev">${bins.map(([t, n]) => `<div class="adm-dev-row"><span class="adm-dev-n">${t}</span><span class="gb-track"><i style="width:${Math.max(3, n / bMax * 100)}%"></i></span><b>${n}</b><small>${admPct(n, act14.length)}%</small></div>`).join('')}</div>
+    <p class="muted-s">מתוך ${act14.length} שנכנסו לפחות פעם אחת ב-${k14.length} הימים האחרונים. ממוצע ${c.wau.length ? (c.w0.reduce((a, k) => a + c.dau(k), 0) / c.wau.length).toFixed(1) : 0} ימים בשבוע לכל פעיל.</p>`;
+  // 4. כלים: השבוע מול שבוע שעבר, וכמה מהפעילים משתמשים בכל כלי
+  const tk = [...new Set([...Object.keys(c.ai0), ...Object.keys(c.ai1)])].sort((a, b) => (c.ai0[b] || 0) - (c.ai0[a] || 0));
+  const tName = k => USE_NAME[k] || (k === 'img' ? 'יצירת תמונה' : k === 'imp' ? 'ייבוא' : k);
+  const tools = tk.length ? `<div class="adm-scroll"><table class="gr-table adm-tools"><thead><tr><th>כלי</th><th>השבוע</th><th>שבוע שעבר</th><th>שינוי</th><th>כמה משתמשים</th><th>מהפעילים</th></tr></thead><tbody>${tk.map(k => `<tr><td>${esc(tName(k))}</td><td><b>${c.ai0[k] || 0}</b></td><td>${c.ai1[k] || 0}</td><td>${admDelta(c.ai0[k] || 0, c.ai1[k] || 0)}</td><td>${c.aiUsers0[k] || 0}</td><td>${admPct(c.aiUsers0[k] || 0, c.wau.length)}%</td></tr>`).join('')}</tbody></table></div>` : '<p class="noev">עוד אין שימוש בכלים.</p>';
+  // 5. זמן לכל פעיל בכל יום
+  const mins = c.win.map(k => { const on = list.filter(u => admOn(u, k)); return { k, v: on.length ? Math.round(on.reduce((a, u) => a + admMinIn(u, [k]), 0) / on.length) : 0 }; });
+  const mMax = Math.max(1, ...mins.map(r => r.v));
+  const time = `<div class="adm-bars" role="img" aria-label="דקות לכל פעיל לפי יום">${mins.map(r => `<div class="adm-bar" title="${esc(dayLabel(r.k))}: ${r.v} דק׳ בממוצע">${r.v ? `<b>${r.v}</b>` : ''}<i style="height:${r.v ? Math.max(6, r.v / mMax * 86) : 0}%"></i></div>`).join('')}</div>${admDayAx(c.win)}`;
+  // 6. בסיכון והכי פעילים
+  const ago = ms => ms ? `לפני ${Math.max(1, Math.round((Date.now() - ms) / 864e5))} ימים` : '–';
+  const person = (u, right) => `<div class="adm-p"><div class="adm-p-top"><button type="button" class="link adm-user" data-uid="${esc(u.id)}" dir="auto"><b>${esc(u.name || u.email || 'משתמש')}</b></button><span class="adm-p-min">${right}</span></div></div>`;
+  const riskL = c.risk.length ? `<div class="adm-ppl">${c.risk.map(u => person(u, `נכנס ${ago(u.last)} · היה ${admDays(u, c.win)} ימים`)).join('')}</div>` : '<p class="noev">אין כרגע. כל מי שהיה קבוע נכנס השבוע.</p>';
+  const top = list.map(u => ({ u, m: Math.round(admMinIn(u, k14)), d: admDays(u, k14) })).filter(r => r.m).sort((a, b) => b.m - a.m).slice(0, 10);
+  const topL = top.length ? `<div class="adm-ppl">${top.map(r => person(r.u, `${fmtMinS(r.m)} · ${r.d} ימים`)).join('')}</div>` : '<p class="noev">עוד אין.</p>';
+  const sec = (id, t, body, note) => `<div class="card" id="adm-sec-${id}"><h3>${t}</h3>${body}${note ? `<p class="muted-s">${note}</p>` : ''}</div>`;
+  return sec('funnel', 'משפך: מהרשמה ועד משתמש קבוע', funnel, 'כל שורה = כמה משתמשים הגיעו לשלב הזה, מתוך כל מי שנרשם. איפה שיש ירידה גדולה – שם כדאי לשפר.')
+    + sec('coh', 'שימור: האם מי שנרשם חוזר?', coh, 'כל שורה = מי שנרשם באותו שבוע. "היו בשבוע השני" נספר רק למי שנרשם לפני 8 ימים לפחות. ככל שיותר ירוק – יותר טוב.')
+    + `<div class="adm-two">${sec('eng', 'כמה ימים נכנסים', eng)}${sec('risk', `בסיכון לעזוב (${c.risk.length})`, riskL, 'היו לפחות יומיים בשבועיים שלפני, ולא נכנסו השבוע. אולי כדאי לשלוח להם הודעה.')}</div>`
+    + sec('tools', 'כלי AI: השבוע לעומת שבוע שעבר', tools, '"מהפעילים" = כמה אחוז מאלה שנכנסו השבוע השתמשו בכלי.')
+    + `<div class="adm-two">${sec('time', 'דקות לכל פעיל בכל יום', time)}${sec('top', 'הכי פעילים (שבועיים)', topL)}</div>`;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('.adm-tabs [data-t], [data-go]'); if (!t || !t.closest('#adminView')) return;
+  const tab = t.dataset.t || t.dataset.go; admTabShow(tab);
+  const sec = t.dataset.sec; if (sec) setTimeout(() => { const el = $('adm-sec-' + sec); if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.classList.add('adm-flash'); setTimeout(() => el.classList.remove('adm-flash'), 1600); } }, 60);
+  else if (t.dataset.go) $('adminView').scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+function admTabShow(tab) {
+  if (!ADM_TABS.some(x => x[0] === tab)) tab = 'dash';
+  admTab = tab; try { localStorage.setItem('admTab', tab); } catch {}
+  document.querySelectorAll('#admBody .adm-tabs [data-t]').forEach(b => { const on = b.dataset.t === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('#admBody .adm-pane').forEach(p => p.classList.toggle('hidden', p.dataset.p !== tab));
+}
+// סינון בטבלת המשתמשים: חיפוש + הכל / פעילים השבוע / חדשים / בסיכון
+let admUf = 'all';
+function admUsersFilter() {
+  const q = ($('admUq')?.value || '').trim().toLowerCase();
+  let n = 0;
+  document.querySelectorAll('#admBody .adm-table tbody tr').forEach(tr => { const ok = (admUf === 'all' || tr.dataset[admUf] === '1') && (!q || tr.textContent.toLowerCase().includes(q)); tr.classList.toggle('hidden', !ok); if (ok) n++; });
+  const c = $('admUn'); if (c) c.textContent = n;
+}
+document.addEventListener('input', e => { if (e.target.id === 'admUq') admUsersFilter(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.adm-uf [data-uf]'); if (!b) return;
+  admUf = b.dataset.uf; b.parentElement.querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  admUsersFilter();
+});
+
 async function renderAdmin() {
   statsFlush();
   const box = $('admBody');
@@ -9655,31 +9831,29 @@ async function renderAdmin() {
   const brought = {}; list.forEach(u => { if (u.ref) brought[u.ref] = (brought[u.ref] || 0) + 1; });
   const byId = Object.fromEntries(list.map(u => [u.id, u]));
   const promoIds = new Set(); await Promise.all(list.map(async u => { if (u.email && INVITE_POP_HASH.includes(await sha256Hex('my-notebooks:' + u.email.toLowerCase()))) promoIds.add(u.id); }));
-  box.innerHTML = `<div class="adm-kpis">
-      <div class="card adm-kpi"><b>${list.length}</b><span>משתמשים</span></div>
-      <div class="card adm-kpi"><b>${act1}</b><span>נכנסו היום</span></div>
-      <div class="card adm-kpi"><b>${act7}</b><span>פעילים השבוע</span></div>
-      <div class="card adm-kpi"><b>${new7}</b><span>חדשים השבוע</span></div>
-    </div>
-    ${admSiteAi(site)}
-    ${admShop(shopSt)}
-    ${admMarketers(list, brought, promoIds)}
-    ${admToday(list, tk, dMin, dAi, fmtMin, toolName)}
-    ${admHours(list)}
-    ${admSchools(list)}
+  const C = admCalc(list, site);
+  box.innerHTML = `<div class="adm-tabs" role="tablist" aria-label="חלקי העמוד">${ADM_TABS.map(([k, t]) => `<button type="button" role="tab" data-t="${k}">${t}</button>`).join('')}</div>
+    <div class="adm-pane" data-p="dash">${admDash(C, list)}</div>
+    <div class="adm-pane hidden" data-p="an">${admAnalysis(C, list)}
+    <div id="adm-sec-hours">${admHours(list)}</div>
     <div class="card"><h3>נרשמים חדשים ב-30 הימים האחרונים</h3>
       <div class="adm-bars" role="img" aria-label="נרשמים חדשים לפי יום">${days.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${byDay[k]}">${byDay[k] ? `<b>${byDay[k]}</b>` : ''}<i style="height:${byDay[k] ? Math.max(6, byDay[k] / maxD * 86) : 0}%"></i></div>`).join('')}</div>
       ${admDayAx(days)}</div>
+    <div class="adm-two"><div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
     <div class="card"><h3>שימוש ב-AI (מאז שהתחלנו לספור)</h3>${Object.keys(aiTot).length ? `<div class="adm-ai">${Object.entries(aiTot).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div><b>${v}</b><span>${esc(USE_NAME[k] || k)}</span></div>`).join('')}</div>` : '<p class="noev">עוד אין שימוש.</p>'}
-      <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div>
-    <div class="card"><h3>מאיזה מכשיר נכנסים</h3><div class="adm-dev">${devRows.map(([d, c]) => `<div class="adm-dev-row"><span class="adm-dev-n">${esc(d)}</span><span class="gb-track"><i style="width:${Math.max(3, c / devMax * 100)}%"></i></span><b>${c}</b><small>${Math.round(c / list.length * 100)}%</small></div>`).join('')}</div></div>
-    <div class="card"><h3>משתמשים פעילים ב-14 הימים האחרונים</h3><div class="adm-bars" role="img" aria-label="משתמשים פעילים לפי יום">${days14.map(k => `<div class="adm-bar" title="${esc(dayLabel(k))}: ${actByDay[k]}">${actByDay[k] ? `<b>${actByDay[k]}</b>` : ''}<i style="height:${actByDay[k] ? Math.max(6, actByDay[k] / actMax * 86) : 0}%"></i></div>`).join('')}</div>${admDayAx(days14)}<p class="muted-s">כמה אנשים שונים נכנסו בכל יום. גרף מפורט יותר, כולל מדינה, יש ב-<a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a>.</p></div>
+      <p class="muted-s">כמה בקשות נשלחו ל-Gemini בכל יום: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/overview" target="_blank" rel="noopener">Firebase</a> → AI Logic בתפריט. כמה נכנסים לאתר ומאיזה מכשיר: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/analytics" target="_blank" rel="noopener">Firebase → Analytics</a> (מתחיל להתמלא תוך יום).</p></div></div></div>
+    <div class="adm-pane hidden" data-p="today">${admSiteAi(site)}${admToday(list, tk, dMin, dAi, fmtMin, toolName)}</div>
+    <div class="adm-pane hidden" data-p="more">${admShop(shopSt)}${admMarketers(list, brought, promoIds)}${admSchools(list)}</div>
+    <div class="adm-pane hidden" data-p="users"><div class="adm-ubar"><input type="search" id="admUq" placeholder="חיפוש לפי שם, אימייל או בית ספר" dir="auto"><div class="adm-seg adm-uf" role="group" aria-label="סינון">${[['all', 'הכל'], ['act', 'פעילים השבוע'], ['nw', 'חדשים השבוע'], ['risk', 'בסיכון']].map(([k, t]) => `<button type="button" data-uf="${k}" class="${k === admUf ? 'on' : ''}" aria-pressed="${k === admUf}">${t}</button>`).join('')}</div><span class="muted-s">מוצגים <b id="admUn">${list.length}</b></span></div>
     <div class="card"><h3>המשתמשים (${list.length})</h3><div class="adm-scroll"><table class="gr-table adm-table"><thead><tr><th>שם</th><th>אימייל</th><th>נרשם</th><th>נכנס לאחרונה</th><th>שעות כניסה היום</th><th>מחברות</th><th>זמן היום</th><th>זמן כולל</th><th>AI</th><th>לומיקס</th><th>הביא חברים</th><th>הגיע דרך</th><th>בית ספר</th><th>כיתה</th><th>מכשיר</th><th>קישור הזמנה</th></tr></thead><tbody>
       ${sorted.map(u => `<tr><td><button type="button" class="link adm-user" data-uid="${esc(u.id)}" title="מה הוא עשה בשבועות האחרונים">${esc(u.name || '–')}</button></td><td dir="ltr" class="adm-mail">${esc(u.email || '')}</td><td>${u.first ? esc(fmtDate(u.first)) : '–'}</td><td>${ago(u.last)}${u.last && now - u.last < day ? ` <small class="muted-s" dir="ltr">${hmIL(u.last)}</small>` : ''}</td><td dir="ltr" class="adm-tt">${hrsOf(u.days && u.days[tk]).join(' · ') || '–'}</td><td>${u.nb ?? '–'}</td><td>${fmtMin(dMin(u))}</td><td>${fmtMin(+u.mins || 0)}</td><td>${sumAi(u) || '–'}</td><td>${lx[u.id] ? `<b>${lx[u.id].bal || 0}</b> <small class="muted-s">(הרוויח ${lx[u.id].total || 0})</small>` : '–'}</td><td>${brought[u.id] ? `<b>${brought[u.id]}</b>` : '–'}</td><td>${u.ref ? `${esc((byId[u.ref] && byId[u.ref].name) || 'מישהו')} <button type="button" class="link adm-ref" data-uid="${esc(u.id)}">שינוי</button>` : `<button type="button" class="btn btn-ghost adm-ref" data-uid="${esc(u.id)}">שיוך</button>`}</td><td>${u.sch ? `${esc(u.sch.n || '')}${u.sch.t ? ` <small class="muted-s">${esc(u.sch.t)}</small>` : ''}` : '–'}</td><td>${esc(classLabel(u.sch)) || '–'}</td><td>${esc(u.device || '')}</td><td><button type="button" class="btn btn-ghost adm-inv" data-uid="${esc(u.id)}">העתקה</button></td></tr>`).join('')}
-    </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div>`;
+    </tbody></table></div><p class="muted-s">"העתקה" ב"קישור הזמנה" = הקישור האישי של המשתמש להזמנת חברים, כדי לשלוח לו בוואטסאפ. פעילים ב-30 יום: ${act30}. משתמש מופיע כאן מהפעם הראשונה שהוא נכנס אחרי שהעמוד הזה נוסף. הרשימה המלאה של מי שנרשם אי פעם: <a href="https://console.firebase.google.com/project/my-notebooks-32ffd/authentication/users" target="_blank" rel="noopener">Firebase → Authentication</a>.</p></div></div>`;
   // בטלפון כל משתמש הוא כרטיס: לכל תא שמים את שם העמודה שלו
   const ths = [...box.querySelectorAll('.adm-table thead th')].map(t => t.textContent);
   box.querySelectorAll('.adm-table tbody tr').forEach(tr => [...tr.children].forEach((td, i) => td.setAttribute('data-l', ths[i] || '')));
+  const riskIds = new Set(C.risk.map(u => u.id)), newIds = new Set(C.new0.map(u => u.id)), actIds = new Set(C.wau.map(u => u.id));
+  box.querySelectorAll('.adm-table tbody tr').forEach((tr, i) => { const u = sorted[i]; if (!u) return; tr.dataset.act = actIds.has(u.id) ? '1' : ''; tr.dataset.nw = newIds.has(u.id) ? '1' : ''; tr.dataset.risk = riskIds.has(u.id) ? '1' : ''; });
+  admTabShow(admTab); admUsersFilter();
   box.querySelectorAll('.gs-wait').forEach(x => x.classList.remove('gs-wait'));
 }
 
