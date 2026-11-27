@@ -3259,7 +3259,8 @@ function schoolPaint() {
 let classData = null;
 const clsK = t => String(t || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().replace(/^(מבחן|בוחן|מבדק|בחינה|test|quiz)( ב| ב-| ב)?\s*/, '').replace(/^ב/, '').trim();
 const ttEmptyNow = () => !Object.values((timetable && timetable.days) || {}).some(a => Array.isArray(a) && a.some(Boolean));
-const classTestsNew = () => ((classData && classData.tests) || []).filter(t => !events.some(e => e.date === t.date && (clsK(e.title) === clsK(t.title) || clsK(e.title).includes(clsK(t.title)) || clsK(t.title).includes(clsK(e.title)))));
+const clsSame = (e, t) => e.date === t.date && (clsK(e.title) === clsK(t.title) || clsK(e.title).includes(clsK(t.title)) || clsK(t.title).includes(clsK(e.title)));
+const classTestsNew = () => ((classData && classData.tests) || []).filter(t => !events.some(e => clsSame(e, t)));
 async function classLoad(force) {
   if (!me || !school || !school.g) { classData = null; classPaint(); return; }
   const day = usageDay(), c = schLs('cls');
@@ -3278,6 +3279,7 @@ const clsAddedNow = new Set();
 const clsSyncDoc = () => doc(db, 'users', me.uid, 'meta', 'classSync');
 const clsSig = t => JSON.stringify([t.days || {}, t.start === 0 ? 0 : 1, t.times || {}]);
 const clsTKey = t => t.date + '|' + clsK(t.title);
+const clsEvId = t => { let h = 0; const k = clsTKey(t); for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return 'cls-' + t.date + '-' + (h >>> 0).toString(36); };
 async function classAutoSync() {
   const d = classData; if (!me || !d || !school || clsSyncing || !ttReady || !evReady) return;
   clsSyncing = true;
@@ -3285,10 +3287,11 @@ async function classAutoSync() {
     if (d.tt && (ttEmptyNow() || timetable.fromClass)) {
       const days = {}; for (let i = 0; i < 6; i++) days[i] = (d.tt.days[i] || []).slice(0, 14);
       const nt = { days, start: d.tt.start === 0 ? 0 : 1, times: d.tt.times || {} };
-      if (clsSig(nt) !== clsSig(timetable)) {
+      const sig = clsSig(nt);
+      if (sig !== (timetable.fromClass ? timetable.clsSig : '')) {   // רק כשהמערכת של הכיתה באמת השתנתה (הניקוי של שמות המקצועות לא גורם לכתיבה חוזרת)
         const first = !timetable.fromClass;
-        await setDoc(ttDoc(), { ...nt, fromClass: true, updatedAt: Date.now() });
-        timetable = { ...nt, fromClass: true };
+        await setDoc(ttDoc(), { ...nt, fromClass: true, clsSig: sig, updatedAt: Date.now() });
+        timetable = { ...nt, fromClass: true, clsSig: sig };
         toast(first ? 'מערכת השעות של הכיתה נכנסה אצלך ✓' : 'מערכת השעות של הכיתה התעדכנה');
         track('class_tt_auto', { first: first ? 1 : 0 });
       }
@@ -3299,9 +3302,9 @@ async function classAutoSync() {
       const done = new Set(sync.added || []);
       const add = classTestsNew().filter(t => !done.has(clsTKey(t)) && !clsAddedNow.has(clsTKey(t)));
       const keys = new Set((d.tests || []).map(clsTKey));
-      const gone = events.filter(e => e.fromClass && e.type === 'test' && !e.done && e.date >= tk && !keys.has(clsTKey(e)));
+      const gone = events.filter(e => e.fromClass && e.type === 'test' && !e.done && e.date >= tk && !keys.has(clsTKey(e)) && !(d.tests || []).some(t => clsSame(e, t)));
       add.forEach(t => clsAddedNow.add(clsTKey(t)));
-      for (const t of add) await addDoc(evCol(), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, fromClass: true, createdAt: Date.now() }).catch(() => {});
+      for (const t of add) await setDoc(evDoc(clsEvId(t)), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, fromClass: true, createdAt: Date.now() }).catch(() => {});
       for (const e of gone) await deleteDoc(evDoc(e.id)).catch(() => {});
       if (add.length) {
         const all = [...new Set([...done, ...add.map(clsTKey)])].filter(k => k.slice(0, 10) >= tk).slice(-200);
@@ -5560,12 +5563,12 @@ function subscribeTimetable() {
     // תיקון למערכת שנקראה עם שעה 0 ריקה בתור "שעה 1": אם השורה הראשונה ריקה בכל הימים, מזיזים הכל שורה למעלה
     if (timetable.start !== 0 && ttSubjects().length) {
       const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
-      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true } : {}), updatedAt: Date.now() }).catch(() => {}); }
+      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true, clsSig: timetable.clsSig || '' } : {}), updatedAt: Date.now() }).catch(() => {}); }
     }
     { // שמות ישנים עם קודים ("מתמטיקה א1", "אנגלית הקבצה"): מנקים פעם אחת
       const ds = timetable.days; let changed = false; const nd = {};
       for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
-      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true } : {}), updatedAt: Date.now() }).catch(() => {}); }
+      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true, clsSig: timetable.clsSig || '' } : {}), updatedAt: Date.now() }).catch(() => {}); }
     } paintTTBtn(); if (!$('home').classList.contains('hidden')) morningPaint(); classAutoSync(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];

@@ -595,7 +595,7 @@ exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async
   const evs = await Promise.all(cls.map(d => db.collection(`users/${d.id}/events`).where('date', '>=', today).limit(120).get().catch(() => null)));
   const by = {};
   evs.forEach((s2, idx) => { if (!s2) return; const seen = new Set(); s2.forEach(e => { const x = e.data(); if (x.type !== 'test' || x.fromClass) return; const k = x.date + '|' + testKey(x.title); if (!x.date || !testKey(x.title) || seen.has(k)) return; seen.add(k); const b = by[k] || (by[k] = { n: 0, date: x.date, titles: {}, time: {} }); b.n++; b.titles[x.title] = (b.titles[x.title] || 0) + 1; if (x.time) b.time[x.time] = (b.time[x.time] || 0) + 1; }); });
-  out.tests = Object.values(by).filter(b => b.n >= CLASS_MIN).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 25)
+  out.tests = Object.values(by).filter(b => b.n >= CLASS_MIN).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 60)
     .map(b => ({ title: Object.entries(b.titles).sort((a, c) => c[1] - a[1])[0][0].slice(0, 80), date: b.date, time: (Object.entries(b.time).sort((a, c) => c[1] - a[1])[0] || [''])[0] }));
   return out;
 });
