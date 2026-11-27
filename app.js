@@ -3192,7 +3192,7 @@ const classTestsNew = () => ((classData && classData.tests) || []).filter(t => !
 async function classLoad(force) {
   if (!me || !school || !school.g) { classData = null; classPaint(); return; }
   const day = usageDay(), c = schLs('cls');
-  if (!force && c && c.day === day && c.key === school.n + school.g + school.k && Date.now() - (c.t || 0) < 36e5) { classData = c.d; classPaint(); return; }   // (26.11.2026) רק שעה – אחרת לא רואים ילדים שהצטרפו היום
+  if (!force && c && c.day === day && c.key === school.n + school.g + school.k && Date.now() - (c.t || 0) < 6e5) { classData = c.d; classPaint(); return; }   // (27.11.2026, עמית) בכל כניסה בודקים מחדש – רק אם עברו 10 דקות מהבדיקה הקודמת
   try {
     const r = await httpsCallable(getFunctions(fb, 'europe-west1'), 'classInfo', { timeout: 30000 })({});
     classData = r.data && r.data.ok ? r.data : null; schLs('cls', { day, t: Date.now(), key: school.n + school.g + school.k, d: classData });
