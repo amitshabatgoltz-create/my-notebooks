@@ -3891,3 +3891,75 @@ html[data-theme="dark"] .adm-d.up{color:#5fd68e}
 .adm-dash-grid{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}.adm-two{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media (max-width:900px){.adm-dash-grid,.adm-two{grid-template-columns:minmax(0,1fr)}}
 #admBody .card,.adm-pane{min-width:0}
+
+/* ===== בוקר טוב (27.11.2026): כרטיס בכניסה הראשונה של היום ===== */
+.morning{--mo-a:#FFE3C7;--mo-b:#FFD1DC;--mo-c:#E4DCFF;--mo-ink:#2A1F3D;--mo-art:#FF8A3D;--mo-box:rgba(255,255,255,.62);--mo-line:rgba(255,255,255,.85);
+  position:relative;overflow:hidden;margin:0 0 18px;padding:22px 22px 20px;border-radius:26px;color:var(--mo-ink);
+  background:radial-gradient(120% 90% at 100% 0%,var(--mo-a) 0%,transparent 60%),radial-gradient(90% 80% at 0% 100%,var(--mo-c) 0%,transparent 65%),var(--mo-b);
+  box-shadow:0 18px 40px -26px rgba(120,60,90,.55)}
+.morning.hidden{display:none}
+.morning::before,.morning::after{content:"";position:absolute;border-radius:50%;pointer-events:none;background:rgba(255,255,255,.35)}
+.morning::before{width:220px;height:220px;top:-90px;inset-inline-start:-60px}
+.morning::after{width:120px;height:120px;bottom:-50px;inset-inline-end:30%;background:rgba(255,255,255,.22)}
+html[data-theme="dark"] .morning{--mo-a:#3B2A52;--mo-b:#231B33;--mo-c:#1C2A4A;--mo-ink:#F3EEFF;--mo-art:#FFB86B;--mo-box:rgba(255,255,255,.07);--mo-line:rgba(255,255,255,.12);box-shadow:none}
+html[data-theme="dark"] .morning::before,html[data-theme="dark"] .morning::after{background:rgba(255,255,255,.04)}
+.morning.han{--mo-a:#CFE3FF;--mo-b:#E6EEFF;--mo-c:#FFF0C2;--mo-ink:#16264A;--mo-art:#2D5BD8}
+html[data-theme="dark"] .morning.han{--mo-a:#1E3A78;--mo-b:#142045;--mo-c:#3A3212;--mo-ink:#EEF3FF;--mo-art:#9CC0FF}
+.morning.mo-in{animation:moIn .6s cubic-bezier(.2,.8,.2,1) both}
+.morning.mo-in .mo-box{animation:moIn .55s cubic-bezier(.2,.8,.2,1) both}
+.morning.mo-in .mo-box:nth-child(2){animation-delay:.08s}.morning.mo-in .mo-box:nth-child(3){animation-delay:.16s}
+@keyframes moIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.mo-x{position:absolute;top:12px;inset-inline-end:12px;z-index:2;width:32px;height:32px;border:0;border-radius:50%;background:var(--mo-box);color:inherit;font-size:14px;cursor:pointer}
+.mo-x:hover{background:var(--mo-line)}
+.mo-head{position:relative;display:flex;align-items:center;gap:16px;margin-bottom:16px;padding-inline-end:36px}
+.mo-art{flex:none;width:76px;height:76px;border-radius:24px;display:grid;place-items:center;background:var(--mo-box);color:var(--mo-art);border:1.5px solid var(--mo-line)}
+.mo-art .mo-svg{width:56px;height:56px}
+.mo-art .menorah{width:64px;height:64px}
+.mo-hi{min-width:0}
+.mo-date{margin:0;font-size:13px;font-weight:700;opacity:.7}
+.mo-hi h2{margin:2px 0 4px;font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.mo-sub{margin:0;font-size:15px;opacity:.85}
+.mo-grid{position:relative;display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px}
+.mo-box{min-width:0;padding:14px 14px 12px;border-radius:18px;background:var(--mo-box);border:1px solid var(--mo-line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.mo-box h3{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:13.5px;font-weight:800;opacity:.8}
+.mo-box h3 svg{width:17px;height:17px}
+.mo-empty{margin:0 0 4px;font-size:14px;opacity:.8}
+.mo-box .link{font-size:14px;color:inherit;text-decoration:underline;font-weight:700}
+.mo-start{margin:0 0 8px;font-size:13px;opacity:.8}
+.mo-tt{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.mo-tt li{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 5px;border-radius:999px;background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.mo-tt li i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--mo-art) 22%,transparent);color:var(--ink);font-size:11.5px;font-weight:800}
+.mo-tt li em{font-style:normal;font-size:11.5px;opacity:.6}
+.mo-tests{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.mo-tests li{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;min-width:0}
+.mo-tests li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mo-tests li i{flex:none;font-style:normal;padding:2px 9px;border-radius:999px;background:var(--surface);color:var(--ink);font-size:12px;font-weight:800}
+.mo-tests li i.soon{background:#FF6B4A;color:#fff}
+.mo-luck{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,#FF8A3D,#FF4F8B);color:#fff;box-shadow:0 10px 20px -12px rgba(255,79,139,.8)}
+.mo-luck svg{flex:none;width:26px;height:26px}
+.mo-luck div{display:flex;flex-direction:column;min-width:0}
+.mo-luck b{font-size:18px;font-weight:800}
+.mo-luck span{font-size:13.5px;opacity:.95}
+.mo-hol-in{display:flex;align-items:center;gap:12px}
+.mo-hol-art{flex:none;width:58px;height:58px;color:var(--mo-art)}
+.mo-hol-art .mo-svg{width:58px;height:58px}
+.mo-hol-tx{display:flex;flex-direction:column;min-width:0;font-size:14px}
+.mo-hol-tx>b{font-size:20px;font-weight:800}
+.mo-hol-tx small{opacity:.7;font-size:12.5px}
+.mo-num{display:flex;align-items:baseline;gap:5px}
+.mo-num b{font-size:34px;font-weight:800;line-height:1;letter-spacing:-.02em;color:var(--mo-art)}
+.mo-num small{font-size:14px;font-weight:700;opacity:.75}
+/* תנועה עדינה: קרני שמש, סביבון, להבות */
+.mo-svg.sun .mo-rays{transform-origin:32px 32px;animation:moSpin 24s linear infinite}
+.mo-svg.dreidel{transform-origin:32px 58px;animation:moDreidel 2.6s ease-in-out infinite}
+.mo-fl{transform-box:fill-box;transform-origin:50% 100%;animation:moFlick 1.4s ease-in-out infinite;animation-delay:var(--d,0s)}
+.mo-tw{animation:moTw 2.4s ease-in-out infinite;animation-delay:var(--d,0s)}
+@keyframes moSpin{to{transform:rotate(360deg)}}
+@keyframes moDreidel{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
+@keyframes moFlick{0%,100%{transform:scale(1,1)}40%{transform:scale(.9,1.12)}70%{transform:scale(1.06,.94)}}
+@keyframes moTw{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.morning *,.morning{animation:none!important}}
+/* כשהכרטיס מוצג – לא חוזרים על הברכה של הדף */
+#home.has-mo #homeDate,#home.has-mo #greet,#home.has-mo #greetSub{display:none}
+@media (max-width:900px){.mo-grid{grid-template-columns:1fr 1fr}.mo-grid .mo-box:first-child{grid-column:1/-1}}
+@media (max-width:560px){.morning{padding:18px 14px 14px;border-radius:22px}.mo-head{gap:12px}.mo-art{width:60px;height:60px;border-radius:18px}.mo-art .mo-svg{width:44px;height:44px}.mo-art .menorah{width:52px;height:52px}.mo-grid{grid-template-columns:1fr}.mo-sub{font-size:14px}}

@@ -3437,6 +3437,7 @@ function schoolDialog() {
 }
 function renderHome() {
   renderStats(); homeAskChips();
+  morningPaint();
   homeFirstPaint();
   schoolPaint();
   $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
@@ -3502,6 +3503,117 @@ function renderHome() {
   }
   homeAnimated = true;
 }
+
+/* ===== בוקר טוב (27.11.2026): כרטיס בכניסה הראשונה של היום – המערכת של היום, מבחנים (היום: "בהצלחה"), כמה ימים לחופש הבא. בחנוכה: חנוכייה עם הנרות של הערב וסביבון ===== */
+// חופשות משרד החינוך תשפ"ז (לפי החוזר, כפי שפורסם ב-edugo ו-mako). s = יום החופש הראשון, e = האחרון. לעדכן כל שנה
+const SCHOOL_HOLS = [
+  { n: 'חנוכה', s: '2026-12-06', e: '2026-12-12', a: 'dreidel' },
+  { n: 'פורים', s: '2027-03-23', e: '2027-03-24', a: 'mask' },
+  { n: 'פסח', s: '2027-04-13', e: '2027-04-28', a: 'cup' },
+  { n: 'יום העצמאות', s: '2027-05-12', e: '2027-05-12', a: 'flag' },
+  { n: 'שבועות', s: '2027-06-10', e: '2027-06-11', a: 'wheat' },
+  { n: 'החופש הגדול', s: '2027-06-21', e: '2027-08-31', a: 'sun', summer: true },   // יסודי: מ-1.7
+];
+const HANUKKAH_EVE = ['2026-12-04', '2027-12-24'];   // הערב של הנר הראשון
+const MO_LINES = ['צעד קטן כל יום עושה הבדל גדול.', 'מי ששואל – לומד פעמיים.', 'לא חייבים להיות מושלמים, רק להמשיך.', 'עשר דקות חזרה היום חוסכות שעה לפני המבחן.', 'כל מומחה היה פעם מתחיל.', 'קודם הדבר הכי קשה, ואז הכל קל יותר.', 'הפסקה קצרה היא גם חלק מהלמידה.', 'טעות היא סימן שאתה מנסה.', 'היום הוא הזדמנות חדשה.', 'לאט וביטחון – זה עדיין קדימה.'];
+let moOn = null;   // null = עוד לא בדקנו בביקור הזה
+const moKey = () => 'morning:' + (me && me.uid);
+function moHols() {
+  const elem = school && school.g && school.g <= 6;
+  return SCHOOL_HOLS.map(h => h.summer && elem ? { ...h, s: '2027-07-01' } : h);
+}
+function hanukkahNow() {
+  for (const eve of HANUKKAH_EVE) { const d = -daysUntil(eve); if (d >= 0 && d <= 8) return { night: Math.min(8, d + 1), last: d === 8 }; }
+  return null;
+}
+function moArt(kind, n) {
+  const S = (inner, cls = '') => `<svg class="mo-svg ${cls}" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  const flame = (x, y, i) => `<path class="mo-fl" style="--d:${(i % 4) * .17}s" d="M${x} ${y}c-2.6-2.6-2.4-5.4 0-8.6 2.4 3.2 2.6 6 0 8.6z" fill="#FFB020" stroke="#FF7A00" stroke-width="1.2"/>`;
+  if (kind === 'menorah') {
+    const xs = [4, 11, 18, 25, 39, 46, 53, 60]; let s = '<path d="M22 60h20M32 60V31"/>';
+    for (let i = 1; i <= 4; i++) s += `<path d="M${32 - 7 * i} 30q0 ${4 + 4 * i} ${7 * i} ${4 + 4 * i}t${7 * i} ${-4 - 4 * i}"/>`;
+    xs.forEach(x => s += `<path d="M${x} 30v-8" stroke-width="3.2"/>`);
+    s += '<path d="M32 31V16" stroke-width="3.2"/>' + flame(32, 15, 0);
+    xs.slice().reverse().slice(0, n || 0).forEach((x, i) => s += flame(x, 21, i + 1));
+    return S(s, 'menorah');
+  }
+  if (kind === 'dreidel') return S('<path d="M32 5v10"/><path d="M19 15h26v22L32 58 19 37z"/><path d="M19 37h26"/><text x="32" y="32" text-anchor="middle" font-size="15" font-weight="800" fill="currentColor" stroke="none" font-family="inherit">נ</text>', 'dreidel');
+  if (kind === 'mask') return S('<path d="M7 24c9-7 17-6 25 0 8-6 16-7 25 0 0 13-6 19-12 19-6 0-8-5-13-5s-7 5-13 5C13 43 7 37 7 24z"/><ellipse cx="21" cy="30" rx="5" ry="3.2"/><ellipse cx="43" cy="30" rx="5" ry="3.2"/><path d="M52 41l5 17"/>');
+  if (kind === 'cup') return S('<path d="M18 10h28c0 17-6 25-14 25S18 27 18 10z"/><path d="M19.5 19h25"/><path d="M32 35v14M23 55h18M26 50h12"/>');
+  if (kind === 'flag') return S('<path d="M12 6v52"/><path d="M12 11h40v26H12"/><path d="M12 16h40M12 32h40"/><path d="M32 19l4.6 8H27.4zM32 29.5l-4.6-8h9.2z" stroke-width="1.8"/>');
+  if (kind === 'wheat') { let s = '<path d="M32 60V12"/><path d="M32 15c-3-3-3-7 0-10 3 3 3 7 0 10z"/>'; [17, 26, 35, 44].forEach(y => s += `<path d="M32 ${y + 7}c-7 0-10-4-10-9 6 0 10 3 10 9zM32 ${y + 7}c7 0 10-4 10-9-6 0-10 3-10 9z"/>`); return S(s); }
+  if (kind === 'moon') return S('<path d="M40 10a22 22 0 1 0 14 34A18 18 0 0 1 40 10z"/><path class="mo-tw" d="M14 12v6M11 15h6"/><path class="mo-tw" style="--d:.8s" d="M50 52v4M48 54h4"/>', 'moon');
+  // שמש
+  let r = ''; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a); r += `<path d="M${(32 + 16 * c).toFixed(1)} ${(32 + 16 * s).toFixed(1)}L${(32 + 23 * c).toFixed(1)} ${(32 + 23 * s).toFixed(1)}"/>`; }
+  return S(`<circle cx="32" cy="32" r="10"/><g class="mo-rays">${r}</g>`, 'sun');
+}
+function moDayName(k) { const d = daysUntil(k); if (d === 0) return 'היום'; if (d === 1) return 'מחר'; return 'יום ' + HE_DAYS[fromKey(k).getDay()]; }
+function morningPaint() {
+  const el = $('morning'); if (!el) return;
+  if (!me) { el.classList.add('hidden'); $('home').classList.remove('has-mo'); return; }
+  const tk = todayKey();
+  if (moOn === null) {
+    let seen = ''; try { seen = localStorage.getItem(moKey()) || ''; } catch {}
+    moOn = seen !== tk;
+    if (moOn) { try { localStorage.setItem(moKey(), tk); } catch {} track('morning_card', {}); }
+  }
+  el.classList.toggle('hidden', !moOn); $('home').classList.toggle('has-mo', moOn);
+  if (!moOn) return;
+  const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const now = new Date(), h = now.getHours(), name = firstName();
+  const hols = moHols(), inHol = hols.find(x => x.s <= tk && tk <= x.e), next = hols.find(x => x.s > tk);
+  const han = hanukkahNow(); el.classList.toggle('han', !!han);
+  // כותרת
+  const art = han ? moArt('menorah', han.last ? 8 : han.night) : moArt(h >= 5 && h < 17 ? 'sun' : 'moon');
+  let sub = MO_LINES[Math.floor(Date.now() / 864e5) % MO_LINES.length];
+  if (han) sub = han.last ? 'יום אחרון של חנוכה. חג שמח!' : han.night === 1 ? 'חג חנוכה שמח! הערב מדליקים את הנר הראשון.' : `חג חנוכה שמח! הערב מדליקים ${han.night} נרות.`;
+  // המערכת של היום
+  const dow = now.getDay(), tms = timetable.times || {}, st = timetable.start === 0 ? 0 : 1;
+  const raw = dow < 6 ? (timetable.days[dow] || []) : [];
+  const lessons = []; raw.forEach((v, i) => { const s = normS(v); if (!s) return; const last = lessons[lessons.length - 1]; if (last && last.s === s && last.end === i - 1) { last.n++; last.end = i; } else lessons.push({ s, n: 1, p: i + st, end: i }); });
+  let tt;
+  if (!ttSubjects().length) tt = `<p class="mo-empty">עוד אין מערכת שעות.</p><button type="button" class="link" data-mo="ttadd">להוסיף מערכת שעות</button>`;
+  else if (inHol || !lessons.length) tt = `<p class="mo-empty">${inHol ? 'אין לימודים – חופש!' : dow === 6 ? 'שבת שלום, אין לימודים היום.' : 'אין לימודים היום.'}</p>`;
+  else {
+    const t0 = tms[lessons[0].p];
+    tt = (t0 ? `<p class="mo-start">מתחילים ב-<b dir="ltr">${esc(t0)}</b></p>` : '') + `<ol class="mo-tt">${lessons.map(l => `<li><i>${l.p}</i><span>${esc(l.s)}</span>${l.n > 1 ? `<em>×${l.n}</em>` : ''}</li>`).join('')}</ol>`;
+  }
+  // מבחנים: היום, מחר, ובשבוע הקרוב (7 ימים)
+  const endWeek = new Date(fromKey(tk)); endWeek.setDate(endWeek.getDate() + 6);
+  const ek = key(endWeek);
+  const tests = events.filter(e => e.type === 'test' && !e.done && e.date >= tk && e.date <= ek).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const todayT = tests.filter(e => e.date === tk);
+  let tx = '';
+  if (todayT.length) tx += `<div class="mo-luck"><svg aria-hidden="true"><use href="#i-crown"/></svg><div><b>בהצלחה!</b><span>היום: ${todayT.map(e => esc(e.title)).join(', ')}</span></div></div>`;
+  const rest = tests.filter(e => e.date !== tk);
+  if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span></li>`).join('')}</ul>`;
+  if (!tests.length) tx = `<p class="mo-empty">אין מבחנים בשבוע הקרוב. שבוע רגוע!</p>`;
+  // החופש הבא
+  let hol = '';
+  if (inHol) {
+    const back = new Date(fromKey(inHol.e)); back.setDate(back.getDate() + 1); if (back.getDay() === 6) back.setDate(back.getDate() + 1);
+    const db = daysUntil(key(back));
+    hol = `<div class="mo-hol-art">${moArt(inHol.a)}</div><div class="mo-hol-tx"><b>חופש נעים!</b><span>${inHol.summer ? 'החופש הגדול' : 'חופשת ' + inHol.n}</span><small>חוזרים ללימודים ${db === 1 ? 'מחר' : `בעוד ${db} ימים`}</small></div>`;
+  } else if (next) {
+    const dn = daysUntil(next.s), s = fromKey(next.s), e = fromKey(next.e);
+    const range = next.s === next.e ? `${s.getDate()}.${s.getMonth() + 1}` : `${s.getDate()}.${s.getMonth() + 1}–${e.getDate()}.${e.getMonth() + 1}`;
+    hol = `<div class="mo-hol-art">${moArt(next.a)}</div><div class="mo-hol-tx"><span class="mo-num"><b>${dn === 1 ? 'מחר' : dn}</b>${dn === 1 ? '' : '<small>ימים</small>'}</span><span>${next.summer ? 'עד החופש הגדול' : next.a === 'flag' ? 'עד ' + next.n : 'עד חופשת ' + next.n}</span><small dir="ltr">${range}</small></div>`;
+  }
+  el.innerHTML = `<button type="button" class="mo-x" data-mo="x" aria-label="סגירה">✕</button>
+    <div class="mo-head"><div class="mo-art">${art}</div><div class="mo-hi"><p class="mo-date">יום ${HE_DAYS[dow]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}</p><h2>${esc(name ? `${greeting()}, ${name}` : greeting())}</h2><p class="mo-sub">${esc(sub)}</p></div></div>
+    <div class="mo-grid">
+      <section class="mo-box"><h3><svg aria-hidden="true"><use href="#i-tt"/></svg>המערכת של היום</h3>${tt}</section>
+      <section class="mo-box"><h3><svg aria-hidden="true"><use href="#i-clipboard"/></svg>מבחנים קרובים</h3>${tx}</section>
+      ${hol ? `<section class="mo-box mo-hol${han || (next && next.a === 'dreidel') || (inHol && inHol.a === 'dreidel') ? ' han' : ''}"><h3><svg aria-hidden="true"><use href="#i-sun"/></svg>החופש הבא</h3><div class="mo-hol-in">${hol}</div></section>` : ''}
+    </div>`;
+  if (!homeAnimated) { el.classList.remove('mo-in'); void el.offsetWidth; el.classList.add('mo-in'); }
+}
+$('morning').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-mo],[data-ev]'); if (!b) return;
+  if (b.dataset.mo === 'x') { moOn = false; track('morning_close', {}); morningPaint(); }
+  else if (b.dataset.mo === 'ttadd') timetableDialog();
+  else if (b.dataset.ev) showTab('cal');
+});
 
 
 /* ================= ציר זמן ================= */
@@ -5397,7 +5509,7 @@ function subscribeTimetable() {
       const ds = timetable.days; let changed = false; const nd = {};
       for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
       if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
-    } paintTTBtn(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
+    } paintTTBtn(); if (!$('home').classList.contains('hidden')) morningPaint(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
@@ -10901,3 +11013,4 @@ addEventListener('beforeprint', () => { if (!$('notebook').classList.contains('h
 addEventListener('afterprint', () => { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); });
 // ליתר ביטחון (טלפונים שלא שולחים afterprint): כשחוזרים לכתוב – מחזירים את המחברת למצב הרגיל
 $('editor').addEventListener('focusin', () => { if ($('editor').querySelector('.pr-sec')) { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); } });
+if (location.hostname === 'localhost') window.__moTest = (o = {}) => { me = me || { uid: 'localtest', displayName: 'עמית שבת', metadata: {} }; if (o.tt) timetable = o.tt; if (o.ev) events = o.ev; if (o.g) school = { g: o.g }; moOn = null; try { localStorage.removeItem('morning:localtest'); } catch {} $('home').classList.remove('hidden'); homeAnimated = false; morningPaint(); };   // רק לבדיקה מקומית
