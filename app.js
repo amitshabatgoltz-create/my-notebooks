@@ -259,29 +259,39 @@ function subscribe() {
 // כך שמי שמחק אותן לא מקבל אותן שוב. מזהים קבועים (starter-<מקצוע>) – גם אם שני מכשירים פתוחים, לא נוצרות כפילויות
 const STARTER_NB = [['sci', 'מדעים', '#2e9e6a'], ['geo', 'גאוגרפיה', '#1f8fa3'], ['heb', 'עברית', '#d24b4b'], ['tanach', 'תנ"ך', '#e08a1e'], ['eng', 'אנגלית', '#7a4fd1'], ['math', 'מתמטיקה', '#2f5bd3']];
 let starterBusy = false, starterJust = false;
+// (27.11.2026, אבא – אפשרות 2) גם למי שכבר יש מחברות: מוסיפים רק את המקצועות שחסרים לו (לפי השם או המקצוע של המחברת, כולל מה שבפח –
+// מחברת שמחקת לא חוזרת). פעם אחת לכל משתמש. לפני כל כתיבה בודקים בשרת שהמחברת עוד לא קיימת (לא דורסים תוכן)
+const STARTER_ALIAS = { sci: ['מדעים', 'מדע', 'מדעי הטבע', 'science'], geo: ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו', 'geography'], heb: ['עברית', 'לשון', 'הבעה'], tanach: ['תנך', 'מקרא', 'tanach', 'bible'], eng: ['אנגלית', 'english'], math: ['מתמטיקה', 'מתימטיקה', 'חשבון', 'math'] };
+const starterHas = (allNb, k) => allNb.some(n => !isPres(n) && (n.id === 'starter-' + k || STARTER_ALIAS[k].some(a => { const x = squash(a).toLowerCase(); return squash((n.title || '') + ' ' + (n.subject || '')).toLowerCase().includes(x); })));
 async function starterNbs(allNb) {
   if (!me || starterBusy || shareParam) return;
-  if (allNb.some(n => !isPres(n) && !n.trashed)) return;
   const uid = me.uid; let seen = ''; try { seen = localStorage.getItem('starter:' + uid) || ''; } catch {}
   if (seen) return;
   starterBusy = true;
   try {
-    // בודקים מול השרת (לא מהמטמון) – שלא תהיה מחברת ושעוד לא קיבל
-    const fd = doc(db, 'users', uid, 'meta', 'starter'), sn = await getDocFromServer(fd), any = await getDocsFromServer(query(nbCol(), limit(50)));
-    if (sn.exists() || any.docs.some(x => !isPres(x.data()) && !x.data().trashed) || !me || me.uid !== uid) { try { localStorage.setItem('starter:' + uid, '1'); } catch {} return; }
-    await setDoc(fd, { at: Date.now() });
+    // בודקים מול השרת (לא מהמטמון): שעוד לא קיבל, ואם באמת אין לו מחברות בכלל
+    const fd = doc(db, 'users', uid, 'meta', 'starter'), sn = await getDocFromServer(fd);
+    if (sn.exists() || !me || me.uid !== uid) { try { localStorage.setItem('starter:' + uid, '1'); } catch {} return; }
+    const any = await getDocsFromServer(query(nbCol(), limit(50)));
+    const all = allNb.concat(any.docs.map(x => ({ id: x.id, ...x.data() })).filter(x => !allNb.some(n => n.id === x.id)));
+    const hadNone = !all.some(n => !isPres(n) && !n.trashed);
+    const miss = STARTER_NB.filter(([k]) => !starterHas(all, k));
+    await setDoc(fd, { at: Date.now(), added: miss.map(x => x[0]) });
     try { localStorage.setItem('starter:' + uid, '1'); } catch {}
-    starterJust = true;
+    if (!miss.length) return;
+    if (hadNone) starterJust = true;
     const t = Date.now(), look = nbDefaults();
-    await Promise.all(STARTER_NB.filter(([k]) => !allNb.some(n => n.id === 'starter-' + k)).map(([k, name, color], i) => {
+    await Promise.all(miss.map(async ([k, name, color], i) => {
+      if ((await getDocFromServer(nbDoc('starter-' + k))).exists()) return;
       const lk = {}; ['bg', 'orient', 'margin', 'font', 'fs'].forEach(x => { if (look[x]) lk[x] = look[x]; });
       if (k === 'math') lk.bg = 'grid';
-      return setDoc(nbDoc('starter-' + k), { title: name, subject: name, color, html: '', ...lk, starter: true, createdAt: t - i, updatedAt: t - i });
+      return setDoc(nbDoc('starter-' + k), { title: name, subject: name, color, html: '', ...lk, starter: true, createdAt: t - i, updatedAt: hadNone ? t - i : t - 864e5 * 30 - i });   // לוותיקים – בסוף הרשימה, לא מעל המחברות שלהם
     }));
-    track('starter_nbs', { isNew: onbNew() ? 1 : 0 });
-    if (!onbNew()) setTimeout(() => toastAction('הכנו לך מחברת לכל מקצוע. מה שלא צריך – אפשר למחוק', 'למחברות', () => showLibrary('nb'), 9000), 1500);
+    track('starter_nbs', { isNew: onbNew() ? 1 : 0, n: miss.length, none: hadNone ? 1 : 0 });
+    const names = miss.map(x => x[1]).join(', ');
+    if (!(hadNone && onbNew())) setTimeout(() => toastAction(hadNone ? 'הכנו לך מחברת לכל מקצוע. מה שלא צריך – אפשר למחוק' : `הוספנו לך מחברות למקצועות שחסרו: ${names}`, 'למחברות', () => showLibrary('nb'), 10000), 1500);
   } catch (e) { console.warn('starter', e && e.message); }
-  starterBusy = false;
+  finally { starterBusy = false; }
 }
 // משתמש חדש: במקום "ליצור מחברת ראשונה" – המחברות כבר מוכנות, הצעד הבא הוא לצלם את הלוח לתוך אחת מהן
 function starterCard() {
