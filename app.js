@@ -5,7 +5,7 @@ import {
   setPersistence, browserLocalPersistence, browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
 import {
-  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, increment, runTransaction, deleteField, arrayUnion
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, addDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, increment, runTransaction, deleteField, arrayUnion
 } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js";
 import { firebaseConfig, recaptchaSiteKey } from "./firebase-config.js?v=1794223306";
@@ -241,7 +241,7 @@ function subscribe() {
     $('loading').classList.add('hidden');
     const allNb = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     notebooks = allNb.filter(n => !n.trashed); nbSnapOk = true; trash = allNb.filter(n => n.trashed).sort((a, b) => b.trashed - a.trashed);
-    ownRemote(snap); waMerge();
+    ownRemote(snap); waMerge(); starterNbs(allNb);
     purgeTrash(); renderTrashBtn();
     // עומס: בכל שמירה אוטומטית (כל ~1.2 שנ׳ בזמן כתיבה) מגיע עדכון. מציירים את כל הרשימה רק כשהיא על המסך
     if (!$('library').classList.contains('hidden')) renderGrid(); else renderSide();
@@ -252,6 +252,52 @@ function subscribe() {
     console.error(err); unsub = null;
     if (!nbSnapOk) $('loading').textContent = 'לא ניתן לטעון את המחברות. בודק שוב...';
     liveRetry('nb', subscribe);
+  });
+}
+
+// (27.11.2026, אבא) מחברות מוכנות לכל מקצוע: למי שאין אף מחברת (חדש או ישן) – פעם אחת בלבד (users/{uid}/meta/starter),
+// כך שמי שמחק אותן לא מקבל אותן שוב. מזהים קבועים (starter-<מקצוע>) – גם אם שני מכשירים פתוחים, לא נוצרות כפילויות
+const STARTER_NB = [['sci', 'מדעים', '#2e9e6a'], ['geo', 'גאוגרפיה', '#1f8fa3'], ['heb', 'עברית', '#d24b4b'], ['tanach', 'תנ"ך', '#e08a1e'], ['eng', 'אנגלית', '#7a4fd1'], ['math', 'מתמטיקה', '#2f5bd3']];
+let starterBusy = false, starterJust = false;
+async function starterNbs(allNb) {
+  if (!me || starterBusy || shareParam) return;
+  if (allNb.some(n => !isPres(n) && !n.trashed)) return;
+  const uid = me.uid; let seen = ''; try { seen = localStorage.getItem('starter:' + uid) || ''; } catch {}
+  if (seen) return;
+  starterBusy = true;
+  try {
+    // בודקים מול השרת (לא מהמטמון) – שלא תהיה מחברת ושעוד לא קיבל
+    const fd = doc(db, 'users', uid, 'meta', 'starter'), sn = await getDocFromServer(fd), any = await getDocsFromServer(query(nbCol(), limit(50)));
+    if (sn.exists() || any.docs.some(x => !isPres(x.data()) && !x.data().trashed) || !me || me.uid !== uid) { try { localStorage.setItem('starter:' + uid, '1'); } catch {} return; }
+    await setDoc(fd, { at: Date.now() });
+    try { localStorage.setItem('starter:' + uid, '1'); } catch {}
+    starterJust = true;
+    const t = Date.now(), look = nbDefaults();
+    await Promise.all(STARTER_NB.filter(([k]) => !allNb.some(n => n.id === 'starter-' + k)).map(([k, name, color], i) => {
+      const lk = {}; ['bg', 'orient', 'margin', 'font', 'fs'].forEach(x => { if (look[x]) lk[x] = look[x]; });
+      if (k === 'math') lk.bg = 'grid';
+      return setDoc(nbDoc('starter-' + k), { title: name, subject: name, color, html: '', ...lk, starter: true, createdAt: t - i, updatedAt: t - i });
+    }));
+    track('starter_nbs', { isNew: onbNew() ? 1 : 0 });
+    if (!onbNew()) setTimeout(() => toastAction('הכנו לך מחברת לכל מקצוע. מה שלא צריך – אפשר למחוק', 'למחברות', () => showLibrary('nb'), 9000), 1500);
+  } catch (e) { console.warn('starter', e && e.message); }
+  starterBusy = false;
+}
+// משתמש חדש: במקום "ליצור מחברת ראשונה" – המחברות כבר מוכנות, הצעד הבא הוא לצלם את הלוח לתוך אחת מהן
+function starterCard() {
+  track('onb_starter', {});
+  const name = firstName ? firstName() : '';
+  dialog(d => {
+    d.classList.add('welcome-dlg');
+    d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-book"/></svg></div><h3>היי${name ? ' ' + esc(name) : ''}, ברוך הבא!</h3>
+      <p>הכנו לך מחברת לכל מקצוע: ${STARTER_NB.map(x => esc(x[1])).join(', ')}. מה שלא צריך – אפשר למחוק.</p>
+      <p>הכי שימושי: לצלם את הלוח בשיעור, והוא נכנס למחברת מוקלד.</p>`;
+    const row = document.createElement('div'); row.className = 'row wl-end';
+    const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'לצלם את הלוח';
+    go.onclick = () => { closeDialog(); track('onb_starter_ocr', {}); openId = null; setTimeout(() => ocrDialog({ noIntro: true }), 200); };
+    const see = document.createElement('button'); see.className = 'btn btn-ghost'; see.textContent = 'לראות את המחברות';
+    see.onclick = () => { closeDialog(); showLibrary('nb'); tourChip(); };
+    row.append(go, see); d.appendChild(row);
   });
 }
 
@@ -10117,6 +10163,9 @@ function onbRun(left = 8) {
   const ready = $('loading').classList.contains('hidden') && ttReady;
   if (!ready || $('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => onbRun(left - 1), 2500); return; }
   if (!onbGet('onbNb')) {
+    let stSeen = true; try { stSeen = !!localStorage.getItem('starter:' + me.uid); } catch {}
+    if (!notebooks.some(n => !isPres(n)) && (starterBusy || !stSeen)) { if (left) setTimeout(() => onbRun(left - 1), 1500); return; }   // מחכים שהמחברות המוכנות ייווצרו
+    if (starterJust) { onbSet('onbNb'); starterCard(); return; }
     if (notebooks.length || tourSeen()) onbSet('onbNb', '1');           // התחיל לפני השינוי – הצעד הראשון כבר מאחוריו
     else { onbSet('onbNb'); firstNbCard(); return; }
   }
