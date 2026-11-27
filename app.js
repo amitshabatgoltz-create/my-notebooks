@@ -3592,7 +3592,7 @@ function renderHome() {
   renderStats(); homeAskChips();
   morningPaint();
   homeFirstPaint();
-  schoolPaint(); pwaPaint();
+  schoolPaint(); pwaPaint(); pushPopSoon();
   $('homeNotesN').textContent = notebooks.length === 1 ? 'מחברת אחת' : notebooks.length ? `${notebooks.length} מחברות` : 'כל המחברות במקום אחד';
   const now = new Date();
   $('homeDate').textContent = `יום ${HE_DAYS[now.getDay()]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}`;
@@ -4554,6 +4554,31 @@ function pushOffer(from) {
   if (o.n >= 4 || Date.now() - o.t < 3 * 864e5) return;
   schLs('pushOffer', { n: o.n + 1, t: Date.now() }); track('push_offer', { from });
   toastAction('רוצה שנזכיר לך בערב שלפני המבחן?', 'כן, להזכיר', () => pushEnable('offer-' + from), 10000);
+}
+// (28.11.2026, אבא: "שפשוט יקפיץ") חלון שקופץ לבד ומציע להפעיל תזכורות. הדפדפן מרשה לבקש הרשאה רק אחרי לחיצה – לכן קודם החלון שלנו,
+// ו"כן, להפעיל" פותח את בקשת ההרשאה. פעם אחת, ושוב אחרי שבוע אם אמרו "לא עכשיו" (עד 3). לא כשעוד מחכה חלון בית הספר
+let pushPopT = 0;
+function pushPopSoon(left = 10) {
+  clearTimeout(pushPopT);
+  pushPopT = setTimeout(() => {
+    if (!me || !PUSH_OK || Notification.permission !== 'default' || shareParam) return;
+    const pp = schLs('pushPop') || { n: 0, t: 0 };
+    if (pp.n >= 3 || Date.now() - pp.t < 7 * 864e5) return;
+    if (schoolLoaded && !school && !schLs('schPop2')) return;   // קודם בית ספר וכיתה
+    if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro, .cb-wrap')) { if (left) pushPopSoon(left - 1); return; }
+    schLs('pushPop', { n: pp.n + 1, t: Date.now() }); track('push_pop', { n: pp.n + 1 });
+    dialog(d => {
+      d.classList.add('welcome-dlg', 'push-dlg');
+      d.innerHTML = `<div class="wl-icon"><svg aria-hidden="true"><use href="#i-bell"/></svg></div><h3>להזכיר לך לפני מבחנים?</h3>
+        <p>יומיים לפני, יום לפני, ובסופ״ש שלפני – התראה קטנה${matchMedia('(pointer: coarse)').matches ? ' בטלפון' : ''}, גם כשהאתר סגור. וגם על שיעורי בית למחר.</p>`;
+      const row = document.createElement('div'); row.className = 'row wl-end';
+      const go = document.createElement('button'); go.className = 'btn btn-primary wl-go'; go.textContent = 'כן, להפעיל';
+      go.onclick = () => { closeDialog(); pushEnable('pop'); };
+      const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'לא עכשיו';
+      no.onclick = () => { closeDialog(); track('push_pop_no', {}); };
+      row.append(go, no); d.appendChild(row);
+    });
+  }, 8000);
 }
 navigator.serviceWorker && navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.t === 'push-open') track('push_open', {}); });
 if (new URLSearchParams(location.search).get('n') === 'push') { track('push_open', {}); history.replaceState(null, '', location.pathname); }
