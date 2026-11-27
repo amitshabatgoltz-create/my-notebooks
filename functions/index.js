@@ -515,9 +515,24 @@ exports.shop = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async req 
 const nbChars = d => String((d && d.html) || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|\s+/g, '').length;
 exports.chalkNb2 = onDocumentWritten({ document: 'users/{uid}/notebooks/{id}', region: 'europe-west1', retry: false }, async ev => {
   const b = ev.data && ev.data.before && ev.data.before.exists ? ev.data.before.data() : null, a = ev.data && ev.data.after && ev.data.after.exists ? ev.data.after.data() : null;
-  if (!a || a.layout === 'slides' || a.kind === 'pres' || a.trashed || nbChars(a) < 30 || (b && nbChars(b) >= 30)) return;
-  const ref = db.doc(`wallet/${ev.params.uid}`), id = ev.params.id;
-  try { await db.runTransaction(async tx => { const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {}; const ids = w.nbIds || []; if (ids.includes(id)) return; const r = earnIn(tx, w, 'nb'); tx.set(ref, { ...r.w, nbIds: [...ids, id].slice(-40) }); }); } catch (e) { console.warn('chalkNb2', String(e && e.message).slice(0, 80)); }
+  // (27.11.2026, עמית) כתיבה בכל מחברת – לא רק חדשה: מחברת שהוסיפו לה היום 30 אותיות לפחות = לומיקס, כל מחברת פעם ביום, עד EARN.nb.cap ביום.
+  // wallet.nbw = { day, base: {id: אותיות בתחילת היום}, paid: [id] }
+  if (!a || a.layout === 'slides' || a.kind === 'pres' || a.trashed) return;
+  const now = nbChars(a), was = b ? nbChars(b) : 0;
+  if (now <= was) return;   // מחיקה / שינוי בלי טקסט חדש – בלי לקרוא את הארנק
+  const ref = db.doc(`wallet/${ev.params.uid}`), id = ev.params.id, day = israelDay();
+  try {
+    await db.runTransaction(async tx => {
+      const sn = await tx.get(ref); const w = sn.exists ? sn.data() : {};
+      if (w.day === day && ((w.dayEarn || {}).nb || 0) >= EARN.nb.cap) return;   // כבר קיבל היום את המקסימום
+      const nw = w.nbw && w.nbw.day === day ? { day, base: { ...(w.nbw.base || {}) }, paid: [...(w.nbw.paid || [])] } : { day, base: {}, paid: [] };
+      if (nw.paid.includes(id)) return;
+      const first = !(id in nw.base);
+      if (first) nw.base[id] = was;
+      if (now - nw.base[id] >= 30) { const r = earnIn(tx, w, 'nb'); nw.paid.push(id); tx.set(ref, { ...r.w, nbw: nw }); }
+      else if (first) tx.set(ref, { nbw: nw }, { merge: true });
+    });
+  } catch (e) { console.warn('chalkNb2', String(e && e.message).slice(0, 80)); }
 });
 // (25.11.2026) תשלום חד-פעמי לכולם עכשיו – לא מחכים לכניסה הבאה. מפעילים ע"י יצירת מסמך ב-adminJobs (רק מהקונסול/CLI; לדפדפן אין גישה)
 exports.refBackRun = onDocumentCreated({ document: 'adminJobs/{id}', region: 'europe-west1', retry: false }, async ev => {

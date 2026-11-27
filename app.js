@@ -10134,17 +10134,17 @@ const SHOP = [
   { id: 'frame', g: 'perk', n: 8, p: 100, t: 'מסגרת צבעונית לתמונה שלך – לתמיד', s: 'מסגרת מיוחדת לעיגול עם האות שלך, למעלה במסך', ic: 'target' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
-const EARN_TX = { friendBack: 'על החברים שכבר הבאת', day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'מחברת חדשה', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
+const EARN_TX = { friendBack: 'על החברים שכבר הבאת', day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'כתבת במחברת', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
 // משימות היום – אותה רשימה כמו QUEST_KINDS בשרת. day = נכנסת היום (קורה לבד)
 // (24.11.2026) המשימות מתחלפות כל יום – אותה טבלה בשרת (QUEST_PAIRS). 'day' תמיד ראשון
 // (25.11.2026) משימה נספרת רק כשבאמת סיימו (הכניסו למחברת / עברו על כרטיסיות). השרת בודק שה-AI באמת הכין את זה היום
 let questCallFn = null;
 function questClaim(k) { if (!me) return; try { if (!questCallFn) questCallFn = httpsCallable(getFunctions(fb, 'europe-west1'), 'questDone', { timeout: 20000 }); questCallFn({ k }).catch(() => {}); } catch {} }
-const QUEST_DEF = { day: { t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, ocr: { t: 'לצלם לוח ולהכניס למחברת', done: 'צילמת לוח', go: 'לצלם' }, ask: { t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }, fc: { t: 'להכין כרטיסיות ולעבור על 5', done: 'עברת על כרטיסיות', go: 'למחברות' }, sum: { t: 'לעשות סיכום ולשמור אותו', done: 'עשית סיכום', go: 'למחברות' }, nb: { t: 'לפתוח מחברת חדשה ולכתוב בה', done: 'כתבת במחברת חדשה', go: 'לפתוח' }, pr: { t: 'לעשות דף תרגול ולשמור אותו', done: 'עשית דף תרגול', go: 'לתרגל' } };
+const QUEST_DEF = { day: { t: 'להיכנס לאתר', done: 'נכנסת – הרצף נשמר' }, ocr: { t: 'לצלם לוח ולהכניס למחברת', done: 'צילמת לוח', go: 'לצלם' }, ask: { t: 'לשאול את העוזר שאלה', done: 'שאלת את העוזר', go: 'לשאול' }, fc: { t: 'להכין כרטיסיות ולעבור על 5', done: 'עברת על כרטיסיות', go: 'למחברות' }, sum: { t: 'לעשות סיכום ולשמור אותו', done: 'עשית סיכום', go: 'למחברות' }, nb: { t: 'לכתוב במחברת (לפחות 30 אותיות)', done: 'כתבת במחברת', go: 'למחברות' }, pr: { t: 'לעשות דף תרגול ולשמור אותו', done: 'עשית דף תרגול', go: 'לתרגל' } };
 const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask'], ['sum', 'pr'], ['ocr', 'ask'], ['nb', 'fc'], ['pr', 'ask']];
 const questsToday = () => { const d = usageDay(), n = QUEST_PAIRS.length; return ['day', ...QUEST_PAIRS[((d % n) + n) % n]].map(k => ({ k, ...QUEST_DEF[k] })); };
 const QUEST_BONUS = 10;
-const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כל מחברת חדשה'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['fc', 2, 1, 'כרטיסיות שינון'], ['sum', 2, 1, 'סיכום למבחן'], ['pr', 2, 1, 'דף תרגול דומה'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3 (המשימות מתחלפות כל יום)'], ['friend', 20, 0, 'כל חבר שמצטרף מהקישור שלך (עד 10 בחודש)']];
+const EARN_LIST = [['day', 5, 1, 'כל יום שנכנסים'], ['ocr', 2, 3, 'כל צילום לוח'], ['nb', 5, 2, 'כתיבה במחברת – כל מחברת פעם ביום'], ['big', 25, 1, 'ביום 7, 14 ו-30 ברצף'], ['ask', 1, 1, 'שאלה לעוזר'], ['fc', 2, 1, 'כרטיסיות שינון'], ['sum', 2, 1, 'סיכום למבחן'], ['pr', 2, 1, 'דף תרגול דומה'], ['quest', 10, 1, 'היום שלך: 3 מתוך 3 (המשימות מתחלפות כל יום)'], ['friend', 20, 0, 'כל חבר שמצטרף מהקישור שלך (עד 10 בחודש)']];
 let wallet = null, walletOff = null, shopCall = null, shopTab = 'ai';
 const walletToday = () => (wallet && wallet.extra && wallet.extra.day === usageDay() ? wallet.extra : { add: {}, n: {} });
 function walletWatch() {
@@ -10279,7 +10279,7 @@ function shopPaint(d) {
   d.querySelectorAll('.bd-accs [data-acc]').forEach(b => b.onclick = () => { try { localStorage.setItem('accent:' + me.uid, b.dataset.acc); localStorage.setItem('skinSel:' + me.uid, ''); } catch {} siteAccentApply(); shopPaint(d); });
   d.querySelectorAll('.bd-buy[data-id]').forEach(b => b.onclick = () => shopBuy(b.dataset.id, b));
   d.querySelectorAll('[data-try]').forEach(b => b.onclick = () => skinTry(b.dataset.try));
-  d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); const g = b.dataset.go; if (g === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else if (g === 'ask') showTab('chat'); else if (g === 'nb') newNotebook(); else if (g === 'pr') $('homePr')?.click(); else { showTab('notes'); toast(g === 'fc' ? 'פותחים מחברת ולוחצים "כרטיסיות"' : 'פותחים מחברת ולוחצים "סיכום"'); } });
+  d.querySelectorAll('.bq-go').forEach(b => b.onclick = () => { closeDialog(); track('quest_go', { k: b.dataset.go }); const g = b.dataset.go; if (g === 'ocr') { openId = null; ocrDialog({ noIntro: true }); } else if (g === 'ask') showTab('chat'); else if (g === 'nb') showTab('notes'); else if (g === 'pr') $('homePr')?.click(); else { showTab('notes'); toast(g === 'fc' ? 'פותחים מחברת ולוחצים "כרטיסיות"' : 'פותחים מחברת ולוחצים "סיכום"'); } });
   if (shopTab === 'streak') setTimeout(() => { const tr = d.querySelector('.bd-track'), now = d.querySelector('.tk-n.now'); if (tr && now) tr.scrollLeft += now.getBoundingClientRect().left + now.offsetWidth / 2 - (tr.getBoundingClientRect().left + tr.clientWidth / 2); }, 60);
 }
 async function shopBuy(id, btn) {
@@ -10432,7 +10432,7 @@ function lumixIntro(prize, left = 8) {
   w.innerHTML = `<button class="lx-skip" type="button">דילוג</button>
     <div class="lx-stage">
       <div class="lx-beat b1"><span class="lx-fire"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${n}</b></span><div><h3>רצף</h3><p>נכנסים כל יום – והאש גדלה. כל יום יש פרס.</p></div></div>
-      <div class="lx-beat b2"><span class="lx-coin"><svg aria-hidden="true"><use href="#i-lumix"/></svg></span><div><h3>לומיקס</h3><p>מרוויחים כשלומדים: צילום לוח, שאלה לעוזר, מחברת חדשה.</p></div></div>
+      <div class="lx-beat b2"><span class="lx-coin"><svg aria-hidden="true"><use href="#i-lumix"/></svg></span><div><h3>לומיקס</h3><p>מרוויחים כשלומדים: צילום לוח, שאלה לעוזר, כתיבה במחברת.</p></div></div>
       <div class="lx-beat b3"><span class="lx-shop"><svg aria-hidden="true"><use href="#i-gift"/></svg></span><div><h3>חנות</h3><p>קונים בלומיקס עוד AI ודברים מגניבים למחברות.</p></div></div>
     </div>
     <div class="lx-final"><button type="button" class="chest lx-chest" aria-label="לפתוח את הפרס הראשון"><span class="ch-rays"></span><span class="ch-shadow"></span>${chestArt()}<span class="ch-gem"></span><span class="ch-glow"></span><span class="ch-flash"></span><i class="ch-sp s1"></i><i class="ch-sp s2"></i><i class="ch-sp s3"></i><i class="ch-sp s4"></i></button>
