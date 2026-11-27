@@ -547,8 +547,9 @@ exports.refBackRun = onDocumentCreated({ document: 'adminJobs/{id}', region: 'eu
 });
 // ===== הכיתה שלי (26.11.2026, רעיון של עמית) =====
 // לפי בית הספר + שכבה + מספר כיתה (מ-users/{uid}/meta/school). מחזיר רק מספרים והצעות – אף פעם לא שמות או מי העלה מה,
-// כי כל אחד יכול לכתוב שהוא בכיתה מסוימת. הצעה רק כש-3 ילדים לפחות מהכיתה מסכימים (CLASS_MIN)
-const CLASS_MIN = 3;
+// כי כל אחד יכול לכתוב שהוא בכיתה מסוימת. (27.11.2026, אבא) מספיק ילד אחד שהעלה (CLASS_MIN=1) – האתר מכניס לכל הכיתה אוטומטית.
+// מה שהגיע מהכיתה מסומן fromClass ולא נספר כמקור (אחרת העתקים "מצביעים"). כשיש כמה מקורות – הרוב, ובתיקו – המערכת שעודכנה אחרונה
+const CLASS_MIN = 1;
 const clsNorm = t => String(t || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 const testKey = t => clsNorm(t).replace(/^(מבחן|בוחן|מבדק|בחינה|test|quiz)( ב| ב-| ב)?\s*/, '').replace(/^ב/, '').trim();
 exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async req => {
@@ -564,30 +565,31 @@ exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async
   if (cls.length < CLASS_MIN) return out;
   // מערכת שעות: לכל יום ושעה – המקצוע שרוב הכיתה כתבו (רק מי שיש לו מערכת)
   const tts = (await Promise.all(cls.map(d => db.doc(`users/${d.id}/meta/timetable`).get().catch(() => null))))
-    .map(x => x && x.exists ? x.data() : null).filter(t => t && t.days && Object.values(t.days).some(a => Array.isArray(a) && a.some(Boolean)));
+    .map(x => x && x.exists ? x.data() : null).filter(t => t && !t.fromClass && t.days && Object.values(t.days).some(a => Array.isArray(a) && a.some(Boolean)))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   if (tts.length >= CLASS_MIN) {
     const days = {}; let slots = 0, agree = 0;
     for (let i = 0; i < 6; i++) {
       const len = Math.max(0, ...tts.map(t => (t.days[i] || []).length)); const row = [];
       for (let j = 0; j < len; j++) {
         const c = {}; tts.forEach(t => { const v = String((t.days[i] || [])[j] || '').trim(); if (v) c[clsNorm(v)] = c[clsNorm(v)] ? { n: c[clsNorm(v)].n + 1, v: c[clsNorm(v)].v } : { n: 1, v }; });
-        const best = Object.values(c).sort((a, b) => b.n - a.n)[0];
+        const best = Object.values(c).sort((a, b) => b.n - a.n)[0];   // sort יציב: בתיקו – מהמערכת החדשה ביותר
         if (best) { slots++; if (best.n >= CLASS_MIN) { agree++; row[j] = best.v.slice(0, 40); } else row[j] = ''; } else row[j] = '';
       }
       while (row.length && !row[row.length - 1]) row.pop();
       days[i] = row;
     }
-    if (slots && agree / slots >= 0.6) {
+    if (slots && (tts.length < 3 || agree / slots >= 0.6)) {
       const st = {}; tts.forEach(t => { const k = t.start === 0 ? 0 : 1; st[k] = (st[k] || 0) + 1; });
       const ref = tts.find(t => t.times && Object.keys(t.times).length) || {};
-      out.tt = { days, start: (st[0] || 0) > (st[1] || 0) ? 0 : 1, times: ref.times || {} };
+      out.tt = { days, start: (st[0] || 0) > (st[1] || 0) ? 0 : 1, times: ref.times || {}, src: tts.length };
     }
   }
-  // מבחנים: מבחן שלפחות 3 מהכיתה הכניסו ליומן, באותו תאריך ובאותו שם (בערך)
+  // מבחנים: מבחן שלפחות CLASS_MIN מהכיתה הכניסו ליומן בעצמם (לא fromClass), באותו תאריך ובאותו שם (בערך)
   const today = new Date(Date.now() + 10800000).toISOString().slice(0, 10);
   const evs = await Promise.all(cls.map(d => db.collection(`users/${d.id}/events`).where('date', '>=', today).limit(120).get().catch(() => null)));
   const by = {};
-  evs.forEach((s2, idx) => { if (!s2) return; const seen = new Set(); s2.forEach(e => { const x = e.data(); if (x.type !== 'test') return; const k = x.date + '|' + testKey(x.title); if (!x.date || !testKey(x.title) || seen.has(k)) return; seen.add(k); const b = by[k] || (by[k] = { n: 0, date: x.date, titles: {}, time: {} }); b.n++; b.titles[x.title] = (b.titles[x.title] || 0) + 1; if (x.time) b.time[x.time] = (b.time[x.time] || 0) + 1; }); });
+  evs.forEach((s2, idx) => { if (!s2) return; const seen = new Set(); s2.forEach(e => { const x = e.data(); if (x.type !== 'test' || x.fromClass) return; const k = x.date + '|' + testKey(x.title); if (!x.date || !testKey(x.title) || seen.has(k)) return; seen.add(k); const b = by[k] || (by[k] = { n: 0, date: x.date, titles: {}, time: {} }); b.n++; b.titles[x.title] = (b.titles[x.title] || 0) + 1; if (x.time) b.time[x.time] = (b.time[x.time] || 0) + 1; }); });
   out.tests = Object.values(by).filter(b => b.n >= CLASS_MIN).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 25)
     .map(b => ({ title: Object.entries(b.titles).sort((a, c) => c[1] - a[1])[0][0].slice(0, 80), date: b.date, time: (Object.entries(b.time).sort((a, c) => c[1] - a[1])[0] || [''])[0] }));
   return out;

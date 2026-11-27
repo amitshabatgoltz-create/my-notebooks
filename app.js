@@ -2486,7 +2486,7 @@ let evSeen = null;
 function autoPlanNewTests(snap) {
   const ids = new Set(snap.docs.map(d => d.id));
   if (!evSeen) { evSeen = ids; return; }            // הטעינה הראשונה: לא נוגעים במה שכבר היה
-  const fresh = events.filter(e => !evSeen.has(e.id) && e.type === 'test' && !e.done && (Date.now() - (e.createdAt || 0)) < 120000);
+  const fresh = events.filter(e => !evSeen.has(e.id) && e.type === 'test' && !e.done && !e.fromClass && (Date.now() - (e.createdAt || 0)) < 120000);
   evSeen = ids;
   if (!fresh.length || fresh.length > 2) return;   // ייבוא של לוח מבחנים שלם – לא ממלאים את היומן לבד
   fresh.forEach(e => setTimeout(() => autoPlan(e), 900));
@@ -2513,6 +2513,7 @@ function subscribeEvents() {
     events = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
     autoPlanNewTests(snap);
+    if (!evReady) { evReady = true; setTimeout(classAutoSync, 1500); }
     if (!$('calendar').classList.contains('hidden')) renderCalendar();
     if (!$('home').classList.contains('hidden')) renderHome();
     if (!$('hwView').classList.contains('hidden')) renderHW();
@@ -3267,7 +3268,50 @@ async function classLoad(force) {
     const r = await httpsCallable(getFunctions(fb, 'europe-west1'), 'classInfo', { timeout: 30000 })({});
     classData = r.data && r.data.ok ? r.data : null; schLs('cls', { day, t: Date.now(), key: school.n + school.g + school.k, d: classData });
   } catch (e) { console.warn('classInfo', e && e.message); }
-  classPaint();
+  classPaint(); classAutoSync();
+}
+// (27.11.2026, אבא) אוטומטי: ברגע שמישהו מהכיתה העלה מערכת שעות / מבחנים – נכנס לבד לכל מי שאין לו משלו.
+// מערכת: רק אם אין לך מערכת, או שהיא בעצמה מהכיתה (fromClass) – אז היא גם מתעדכנת. ברגע שמעלים/עורכים מערכת משלך – היא שלך ולא נדרסת.
+// מבחנים: רק למי שאין מבחנים עתידיים משלו. מסומנים fromClass; מבחן שנמחק אצלך לא חוזר (meta/classSync.added); מבחן שהמקור מחק – נמחק גם אצלך
+let evReady = false, clsSyncing = false;
+const clsAddedNow = new Set();
+const clsSyncDoc = () => doc(db, 'users', me.uid, 'meta', 'classSync');
+const clsSig = t => JSON.stringify([t.days || {}, t.start === 0 ? 0 : 1, t.times || {}]);
+const clsTKey = t => t.date + '|' + clsK(t.title);
+async function classAutoSync() {
+  const d = classData; if (!me || !d || !school || clsSyncing || !ttReady || !evReady) return;
+  clsSyncing = true;
+  try {
+    if (d.tt && (ttEmptyNow() || timetable.fromClass)) {
+      const days = {}; for (let i = 0; i < 6; i++) days[i] = (d.tt.days[i] || []).slice(0, 14);
+      const nt = { days, start: d.tt.start === 0 ? 0 : 1, times: d.tt.times || {} };
+      if (clsSig(nt) !== clsSig(timetable)) {
+        const first = !timetable.fromClass;
+        await setDoc(ttDoc(), { ...nt, fromClass: true, updatedAt: Date.now() });
+        timetable = { ...nt, fromClass: true };
+        toast(first ? 'מערכת השעות של הכיתה נכנסה אצלך ✓' : 'מערכת השעות של הכיתה התעדכנה');
+        track('class_tt_auto', { first: first ? 1 : 0 });
+      }
+    }
+    const tk = todayKey();
+    if (!events.some(e => e.type === 'test' && !e.fromClass && e.date >= tk)) {
+      let sync = {}; try { const sn = await getDoc(clsSyncDoc()); sync = sn.exists() ? sn.data() : {}; } catch {}
+      const done = new Set(sync.added || []);
+      const add = classTestsNew().filter(t => !done.has(clsTKey(t)) && !clsAddedNow.has(clsTKey(t)));
+      const keys = new Set((d.tests || []).map(clsTKey));
+      const gone = events.filter(e => e.fromClass && e.type === 'test' && !e.done && e.date >= tk && !keys.has(clsTKey(e)));
+      add.forEach(t => clsAddedNow.add(clsTKey(t)));
+      for (const t of add) await addDoc(evCol(), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, fromClass: true, createdAt: Date.now() }).catch(() => {});
+      for (const e of gone) await deleteDoc(evDoc(e.id)).catch(() => {});
+      if (add.length) {
+        const all = [...new Set([...done, ...add.map(clsTKey)])].filter(k => k.slice(0, 10) >= tk).slice(-200);
+        await setDoc(clsSyncDoc(), { added: all, at: Date.now() }, { merge: true }).catch(() => {});
+        toast(add.length === 1 ? `מבחן מהכיתה נכנס ליומן: ${add[0].title}` : `${add.length} מבחנים מהכיתה נכנסו ליומן`);
+        track('class_tests_auto', { n: add.length });
+      }
+    }
+  } catch (e) { console.warn('classAutoSync', e && e.message); }
+  clsSyncing = false;
 }
 function classPaint() {
   const el = $('homeClass'); if (!el) return;
@@ -3278,7 +3322,7 @@ function classPaint() {
   if (hide.day === usageDay() || (hide.sig === sig && Date.now() - (hide.t || 0) < 7 * 864e5)) { el.classList.add('hidden'); return; }
   const n = d.k ? d.cls : d.grade, where = d.k ? `מהכיתה שלך (${lbl})` : `מהשכבה שלך (${lbl})`;
   $('homeClassT').textContent = n ? `${n} ${where} כבר באתר` : `עוד אף אחד ${where} לא באתר`;
-  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'ככל שיותר מהכיתה באתר, מערכת השעות ולוח המבחנים נכנסים לכולם בלחיצה';
+  $('homeClassS').textContent = tt ? 'הכיתה שלך כבר העלתה מערכת שעות – אפשר להוסיף אותה בלחיצה' : tests.length ? `יש ${tests.length === 1 ? 'מבחן אחד' : tests.length + ' מבחנים'} שהכיתה שלך הכניסה ליומן ואין אצלך` : 'ברגע שמישהו מהכיתה מעלה מערכת שעות או לוח מבחנים – זה נכנס לכולם לבד';
   const btns = $('homeClassBtns'); btns.innerHTML = '';
   const mk = (t, cls, fn, lx) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = t; if (lx) { const sp = document.createElement('span'); sp.className = 'cls-lx'; sp.innerHTML = '+' + lx + '<svg aria-hidden="true"><use href="#i-lumix"/></svg>'; b.appendChild(sp); } b.onclick = fn; btns.appendChild(b); };
   if (tt) mk('להוסיף מערכת שעות', 'btn-primary', classTTDialog);
@@ -3310,7 +3354,7 @@ function classTTDialog() {
     d.querySelector('[data-a="x"]').onclick = closeDialog;
     d.querySelector('[data-a="ok"]').onclick = async e => {
       e.target.disabled = true;
-      try { const days = {}; for (let i = 0; i < 6; i++) days[i] = (tt.days[i] || []).slice(0, 14); await setDoc(ttDoc(), { days, start: tt.start === 0 ? 0 : 1, times: tt.times || {}, updatedAt: Date.now() }); closeDialog(); toast('מערכת השעות נוספה ✓'); track('class_tt_add', {}); setTimeout(classPaint, 800); }
+      try { const days = {}; for (let i = 0; i < 6; i++) days[i] = (tt.days[i] || []).slice(0, 14); await setDoc(ttDoc(), { days, start: tt.start === 0 ? 0 : 1, times: tt.times || {}, fromClass: true, updatedAt: Date.now() }); closeDialog(); toast('מערכת השעות נוספה ✓'); track('class_tt_add', {}); setTimeout(classPaint, 800); }
       catch { e.target.disabled = false; toast('לא הצלחתי לשמור. לנסות שוב?'); }
     };
   });
@@ -3328,7 +3372,7 @@ function classTestsDialog() {
       const pick = [...d.querySelectorAll('input[data-i]')].filter(x => x.checked).map(x => list[+x.dataset.i]);
       if (!pick.length) { closeDialog(); return; }
       e.target.disabled = true;
-      for (const t of pick) await addDoc(evCol(), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, createdAt: Date.now() }).catch(() => {});
+      for (const t of pick) await addDoc(evCol(), { title: t.title, type: 'test', date: t.date, time: t.time || '', done: false, fromClass: true, createdAt: Date.now() }).catch(() => {});
       closeDialog(); toast(pick.length === 1 ? 'המבחן נוסף ליומן ✓' : `${pick.length} מבחנים נוספו ליומן ✓`); track('class_tests_add', { n: pick.length }); setTimeout(classPaint, 800);
     };
   });
@@ -5516,13 +5560,13 @@ function subscribeTimetable() {
     // תיקון למערכת שנקראה עם שעה 0 ריקה בתור "שעה 1": אם השורה הראשונה ריקה בכל הימים, מזיזים הכל שורה למעלה
     if (timetable.start !== 0 && ttSubjects().length) {
       const ds = timetable.days; let empty0 = true; for (let i = 0; i < 6; i++) if ((ds[i] || [])[0]) empty0 = false;
-      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
+      if (empty0) { const nd = {}; for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).slice(1); timetable = { ...timetable, days: nd, start: 1 }; setDoc(ttDoc(), { days: nd, start: 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true } : {}), updatedAt: Date.now() }).catch(() => {}); }
     }
     { // שמות ישנים עם קודים ("מתמטיקה א1", "אנגלית הקבצה"): מנקים פעם אחת
       const ds = timetable.days; let changed = false; const nd = {};
       for (let i = 0; i < 6; i++) nd[i] = (ds[i] || []).map(v => { const c = String(v || '').split(' / ').map(cleanSubj).filter(Boolean).join(' / '); if (c !== (v || '')) changed = true; return c; });
-      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, updatedAt: Date.now() }).catch(() => {}); }
-    } paintTTBtn(); if (!$('home').classList.contains('hidden')) morningPaint(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
+      if (changed) { timetable = { ...timetable, days: nd }; setDoc(ttDoc(), { days: nd, start: timetable.start === 0 ? 0 : 1, times: timetable.times || {}, ...(timetable.fromClass ? { fromClass: true } : {}), updatedAt: Date.now() }).catch(() => {}); }
+    } paintTTBtn(); if (!$('home').classList.contains('hidden')) morningPaint(); classAutoSync(); if (!$('ttView').classList.contains('hidden')) renderTT(); if ($('qaInput')) quickPreview(); }, () => { unsubTT = null; liveRetry('tt', subscribeTimetable); });
 }
 const SUBJ_GROUPS = [['מתמטיקה', 'מתמ', 'חשבון', 'מתימטיקה', 'מתמטיקא'], ['תנך', 'מקרא', 'תורה'], ['אנגלית', 'אנג'], ['היסטוריה', 'הסטוריה', 'היס'], ['ספרות'], ['לשון', 'עברית'], ['מדעים', 'מדע', 'מדעי'], ['פיזיקה', 'פיסיקה'], ['כימיה'], ['ביולוגיה', 'ביו'], ['אזרחות'], ['גאוגרפיה', 'גיאוגרפיה', 'גאו', 'גיאו'], ['ערבית'], ['חינוך גופני', 'ספורט', 'חנג', 'התעמלות'], ['מחשבים', 'מדעי המחשב', 'תכנות'], ['אומנות', 'אמנות'], ['מוזיקה', 'מוסיקה'], ['צרפתית'], ['חינוך'], ['תושבע', 'תורה שבעל פה', 'גמרא', 'משנה'], ['מחשבת ישראל', 'מחשבת']];
 const normS = x => String(x || '').replace(/["״'׳`]/g, '').replace(/\s+/g, ' ').trim();
