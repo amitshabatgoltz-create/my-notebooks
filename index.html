@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- אבטחה: רק קוד מהמקומות האלה יכול לרוץ באתר. סקריפט בתוך הדף מזוהה לפי טביעת אצבע – אחרי שינוי באחד מהם: python tools/csp.py -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-50IbDCmFLWQy3UUoc1ROlSD158rGY5r6Vwv/gfcd6QE=' 'sha256-tUfKQ0eiOCNz9S0YG2mukuEvfe7xECUiUkiAd0BAYsU=' 'sha256-QB7HuNW4uwkH/dXi8L8Bz+VJqySFbFY5K0JfRdKVrO8=' 'sha256-FU7RUNN2ZiMMPwiEpIUPx3cBZxEel0+KNj8owX11NPg=' https://www.gstatic.com/firebasejs/ https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/ https://apis.google.com https://www.googletagmanager.com https://eu-assets.i.posthog.com https://*.firebasedatabase.app https://cdn.jsdelivr.net/npm/katex@0.16.11/ https://cdn.jsdelivr.net/npm/mammoth@1.8.0/ https://cdn.jsdelivr.net/npm/xlsx@0.18.5/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net/npm/katex@0.16.11/; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net/npm/katex@0.16.11/; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebasedatabase.app wss://*.firebasedatabase.app https://eu.i.posthog.com https://eu-assets.i.posthog.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net; frame-src 'self' blob: https://my-notebooks-32ffd.firebaseapp.com https://accounts.google.com https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-50IbDCmFLWQy3UUoc1ROlSD158rGY5r6Vwv/gfcd6QE=' 'sha256-b19h54jVg65pcDrhTtLvFtZkDfBolNLk20G9HxshjJ0=' 'sha256-QB7HuNW4uwkH/dXi8L8Bz+VJqySFbFY5K0JfRdKVrO8=' 'sha256-FU7RUNN2ZiMMPwiEpIUPx3cBZxEel0+KNj8owX11NPg=' https://www.gstatic.com/firebasejs/ https://www.gstatic.com/recaptcha/ https://www.google.com/recaptcha/ https://apis.google.com https://www.googletagmanager.com https://eu-assets.i.posthog.com https://*.firebasedatabase.app https://cdn.jsdelivr.net/npm/katex@0.16.11/ https://cdn.jsdelivr.net/npm/mammoth@1.8.0/ https://cdn.jsdelivr.net/npm/xlsx@0.18.5/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net/npm/katex@0.16.11/; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net/npm/katex@0.16.11/; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' data: blob: https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebasedatabase.app wss://*.firebasedatabase.app https://eu.i.posthog.com https://eu-assets.i.posthog.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net; frame-src 'self' blob: https://my-notebooks-32ffd.firebaseapp.com https://accounts.google.com https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script>/* אבטחה: האתר לא נפתח בתוך אתר אחר (מונע הטעיה – לחיצות על כפתורים מוסתרים) */if (window.top !== window.self) { try { window.top.location.replace(window.location.href); } catch (e) { document.documentElement.style.display = 'none'; } }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F5F5FA">
@@ -38,18 +38,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Secular+One&family=Assistant:wght@400;700&family=Varela+Round&family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1795786146">
+<link rel="stylesheet" href="style.css?v=1795796503">
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}
+/* נגישות: ההגדרות שנבחרו בתפריט הנגישות חלות מיד */try{var a=JSON.parse(localStorage.getItem('a11y')||'{}');for(var k in a)if(a[k])document.documentElement.classList.add('a11y-'+k+(a[k]===true?'':'-'+a[k]))}catch(e){}
 /* מי שהיה מחובר: מסך פתיחה במקום מסך הכניסה עד שהחיבור נבדק (app.js מוריד את זה). אם משהו נתקע – אחרי 15 שנ' חוזרים למסך הכניסה */try{if(localStorage.getItem('wasIn')==='1'){document.documentElement.classList.add('boot-in');setTimeout(function(){document.documentElement.classList.remove('boot-in')},15000)}}catch(e){}</script>
 <!-- טעינה מהירה: מורידים את Firebase ואת האתר במקביל, לא אחד אחרי השני -->
-<link rel="modulepreload" href="app.js?v=1795786146">
+<link rel="modulepreload" href="app.js?v=1795796460">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.1.0/firebase-functions.js" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <script src="gsap.min.js" defer></script>
-<script defer src="motion.js?v=1795786146"></script>
+<script defer src="motion.js?v=1795796460"></script>
 <!-- PostHog (שרת באירופה): כמה נכנסים, מאיפה הגיעו ועל מה לוחצים. הקלטת מסך: הכפתורים והתפריטים נראים, ומה שפרטי מוסתר – המחברות, השמות, השיחות עם העוזר, היומן, הציונים, החלונות וכל מה שמקלידים. תמונות חסומות -->
 <script>
 !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags on onFeatureFlags onSessionId identify setPersonProperties group resetGroups reset get_distinct_id get_session_id alias set_config startSessionRecording stopSessionRecording captureException opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -57,6 +58,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
 </script>
 </head>
 <body>
+<a class="skip-link" href="#mainContent">דילוג לתוכן הראשי</a>
 
 <!-- סמלים (אייקונים) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -206,7 +208,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
     <p class="login-swap"><span id="swapText">אין לך חשבון?</span> <button class="link" id="swapMode" type="button">להרשמה</button></p>
     <button class="btn demo-btn" id="demoBtn" type="button"><svg aria-hidden="true"><use href="#i-book"/></svg>לנסות בלי להירשם</button>
   </div>
-  <p class="login-foot">בחינם לתלמידים · הכול נשמר בענן · <a class="login-mail" href="privacy.html">פרטיות ותנאים</a><br><a class="login-mail" href="mailto:mynotebooks192013@gmail.com">שאלות? כתבו לנו: <span dir="ltr">mynotebooks192013@gmail.com</span></a></p>
+  <p class="login-foot">בחינם לתלמידים · הכול נשמר בענן · <a class="login-mail" href="privacy.html">פרטיות ותנאים</a> · <button type="button" class="login-mail a11y-open">נגישות</button><br><a class="login-mail" href="mailto:mynotebooks192013@gmail.com">שאלות? כתבו לנו: <span dir="ltr">mynotebooks192013@gmail.com</span></a></p>
 </section>
 <!-- בלי אנימציית כניסה לטופס: כשהדף עמוס בטעינה היא נתקעה, והטופס היה שקוף 2-3 שניות -->
 <script>/* מצב כהה עובד מיד, גם לפני שכל האתר נטען (אחר כך app.js לוקח פיקוד) */document.addEventListener('click',function(e){if(window.__appReady)return;var b=e.target.closest&&e.target.closest('[data-theme-toggle]');if(!b)return;var r=document.documentElement,d=r.dataset.theme!=='dark';if(d)r.dataset.theme='dark';else delete r.dataset.theme;try{localStorage.setItem('theme',d?'dark':'light')}catch(x){}});</script>
@@ -274,6 +276,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
           <button class="menu-item hidden admin-only" id="adminMenuBtn" data-tab="admin" role="menuitem">ניהול האתר</button>
           <a class="menu-item hidden admin-only" href="promo/" target="_blank" rel="noopener" role="menuitem">חומרי פרסום</a>
           <button class="menu-item" id="inviteBtn" role="menuitem">הזמנת חבר</button>
+          <button class="menu-item a11y-open" role="menuitem">נגישות</button>
           <a class="menu-item" href="mailto:mynotebooks192013@gmail.com" role="menuitem">יצירת קשר</a>
           <a class="menu-item" href="privacy.html" target="_blank" rel="noopener" role="menuitem">פרטיות ותנאים</a>
           <button class="menu-item" id="backupBtn" role="menuitem">הורדת גיבוי</button>
@@ -283,7 +286,7 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
       </div>
     </header>
 
-    <main>
+    <main id="mainContent" tabindex="-1">
       <!-- עוזר לימודי במסך מלא: חלון הצ'אט עובר לכאן -->
       <section id="chatView" class="view hidden">
         <aside id="chatSide" class="chat-side" aria-label="השיחות שלי">
@@ -576,6 +579,6 @@ posthog.init('phc_AJpd5fn8NX6u7fXGAdengrdzEuNfsKKhwk2WYBm3iFdT',{api_host:'https
 
 <div id="dialogRoot"></div>
 
-<script type="module" src="app.js?v=1795786146"></script>
+<script type="module" src="app.js?v=1795796460"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // אנימציות האתר (GSAP). אם GSAP לא נטען או שהמשתמש ביקש פחות תנועה, האתר חוזר לבד לאנימציות הרגילות שב-CSS.
 // שפת התנועה: מהיר ורגוע. עד חצי שנייה, ease של power3.out, ו-back.out רק לדברים קטנים שקופצים. בתוך מחברת פתוחה לא מזיזים כלום.
 (function () {
-  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('a11y-still');   // גם "עצירת אנימציות" בתפריט הנגישות
   const gsap = window.gsap;
   const on = () => !!gsap && !reduced();
   if (on()) document.documentElement.classList.add('gs');

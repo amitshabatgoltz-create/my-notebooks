@@ -364,14 +364,24 @@ function toastAction(msg, label, fn, ms = 7000) {
   t.append(sp, b); document.body.appendChild(t); window.Motion?.toast(t); setTimeout(() => toastGone(t), ms);
 }
 function toastGone(t) { if (window.Motion) window.Motion.toastOut(t); else t.remove(); }
-function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); window.Motion?.toast(t); setTimeout(() => toastGone(t), 2600); }
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg; document.body.appendChild(t); window.Motion?.toast(t); setTimeout(() => toastGone(t), 2600); }
 function fmtDate(ms) { try { return ms ? new Date(ms).toLocaleDateString('he-IL', { day: 'numeric', month: 'long' }) : ''; } catch { return ''; } }
-function closeDialog() { window.Motion?.dialogOut($('dialogRoot')); $('dialogRoot').innerHTML = ''; }
+function closeDialog() { window.Motion?.dialogOut($('dialogRoot')); $('dialogRoot').innerHTML = ''; const f = dlgOpener; dlgOpener = null; if (f && f.isConnected) try { f.focus({ preventScroll: true }); } catch {} }
+// נגישות: מי שעובד עם מקלדת – הפוקוס נכנס לחלון, Esc סוגר, ובסגירה חוזרים לכפתור שפתח
+let dlgOpener = null;
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.defaultPrevented || !$('dialogRoot')?.firstChild) return;
+  e.preventDefault(); closeDialog();
+});
 function dialog(build) {
   const o = document.createElement('div'); o.className = 'overlay';
   o.addEventListener('click', e => { if (e.target === o) closeDialog(); });
   const d = document.createElement('div'); d.className = 'dialog'; o.appendChild(d);
+  d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.tabIndex = -1;
+  if (!$('dialogRoot').firstChild) dlgOpener = document.activeElement;
   build(d); $('dialogRoot').innerHTML = ''; $('dialogRoot').appendChild(o);
+  const h = d.querySelector('h2,h3'); if (h) { h.id = h.id || 'dlgT' + Date.now(); d.setAttribute('aria-labelledby', h.id); }
+  if (!d.contains(document.activeElement)) setTimeout(() => { if (!d.contains(document.activeElement)) try { d.focus({ preventScroll: true }); } catch {} }, 0);
   window.Motion?.dialog(o, d);
   const fi = d.querySelector('input[type=file]');
   if (fi && fi.id !== 'edInput' && !d.querySelector('.paste-tip')) {
@@ -2860,6 +2870,66 @@ document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener
   applyThemeIcon();
 }));
 applyThemeIcon();
+
+
+/* ================= נגישות ================= */
+// תפריט נגישות: גודל טקסט, ניגודיות, עצירת אנימציות, קו מתחת לקישורים, גופן פשוט, ריווח. נשמר במכשיר (localStorage 'a11y'),
+// ומופעל כבר בתחילת הדף (סקריפט קטן ב-index.html) כדי שלא יקפוץ
+const A11Y_OPTS = [
+  ['size', 'גודל הטקסט', [['', 'רגיל'], ['l', 'גדול'], ['xl', 'גדול מאוד']]],
+  ['contrast', 'ניגודיות גבוהה', true],
+  ['still', 'עצירת אנימציות', true],
+  ['links', 'קו מתחת לקישורים', true],
+  ['font', 'גופן פשוט לקריאה', true],
+  ['space', 'יותר רווח בין שורות', true],
+  ['focus', 'סימון בולט של המקום במקלדת', true],
+];
+function a11yGet() { try { return JSON.parse(localStorage.getItem('a11y') || '{}') || {}; } catch { return {}; } }
+function a11yApply(a) {
+  const r = document.documentElement;
+  [...r.classList].filter(c => c.startsWith('a11y-')).forEach(c => r.classList.remove(c));
+  for (const k in a) if (a[k]) r.classList.add('a11y-' + k + (a[k] === true ? '' : '-' + a[k]));
+  try { localStorage.setItem('a11y', JSON.stringify(a)); } catch {}
+}
+function a11yDialog() {
+  dialog(d => {
+    d.classList.add('a11y-dlg');
+    const a = a11yGet();
+    d.innerHTML = '<h3>נגישות</h3><p class="a11y-sub">ההגדרות נשמרות במכשיר הזה.</p><div class="a11y-list"></div>'
+      + '<div class="a11y-foot"><button class="btn btn-ghost" type="button" data-reset>איפוס</button><button class="btn btn-primary" type="button" data-close>סגירה</button></div>'
+      + '<p class="a11y-more"><a href="accessibility.html" target="_blank" rel="noopener">הצהרת נגישות</a> · אפשר גם להגדיל עם Ctrl ו-+ (בטלפון: לצבוט עם שתי אצבעות)</p>';
+    const list = d.querySelector('.a11y-list');
+    const paint = () => {
+      list.innerHTML = '';
+      for (const [k, label, kind] of A11Y_OPTS) {
+        const row = document.createElement('div'); row.className = 'a11y-row';
+        if (kind === true) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'a11y-tg';
+          b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', a[k] ? 'true' : 'false');
+          b.innerHTML = `<span>${label}</span><i aria-hidden="true"></i>`;
+          b.onclick = () => { a[k] = !a[k]; if (!a[k]) delete a[k]; a11yApply(a); paint(); list.querySelector(`[data-k="${k}"]`)?.focus(); };
+          b.dataset.k = k; row.appendChild(b);
+        } else {
+          const g = document.createElement('div'); g.className = 'a11y-seg'; g.setAttribute('role', 'radiogroup'); g.setAttribute('aria-label', label);
+          g.innerHTML = `<span class="a11y-l">${label}</span>`;
+          for (const [v, t] of kind) {
+            const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.dataset.k = k + v;
+            b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', (a[k] || '') === v ? 'true' : 'false');
+            b.onclick = () => { if (v) a[k] = v; else delete a[k]; a11yApply(a); paint(); list.querySelector(`[data-k="${k + v}"]`)?.focus(); };
+            g.appendChild(b);
+          }
+          row.appendChild(g);
+        }
+        list.appendChild(row);
+      }
+    };
+    paint();
+    d.querySelector('[data-reset]').onclick = () => { for (const k in a) delete a[k]; a11yApply(a); paint(); toast('ההגדרות חזרו לרגיל'); };
+    d.querySelector('[data-close]').onclick = closeDialog;
+  });
+  track('a11y_open');
+}
+document.addEventListener('click', e => { const b = e.target.closest?.('.a11y-open'); if (!b) return; e.preventDefault(); $('userMenu')?.classList.add('hidden'); a11yDialog(); });
 
 
 /* ================= סיכום למבחן (Gemini דרך Firebase AI Logic) ================= */

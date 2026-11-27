@@ -3787,3 +3787,45 @@ html[data-theme="dark"] .sp-hero{box-shadow:none}
 .adm-shop-row .as-bar{height:10px;border-radius:99px;background:color-mix(in srgb,var(--ink) 7%,transparent);overflow:hidden}
 .adm-shop-row .as-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2F8BFF,#7C5CFF)}
 .adm-shop-row .as-n{text-align:center;font-size:17px}
+
+/* ================= נגישות (תפריט נגישות – a11yDialog ב-app.js, ההגדרות כ-class על html) ================= */
+.skip-link{position:fixed;top:-80px;right:12px;z-index:10000;padding:12px 18px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-weight:700;text-decoration:none;box-shadow:var(--shadow-lg)}
+.skip-link:focus{top:12px}
+#mainContent:focus{outline:none}
+.dialog:focus{outline:none}
+.login-foot button.login-mail{font:inherit;color:inherit;padding:0;text-decoration:none}
+.login-foot button.login-mail:hover{text-decoration:underline}
+.a11y-dlg{max-width:440px}
+.a11y-dlg h3{margin:0 0 2px}
+.a11y-sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.a11y-list{display:flex;flex-direction:column;gap:8px}
+.a11y-tg{width:100%;min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:14px;background:var(--side);font-weight:600;text-align:start}
+.a11y-tg i{display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;width:44px;height:26px;padding:3px;border-radius:99px;background:#9A9AA6;flex:none;font-style:normal}
+.a11y-tg i::after{content:'';width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.a11y-tg[aria-checked=true] i{background:var(--accent);justify-content:flex-end}
+.a11y-seg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;border-radius:14px;background:var(--side)}
+.a11y-l{font-weight:600;margin-inline-end:auto}
+.a11y-seg button{min-height:40px;padding:0 14px;border-radius:99px;background:var(--surface);border:1.5px solid var(--line);font-weight:600}
+.a11y-seg button[aria-checked=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.a11y-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.a11y-more{margin:12px 0 0;font-size:13.5px;color:var(--muted);line-height:1.5}
+.a11y-more a{color:var(--accent);font-weight:700}
+/* גודל טקסט */
+html.a11y-size-l body{zoom:1.15}
+html.a11y-size-xl body{zoom:1.3}
+/* ניגודיות גבוהה */
+html.a11y-contrast{--muted:#33333C;--line:#8A8A96;--side:#EDEDF3;--accent:#3F3DC8;--accent-soft:#E2E2FB}
+html.a11y-contrast[data-theme="dark"]{--muted:#D6D6E0;--line:#70707E;--side:#1C1C24;--accent:#A9A8FF;--accent-soft:#2E2D5A}
+html.a11y-contrast .btn,html.a11y-contrast input,html.a11y-contrast select,html.a11y-contrast textarea{border-color:var(--line)}
+html.a11y-contrast ::placeholder{color:var(--muted);opacity:1}
+/* עצירת אנימציות */
+html.a11y-still *,html.a11y-still *::before,html.a11y-still *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+/* קו מתחת לקישורים */
+html.a11y-links a[href]{text-decoration:underline!important;text-underline-offset:3px}
+/* גופן פשוט */
+html.a11y-font body,html.a11y-font button,html.a11y-font input,html.a11y-font select,html.a11y-font textarea,html.a11y-font #editor *{font-family:Arial,'Segoe UI',system-ui,sans-serif!important}
+/* ריווח */
+html.a11y-space body{line-height:1.9}
+html.a11y-space :is(p,li,td,.dialog,#editor){letter-spacing:.03em;word-spacing:.1em;line-height:1.9}
+/* סימון פוקוס בולט */
+html.a11y-focus :focus-visible{outline:3px solid #FFB000!important;outline-offset:3px!important;box-shadow:0 0 0 6px rgba(20,20,40,.75)!important}

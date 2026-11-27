@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הצהרת נגישות – המחברות שלי</title>
+<meta name="description" content="הצהרת הנגישות של אתר המחברות שלי: מה עשינו כדי שהאתר יהיה נגיש, מה עוד לא מושלם, ואיך פונים אלינו.">
+<link rel="icon" href="favicon.ico">
+<link rel="canonical" href="https://amitshabatgoltz-create.github.io/my-notebooks/accessibility.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FBFBFD;--surface:#fff;--ink:#1D1D1F;--muted:#5F5F6B;--line:#E7E7EE;--accent:#5E5CE6;--accent-soft:#EEEEFD;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0E0E12;--surface:#18181E;--ink:#F2F2F6;--muted:#A3A3AF;--line:#2A2A33;--accent:#8E8CFF;--accent-soft:#25244A;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Rubik',system-ui,sans-serif;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:28px 18px 80px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--accent);color:#fff}
+.logo svg{width:24px;height:24px}
+h1{font-size:30px;margin:0;line-height:1.2}
+.upd{color:var(--muted);font-size:14px;margin:0 0 22px}
+.short{background:var(--accent-soft);border-radius:18px;padding:16px 20px;margin-bottom:28px}
+.short h2{margin:0 0 6px;font-size:18px}
+.short ul{margin:0;padding-inline-start:20px}
+h2{font-size:21px;margin:34px 0 8px;line-height:1.3}
+h3{font-size:17px;margin:20px 0 4px}
+p,li{font-size:16px}
+ul{padding-inline-start:22px}
+a{color:var(--accent);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:4px 22px 18px;margin-top:18px}
+.back{display:inline-flex;align-items:center;gap:6px;margin-bottom:22px;text-decoration:none;font-weight:600;min-height:44px}
+</style>
+<style>.skip{position:absolute;top:-60px;right:12px;background:var(--accent);color:#fff;padding:10px 16px;border-radius:10px}.skip:focus{top:12px}</style>
+</head>
+<body>
+<a class="skip" href="#main">דילוג לתוכן</a>
+<div class="wrap">
+  <a class="back" href="./">חזרה לאתר</a>
+  <header><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></svg></span><h1>הצהרת נגישות</h1></header>
+  <p class="upd">עודכן ב-27 בנובמבר 2026</p>
+  <main id="main">
+  <div class="short">
+    <h2>בקצרה</h2>
+    <ul>
+      <li>אנחנו רוצים שכל תלמיד ותלמידה יוכלו להשתמש באתר, גם עם מקלדת בלבד, קורא מסך או הגדלה.</li>
+      <li>יש באתר <b>תפריט נגישות</b>: בתפריט החשבון (העיגול למעלה) ← "נגישות", ובמסך הכניסה למטה.</li>
+      <li>משהו לא נגיש? כתבו לנו ונתקן: <a href="mailto:mynotebooks192013@gmail.com"><span dir="ltr">mynotebooks192013@gmail.com</span></a></li>
+    </ul>
+  </div>
+
+  <h2>רמת הנגישות</h2>
+  <p>האתר נבנה בהתאם להמלצות התקן הישראלי ת"י 5568 להנגשת תכנים באינטרנט, ברמה AA, שמבוסס על ההנחיות הבינלאומיות WCAG 2.0, וכן לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), התשע"ג-2013. אנחנו ממשיכים לבדוק ולשפר.</p>
+
+  <h2>מה יש באתר</h2>
+  <ul>
+    <li>האתר כולו בעברית, מימין לשמאל, ומוגדר כך גם לקוראי מסך.</li>
+    <li>אפשר לעבור על כל הכפתורים עם המקלדת (Tab), עם סימון ברור של המקום. קישור "דילוג לתוכן הראשי" בתחילת הדף.</li>
+    <li>חלונות נפתחים מקבלים את הפוקוס, נסגרים עם Esc, ומחזירים אותו לכפתור שפתח אותם.</li>
+    <li>לכפתורים עם אייקון בלבד יש שם שקורא המסך מקריא, ולתמונות יש תיאור.</li>
+    <li>הודעות קצרות (למשל "נשמר") מוקראות לקורא המסך.</li>
+    <li>מצב כהה, ותמיכה בהגדרה "פחות תנועה" של המכשיר.</li>
+    <li>האתר מתאים את עצמו לטלפון, לטאבלט ולמחשב, ואפשר להגדיל בו את התצוגה.</li>
+    <li>העוזר הלימודי יכול להקריא תשובות בקול, ואפשר לדבר אליו במקום להקליד.</li>
+  </ul>
+
+  <h2>תפריט הנגישות</h2>
+  <ul>
+    <li>הגדלת טקסט (גדול, גדול מאוד)</li>
+    <li>ניגודיות גבוהה</li>
+    <li>עצירת אנימציות</li>
+    <li>קו מתחת לקישורים</li>
+    <li>גופן פשוט לקריאה</li>
+    <li>יותר רווח בין שורות ומילים</li>
+    <li>סימון בולט של המקום במקלדת</li>
+  </ul>
+  <p>ההגדרות נשמרות במכשיר ונשארות גם בפעם הבאה.</p>
+
+  <h2>מה עוד לא מושלם</h2>
+  <ul>
+    <li>תוכן שמשתמשים כותבים או מעלים בעצמם (מחברות, תמונות, קבצים) לא תמיד נגיש, למשל תמונות בלי תיאור.</li>
+    <li>חלק מהסרטונים באתר בלי כתוביות.</li>
+    <li>חלקים מסוימים, כמו ציור במחברת וגרירת שורות, נוחים יותר עם עכבר או מגע (יש להם גם דרך אחרת: תפריט השורה).</li>
+    <li>שירותים חיצוניים (כמו הכניסה עם Google) נגישים לפי מה שהחברות האלה מספקות.</li>
+  </ul>
+  <p>אם נתקלתם בבעיה – נשמח לדעת ולתקן.</p>
+
+  <div class="card">
+    <h2>פנייה בנושא נגישות</h2>
+    <p>מצאתם משהו שלא נגיש, או שאתם צריכים עזרה להשתמש באתר? כתבו לנו. כדאי לציין באיזה עמוד, מה ניסיתם לעשות, ובאיזה מכשיר ודפדפן (ואם יש – איזה קורא מסך).</p>
+    <p>אימייל: <a href="mailto:mynotebooks192013@gmail.com"><span dir="ltr">mynotebooks192013@gmail.com</span></a></p>
+    <p>נשתדל לענות תוך כמה ימים.</p>
+  </div>
+  </main>
+</div>
+</body>
+</html>
