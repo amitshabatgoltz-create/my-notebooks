@@ -1106,20 +1106,26 @@ const shortT = t => { t = String(t || '').trim(); return t.length > 60 ? t.slice
 // (28.11.2026, אבא) מבחן: יומיים לפני ויום לפני. בכל ערב לכל היותר התראה אחת: מבחן מחר > מבחן בעוד יומיים > ש"ב למחר (ואם יש גם ש"ב – מוסיפים שורה)
 const HE_DAY = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const dayOf = k => HE_DAY[new Date(k + 'T12:00:00Z').getUTCDay()];
-function pushMsgFor(evs, d1, d2) {
+// החוגים הקבועים (users/{uid}/meta/activities, 28.11.2026): מה יש ביום מסוים, ויום לפני מבחן
+const actsOnKey = (acts, k) => { const d = new Date(k + 'T12:00:00Z').getUTCDay(); return (acts || []).flatMap(a => (a.days || []).filter(x => x.d === d).map(x => a.n + (x.t ? ' עד ' + x.t : x.f ? ' ב-' + x.f : ''))); };
+const prevKey = k => { const d = new Date(k + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+function pushMsgFor(evs, d1, d2, acts) {
   const open = evs.filter(e => !e.done);
   const t1 = open.filter(e => e.type === 'test' && e.date === d1), t2 = open.filter(e => e.type === 'test' && e.date === d2), hw = open.filter(e => e.type === 'hw' && e.date === d1);
   const hwLine = hw.length ? `\nושיעורי בית למחר: ${hw.slice(0, 2).map(e => shortT(e.title)).join(' · ')}` : '';
   if (t1.length) return { title: t1.length === 1 ? `מחר: ${shortT(t1[0].title)}` : `מחר ${t1.length} מבחנים`, body: (t1.length === 1 ? 'בהצלחה! עוד חזרה קצרה הערב – אפשר דף תרגול או כרטיסיות באתר.' : t1.map(e => shortT(e.title)).join(' · ')) + hwLine, tag: 'test-' + d1 };
-  if (t2.length) return { title: t2.length === 1 ? `בעוד יומיים: ${shortT(t2[0].title)}` : `בעוד יומיים ${t2.length} מבחנים`, body: (t2.length === 1 ? 'זה הזמן להתחיל לחזור על החומר. באתר אפשר לבנות תוכנית למידה.' : t2.map(e => shortT(e.title)).join(' · ')) + hwLine, tag: 'test2-' + d2 };
+  if (t2.length) {   // מחר (= יום לפני המבחן) יש חוג → להתחיל כבר היום
+    const busy = actsOnKey(acts, d1);
+    return { title: t2.length === 1 ? `בעוד יומיים: ${shortT(t2[0].title)}` : `בעוד יומיים ${t2.length} מבחנים`, body: (busy.length ? `מחר יש לך ${busy.join(' ו')} – עדיף להתחיל לחזור כבר היום.` : t2.length === 1 ? 'זה הזמן להתחיל לחזור על החומר. באתר אפשר לבנות תוכנית למידה.' : t2.map(e => shortT(e.title)).join(' · ')) + hwLine, tag: 'test2-' + d2 };
+  }
   if (hw.length) return { title: hw.length === 1 ? 'שיעורי בית למחר' : `${hw.length} שיעורי בית למחר`, body: hw.slice(0, 3).map(e => shortT(e.title)).join(' · '), tag: 'hw-' + d1 };
   return null;
 }
 // סופ"ש: מבחנים בשבוע הבא (ראשון–חמישי) → "זה הזמן ללמוד למבחן!"
-function pushWeekendMsg(evs) {
+function pushWeekendMsg(evs, acts) {
   const t = evs.filter(e => !e.done && e.type === 'test').sort((a, b) => a.date.localeCompare(b.date));
   if (!t.length) return null;
-  return { title: t.length === 1 ? 'סופ״ש = הזמן ללמוד למבחן!' : `סופ״ש = הזמן ללמוד ל-${t.length} מבחנים!`, body: t.slice(0, 4).map(e => `${shortT(e.title)} (יום ${dayOf(e.date)})`).join(' · '), tag: 'weekend-' + t[0].date };
+  return { title: t.length === 1 ? 'סופ״ש = הזמן ללמוד למבחן!' : `סופ״ש = הזמן ללמוד ל-${t.length} מבחנים!`, body: t.slice(0, 4).map(e => { const b = actsOnKey(acts, prevKey(e.date)); return `${shortT(e.title)} (יום ${dayOf(e.date)}${b.length ? `, ויום לפני ${b.join(' ו')}` : ''})`; }).join(' · '), tag: 'weekend-' + t[0].date };
 }
 async function pushSendAll(wp, subs, msg) {
   let ok = 0;
@@ -1142,7 +1148,8 @@ exports.pushWeekend = onSchedule({ schedule: '0 10 * * 5', timeZone: 'Asia/Jerus
   for (const [uid, subs] of Object.entries(byUid)) {
     try {
       const sn = await db.collection(`users/${uid}/events`).where('date', '>=', from).where('date', '<=', to).limit(60).get();
-      const msg = pushWeekendMsg(sn.docs.map(d => d.data())); if (!msg) continue;
+      const ad = await db.doc(`users/${uid}/meta/activities`).get().catch(() => null), acts = ad && ad.exists ? ad.data().items : [];
+      const msg = pushWeekendMsg(sn.docs.map(d => d.data()), acts); if (!msg) continue;
       users++; sent += await pushSendAll(wp, subs, msg);
     } catch (e) { console.warn('pushWeekend', uid.slice(0, 6), String(e && e.message).slice(0, 100)); }
   }
@@ -1155,7 +1162,8 @@ exports.pushDaily = onSchedule({ schedule: '30 18 * * *', timeZone: 'Asia/Jerusa
   for (const [uid, subs] of Object.entries(byUid)) {
     try {
       const sn = await db.collection(`users/${uid}/events`).where('date', 'in', [tm, d2]).limit(40).get();
-      const msg = pushMsgFor(sn.docs.map(d => d.data()), tm, d2); if (!msg) continue;
+      const ad = await db.doc(`users/${uid}/meta/activities`).get().catch(() => null), acts = ad && ad.exists ? ad.data().items : [];
+      const msg = pushMsgFor(sn.docs.map(d => d.data()), tm, d2, acts); if (!msg) continue;
       users++; sent += await pushSendAll(wp, subs, msg);
     } catch (e) { console.warn('pushDaily', uid.slice(0, 6), String(e && e.message).slice(0, 100)); }
   }

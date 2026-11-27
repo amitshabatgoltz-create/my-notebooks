@@ -212,6 +212,7 @@ onAuthStateChanged(auth, user => {
   if (unsubEv) { unsubEv(); unsubEv = null; }
   if (unsubSh) { unsubSh(); unsubSh = null; } stopSharedWatch();
   if (typeof unsubAct !== 'undefined' && unsubAct) { unsubAct(); unsubAct = null; }
+  if (typeof unsubActs !== 'undefined' && unsubActs) { unsubActs(); unsubActs = null; acts = []; }
   me = user; phUser(user);
   if (!shareParam && user) { try { const ps = sessionStorage.getItem('pendingShare'); if (ps) { sessionStorage.removeItem('pendingShare'); shareParam = ps; history.replaceState(null, '', '?s=' + ps); } } catch {} }
   if (shareParam) { openShare(shareParam); }
@@ -220,7 +221,7 @@ onAuthStateChanged(auth, user => {
     $('login').classList.add('hidden'); $('app').classList.remove('hidden');
     $('password').value = '';
     const seenReady = seenPull(); seenReady.finally(() => setTimeout(welcomeMaybe, 1200));
-    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeGrades(); subscribeAiMem(); walletWatch(); schoolLoad(); schoolEnter(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
+    showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeActs(); subscribeGrades(); subscribeAiMem(); walletWatch(); schoolLoad(); schoolEnter(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
     if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
@@ -3700,6 +3701,8 @@ function moArt(kind, n) {
   let r = ''; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a); r += `<path d="M${(32 + 16 * c).toFixed(1)} ${(32 + 16 * s).toFixed(1)}L${(32 + 23 * c).toFixed(1)} ${(32 + 23 * s).toFixed(1)}"/>`; }
   return S(`<circle cx="32" cy="32" r="10"/><g class="mo-rays">${r}</g>`, 'sun');
 }
+// יום לפני המבחן יש חוג? (28.11.2026) – שורה קטנה מתחת למבחן: כדאי להתחיל ללמוד מוקדם
+function moBusy(k) { const b = new Date(fromKey(k)); b.setDate(b.getDate() - 1); if (key(b) < todayKey()) return ''; const l = actsOn(b.getDay()); return l.length ? `<small class="mo-busy">${daysUntil(key(b)) === 0 ? 'היום' : daysUntil(key(b)) === 1 ? 'מחר' : 'יום לפני'} יש ${esc(l.map(x => x.n + (x.t ? ' עד ' + x.t : '')).join(' ו'))} – כדאי להתחיל ללמוד מוקדם</small>` : ''; }
 function moDayName(k) { const d = daysUntil(k); if (d === 0) return 'היום'; if (d === 1) return 'מחר'; return 'יום ' + HE_DAYS[fromKey(k).getDay()]; }
 function morningPaint() {
   const el = $('morning'); if (!el) return;
@@ -3742,6 +3745,9 @@ function morningPaint() {
     else {
       const t0 = String(tms[lessons[0].p] || '').match(/\d{1,2}[:.]\d{2}/);
       tt = (when && inHol ? '<p class="mo-start">עכשיו חופש. כשחוזרים:</p>' : '') + (t0 ? `<p class="mo-start">מתחילים ב-<b dir="ltr">${esc(t0[0])}</b></p>` : '') + `<ol class="mo-tt">${lessons.map(l => `<li><i>${l.p}</i><span>${esc(l.s)}</span>${l.n > 1 ? `<em>×${l.n}</em>` : ''}</li>`).join('')}</ol>`;
+      const al = actsOn((when || now).getDay());
+      if (al.length) tt += `<p class="mo-after"><svg aria-hidden="true"><use href="#i-target"/></svg>אחר כך: ${esc(actLine(al))}</p>`;
+      else if (!acts.length) tt += '<button type="button" class="link mo-push" data-mo="act"><svg aria-hidden="true"><use href="#i-target"/></svg>יש לך חוגים? להוסיף</button>';
     }
   }
   // מבחנים: היום, מחר, ובשבוע הקרוב (7 ימים)
@@ -3752,7 +3758,7 @@ function morningPaint() {
   let tx = '';
   if (todayT.length) tx += `<div class="mo-luck"><svg aria-hidden="true"><use href="#i-crown"/></svg><div><b>בהצלחה!</b><span>היום: ${todayT.map(e => esc(e.title)).join(', ')}</span></div></div>`;
   const rest = tests.filter(e => e.date !== tk);
-  if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span></li>`).join('')}</ul>`;
+  if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span>${moBusy(e.date)}</li>`).join('')}</ul>`;
   if (!tests.length) tx = `<p class="mo-empty">אין מבחנים בשבוע הקרוב. שבוע רגוע!</p>`;
   else if (!pushOn() && !(canNotify && Notification.permission === 'denied') && (PUSH_OK || pwaIOS())) tx += '<button type="button" class="link mo-push" data-mo="push"><svg aria-hidden="true"><use href="#i-bell"/></svg>להזכיר לי בערב שלפני</button>';
   // החופש הבא
@@ -3780,6 +3786,7 @@ $('morning').addEventListener('click', ev => {
   if (b.dataset.mo === 'x') { moOn = false; track('morning_close', {}); morningPaint(); }
   else if (b.dataset.mo === 'ttadd') timetableDialog();
   else if (b.dataset.mo === 'push') pushEnable('morning');
+  else if (b.dataset.mo === 'act') actDialog('morning');
   else if (b.dataset.ev) showTab('cal');
 });
 
@@ -5890,6 +5897,7 @@ function renderTT() {
       <p class="muted-s tt-why">אחרי שתעלה את המערכת, שיעורי בית שתכתוב בלי תאריך ייכנסו ליום של השיעור הבא באותו מקצוע.</p>`;
     $('ttEmptyUp').onclick = () => ttPick();
     $('ttEmptyManual').onclick = () => { timetableDialog(); setTimeout(() => { const m = document.querySelector('#ttManual'); if (m) m.click(); }, 50); };
+    box.insertAdjacentHTML('beforeend', actTTCard()); $('actTTBtn').onclick = () => actDialog('tt');
     return;
   }
   const today = new Date().getDay(); let rows = 0;
@@ -5903,6 +5911,7 @@ function renderTT() {
   const tm = new Date(); tm.setDate(tm.getDate() + 1); const list = (timetable.days[tm.getDay()] || []).filter(Boolean);
   const open = events.filter(e => !e.done && e.date === key(tm));
   box.insertAdjacentHTML('beforeend', `<div class="card tt-tomorrow"><h3>מחר (${HE_DAYS[tm.getDay()]})</h3>${list.length ? `<p>${list.map(esc).join(' · ')}</p>` : '<p class="muted-s">אין לימודים מחר</p>'}${open.length ? `<p class="muted-s">להכין למחר: ${open.map(e => esc(e.title)).join(', ')}</p>` : ''}</div>`);
+  box.insertAdjacentHTML('beforeend', actTTCard()); $('actTTBtn').onclick = () => actDialog('tt');
 }
 $('ttEdit').onclick = () => timetableDialog();
 $('ttUpload').onclick = () => ttPick();
@@ -5914,6 +5923,112 @@ function redateAuto() {
     const nl = nextLesson(e.title); if (nl && key(nl.date) !== e.date) { n++; updateDoc(evDoc(e.id), { date: key(nl.date) }).catch(() => {}); }
   });
   if (n) toast(n === 1 ? 'משימה אחת עברה ליום של השיעור הבא' : `${n} משימות עברו ליום של השיעור הבא`);
+}
+
+
+// ===== החוגים שלי (28.11.2026, אבא) =====
+// חוגים קבועים אחרי בית הספר ב-users/{uid}/meta/activities {items: [{id, n, k, days: [{d: 0-6, f: 'HH:MM', t: 'HH:MM'}]}], at}.
+// מכניסים בקלות: כותבים כמו שמדברים או מצלמים (לוח אימונים / הודעה מהמאמן) → AI מסדר (actParse), וגם מהעוזר (ADD_ACTIVITY).
+// משהו חד-פעמי (משחק, טיול) → ליומן כאירוע. משמש: מערכת שעות, "בוקר טוב", אזהרה כשהיום שלפני מבחן עמוס, ותזכורות בשרת (pushMsgFor)
+let acts = [], unsubActs = null;
+const actsDoc = () => doc(db, 'users', me.uid, 'meta', 'activities');
+const ACT_KINDS = { sport: 'target', scouts: 'users', music: 'mic', dance: 'spark', art: 'palette', study: 'book', other: 'cal' };
+const ACT_QUICK = ['כדורגל', 'כדורסל', 'צופים', 'טניס', 'שחייה', 'מוזיקה', 'ריקוד', 'שיעור פרטי'];
+function subscribeActs() {
+  if (unsubActs) unsubActs();
+  unsubActs = onSnapshot(actsDoc(), sn => {
+    acts = sn.exists() && Array.isArray(sn.data().items) ? sn.data().items : [];
+    if (!$('ttView').classList.contains('hidden')) renderTT();
+    if (!$('home').classList.contains('hidden')) morningPaint();
+  }, () => { unsubActs = null; });
+}
+const actTime = x => x.f ? (x.t ? `\u2066${x.f}–${x.t}\u2069` : x.f) : '';   // שעות משמאל לימין גם בתוך עברית
+const actsOn = dow => acts.flatMap(a => (a.days || []).filter(x => x.d === dow).map(x => ({ n: a.n, k: a.k, f: x.f || '', t: x.t || '' }))).sort((a, b) => (a.f || '99').localeCompare(b.f || '99'));
+const actLine = l => l.map(x => x.n + (actTime(x) ? ' ' + actTime(x) : '')).join(' · ');
+const actDaysTxt = a => (a.days || []).slice().sort((x, y) => x.d - y.d).map(x => HE_DAYS[x.d] + (actTime(x) ? ' ' + actTime(x) : '')).join(', ');
+const actIc = k => `<svg aria-hidden="true"><use href="#i-${ACT_KINDS[k] || 'cal'}"/></svg>`;
+const ACT_PROMPT = () => `המשתמש הוא תלמיד בישראל. הוא מתאר את החוגים והפעילויות שלו אחרי בית הספר – בטקסט, או בתמונה (לוח אימונים, הודעת וואטסאפ מהמאמן, צילום מסך).
+היום ${todayKey()}, יום ${HE_DAYS[new Date().getDay()]}. התאריכים הקרובים: ${chatNextDays()}
+החזר JSON בלבד, בלי שום טקסט נוסף:
+{"weekly":[{"name":"כדורגל","kind":"sport","days":[{"d":1,"from":"17:00","to":"18:30"}]}],"once":[{"title":"משחק חוץ","date":"YYYY-MM-DD","time":"16:00"}]}
+- weekly: מה שחוזר כל שבוע (חוג, אימון קבוע). d: 0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי, 6=שבת.
+- kind: sport (כל ספורט), scouts (צופים, בני עקיבא, תנועת נוער), music (כלי נגינה, מקהלה), dance, art, study (שיעור פרטי, תגבור), other.
+- name: קצר, בעברית ("כדורגל", "צופים", "פסנתר").
+- שעות: "ב-5" או "בחמש" (בלי "בבוקר") = 17:00, "ב-6" = 18:00 – אחר הצהריים. from = שעת התחלה HH:MM, to = שעת סיום אם כתובה, אחרת "".
+- once: משהו עם תאריך מסוים (משחק, טורניר, טיול, הופעה) – date לפי התאריכים הקרובים.
+- אל תמציא. אם לא כתוב יום – אל תכניס את הפריט.`;
+const actHM = v => { const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})$/); if (!m) return ''; let h = +m[1]; if (h >= 1 && h < 8) h += 12; return String(h).padStart(2, '0') + ':' + m[2]; };   // חוג ב-5 = 17:00 (אחר הצהריים)
+function actNorm(j) {
+  const weekly = (Array.isArray(j.weekly) ? j.weekly : Array.isArray(j.items) ? j.items : []).map(a => ({ id: Math.random().toString(36).slice(2, 9), n: String(a.name || a.n || '').trim().slice(0, 40), k: ACT_KINDS[a.kind] ? a.kind : 'other',
+    days: (Array.isArray(a.days) ? a.days : []).filter(x => x && x.d !== '' && +x.d >= 0 && +x.d <= 6).map(x => ({ d: +x.d, f: actHM(x.from), t: actHM(x.to) })).slice(0, 7) })).filter(a => a.n && a.days.length).slice(0, 15);
+  const once = (Array.isArray(j.once) ? j.once : []).filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.date >= todayKey() && x.title).map(x => ({ title: String(x.title).trim().slice(0, 80), date: x.date, time: actHM(x.time) })).slice(0, 20);
+  return { weekly, once };
+}
+async function actParse(text, file) {
+  const part = file ? await fileToAiPart(file) : text;
+  aiKindNow = 'imp'; const txt = await aiExtract(ACT_PROMPT() + (file && text ? `\nהמשתמש כתב גם: ${text}` : ''), part);
+  return actNorm(JSON.parse((txt.match(/\{[\s\S]*\}/) || ['{}'])[0]));
+}
+async function actSave(items) { acts = items.slice(0, 20); await setDoc(actsDoc(), { items: acts, at: Date.now() }); }
+async function actMerge(weekly) {   // אותו שם – מחליפים את הימים (עדכון), שם חדש – מוסיפים
+  const out = acts.slice(); weekly.forEach(a => { const i = out.findIndex(x => normS(x.n) === normS(a.n)); if (i >= 0) out[i] = { ...out[i], k: a.k, days: a.days }; else out.push(a); });
+  await actSave(out);
+}
+async function actOnceAdd(once) {
+  let n = 0;
+  for (const o of once) { if (events.some(e => e.date === o.date && normS(e.title) === normS(o.title))) continue; await addDoc(evCol(), { title: o.title, type: 'event', date: o.date, time: o.time || '', done: false, createdAt: Date.now() }).then(() => n++).catch(() => {}); }
+  return n;
+}
+function actDialog(from) {
+  track('act_open', { from: from || '' });
+  let file = null, got = null;
+  dialog(d => {
+    d.classList.add('act-dlg');
+    d.innerHTML = `<h3>החוגים שלי</h3><p class="muted-s">כותבים כמו שמדברים, או מצלמים את לוח האימונים או ההודעה מהמאמן – ואנחנו מסדרים.</p>
+      <div class="act-list"></div>
+      <div class="act-in"><textarea rows="2" dir="auto" placeholder="למשל: כדורגל בשני ורביעי 17:00–18:30, צופים בשלישי ב-6"></textarea>
+        <div class="act-quick">${ACT_QUICK.map(q => `<button type="button" class="act-chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+        <div class="act-row"><button type="button" class="btn btn-ghost act-file"><svg aria-hidden="true"><use href="#i-camera"/></svg><span>צילום או קובץ</span></button><button type="button" class="btn btn-primary act-go">להכניס</button></div>
+        <input type="file" accept="image/*,application/pdf" hidden></div>
+      <p class="act-st muted-s"></p><div class="act-prev hidden"></div>
+      <div class="row act-end"><button type="button" class="btn btn-ghost" data-a="x">סגירה</button></div>`;
+    const list = d.querySelector('.act-list'), ta = d.querySelector('textarea'), inp = d.querySelector('input[type=file]'), st = d.querySelector('.act-st'), prev = d.querySelector('.act-prev'), go = d.querySelector('.act-go'), fb = d.querySelector('.act-file span');
+    const paint = () => {
+      list.innerHTML = acts.length ? acts.map(a => `<div class="act-it"><span class="act-ic">${actIc(a.k)}</span><span class="act-tx"><b>${esc(a.n)}</b><small>${esc(actDaysTxt(a))}</small></span><button type="button" class="act-del" data-id="${esc(a.id)}" aria-label="מחיקה">✕</button></div>`).join('') : '';
+      list.querySelectorAll('.act-del').forEach(b => b.onclick = async () => { const old = acts.slice(), a = acts.find(x => x.id === b.dataset.id); await actSave(acts.filter(x => x.id !== b.dataset.id)).catch(() => {}); paint(); toastAction(`${a ? a.n : 'החוג'} נמחק`, 'ביטול', async () => { await actSave(old).catch(() => {}); paint(); }); });
+    };
+    paint();
+    d.querySelectorAll('.act-chip').forEach(b => b.onclick = () => { ta.value = (ta.value.trim() ? ta.value.trim().replace(/[,،]?$/, ', ') : '') + b.dataset.q + ' ב'; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
+    d.querySelector('.act-file').onclick = () => inp.click();
+    inp.onchange = () => { file = inp.files && inp.files[0] || null; fb.textContent = file ? file.name.slice(0, 24) : 'צילום או קובץ'; if (file) go.click(); };
+    go.onclick = async () => {
+      const text = ta.value.trim(); if (!text && !file) { ta.focus(); st.textContent = 'כתוב מה החוגים, או צרף צילום'; return; }
+      go.disabled = true; prev.classList.add('hidden'); const stop = ticking(st, 'מסדר...');
+      try { got = await actParse(text, file); } catch (e) { console.warn('act', e && e.message); got = null; }
+      stop(); go.disabled = false;
+      if (!got || (!got.weekly.length && !got.once.length)) { st.textContent = 'לא הצלחתי להבין. נסה לכתוב: שם החוג, ימים ושעה.'; return; }
+      st.textContent = 'זה מה שהבנתי:';
+      prev.innerHTML = got.weekly.map(a => `<div class="act-it new"><span class="act-ic">${actIc(a.k)}</span><span class="act-tx"><b>${esc(a.n)}</b><small>כל שבוע: ${esc(actDaysTxt(a))}</small></span></div>`).join('')
+        + got.once.map(o => `<div class="act-it new once"><span class="act-ic"><svg aria-hidden="true"><use href="#i-cal"/></svg></span><span class="act-tx"><b>${esc(o.title)}</b><small>פעם אחת, ליומן: ${esc(clsDate(o.date))}${o.time ? ' ' + esc(o.time) : ''}</small></span></div>`).join('')
+        + '<div class="act-row"><button type="button" class="btn btn-primary act-ok">לשמור</button><button type="button" class="btn btn-ghost act-no">לא נכון</button></div>';
+      prev.classList.remove('hidden');
+      prev.querySelector('.act-no').onclick = () => { prev.classList.add('hidden'); st.textContent = 'אפשר לתקן את מה שכתבת ולנסות שוב.'; ta.focus(); };
+      prev.querySelector('.act-ok').onclick = async e => {
+        e.target.disabled = true;
+        try { if (got.weekly.length) await actMerge(got.weekly); const n = await actOnceAdd(got.once); track('act_save', { w: got.weekly.length, o: got.once.length, from: from || '', file: file ? 1 : 0 });
+          ta.value = ''; file = null; inp.value = ''; fb.textContent = 'צילום או קובץ'; prev.classList.add('hidden'); st.textContent = 'נשמר ✓' + (n ? ` (${n === 1 ? 'אחד נכנס' : n + ' נכנסו'} ליומן)` : ''); paint();
+          if (!$('home').classList.contains('hidden')) morningPaint();
+        } catch { e.target.disabled = false; st.textContent = 'לא הצלחתי לשמור. לנסות שוב?'; }
+      };
+    };
+    d.querySelector('[data-a="x"]').onclick = closeDialog;
+    if (!acts.length) setTimeout(() => ta.focus(), 60);
+  });
+}
+// בעמוד מערכת השעות: "אחר הצהריים" – החוגים לפי ימים, וכפתור לעריכה
+function actTTCard() {
+  const rows = [0, 1, 2, 3, 4, 5, 6].map(i => ({ i, l: actsOn(i) })).filter(r => r.l.length);
+  return `<div class="card act-tt"><h3><svg aria-hidden="true"><use href="#i-target"/></svg>אחר הצהריים – החוגים שלי</h3>${rows.length ? `<div class="act-days">${rows.map(r => `<div><b>${HE_DAYS[r.i]}</b><span>${esc(actLine(r.l))}</span></div>`).join('')}</div>` : '<p class="muted-s">כדורגל, צופים, מוזיקה… מכניסים פעם אחת, ואז נדע אילו ימים עמוסים לפני מבחן.</p>'}<button type="button" class="btn btn-ghost" id="actTTBtn">${rows.length ? 'עריכה' : 'להוסיף חוגים'}</button></div>`;
 }
 
 /* ================= עריכה משותפת בלייב ================= */
@@ -8695,6 +8810,7 @@ function chatAboutMe() {
   if (avgs.length) out.push('הממוצעים של המשתמש לפי מקצוע (מהנמוך לגבוה): ' + avgs.map(x => `${x.s} ${x.a}`).join(', '));
   // (26.11.2026) השכבה מחלון בית הספר – כדי להסביר ברמה של הגיל (בלי שם בית הספר: לא צריך אותו כדי ללמד)
   if (school && school.g) out.push(`המשתמש בכיתה ${GRADE_HE[school.g - 1]}. התאם את ההסבר, הדוגמאות ורמת הקושי לתלמיד בשכבה הזו (חומר של תוכנית הלימודים בישראל לשכבה הזו), אלא אם הוא מבקש אחרת.`);
+  if (acts.length) out.push('החוגים הקבועים של המשתמש אחרי בית הספר:\n' + acts.map(a => `${a.n}: ${actDaysTxt(a)}`).join('\n') + '\nכשמתכננים למידה למבחן – קח בחשבון ימים עמוסים בחוגים (במיוחד היום שלפני מבחן), והצע ללמוד בימים הפנויים.');
   if (!out.length) return '';
   return out.join('\n') + '\nהשתמש במידע הזה כשזה עוזר: למשל, אם יש מבחן קרוב במקצוע שהממוצע בו נמוך, הצע לתרגל אותו. אל תציף את המשתמש במספרים כשהוא לא שאל.\n';
 }
@@ -8814,7 +8930,12 @@ function chatPrompt(noKit, msg = '') {
 - taskType: "שיעורי בית", "מבחן" או "אירוע" (אימון, חוג, משחק וכל פעילות אחרת = אירוע).
 - title: שם קצר וברור (למשל "אימון כדורגל", "משחק חוץ באום אל פאחם", "שיעורי בית במתמטיקה: עמודים 12-13").
 - date: התאריך המדויק לפי טבלת הימים למטה. time: שעת ההתחלה בפורמט HH:MM, או "" אם אין. note: פרטים חשובים (למשל "הגעה עד 17:00"), או "".
-- weeks: רק אם המשתמש אמר שזה קבוע ("כל שבוע", "מערכת קבועה") – מספר השבועות לחזור (עד 12). אחרת אל תכתוב weeks.
+- weeks: רק אם המשתמש אמר שזה קבוע ("כל שבוע", "מערכת קבועה") – מספר השבועות לחזור (עד 12). אחרת אל תכתוב weeks. אבל חוג או אימון קבוע = ADD_ACTIVITY (למטה), לא weeks.
+חוגים קבועים (כדורגל, כדורסל, צופים, טניס, שחייה, מוזיקה, ריקוד, שיעור פרטי – כל מה שחוזר כל שבוע אחרי בית הספר, למשל "יש לי כדורסל בשני ורביעי ב-5"): אל תכניס ליומן. החזר בתחילת התשובה JSON בפורמט הזה, ואחריו משפט קצר:
+{"action":"ADD_ACTIVITY","items":[{"name":"כדורסל","kind":"sport","days":[{"d":1,"from":"17:00","to":""}]}]}
+- d: 0=ראשון, 1=שני, 2=שלישי, 3=רביעי, 4=חמישי, 5=שישי, 6=שבת. kind: sport, scouts, music, dance, art, study, other. "ב-5" בלי "בבוקר" = 17:00. to = שעת סיום אם נאמרה, אחרת "".
+- חוג שכבר קיים ברשימת החוגים (בחלק "מה שאתה יודע") עם ימים חדשים = אותו name, והימים החדשים מחליפים את הישנים.
+- משחק, טורניר או טיול בתאריך מסוים = ADD_TO_CALENDAR כאירוע, לא ADD_ACTIVITY.
 - אם אין יום בכלל (למשל "יש לי שיעורים במתמטיקה") – date הוא "".
 התאריכים הקרובים: ${chatNextDays()}
 שינוי של משהו שכבר ביומן (לדחות או להקדים מבחן, לשנות שעה או שם, לסמן שבוצע, לבטל ולמחוק): החזר בתחילת התשובה JSON בפורמט הזה, ואחריו משפט קצר:
@@ -8907,7 +9028,7 @@ function chatSplit(raw) {
   if (end < 0) return { text: before, action: null, partial: true };
   const rest = t.slice(end + 1).replace(/^\s*```/, '').trim();
   const text = [before, rest].filter(Boolean).join('\n\n');
-  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'UPDATE_CALENDAR', 'QUIZ', 'SHEET', 'EDIT_NOTEBOOK', 'DEDUPE_NOTEBOOK'].includes(o.action) ? o : null }; }
+  try { const o = JSON.parse(t.slice(0, end + 1)); return { text, action: o && ['ADD_TO_CALENDAR', 'UPDATE_CALENDAR', 'ADD_ACTIVITY', 'QUIZ', 'SHEET', 'EDIT_NOTEBOOK', 'DEDUPE_NOTEBOOK'].includes(o.action) ? o : null }; }
   catch { return { text, action: null, broken: true }; }
 }
 
@@ -9388,6 +9509,12 @@ async function chatSend() {
       b.classList.remove('typing', 'making'); chatFill(b, text);
       if (moved.length) chatUpdatedCard(moved);
       if (added.length) chatAddedCard(added);
+    } else if (s.action && s.action.action === 'ADD_ACTIVITY') {
+      const w = actNorm({ weekly: s.action.items }).weekly;
+      try { if (w.length) { await actMerge(w); track('act_save', { w: w.length, from: 'chat' }); } } catch (e) { console.error(e); }
+      text = w.length ? `הוספתי לחוגים שלך: ${w.map(a => `${a.n} (${actDaysTxt(a)})`).join(', ')}.` + (text ? '\n' + text : '') : (text || 'לא הצלחתי להבין את הימים והשעות. אפשר לכתוב שוב?');
+      b.classList.remove('typing', 'making'); chatFill(b, text);
+      if (w.length) toastAction('החוגים נשמרו – רואים אותם במערכת השעות', 'לראות', () => actDialog('chat'), 8000);
     } else if (s.action && s.action.action === 'UPDATE_CALENDAR') {
       let ch = [];
       try { ch = await chatUpdateEvents(s.action); } catch (e) { console.error(e); }
@@ -11287,3 +11414,4 @@ addEventListener('afterprint', () => { document.body.classList.remove('printing-
 $('editor').addEventListener('focusin', () => { if ($('editor').querySelector('.pr-sec')) { document.body.classList.remove('printing-nb', 'print-compact'); prSmart(false); } });
 if (location.hostname === 'localhost') window.__moTest = (o = {}) => { me = me || { uid: 'localtest', displayName: 'עמית שבת', metadata: {} }; if (o.tt) timetable = o.tt; if (o.ev) events = o.ev; if (o.g) school = { g: o.g }; moOn = null; try { localStorage.removeItem('morning:localtest'); } catch {} $('home').classList.remove('hidden'); homeAnimated = false; morningPaint(); };   // רק לבדיקה מקומית
 if (location.hostname === 'localhost') window.__pwaTest = k => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; if (k === 'ios') return pwaIosHelp(); schoolLoaded = true; school = { n: 'x', g: 8 }; schLs('schEnt', { n: 3, t: Date.now() }); pwaEvt = pwaEvt || { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) }; $('home').classList.remove('hidden'); pwaPaint(); return !$('homeInstall').classList.contains('hidden'); };   // רק לבדיקה מקומית
+if (location.hostname === 'localhost') window.__actTest = (o = {}) => { me = me || { uid: 'localtest', displayName: 'בדיקה', metadata: {} }; if (o.acts) acts = o.acts; if (o.norm) return actNorm(o.norm); if (o.dlg) actDialog('test'); if (o.prev) { const d = document.querySelector('.act-dlg'); d.querySelector('.act-st').textContent = 'זה מה שהבנתי:'; } return acts.length; };   // רק לבדיקה מקומית
