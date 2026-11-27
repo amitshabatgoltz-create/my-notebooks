@@ -550,6 +550,8 @@ exports.refBackRun = onDocumentCreated({ document: 'adminJobs/{id}', region: 'eu
 // כי כל אחד יכול לכתוב שהוא בכיתה מסוימת. (27.11.2026, אבא) מספיק ילד אחד שהעלה (CLASS_MIN=1) – האתר מכניס לכל הכיתה אוטומטית.
 // מה שהגיע מהכיתה מסומן fromClass ולא נספר כמקור (אחרת העתקים "מצביעים"). כשיש כמה מקורות – הרוב, ובתיקו – המערכת שעודכנה אחרונה
 const CLASS_MIN = 1;
+// מנהלים (עמית) לא נספרים ב-stats – אז הם לא נמצאו כבני כיתה. בודקים אותם ישירות לפי users/{uid}/meta/school (27.11.2026)
+const CLASS_EXTRA_UIDS = ['1FmPHPqWRagZgQsStA5ux3B1Zbm1'];
 const clsNorm = t => String(t || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 const testKey = t => clsNorm(t).replace(/^(מבחן|בוחן|מבדק|בחינה|test|quiz)( ב| ב-| ב)?\s*/, '').replace(/^ב/, '').trim();
 exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async req => {
@@ -559,7 +561,10 @@ exports.classInfo = onCall({ region: 'europe-west1', timeoutSeconds: 30 }, async
   let q = db.collection('stats').where('sch.g', '==', me.g);
   q = me.c ? q.where('sch.c', '==', me.c) : q.where('sch.n', '==', me.n);
   const sn = await q.limit(400).get();
-  const grade = sn.docs.filter(d => d.id !== uid);
+  const extra = (await Promise.all(CLASS_EXTRA_UIDS.filter(x => x !== uid && !sn.docs.some(d => d.id === x)).map(x => db.doc(`users/${x}/meta/school`).get().catch(() => null))))
+    .filter(x => x && x.exists && x.data().g === me.g && (me.c ? x.data().c === me.c : x.data().n === me.n))
+    .map(x => ({ id: x.ref.parent.parent.id, data: () => ({ sch: x.data() }) }));
+  const grade = sn.docs.filter(d => d.id !== uid).concat(extra);
   const cls = me.k ? grade.filter(d => (d.data().sch || {}).k === me.k).slice(0, 40) : [];
   const out = { ok: true, grade: grade.length, cls: cls.length, k: me.k || 0, tt: null, tests: [] };
   if (cls.length < CLASS_MIN) return out;
