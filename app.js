@@ -265,20 +265,19 @@ const STARTER_ALIAS = { sci: ['מדעים', 'מדע', 'מדעי הטבע', 'scie
 const starterHas = (allNb, k) => allNb.some(n => !isPres(n) && (n.id === 'starter-' + k || STARTER_ALIAS[k].some(a => { const x = squash(a).toLowerCase(); return squash((n.title || '') + ' ' + (n.subject || '')).toLowerCase().includes(x); })));
 async function starterNbs(allNb) {
   if (!me || starterBusy || shareParam) return;
-  const uid = me.uid; let seen = ''; try { seen = localStorage.getItem('starter:' + uid) || ''; } catch {}
+  const uid = me.uid, LS = 'starter2:' + uid; let seen = ''; try { seen = localStorage.getItem(LS) || ''; } catch {}
   if (seen) return;
   starterBusy = true;
   try {
-    // בודקים מול השרת (לא מהמטמון): שעוד לא קיבל, ואם באמת אין לו מחברות בכלל
-    const fd = doc(db, 'users', uid, 'meta', 'starter'), sn = await getDocFromServer(fd);
-    if (sn.exists() || !me || me.uid !== uid) { try { localStorage.setItem('starter:' + uid, '1'); } catch {} return; }
+    // בודקים מול השרת (לא מהמטמון): שעוד לא קיבל, ואם באמת אין לו מחברות בכלל.
+    // (תיקון 27.11.2026) "קיבל" נכתב רק אחרי שהמחברות נוצרו (done). אם נכתב בלי done (רענון באמצע) – משלימים את מה שחסר מ-added
+    const fd = doc(db, 'users', uid, 'meta', 'starter'), sn = await getDocFromServer(fd), sd = sn.exists() ? sn.data() : null;
+    if ((sd && (sd.done || !Array.isArray(sd.added))) || !me || me.uid !== uid) { try { localStorage.setItem(LS, '1'); } catch {} return; }
     const any = await getDocsFromServer(query(nbCol(), limit(50)));
     const all = allNb.concat(any.docs.map(x => ({ id: x.id, ...x.data() })).filter(x => !allNb.some(n => n.id === x.id)));
     const hadNone = !all.some(n => !isPres(n) && !n.trashed);
-    const miss = STARTER_NB.filter(([k]) => !starterHas(all, k));
-    await setDoc(fd, { at: Date.now(), added: miss.map(x => x[0]) });
-    try { localStorage.setItem('starter:' + uid, '1'); } catch {}
-    if (!miss.length) return;
+    const miss = sd ? STARTER_NB.filter(([k]) => sd.added.includes(k) && !all.some(n => n.id === 'starter-' + k)) : STARTER_NB.filter(([k]) => !starterHas(all, k));
+    if (!miss.length) { await setDoc(fd, { at: Date.now(), added: sd ? sd.added : [], done: true }); try { localStorage.setItem(LS, '1'); } catch {} return; }
     if (hadNone) starterJust = true;
     const t = Date.now(), look = nbDefaults();
     await Promise.all(miss.map(async ([k, name, color], i) => {
@@ -287,6 +286,8 @@ async function starterNbs(allNb) {
       if (k === 'math') lk.bg = 'grid';
       return setDoc(nbDoc('starter-' + k), { title: name, subject: name, color, html: '', ...lk, starter: true, createdAt: t - i, updatedAt: hadNone ? t - i : t - 864e5 * 30 - i });   // לוותיקים – בסוף הרשימה, לא מעל המחברות שלהם
     }));
+    await setDoc(fd, { at: Date.now(), added: [...new Set([...(sd ? sd.added : []), ...miss.map(x => x[0])])], done: true });
+    try { localStorage.setItem(LS, '1'); } catch {}
     track('starter_nbs', { isNew: onbNew() ? 1 : 0, n: miss.length, none: hadNone ? 1 : 0 });
     const names = miss.map(x => x[1]).join(', ');
     if (!(hadNone && onbNew())) setTimeout(() => toastAction(hadNone ? 'הכנו לך מחברת לכל מקצוע. מה שלא צריך – אפשר למחוק' : `הוספנו לך מחברות למקצועות שחסרו: ${names}`, 'למחברות', () => showLibrary('nb'), 10000), 1500);
@@ -10173,7 +10174,7 @@ function onbRun(left = 8) {
   const ready = $('loading').classList.contains('hidden') && ttReady;
   if (!ready || $('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => onbRun(left - 1), 2500); return; }
   if (!onbGet('onbNb')) {
-    let stSeen = true; try { stSeen = !!localStorage.getItem('starter:' + me.uid); } catch {}
+    let stSeen = true; try { stSeen = !!localStorage.getItem('starter2:' + me.uid); } catch {}
     if (!notebooks.some(n => !isPres(n)) && (starterBusy || !stSeen)) { if (left) setTimeout(() => onbRun(left - 1), 1500); return; }   // מחכים שהמחברות המוכנות ייווצרו
     if (starterJust) { onbSet('onbNb'); starterCard(); return; }
     if (notebooks.length || tourSeen()) onbSet('onbNb', '1');           // התחיל לפני השינוי – הצעד הראשון כבר מאחוריו
