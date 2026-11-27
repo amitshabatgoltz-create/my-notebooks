@@ -3567,16 +3567,29 @@ function morningPaint() {
   const art = han ? moArt('menorah', han.last ? 8 : han.night) : moArt(h >= 5 && h < 17 ? 'sun' : 'moon');
   let sub = MO_LINES[Math.floor(Date.now() / 864e5) % MO_LINES.length];
   if (han) sub = han.last ? 'יום אחרון של חנוכה. חג שמח!' : han.night === 1 ? 'חג חנוכה שמח! הערב מדליקים את הנר הראשון.' : `חג חנוכה שמח! הערב מדליקים ${han.night} נרות.`;
-  // המערכת של היום
+  // המערכת: של היום עד סוף הלימודים, ואחרי זה של יום הלימודים הבא (מחר, או אחרי סופ"ש / חופש)
   const dow = now.getDay(), tms = timetable.times || {}, st = timetable.start === 0 ? 0 : 1;
-  const raw = dow < 6 ? (timetable.days[dow] || []) : [];
-  const lessons = []; raw.forEach((v, i) => { const s = normS(v); if (!s) return; const last = lessons[lessons.length - 1]; if (last && last.s === s && last.end === i - 1) { last.n++; last.end = i; } else lessons.push({ s, n: 1, p: i + st, end: i }); });
-  let tt;
+  const dayLessons = (d, k) => {
+    if (d > 5 || hols.some(x => x.s <= k && k <= x.e)) return [];
+    const out = []; (timetable.days[d] || []).forEach((v, i) => { const s = normS(v); if (!s) return; const last = out[out.length - 1]; if (last && last.s === s && last.end === i - 1) { last.n++; last.end = i; } else out.push({ s, n: 1, p: i + st, end: i }); });
+    return out;
+  };
+  const hm = (v, lastOne) => { const m = String(v || '').match(/\d{1,2}[:.]\d{2}/g); if (!m) return null; const [H, M] = m[lastOne ? m.length - 1 : 0].split(/[:.]/).map(Number); return H * 60 + M; };
+  let tt, ttTitle = 'המערכת של היום';
   if (!ttSubjects().length) tt = `<p class="mo-empty">עוד אין מערכת שעות.</p><button type="button" class="link" data-mo="ttadd">להוסיף מערכת שעות</button>`;
-  else if (inHol || !lessons.length) tt = `<p class="mo-empty">${inHol ? 'אין לימודים – חופש!' : dow === 6 ? 'שבת שלום, אין לימודים היום.' : 'אין לימודים היום.'}</p>`;
   else {
-    const t0 = tms[lessons[0].p];
-    tt = (t0 ? `<p class="mo-start">מתחילים ב-<b dir="ltr">${esc(t0)}</b></p>` : '') + `<ol class="mo-tt">${lessons.map(l => `<li><i>${l.p}</i><span>${esc(l.s)}</span>${l.n > 1 ? `<em>×${l.n}</em>` : ''}</li>`).join('')}</ol>`;
+    let lessons = dayLessons(dow, tk), when = 0;
+    if (lessons.length) {   // נגמרו הלימודים היום? לפי השעה של השיעור האחרון, ואם אין שעות – 8:00 ועוד 50 דק' לשיעור
+      const lp = lessons[lessons.length - 1].end + st, endM = hm(tms[lp], true) ?? (8 * 60 + (lp - st + 1) * 50);
+      if (now.getHours() * 60 + now.getMinutes() >= endM) lessons = [];
+    }
+    if (!lessons.length) for (let i = 1; i <= 90 && !lessons.length; i++) { const d = new Date(fromKey(tk)); d.setDate(d.getDate() + i); const l = dayLessons(d.getDay(), key(d)); if (l.length) { lessons = l; when = d; } }
+    if (when) { const dn = daysUntil(key(when)); ttTitle = dn === 1 ? 'המערכת של מחר' : `המערכת של יום ${HE_DAYS[when.getDay()]}` + (dn > 6 ? `, ${when.getDate()}.${when.getMonth() + 1}` : ''); }
+    if (!lessons.length) tt = '<p class="mo-empty">אין לימודים בקרוב.</p>';
+    else {
+      const t0 = String(tms[lessons[0].p] || '').match(/\d{1,2}[:.]\d{2}/);
+      tt = (when && inHol ? '<p class="mo-start">עכשיו חופש. כשחוזרים:</p>' : '') + (t0 ? `<p class="mo-start">מתחילים ב-<b dir="ltr">${esc(t0[0])}</b></p>` : '') + `<ol class="mo-tt">${lessons.map(l => `<li><i>${l.p}</i><span>${esc(l.s)}</span>${l.n > 1 ? `<em>×${l.n}</em>` : ''}</li>`).join('')}</ol>`;
+    }
   }
   // מבחנים: היום, מחר, ובשבוע הקרוב (7 ימים)
   const endWeek = new Date(fromKey(tk)); endWeek.setDate(endWeek.getDate() + 6);
@@ -3602,7 +3615,7 @@ function morningPaint() {
   el.innerHTML = `<button type="button" class="mo-x" data-mo="x" aria-label="סגירה">✕</button>
     <div class="mo-head"><div class="mo-art">${art}</div><div class="mo-hi"><p class="mo-date">יום ${HE_DAYS[dow]}, ${now.getDate()} ב${HE_MONTHS[now.getMonth()]}</p><h2>${esc(name ? `${greeting()}, ${name}` : greeting())}</h2><p class="mo-sub">${esc(sub)}</p></div></div>
     <div class="mo-grid">
-      <section class="mo-box"><h3><svg aria-hidden="true"><use href="#i-tt"/></svg>המערכת של היום</h3>${tt}</section>
+      <section class="mo-box"><h3><svg aria-hidden="true"><use href="#i-tt"/></svg>${ttTitle}</h3>${tt}</section>
       <section class="mo-box"><h3><svg aria-hidden="true"><use href="#i-clipboard"/></svg>מבחנים קרובים</h3>${tx}</section>
       ${hol ? `<section class="mo-box mo-hol${han || (next && next.a === 'dreidel') || (inHol && inHol.a === 'dreidel') ? ' han' : ''}"><h3><svg aria-hidden="true"><use href="#i-sun"/></svg>החופש הבא</h3><div class="mo-hol-in">${hol}</div></section>` : ''}
     </div>`;
