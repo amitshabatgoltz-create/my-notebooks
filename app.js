@@ -3504,7 +3504,7 @@ function renderHome() {
   homeAnimated = true;
 }
 
-/* ===== בוקר טוב (27.11.2026): כרטיס בכניסה הראשונה של היום – המערכת של היום, מבחנים (היום: "בהצלחה"), כמה ימים לחופש הבא. בחנוכה: חנוכייה עם הנרות של הערב וסביבון ===== */
+/* ===== בוקר טוב (27.11.2026): כרטיס בכל כניסה במחשב, ובטלפון רק בכניסה הראשונה של היום – המערכת של היום, מבחנים (היום: "בהצלחה"), כמה ימים לחופש הבא. בחנוכה: חנוכייה עם הנרות של הערב וסביבון ===== */
 // חופשות משרד החינוך תשפ"ז (לפי החוזר, כפי שפורסם ב-edugo ו-mako). s = יום החופש הראשון, e = האחרון. לעדכן כל שנה
 const SCHOOL_HOLS = [
   { n: 'חנוכה', s: '2026-12-06', e: '2026-12-12', a: 'dreidel' },
@@ -3554,7 +3554,7 @@ function morningPaint() {
   const tk = todayKey();
   if (moOn === null) {
     let seen = ''; try { seen = localStorage.getItem(moKey()) || ''; } catch {}
-    moOn = seen !== tk;
+    moOn = !narrow() || seen !== tk;   // במחשב – בכל כניסה (✕ סוגר עד הכניסה הבאה); בטלפון – רק בכניסה הראשונה של היום
     if (moOn) { try { localStorage.setItem(moKey(), tk); } catch {} track('morning_card', {}); }
   }
   el.classList.toggle('hidden', !moOn); $('home').classList.toggle('has-mo', moOn);
