@@ -1101,7 +1101,7 @@ const VAPID_PRIVATE = defineSecret('VAPID_PRIVATE');
 const VAPID_PUBLIC = 'BFL6jvPSyZE4B1BkVHHdeJw3fTdfGlemsHrWqR96nY3bk1RyBi-ZrJjc33bS9irogF87B-JFH7fvKcZfq6ydmMA';
 const SITE_URL = 'https://amitshabatgoltz-create.github.io/my-notebooks/';
 function pushLib() { const wp = require('web-push'); wp.setVapidDetails(SITE_URL, VAPID_PUBLIC, VAPID_PRIVATE.value().trim()); return wp; }
-const ilKey = add => { const d = new Date(Date.now() + 3 * 3600000 + add * 864e5); return d.toISOString().slice(0, 10); };   // תאריך בשעון ישראל (בערך – +3)
+const ilKey = add => { const t = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }), d = new Date(t + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + add); return d.toISOString().slice(0, 10); };   // תאריך בשעון ישראל (כולל שעון חורף/קיץ)
 const shortT = t => { t = String(t || '').trim(); return t.length > 60 ? t.slice(0, 58) + '…' : t; };
 function pushMsgFor(evs, tm, d3) {
   const open = evs.filter(e => !e.done);
