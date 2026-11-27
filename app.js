@@ -3284,7 +3284,8 @@ $('homeFirstNew').onclick = () => { track('first_nb_new', {}); newNotebook(); };
 // "לא עכשיו" – הכרטיס חוזר עוד פעם אחת בלבד אחרי שבועיים. תמיד אפשר לשנות מתפריט החשבון
 // (25.11.2026) SCH_ON = false: עמית ביקש לחכות עד שהכללים מודבקים ב-Firebase – בינתיים רק מנהלים רואים (כרטיס ותפריט)
 const SCH_ON = true;   // (26.11.2026) הכללים עלו – פתוח לכולם
-const SCH_AFTER = 3, SCH_AGAIN = 14 * 864e5, SCH_GAP = 30 * 60000;
+// (27.11.2026, אבא) שואלים כבר בכניסה הראשונה (ברישום), והחלון קופץ פעם אחת לכל מי שעוד לא מילא – גם למי שכבר ראה/דילג (מפתחות חדשים schPop2/schSkip2)
+const SCH_AFTER = 1, SCH_AGAIN = 14 * 864e5, SCH_GAP = 30 * 60000;
 const GRADE_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב'];
 const classLabel = s => s && s.g ? GRADE_HE[s.g - 1] + (s.k ? s.k : '') : '';
 let school = null, schoolLoaded = false, schoolList = null;
@@ -3302,13 +3303,13 @@ function schoolEnter() {
 }
 function schoolPaint() {
   const el = $('homeSchool'); if (!el) return;
-  const ent = me && schLs('schEnt'), sk = me && schLs('schSkip');
+  const ent = me && schLs('schEnt'), sk = me && schLs('schSkip2');
   const show = !!me && (SCH_ON || isAdmin()) && schoolLoaded && !school && !!ent && (ent.n >= SCH_AFTER || !!clsInvGet()) && !shareParam
     && (!sk || (sk.n < 2 && Date.now() - sk.t > SCH_AGAIN))
     && $('homeFirst').classList.contains('hidden');   // מי שעוד אין לו מחברת – קודם המחברת
   if (show && el.classList.contains('hidden')) track('school_card', {});
   el.classList.toggle('hidden', !show);
-  if (show && !schLs('schPop')) schoolPopSoon();
+  if (show && !schLs('schPop2')) schoolPopSoon();
 }
 // ===== הכיתה שלי (26.11.2026, רעיון של עמית) =====
 // השרת (classInfo) מחזיר רק מספרים והצעות – לא שמות ולא מי העלה (כל אחד יכול לכתוב שהוא בכיתה). הצעה רק כש-3 מהכיתה מסכימים.
@@ -3452,13 +3453,13 @@ let schPopT = 0;
 function schoolPopSoon(left = 10) {
   clearTimeout(schPopT);
   schPopT = setTimeout(() => {
-    if (!me || school || schLs('schPop') || $('homeSchool').classList.contains('hidden')) return;
+    if (!me || school || schLs('schPop2') || $('homeSchool').classList.contains('hidden')) return;
     if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro, .cb-wrap')) { if (left) schoolPopSoon(left - 1); return; }
-    schLs('schPop', Date.now()); track('school_open', { from: 'pop' }); schoolDialog();
+    schLs('schPop2', Date.now()); track('school_open', { from: 'pop' }); schoolDialog();
   }, 6000);
 }
 $('homeSchoolGo').onclick = () => { track('school_open', { from: 'card' }); schoolDialog(); };
-$('homeSchoolSkip').onclick = () => { const sk = schLs('schSkip') || { n: 0 }; schLs('schSkip', { n: sk.n + 1, t: Date.now() }); track('school_skip', { n: sk.n + 1 }); schoolPaint(); };
+$('homeSchoolSkip').onclick = () => { const sk = schLs('schSkip2') || { n: 0 }; schLs('schSkip2', { n: sk.n + 1, t: Date.now() }); track('school_skip', { n: sk.n + 1 }); schoolPaint(); };
 $('schoolBtn').addEventListener('click', () => { $('userMenu').classList.add('hidden'); $('userBtn').setAttribute('aria-expanded', 'false'); track('school_open', { from: 'menu' }); schoolDialog(); });
 const schNorm = s => String(s || '').replace(/["'״׳`\-–.,()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 async function schoolListGet() {
