@@ -45,6 +45,8 @@ async function isAmb(uid) {
 }
 // ===== רצף יומי (24.11.2026): נכנסים כל יום → פרס קטן כל יום, ופרס גדול ביום 7, 14 ו-30 (ואז מתחילים סבב חדש) =====
 // רק השרת כותב ל-streaks/{uid}, כדי שאי אפשר לרמות מהדפדפן. אותה טבלה בדיוק יש באתר (STREAK_SMALL ב-app.js) – לשנות בשני המקומות
+// (28.11.2026, עמית) המשך עד 1000: ימי שיא עם לומיקס (ובחלק גם יום של פי 2). אותה טבלה באתר
+const STREAK_MILES = { 50: 50, 100: 100, 150: 80, 200: 120, 250: 100, 300: 150, 365: 250, 400: 150, 500: 300, 600: 200, 700: 200, 750: 250, 800: 200, 900: 250, 1000: 500 }, STREAK_MILE_X2 = [100, 365, 500, 1000];
 const STREAK_SMALL = [['chat', 3], ['ocr', 1], ['fc', 1], ['sum', 1], ['pr', 1], ['kit', 1], ['wr', 2]];
 const STREAK_SERVER_KIND = { kit: 'chat', wr: 'chat', cf: 'chat' };   // סוגים שהשרת סופר תחת סוג אחר
 const streakDayOf = n => ((n - 1) % 30) + 1;
@@ -64,7 +66,7 @@ async function streakBoost(uid) {
 }
 // ===== גירים (24.11.2026): מטבע שמרוויחים באתר וקונים בו שימושים ב-AI ועיצובים. רק השרת כותב ל-wallet/{uid} =====
 // מרוויחים: כניסה יומית (ברצף), צילום לוח, מחברת חדשה, חבר שהצטרף. לכל סוג יש תקרה יומית כדי שאי אפשר "לחרוש"
-const EARN = { day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 20, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 }, fc: { a: 2, cap: 1 }, sum: { a: 2, cap: 1 }, pr: { a: 2, cap: 1 } };
+const EARN = { mile: { a: 1, cap: 1000 }, day: { a: 5, cap: 1 }, big: { a: 25, cap: 1 }, ocr: { a: 2, cap: 3 }, nb: { a: 5, cap: 2 }, friend: { a: 20, cap: 50 }, ask: { a: 1, cap: 1 }, quest: { a: 10, cap: 1 }, fc: { a: 2, cap: 1 }, sum: { a: 2, cap: 1 }, pr: { a: 2, cap: 1 } };
 // משימות היום (24.11.2026): נכנסים (day) + מצלמים לוח (ocr) + שואלים את העוזר (ask) → בונוס quest. אותה רשימה באתר (QUESTS)
 // (24.11.2026) המשימות מתחלפות כל יום: 'day' קבוע + זוג מהטבלה לפי היום (אותה טבלה באתר – QUEST_PAIRS)
 const QUEST_PAIRS = [['ocr', 'fc'], ['ask', 'sum'], ['nb', 'ocr'], ['fc', 'ask'], ['sum', 'pr'], ['ocr', 'ask'], ['nb', 'fc'], ['pr', 'ask']];
@@ -468,8 +470,9 @@ exports.streak = onCall({ region: 'europe-west1', timeoutSeconds: 20 }, async re
     else if (d === 14) { out.flashUntil = today + 6; out.big = 'flash'; }
     else if (d === 30) { out.x2Day = today; out.big = 'x2'; }
     else { const [k, add] = streakSmall(d); out.bonus = { k, add }; }
+    if (STREAK_MILES[n]) { out.big = 'mile'; out.mile = STREAK_MILES[n]; out.bonus = null; if (STREAK_MILE_X2.includes(n)) out.x2Day = today; }
     tx.set(ref, out);
-    let chalk = 0; { const r1 = earnIn(tx, w, 'day'); w = r1.w; chalk += r1.got; } if (out.big) { const r2 = earnIn(tx, w, 'big'); w = r2.w; chalk += r2.got; }
+    let chalk = 0; { const r1 = earnIn(tx, w, 'day'); w = r1.w; chalk += r1.got; } if (out.big) { const r2 = earnIn(tx, w, 'big'); w = r2.w; chalk += r2.got; } if (out.mile) { const r3 = earnIn(tx, w, 'mile', out.mile); w = r3.w; chalk += r3.got; }
     if (chalk) tx.set(wref, w);
     streakCache.delete(uid);
     return { ...out, fresh: true, usedShield, reset, chalk: chalk + rb.got, friendBack: rb.got };

@@ -4236,3 +4236,13 @@ html.a11y-still[data-pbg="t-space"] body::after{animation:none}
 }
 @media (max-width:700px){.ai-strip .ai-card.math{flex-basis:100%!important}}
 html[data-theme="dark"] .ai-strip .ai-card.math .ic{color:#fff}
+
+/* הדרך ל-1000 ימים ברצף (28.11.2026) */
+.bd-miles{margin:6px 0 4px;padding:12px;border-radius:16px;background:color-mix(in srgb,#F59F00 10%,var(--surface));border:1px solid color-mix(in srgb,#F59F00 30%,var(--line))}
+.bd-miles>b{display:block;margin-bottom:8px;font-size:15px}
+.bm-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.bm{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:10px 6px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.bm svg{width:22px;height:22px;color:#E8590C}
+.bm b{font-size:15px}
+.bm small{font-size:12px;color:var(--muted);line-height:1.3}
+.bm em{font-style:normal;font-size:12px;font-weight:700;color:#E8590C}

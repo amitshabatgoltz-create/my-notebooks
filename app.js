@@ -11066,8 +11066,8 @@ function shopPaint(d) {
   const sN = dStreak ? dStreak.n || 0 : 0, sD = sN ? streakDayOf(sN) : 1, sCyc = sN ? Math.floor((sN - 1) / 30) : 0;
   const streakHtml = () => {
     const td = usageDay(), today = wallet && wallet.day === td ? (wallet.dayEarn || {}) : {}, QUESTS = questsToday(), qDone = QUESTS.filter(q => today[q.k]).length, qd = (wallet && wallet.qd) || [];
-    const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next', star = stt !== 'next' && qd.includes(td - (sD - dd));
-      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'lx' ? 'lumix' : p.k === 'gold' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
+    const nodes = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd, dd + sCyc * 30), stt = dd < sD ? 'done' : dd === sD ? 'now' : 'next', star = stt !== 'next' && qd.includes(td - (sD - dd));
+      return `<li class="tk-n ${stt}${p.big ? ' big' : ''}"${dd === sD ? ' aria-current="step"' : ''}>${dd === sD ? '<em class="tk-here">אתה כאן</em>' : ''}<span class="tk-dot">${stt === 'done' ? '✓' : p.big ? `<svg aria-hidden="true"><use href="#i-${p.k === 'lx' ? 'lumix' : p.k === 'gold' || p.k === 'mile' ? 'crown' : p.k === 'flash' ? 'camera' : 'spark'}"/></svg>` : dd + sCyc * 30}${star ? '<i class="tk-star" title="השלמת את כל היום">★</i>' : ''}</span><b>${esc(p.t)}</b>${p.big && stt === 'next' ? `<small>עוד ${dd - sD} ימים</small>` : ''}</li>`; }).join('');
     return `<div class="bd-day-card">
       <div class="bd-streak"><span class="bd-fl"><svg aria-hidden="true"><use href="#i-flame"/></svg></span><span class="bd-tx"><b>${sN === 1 ? 'יום ראשון ברצף' : `יום ${sN} ברצף`}</b><small>השיא שלך: ${dStreak.best || sN} · ${dStreak.shield ? 'יש לך מגן: יום אחד שתפספס לא ישבור את הרצף' : 'אין מגן כרגע (חוזר כל 7 ימים, או בחנות)'}</small></span></div>
       <div class="bq-h"><b>היום שלך: ${qDone} מתוך 3</b><span>${today.quest ? 'השלמת את היום ✓' : `כל ה-3 = +${QUEST_BONUS} לומיקס`}</span></div>
@@ -11133,7 +11133,12 @@ const STREAK_SMALL_TX = { chat: n => `+${n} הודעות לעוזר`, ocr: () =>
 const STREAK_BIG = { 7: { k: 'lx', t: 'בונוס גדול של לומיקס', d: '+25 לומיקס לחנות' }, 14: { k: 'flash', t: 'שבוע של צילום מדויק', d: 'עוד צילום לוח מדויק כל יום, 7 ימים' }, 30: { k: 'x2', t: 'יום של פי 2', d: 'פי 2 מכל ה-AI, כל היום' } };
 const streakDayOf = n => ((n - 1) % 30) + 1;
 const streakSmallOf = d => STREAK_SMALL[(d - 1) % STREAK_SMALL.length];
-const streakPrize = d => STREAK_BIG[d] ? { big: true, ...STREAK_BIG[d] } : (([k, a]) => ({ big: false, t: STREAK_SMALL_TX[k](a), d: 'רק להיום' }))(streakSmallOf(d));
+// (28.11.2026, עמית) המשך עד 1000 – ימי שיא. אותה טבלה בשרת (STREAK_MILES)
+const STREAK_MILES = { 50: 50, 100: 100, 150: 80, 200: 120, 250: 100, 300: 150, 365: 250, 400: 150, 500: 300, 600: 200, 700: 200, 750: 250, 800: 200, 900: 250, 1000: 500 }, STREAK_MILE_X2 = [100, 365, 500, 1000];
+const STREAK_MILE_T = { 50: 'חצי מאה!', 100: '100 ימים!', 365: 'שנה שלמה ברצף!', 500: '500 ימים!', 1000: 'אלף ימים – אגדה!' };
+const streakMile = n => STREAK_MILES[n] ? { big: true, k: 'mile', t: STREAK_MILE_T[n] || `${n} ימים ברצף!`, d: `+${STREAK_MILES[n]} לומיקס${STREAK_MILE_X2.includes(n) ? ' ויום של פי 2' : ''}` } : null;
+const streakPrize = (d, n) => (n && streakMile(n)) || (STREAK_BIG[d] ? { big: true, ...STREAK_BIG[d] } : (([k, a]) => ({ big: false, t: STREAK_SMALL_TX[k](a), d: 'רק להיום' }))(streakSmallOf(d)));
+const streakNextMiles = (n, k = 4) => Object.keys(STREAK_MILES).map(Number).filter(x => x > n).slice(0, k);
 let dStreak = null, streakCall = null;
 function streakToday() {
   const day = usageDay(), s = dStreak || {};
@@ -11147,7 +11152,7 @@ async function streakLoad() {
     const r = (await streakCall({})).data; if (!me) return;
     dStreak = r; refApply(); streakPaint(); if (!$('home').classList.contains('hidden')) renderStats();
     if (r.fresh) { track('streak_day', { n: r.n, big: r.big || '' }); if (r.reset) track('streak_reset', { was: r.reset }); }
-    if (!lumixIntroSeen()) setTimeout(() => lumixIntro(r.fresh ? streakPrize(streakDayOf(r.n)).t : ''), 2500);
+    if (!lumixIntroSeen()) setTimeout(() => lumixIntro(r.fresh ? streakPrize(streakDayOf(r.n), r.n).t : ''), 2500);
     else if (r.fresh) setTimeout(() => streakNudge(), 2500);
   } catch (e) { console.warn('streak', e && e.message); }
 }
@@ -11177,7 +11182,7 @@ function streakNudge(left = 8) {
   if (!dStreak || !me) return;
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap, .lx-intro')) { if (left) setTimeout(() => streakNudge(left - 1), 4000); return; }
   document.querySelector('.sk-nudge')?.remove();
-  const p = streakPrize(streakDayOf(dStreak.n)), n = dStreak.n || 1;
+  const p = streakPrize(streakDayOf(dStreak.n), dStreak.n), n = dStreak.n || 1;
   const w = document.createElement('div'); w.className = 'sk-nudge' + (p.big ? ' big' : ''); w.setAttribute('role', 'status');
   w.innerHTML = `<button type="button" class="skn-main"><span class="skn-ic"><svg aria-hidden="true"><use href="#i-flame"/></svg><b>${n}</b></span>
     <span class="skn-tx"><b>${dStreak.reset ? 'מתחילים רצף חדש' : n === 1 ? 'יום ראשון ברצף' : `יום ${n} ברצף`}</b><small>${p.big ? 'פרס גדול מחכה לך' : 'הפרס של היום מחכה לך'}</small></span>
@@ -11195,7 +11200,7 @@ function streakPop(left = 8) {
   if ($('home').classList.contains('hidden') || document.querySelector('#dialogRoot .overlay, .tour-ov, .dv-wrap')) { if (left) setTimeout(() => streakPop(left - 1), 4000); return; }
   // עמית: כל יום, בכניסה הראשונה – החלון של הרצף (גם ביום הראשון). בפעם הראשונה בכלל – אחרי זה מראים איפה הרצף נמצא
   let firstEver = false; try { firstEver = !!me && !localStorage.getItem('intro:streak:' + me.uid); } catch {}
-  const d = streakDayOf(dStreak.n), p = streakPrize(d), share = dStreak.n >= 3 && (dStreak.n % 7 === 0 || [3, 10, 50, 100].includes(dStreak.n));
+  const d = streakDayOf(dStreak.n), p = streakPrize(d, dStreak.n), share = STREAK_MILES[dStreak.n] || dStreak.n >= 3 && (dStreak.n % 7 === 0 || [3, 10, 50, 100].includes(dStreak.n));
   dialog(dl => {
     dl.classList.add('streak-dlg', 'chest-dlg');
     dl.innerHTML = `<h3>${dStreak.reset ? 'מתחילים רצף חדש' : `יום ${dStreak.n} ברצף`}</h3>
@@ -11346,7 +11351,7 @@ function streakDialog() {
   const n = dStreak.n || 0, d = streakDayOf(n), cycle = Math.floor((n - 1) / 30);
   dialog(dl => {
     dl.classList.add('streak-dlg', 'wide');
-    const cells = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd), st = dd < d ? 'done' : dd === d ? 'now' : ''; return `<div class="sd-c ${st}${p.big ? ' big' : ''}"><i>${dd + cycle * 30}</i><b>${esc(p.t)}</b></div>`; }).join('');
+    const cells = Array.from({ length: 30 }, (_, i) => { const dd = i + 1, p = streakPrize(dd, dd + cycle * 30), st = dd < d ? 'done' : dd === d ? 'now' : ''; return `<div class="sd-c ${st}${p.big ? ' big' : ''}"><i>${dd + cycle * 30}</i><b>${esc(p.t)}</b></div>`; }).join('');
     dl.innerHTML = `<h3><svg class="sd-h" aria-hidden="true"><use href="#i-flame"/></svg>${n} ימים ברצף</h3>
       <p class="muted-s">נכנסים לאתר כל יום ומקבלים פרס. פרס קטן הוא רק לאותו יום. מפספסים יום – הרצף מתחיל מחדש${dStreak.shield ? ', אבל <b>יש לך מגן</b>: יום אחד שתפספס לא ישבור את הרצף.' : '. המגן חוזר כל 7 ימים ברצף.'} השיא שלך: ${dStreak.best || n} ימים.</p>
       <div class="sd-grid">${cells}</div>
