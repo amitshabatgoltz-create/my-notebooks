@@ -1092,3 +1092,90 @@ exports.aclBackfill = onCall({ region: 'europe-west1', timeoutSeconds: 300 }, as
   }
   return { shares: n, members: u };
 });
+
+// ===== תזכורות בהתראות (Push, 27.11.2026, אבא) =====
+// האתר שומר מנוי ב-users/{uid}/push/{id} {sub: {endpoint, keys}, at, dev}. כל ערב ב-18:30 (שעון ישראל) – לכל מי שיש לו מנוי:
+// מבחן מחר / מבחן בעוד יומיים / ש"ב למחר (pushDaily), ובשישי ב-10:00 מבחני השבוע הבא (pushWeekend). לכל היותר התראה אחת בכל ריצה לכל מכשיר.
+// Web Push רגיל (לא FCM) עם מפתחות VAPID: הציבורי באתר (VAPID_PUBLIC ב-app.js), הפרטי בסוד VAPID_PRIVATE.
+const VAPID_PRIVATE = defineSecret('VAPID_PRIVATE');
+const VAPID_PUBLIC = 'BFL6jvPSyZE4B1BkVHHdeJw3fTdfGlemsHrWqR96nY3bk1RyBi-ZrJjc33bS9irogF87B-JFH7fvKcZfq6ydmMA';
+const SITE_URL = 'https://amitshabatgoltz-create.github.io/my-notebooks/';
+function pushLib() { const wp = require('web-push'); wp.setVapidDetails(SITE_URL, VAPID_PUBLIC, VAPID_PRIVATE.value().trim()); return wp; }
+const ilKey = add => { const t = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }), d = new Date(t + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + add); return d.toISOString().slice(0, 10); };   // תאריך בשעון ישראל (כולל שעון חורף/קיץ)
+const shortT = t => { t = String(t || '').trim(); return t.length > 60 ? t.slice(0, 58) + '…' : t; };
+// (28.11.2026, אבא) מבחן: יומיים לפני ויום לפני. בכל ערב לכל היותר התראה אחת: מבחן מחר > מבחן בעוד יומיים > ש"ב למחר (ואם יש גם ש"ב – מוסיפים שורה)
+const HE_DAY = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const dayOf = k => HE_DAY[new Date(k + 'T12:00:00Z').getUTCDay()];
+// החוגים הקבועים (users/{uid}/meta/activities, 28.11.2026): מה יש ביום מסוים, ויום לפני מבחן
+const actsOnKey = (acts, k) => { const d = new Date(k + 'T12:00:00Z').getUTCDay(); return (acts || []).flatMap(a => (a.days || []).filter(x => x.d === d).map(x => a.n + (x.t ? ' עד ' + x.t : x.f ? ' ב-' + x.f : ''))); };
+const prevKey = k => { const d = new Date(k + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+function pushMsgFor(evs, d1, d2, acts) {
+  const open = evs.filter(e => !e.done);
+  const t1 = open.filter(e => e.type === 'test' && e.date === d1), t2 = open.filter(e => e.type === 'test' && e.date === d2), hw = open.filter(e => e.type === 'hw' && e.date === d1);
+  const hwLine = hw.length ? `\nושיעורי בית למחר: ${hw.slice(0, 2).map(e => shortT(e.title)).join(' · ')}` : '';
+  if (t1.length) return { title: t1.length === 1 ? `מחר: ${shortT(t1[0].title)}` : `מחר ${t1.length} מבחנים`, body: (t1.length === 1 ? 'בהצלחה! עוד חזרה קצרה הערב – אפשר דף תרגול או כרטיסיות באתר.' : t1.map(e => shortT(e.title)).join(' · ')) + hwLine, tag: 'test-' + d1 };
+  if (t2.length) {   // מחר (= יום לפני המבחן) יש חוג → להתחיל כבר היום
+    const busy = actsOnKey(acts, d1);
+    return { title: t2.length === 1 ? `בעוד יומיים: ${shortT(t2[0].title)}` : `בעוד יומיים ${t2.length} מבחנים`, body: (busy.length ? `מחר יש לך ${busy.join(' ו')} – עדיף להתחיל לחזור כבר היום.` : t2.length === 1 ? 'זה הזמן להתחיל לחזור על החומר. באתר אפשר לבנות תוכנית למידה.' : t2.map(e => shortT(e.title)).join(' · ')) + hwLine, tag: 'test2-' + d2 };
+  }
+  if (hw.length) return { title: hw.length === 1 ? 'שיעורי בית למחר' : `${hw.length} שיעורי בית למחר`, body: hw.slice(0, 3).map(e => shortT(e.title)).join(' · '), tag: 'hw-' + d1 };
+  return null;
+}
+// סופ"ש: מבחנים בשבוע הבא (ראשון–חמישי) → "זה הזמן ללמוד למבחן!"
+function pushWeekendMsg(evs, acts) {
+  const t = evs.filter(e => !e.done && e.type === 'test').sort((a, b) => a.date.localeCompare(b.date));
+  if (!t.length) return null;
+  return { title: t.length === 1 ? 'סופ״ש = הזמן ללמוד למבחן!' : `סופ״ש = הזמן ללמוד ל-${t.length} מבחנים!`, body: t.slice(0, 4).map(e => { const b = actsOnKey(acts, prevKey(e.date)); return `${shortT(e.title)} (יום ${dayOf(e.date)}${b.length ? `, ויום לפני ${b.join(' ו')}` : ''})`; }).join(' · '), tag: 'weekend-' + t[0].date };
+}
+async function pushSendAll(wp, subs, msg) {
+  let ok = 0;
+  for (const s of subs) {
+    try { await wp.sendNotification(s.data().sub, JSON.stringify({ ...msg, url: './?n=push' }), { TTL: 6 * 3600, urgency: 'normal' }); ok++; }
+    catch (e) { const c = e && e.statusCode; if (c === 404 || c === 410) await s.ref.delete().catch(() => {}); else console.warn('push send', c, String(e && e.body || e && e.message).slice(0, 120)); }
+  }
+  return ok;
+}
+async function pushDevices() {   // אותו מכשיר (endpoint) רשום אצל כמה משתמשים (החליפו חשבון) – רק האחרון
+  const all = await db.collectionGroup('push').get(), byEp = {};
+  all.docs.forEach(d => { const x = d.data(); if (!x.sub || !x.sub.endpoint) return; const o = byEp[x.sub.endpoint]; if (!o || (x.at || 0) > (o.data().at || 0)) byEp[x.sub.endpoint] = d; });
+  const byUid = {}; Object.values(byEp).forEach(d => { const uid = d.ref.parent.parent.id; (byUid[uid] = byUid[uid] || []).push(d); });
+  return { n: Object.keys(byEp).length, byUid };
+}
+// שישי ב-10:00 (לפני שבת): מבחנים מראשון עד חמישי הבאים
+exports.pushWeekend = onSchedule({ schedule: '0 10 * * 5', timeZone: 'Asia/Jerusalem', region: 'europe-west1', secrets: [VAPID_PRIVATE], timeoutSeconds: 300 }, async () => {
+  const wp = pushLib(), from = ilKey(2), to = ilKey(6), { n, byUid } = await pushDevices();
+  let users = 0, sent = 0;
+  for (const [uid, subs] of Object.entries(byUid)) {
+    try {
+      const sn = await db.collection(`users/${uid}/events`).where('date', '>=', from).where('date', '<=', to).limit(60).get();
+      const ad = await db.doc(`users/${uid}/meta/activities`).get().catch(() => null), acts = ad && ad.exists ? ad.data().items : [];
+      const msg = pushWeekendMsg(sn.docs.map(d => d.data()), acts); if (!msg) continue;
+      users++; sent += await pushSendAll(wp, subs, msg);
+    } catch (e) { console.warn('pushWeekend', uid.slice(0, 6), String(e && e.message).slice(0, 100)); }
+  }
+  console.log('pushWeekend', JSON.stringify({ devices: n, users, sent, from, to }));
+});
+exports.pushDaily = onSchedule({ schedule: '30 18 * * *', timeZone: 'Asia/Jerusalem', region: 'europe-west1', secrets: [VAPID_PRIVATE], timeoutSeconds: 300 }, async () => {
+  const wp = pushLib(), tm = ilKey(1), d2 = ilKey(2);
+  const { n, byUid } = await pushDevices();
+  let users = 0, sent = 0;
+  for (const [uid, subs] of Object.entries(byUid)) {
+    try {
+      const sn = await db.collection(`users/${uid}/events`).where('date', 'in', [tm, d2]).limit(40).get();
+      const ad = await db.doc(`users/${uid}/meta/activities`).get().catch(() => null), acts = ad && ad.exists ? ad.data().items : [];
+      const msg = pushMsgFor(sn.docs.map(d => d.data()), tm, d2, acts); if (!msg) continue;
+      users++; sent += await pushSendAll(wp, subs, msg);
+    } catch (e) { console.warn('pushDaily', uid.slice(0, 6), String(e && e.message).slice(0, 100)); }
+  }
+  console.log('pushDaily', JSON.stringify({ devices: n, users, sent, tm }));
+});
+// מיד אחרי שמפעילים: התראת ניסיון למכשירים של מי שביקש (פעם בדקה לכל היותר)
+exports.pushTest = onCall({ region: 'europe-west1', secrets: [VAPID_PRIVATE], timeoutSeconds: 30 }, async req => {
+  const uid = req.auth && req.auth.uid; if (!uid) throw new HttpsError('unauthenticated', 'login');
+  const ref = db.doc(`users/${uid}/meta/pushTest`), last = (await ref.get()).data();
+  if (last && Date.now() - (last.at || 0) < 60000) return { ok: false, wait: true };
+  await ref.set({ at: Date.now() });
+  const subs = (await db.collection(`users/${uid}/push`).get()).docs;
+  const n = await pushSendAll(pushLib(), subs, { title: 'התזכורות פועלות ✓', body: 'ככה זה ייראה: ערב לפני מבחן או שיעורי בית, תקבל/י כאן תזכורת.', tag: 'push-test' });
+  return { ok: n > 0, n };
+});

@@ -1,5 +1,5 @@
 // עבודה בלי אינטרנט: קודם מנסים מהרשת (כדי לקבל עדכונים), ואם אין חיבור – מהעותק השמור
-const CACHE = 'notebooks-1795875709';
+const CACHE = 'notebooks-1795875804';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'sample-notebook.js', 'manifest.webmanifest', 'icon-192.png', 'gsap.min.js', 'motion.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -32,4 +32,13 @@ self.addEventListener('fetch', e => {
     return res;
   }).catch(() => caches.match(r, { ignoreSearch: mine }).then(m => m || (r.mode === 'navigate' ? caches.match('index.html') : Response.error()))));
 });
-self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(self.clients.matchAll({ type: 'window' }).then(cs => cs.length ? cs[0].focus() : self.clients.openWindow('./'))); });
+// תזכורות מהשרת (Push): הכותרת והטקסט מגיעים מ-pushDaily / pushTest
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'המחברות שלי', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag || 'reminder', lang: 'he', dir: 'rtl', data: { url: d.url || './' } }));
+});
+// לחיצה: אם האתר כבר פתוח – רק מביאים אותו קדימה (בלי לטעון מחדש באמצע כתיבה); אחרת פותחים
+self.addEventListener('notificationclick', e => {
+  e.notification.close(); const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => { const c = cs.find(x => 'focus' in x); if (c) { c.postMessage({ t: 'push-open' }); return c.focus(); } return self.clients.openWindow(url); }));
+});
