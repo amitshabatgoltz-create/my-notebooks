@@ -4190,3 +4190,11 @@ html[data-pbg] body[data-view="notebook"]{background:var(--bg)}
 html[data-pbg] body[data-view="notebook"]::before{display:none}
 html[data-pbg] body[data-view="notebook"] .topbar{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
 html[data-pbg] body[data-view="notebook"] .crumb{color:inherit!important;text-shadow:none}
+/* צבעים רגועים (מנטה/שמיים/אפרסק) – גם על כל האתר, כמו שאר הרקעים */
+html[data-pbg="c-mint"] body::before{background:linear-gradient(180deg,#CDEFE2,#EAF8F2)}
+html[data-pbg="c-sky"] body::before{background:linear-gradient(180deg,#CFE2FA,#EAF2FD)}
+html[data-pbg="c-peach"] body::before{background:linear-gradient(180deg,#FBD8C6,#FDEEE6)}
+html[data-theme="dark"][data-pbg="c-mint"] body::before{background:linear-gradient(180deg,#14453A,#0E2A23)}
+html[data-theme="dark"][data-pbg="c-sky"] body::before{background:linear-gradient(180deg,#183457,#0F2036)}
+html[data-theme="dark"][data-pbg="c-peach"] body::before{background:linear-gradient(180deg,#4A2C20,#2C1A13)}
+html:is([data-pbg="c-mint"],[data-pbg="c-sky"],[data-pbg="c-peach"]) :is(.lib-head h2,.lib-head .sub,.crumb,.pres-sec>h3,.shared-me>h3,main>.view>.empty,.view-title,.cal-head h2,.page-head h1,.page-head h2,.page-head p){color:inherit!important;text-shadow:none}
