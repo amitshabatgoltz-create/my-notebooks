@@ -2988,7 +2988,7 @@ function homeCustomApply() {
   // שכבה כהה רק למטה (איפה שהטקסט), כדי שהתמונה עצמה תיראה
   // הרקע על כל האתר, קבוע כשגוללים (עמית, 28.11.2026) – לא רק במסך הבית
   const rt = document.documentElement;
-  if (rich) { rt.dataset.pbg = s.bg; if (s.bg === 'photo' && s.photo) rt.style.setProperty('--pg-photo', `url("${s.photo}")`); }
+  if (rich || /^c-/.test(s.bg || '')) { rt.dataset.pbg = s.bg; if (s.bg === 'photo' && s.photo) rt.style.setProperty('--pg-photo', `url("${s.photo}")`); }
   else { delete rt.dataset.pbg; rt.style.removeProperty('--pg-photo'); }
   hero.style.backgroundImage = rich ? '' : s.bg === 'photo' && s.photo ? `linear-gradient(180deg, rgba(10,10,30,0) 0%, rgba(10,10,30,.1) 30%, rgba(10,10,30,.45) 100%), url("${s.photo}")` : '';
   document.documentElement.dataset.htheme = /^t-/.test(s.bg || '') ? s.bg : '';
