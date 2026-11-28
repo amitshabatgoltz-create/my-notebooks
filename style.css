@@ -4177,3 +4177,11 @@ html[data-pbg] .topbar{background:color-mix(in srgb,var(--bg) 55%,transparent);b
 html[data-pbg] :is(.lib-head h2,.lib-head .sub,.crumb,.pres-sec>h3,.shared-me>h3,main>.view>.empty,.view-title,.cal-head h2,.page-head h1,.page-head h2,.page-head p){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 16px rgba(0,0,0,.3)}
 html[data-pbg] .trash-btn{background:color-mix(in srgb,var(--surface) 85%,transparent)}
 .hc-prs{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}
+
+/* תוכנית למידה מכרטיס "בוקר טוב" (28.11.2026) */
+.mo-plan{margin-inline-start:auto;flex:none;padding:3px 10px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;opacity:.9}
+.mo-plan:hover{opacity:1;background:var(--mo-box)}
+.mo-hasplan{margin-inline-start:auto;flex:none;font-size:12px;opacity:.75}
+.plan-nb small{opacity:.7;font-weight:500}
+/* השבוע הקרוב: מבחן לא נחתך – רואים את כל השם */
+.wk-ev.wk-test{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal}

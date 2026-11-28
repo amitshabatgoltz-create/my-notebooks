@@ -4061,7 +4061,9 @@ function morningPaint() {
   let tx = '';
   if (todayT.length) tx += `<div class="mo-luck"><svg aria-hidden="true"><use href="#i-crown"/></svg><div><b>בהצלחה!</b><span>היום: ${todayT.map(e => esc(e.title)).join(', ')}</span></div></div>`;
   const rest = tests.filter(e => e.date !== tk);
-  if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span>${moBusy(e.date)}</li>`).join('')}</ul>`;
+  // (28.11.2026, אבא) ליד כל מבחן – "תוכנית למידה" (כמו הכפתור בשבוע הקרוב). כבר יש תוכנית – רק סימון
+  const moPlan = e => events.some(x => x.planFor === e.id) ? '<small class="mo-hasplan">יש תוכנית ✓</small>' : daysUntil(e.date) >= 1 ? `<button type="button" class="mo-plan" data-plan="${esc(e.id)}">תוכנית למידה</button>` : '';
+  if (rest.length) tx += `<ul class="mo-tests">${rest.map(e => `<li data-ev="${esc(e.id)}"><i class="${daysUntil(e.date) === 1 ? 'soon' : ''}">${moDayName(e.date)}</i><span>${esc(e.title)}</span>${moBusy(e.date)}${moPlan(e)}</li>`).join('')}</ul>`;
   if (!tests.length) tx = `<p class="mo-empty">אין מבחנים בשבוע הקרוב. שבוע רגוע!</p>`;
   else if (!pushOn() && !(canNotify && Notification.permission === 'denied') && (PUSH_OK || pwaIOS())) tx += '<button type="button" class="link mo-push" data-mo="push"><svg aria-hidden="true"><use href="#i-bell"/></svg>להזכיר לי בערב שלפני</button>';
   // החופש הבא
@@ -4085,6 +4087,8 @@ function morningPaint() {
   if (!homeAnimated) { el.classList.remove('mo-in'); void el.offsetWidth; el.classList.add('mo-in'); }
 }
 $('morning').addEventListener('click', ev => {
+  const pl = ev.target.closest('[data-plan]');
+  if (pl) { const e = events.find(x => x.id === pl.dataset.plan); if (e) { track('plan_open', { from: 'morning' }); planDialog(e); } return; }
   const b = ev.target.closest('[data-mo],[data-ev]'); if (!b) return;
   if (b.dataset.mo === 'x') { moOn = false; track('morning_close', {}); morningPaint(); }
   else if (b.dataset.mo === 'ttadd') timetableDialog();
@@ -8012,11 +8016,18 @@ function planDialog(e) {
   const all = notebooks.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const pre = new Set(nbsForTest(e).map(n => n.id));
   const old = events.filter(x => x.planFor === e.id);
+  // (28.11.2026, אבא) גם מחברות שחברים מהכיתה שיתפו איתי – אם המקצוע מתאים, מסומנות מראש. התוכן נטען רק כשמסמנים
+  const subs = [...new Set([...ttSubjects(), ...SUBJ_GROUPS.map(g => g[0])])].filter(s => subjMatches(e.title, s));
+  const shMatch = x => subs.some(s => subjMatches(x.title || '', s));
+  const shared = sharedList.slice().sort((a, b) => shMatch(b) - shMatch(a));
+  const shCache = {};
   dialog(d => {
     d.classList.add('plan-dlg');
     d.innerHTML = `<h3>תוכנית למידה</h3><p class="muted-s">${esc(e.title)} · ${esc(dayLabel(e.date))} · <b class="cd-live"></b></p>
       <label class="fl">מאיזה מחברות לומדים?</label>
       <div class="plan-nbs">${all.length ? all.map(n => `<label class="plan-nb" style="--c:${n.color || '#5E5CE6'}"><input type="checkbox" value="${n.id}"${pre.has(n.id) ? ' checked' : ''}><span>${esc(n.title)}</span></label>`).join('') : '<p class="noev">אין מחברות עדיין.</p>'}</div>
+      <label class="fl">ממחברות של הכיתה <span class="muted-s">(מחברות שחברים שיתפו איתך)</span></label>
+      <div class="plan-nbs plan-sh">${shared.length ? shared.map(x => `<label class="plan-nb" style="--c:${x.color || '#5E5CE6'}"><input type="checkbox" value="${esc(x.id)}"${shMatch(x) ? ' checked' : ''}><span>${esc(x.title || 'מחברת')}${x.ownerName ? ` <small>של ${esc(x.ownerName)}</small>` : ''}</span></label>`).join('') : '<p class="noev">עוד אין מחברות ששותפו איתך. אפשר לבקש מחבר מהכיתה לשתף מחברת (כפתור "שיתוף" במחברת שלו) – והיא תופיע כאן.</p>'}</div>
       <label class="fl">חומר למבחן <span class="muted-s">(הודעה מהמורה, מהמשוב או מהקבוצה)</span></label>
       <div class="plan-mat">
         <textarea class="pm-txt" rows="3" dir="auto" placeholder="מדביקים כאן את ההודעה על המבחן – מה החומר, אילו פרקים..."></textarea>
@@ -8029,7 +8040,8 @@ function planDialog(e) {
     const cd = d.querySelector('.cd-live'); const tick = () => { if (!cd.isConnected) return clearInterval(iv); cd.textContent = countdownText(e); }; const iv = setInterval(tick, 30000); tick();
     let plan = [], topics = Array.isArray(e.topics) ? e.topics.slice(0, 30) : [];
     const paint = () => {
-      const chosen = all.filter(n => d.querySelector(`.plan-nb input[value="${n.id}"]`)?.checked);
+      const chosen = all.filter(n => d.querySelector(`.plan-nbs:not(.plan-sh) .plan-nb input[value="${n.id}"]`)?.checked)
+        .concat(shared.filter(x => d.querySelector(`.plan-sh input[value="${x.id}"]`)?.checked && shCache[x.id]).map(x => shCache[x.id]));
       const extra = topics.filter((t, i) => d.querySelector(`.plan-mat-list input[value="${i}"]`)?.checked).map(t => ({ nb: 'חומר', label: t.slice(0, 60) }));
       plan = buildPlan(e, chosen, extra);
       const box = d.querySelector('.plan-list');
@@ -8051,6 +8063,15 @@ function planDialog(e) {
     const no = document.createElement('button'); no.className = 'btn btn-ghost'; no.textContent = 'סגירה'; no.onclick = closeDialog;
     row.append(ok, no); d.appendChild(row);
     d.querySelector('.plan-nbs').addEventListener('change', paint);
+    // מחברת של חבר: מורידים את התוכן (shares/{id}) רק כשמסמנים אותה
+    const shLoad = async id => {
+      if (shCache[id]) return;
+      try { const sn = await getDoc(doc(db, 'shares', id)); const x = shared.find(y => y.id === id) || {}; if (sn.exists()) shCache[id] = { title: (sn.data().title || x.title || 'מחברת') + (x.ownerName ? ` (של ${x.ownerName})` : ''), html: sn.data().html || '' }; }
+      catch (err) { console.warn('plan shared', err); toast('לא הצלחתי לפתוח את המחברת של החבר'); }
+    };
+    const shBox = d.querySelector('.plan-sh');
+    shBox.addEventListener('change', async ev => { const i = ev.target.closest('input'); if (i?.checked) { await shLoad(i.value); } paint(); });
+    Promise.all([...shBox.querySelectorAll('input:checked')].map(i => shLoad(i.value))).then(paint);
     // חומר למבחן: מדביקים הודעה או מעלים צילום שלה → ה-AI מוציא רשימת נושאים, וכל נושא הוא יום/חלק בתוכנית
     const ml = d.querySelector('.plan-mat-list'), pst = d.querySelector('.pm-st'), ptx = d.querySelector('.pm-txt'), pfile = d.querySelector('.pm-file'), pimg = d.querySelector('.pm-img');
     let matFile = null;
