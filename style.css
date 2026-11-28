@@ -4185,3 +4185,8 @@ html[data-pbg] .trash-btn{background:color-mix(in srgb,var(--surface) 85%,transp
 .plan-nb small{opacity:.7;font-weight:500}
 /* השבוע הקרוב: מבחן לא נחתך – רואים את כל השם */
 .wk-ev.wk-test{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal}
+/* בתוך מחברת – רקע רגיל, בלי הרקע של "המסך שלי" (28.11.2026, עמית) */
+html[data-pbg] body[data-view="notebook"]{background:var(--bg)}
+html[data-pbg] body[data-view="notebook"]::before{display:none}
+html[data-pbg] body[data-view="notebook"] .topbar{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+html[data-pbg] body[data-view="notebook"] .crumb{color:inherit!important;text-shadow:none}
