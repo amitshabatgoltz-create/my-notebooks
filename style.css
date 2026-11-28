@@ -4257,3 +4257,4 @@ html[data-pbg] body:not([data-view="notebook"]) .topbar{background:color-mix(in 
 /* רקע כהה: הכותרת והטקסט של העוזר לבנים */
 html:is([data-pbg^="s-"],[data-pbg^="t-"],[data-pbg="photo"]) body:not([data-view="notebook"]) .chat-empty h2{background:none;color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.3)}
 html:is([data-pbg^="s-"],[data-pbg^="t-"],[data-pbg="photo"]) body:not([data-view="notebook"]) .chat-empty>p{color:rgba(255,255,255,.92);text-shadow:0 1px 3px rgba(0,0,0,.55)}
+html:is([data-pbg^="s-"],[data-pbg^="t-"],[data-pbg="photo"]) body:not([data-view="notebook"]) .chat-panel.full .chat-head small{color:rgba(255,255,255,.92);text-shadow:0 1px 3px rgba(0,0,0,.55)}
