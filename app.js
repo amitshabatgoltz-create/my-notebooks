@@ -561,6 +561,9 @@ function openNotebook(id) {
   ownerPeopleWatch(n);
   let off = false; try { off = localStorage.getItem('mathDock:' + id) === 'off'; } catch {}
   if (isMathNb(n) && !off) setTimeout(mathDockShow, 350); else mathDockHide();
+  // (28.11.2026, עמית) במחברת מתמטיקה – כפתור גדול ללוח המתמטיקה, ליד כפתורי ה-AI
+  $('aiMath').classList.toggle('hidden', !isMathNb(n) || !edCan());
+  $('aiMath').closest('.ai-strip').classList.toggle('math-on', isMathNb(n) && edCan());
 }
 $('backBtn').onclick = async () => { await flush(); stopLive(); if (document.body.classList.contains('editing-shared') && location.search) history.replaceState(null, '', location.pathname); document.body.classList.remove('editing-shared'); showLibrary(); };
 $('newBtn').onclick = () => newNotebook();
@@ -1334,6 +1337,8 @@ function mathOpen() {
 addEventListener('resize', () => { if (mathDockEl && !mathDockEl.classList.contains('hidden')) { const r = mathDockEl.getBoundingClientRect(); mathDockPlace(r.left, r.top); } });
 $('mathBtn').addEventListener('mousedown', e => e.preventDefault());
 $('mathBtn').addEventListener('click', mathOpen);
+$('aiMath').addEventListener('mousedown', e => e.preventDefault());
+$('aiMath').addEventListener('click', mathOpen);
 // x^2 + רווח → x²   (גם ^3, ^n, ^-1, ^0-9)
 const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', '-': '⁻', '+': '⁺', 'x': 'ˣ' };
 $('editor').addEventListener('input', e => {

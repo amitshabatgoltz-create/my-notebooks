@@ -4219,3 +4219,20 @@ html[data-pbg="t-space"] body::after{content:"";position:fixed;inset:0;z-index:-
 html[data-pbg="t-space"] body[data-view="notebook"]::after{display:none}
 @media (prefers-reduced-motion:reduce){html[data-pbg="t-space"] body::after{animation:none}}
 html.a11y-still[data-pbg="t-space"] body::after{animation:none}
+/* כפתור גדול ללוח המתמטיקה (במחברת מתמטיקה, 28.11.2026) */
+.ai-strip .ai-card.math{--c:#E8590C;background:linear-gradient(135deg,#F59F00,#E8590C)!important;color:#fff;border:0;padding:8px 18px 8px 8px!important;box-shadow:0 8px 20px -10px #E8590C}
+.ai-strip .ai-card.math:hover{background:linear-gradient(135deg,#F08C00,#D9480F)!important}
+.ai-strip .ai-card.math .ic{background:rgba(255,255,255,.22);color:#fff;width:36px!important;height:36px!important}
+.ai-strip .ai-card.math .ic svg{stroke-width:2.4}
+.ai-strip .ai-card.math b{font-size:15.5px!important}
+.ai-strip .ai-card.math small{display:block!important;font-size:12px;opacity:.92;white-space:nowrap}
+@media (min-width:1001px){
+  .ai-strip.math-on{position:relative;padding-inline-end:236px}
+  .ai-strip .ai-card.math{position:absolute;inset-inline-end:2px;top:2px;bottom:2px;width:220px;flex-direction:column!important;justify-content:center;align-items:center!important;text-align:center!important;gap:10px!important;padding:14px!important;border-radius:22px}
+  .ai-strip .ai-card.math .ic{width:56px!important;height:56px!important;border-radius:18px}
+  .ai-strip .ai-card.math .ic svg{width:30px;height:30px}
+  .ai-strip .ai-card.math .tx{align-items:center!important}
+  .ai-strip .ai-card.math b{font-size:18px!important}
+}
+@media (max-width:700px){.ai-strip .ai-card.math{flex-basis:100%!important}}
+html[data-theme="dark"] .ai-strip .ai-card.math .ic{color:#fff}
