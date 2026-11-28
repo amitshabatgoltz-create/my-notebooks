@@ -2930,6 +2930,274 @@ document.querySelectorAll('[data-theme-toggle]').forEach(b => b.addEventListener
 applyThemeIcon();
 
 
+/* ================= המסך שלי – מסך בית אישי (28.11.2026) ================= */
+// כל אחד מסדר את מסך הבית: להזיז/להסתיר כרטיסים וכפתורים (חינם), תוספות (פתק, משפט יומי, מטרה שבועית) ורקעים – חלק בלומיקס.
+// בינתיים נשמר רק במכשיר (localStorage home:<uid>). קנייה אמיתית – אחרי שעמית מאשר (צריך SHOP בשרת ובאתר)
+const HC_CARDS = [['weekCard', 'השבוע הקרוב'], ['nextTest', 'המבחן הבא'], ['todayCard', 'היום'], ['statsCard', 'הסטטיסטיקה שלי'], ['gradesCard', 'הציונים שלי'], ['recentCard', 'מחברות אחרונות']];
+const HC_TILES = [['homeNotes', 'המחברות שלי'], ['homeNew', 'מחברת חדשה'], ['homeOcr', 'צילום לוח'], ['homePres', 'מצגת חדשה'], ['homePr', 'דף תרגול דומה'], ['homeCal', 'יומן'], ['homeTests', 'לוח מבחנים'], ['homeFriends', 'הזמנת חברים']];
+const HC_EXTRA = [['note', 'פתק אישי', 0, 'מה שכותבים – תמיד מול העיניים'], ['quote', 'משפט מוטיבציה יומי', 0, 'משפט חדש כל יום'], ['goal', 'מטרה שבועית', 0, 'מטרה + סימון כל יום שעמדת בה']];
+// בינתיים הכל בחינם (28.11.2026) – קנייה בלומיקס עוד לא בנויה בשרת. המחירים שתוכננו: לילה/שקיעה/אוקיינוס 40, חלל/יער 200, תמונה שלי 150
+const HC_BG = [['', 'רגיל', 0], ['c-mint', 'מנטה', 0], ['c-sky', 'שמיים', 0], ['c-peach', 'אפרסק', 0], ['s-night', 'לילה', 0], ['s-sunset', 'שקיעה', 0], ['s-ocean', 'אוקיינוס', 0], ['t-space', 'עיצוב שלם: חלל', 0], ['t-forest', 'עיצוב שלם: יער', 0], ['photo', 'תמונה שלי', 0]];
+const HC_QUOTES = ['כל מומחה היה פעם מתחיל.', 'צעד קטן כל יום עדיף על ריצה פעם בחודש.', 'טעות היא הוכחה שניסית.', 'לא צריך להיות מושלם, רק להמשיך.', 'מה שלומדים היום – קל יותר מחר.', 'הדרך הכי טובה להתחיל היא להתחיל.', 'אפשר יותר ממה שנדמה.', 'עשר דקות של חזרה שוות שעה של לחץ לפני המבחן.', 'מי שמתאמן – מצליח.', 'קשה עכשיו, קל אחר כך.', 'כל שאלה היא צעד להבנה.', 'משווים רק לעצמי של אתמול.', 'הצלחה היא הרבה ימים רגילים ברצף.', 'לא הבנתי – עוד לא הבנתי.', 'מנוחה היא חלק מהלמידה.'];
+const hcKey = () => 'home:' + (me?.uid || 'x');
+function hcGet() { try { return JSON.parse(localStorage.getItem(hcKey()) || '{}') || {}; } catch { return {}; } }
+function hcSave(s) { try { localStorage.setItem(hcKey(), JSON.stringify(s)); } catch { toast('אין מקום במכשיר – כדאי תמונה קטנה יותר'); } }
+const hcOwned = (s, id) => isUnlimited() || (s.owned || []).includes(id);   // בעל האתר מקבל הכל בחינם
+const hcPrice = id => (HC_EXTRA.find(x => x[0] === id) || HC_BG.find(x => x[0] === id) || [0, 0, 0])[2];
+const hcName = id => (HC_EXTRA.find(x => x[0] === id) || HC_BG.find(x => x[0] === id) || [0, ''])[1];
+function hcOrder(list, saved) { const ids = list.map(x => x[0]); return [...(saved || []).filter(i => ids.includes(i)), ...ids.filter(i => !(saved || []).includes(i))]; }
+
+function homeCustomApply() {
+  const s = hcGet(), grid = document.querySelector('#home .home-grid'), hero = document.querySelector('#home .hero');
+  if (!grid || !hero) return;
+  // השבוע הקרוב עובר לתוך הרשת, כדי שאפשר יהיה להזיז אותו כמו כל כרטיס
+  const wk = $('weekCard'); if (wk && wk.parentElement !== grid) { grid.prepend(wk); wk.classList.add('wide'); }
+  for (const [id] of HC_EXTRA) {
+    let el = $('hc-' + id);
+    const want = (s.extra || []).includes(id);
+    if (want && !el) { el = document.createElement('div'); el.id = 'hc-' + id; el.className = 'card hc-x hc-' + id; grid.appendChild(el); }
+    if (!want && el) el.remove();
+    if (want) hcExtraPaint(id, el, s);
+  }
+  const cards = [...HC_CARDS, ...HC_EXTRA.filter(x => (s.extra || []).includes(x[0])).map(x => ['hc-' + x[0], x[1]])];
+  const mark = (list, ord, hide, kind) => hcOrder(list, ord).forEach((id, i) => {
+    const el = $(id); if (!el) return;
+    el.style.order = i; el.classList.add('hc-item'); el.dataset.hck = kind;
+    el.classList.toggle('hc-off', (hide || []).includes(id));
+    let xb = el.querySelector(':scope > .hc-xb');
+    if (!xb) { xb = document.createElement('span'); xb.className = 'hc-xb'; xb.setAttribute('role', 'button'); el.appendChild(xb); }
+    const off = el.classList.contains('hc-off');
+    xb.innerHTML = ic(off ? 'plus' : 'eye-off'); xb.title = off ? 'להחזיר' : 'להסתיר'; xb.setAttribute('aria-label', xb.title);
+  });
+  mark(cards, s.cards, s.hide, 'cards');
+  mark(HC_TILES, s.tiles, s.hideT, 'tiles');
+  if ($('homeAdmin')) $('homeAdmin').style.order = 999;   // כפתור הניהול תמיד בסוף (אחרת נשאר רווח ריק)
+  hcDragWire();
+  hero.dataset.hbg = s.bg || '';
+  // כמה רואים את הרקע דרך הכרטיסים (0–100, בוחרים בפס): הרבה = כרטיסים שקופים וחדים, ואז הטקסט נהיה לבן
+  const rich = /^(photo|s-|t-)/.test(s.bg || ''), see = Math.max(0, Math.min(100, s.see ?? 45));
+  hero.toggleAttribute('data-see', rich);
+  hero.style.setProperty('--hc-op', (0.94 - see * 0.0086).toFixed(2));
+  hero.style.setProperty('--hc-blur', (see >= 90 ? 0 : (100 - see) / 100 * 5).toFixed(1) + 'px');
+  hero.dataset.ink = rich && see > 50 ? 'light' : '';
+  // שכבה כהה רק למטה (איפה שהטקסט), כדי שהתמונה עצמה תיראה
+  hero.style.backgroundImage = s.bg === 'photo' && s.photo ? `linear-gradient(180deg, rgba(10,10,30,0) 0%, rgba(10,10,30,.1) 30%, rgba(10,10,30,.45) 100%), url("${s.photo}")` : '';
+  document.documentElement.dataset.htheme = /^t-/.test(s.bg || '') ? s.bg : '';
+  hcTryBar(s);
+  if (!$('hcEdit')) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'hcEdit'; b.className = 'hc-edit';
+    b.innerHTML = `${ic('palette')}<span>המסך שלי</span>`; b.onclick = () => hcOpen();
+    hero.appendChild(b);
+  }
+}
+function hcExtraPaint(id, el, s) {
+  if (id === 'quote') {
+    if (el.dataset.ok) return;
+    el.dataset.ok = 1; el.innerHTML = `<h3>${ic('bulb')} המשפט של היום</h3><p class="hc-q"></p>`;
+    el.querySelector('.hc-q').textContent = HC_QUOTES[Math.floor((Date.now() + 2 * 36e5) / 864e5) % HC_QUOTES.length];
+    return;
+  }
+  if (id === 'note') {
+    if (el.dataset.ok) return;
+    el.dataset.ok = 1;
+    el.innerHTML = `<h3>${ic('pen')} הפתק שלי</h3><textarea class="hc-note" rows="3" dir="auto" placeholder="מה חשוב לזכור? למשל: להביא מחשבון ביום שני" aria-label="הפתק שלי"></textarea>`;
+    const t = el.querySelector('textarea'); t.value = s.note || '';
+    t.oninput = () => { const x = hcGet(); x.note = t.value.slice(0, 400); hcSave(x); };
+    return;
+  }
+  if (id === 'goal') {
+    if (el.dataset.ok) return;
+    el.dataset.ok = 1;
+    const wk = Math.floor((Date.now() / 864e5 + 4) / 7), g = s.goal && s.goal.wk === wk ? { ...s.goal } : { t: (s.goal && s.goal.t) || '', wk, d: [] };
+    const days = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], today = new Date().getDay();
+    el.innerHTML = `<h3>${ic('target')} המטרה שלי השבוע</h3><input class="hc-gt" dir="auto" maxlength="80" placeholder="למשל: 20 דקות מתמטיקה כל יום" aria-label="המטרה השבועית"><div class="hc-days"></div><p class="hc-gp"></p>`;
+    const inp = el.querySelector('input'); inp.value = g.t;
+    const save = () => { const x = hcGet(); x.goal = { ...g, t: inp.value.trim() }; hcSave(x); };
+    const paint = () => {
+      const box = el.querySelector('.hc-days'); box.innerHTML = '';
+      days.forEach((d, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'hc-day' + (g.d.includes(i) ? ' on' : '') + (i === today ? ' now' : '');
+        b.textContent = g.d.includes(i) ? '✓' : d; b.setAttribute('aria-label', 'יום ' + d); b.setAttribute('aria-pressed', g.d.includes(i)); b.disabled = i > today;
+        b.onclick = () => { g.d = g.d.includes(i) ? g.d.filter(x => x !== i) : [...g.d, i]; save(); paint(); };
+        box.appendChild(b);
+      });
+      el.querySelector('.hc-gp').textContent = g.d.length ? `עמדת במטרה ${g.d.length === 1 ? 'יום אחד' : g.d.length + ' ימים'} השבוע` : 'בכל יום שעומדים במטרה – לוחצים על היום';
+    };
+    inp.onchange = save; paint();
+  }
+}
+// משהו בתשלום שעוד לא נקנה – רק "לנסות"; פס מעל המסך אומר כמה זה עולה
+function hcTryBar(s) {
+  const trying = [...(s.extra || []), s.bg || ''].filter(id => hcPrice(id) && !hcOwned(s, id));
+  let bar = $('hcTry');
+  if (!trying.length) { bar?.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'hcTry'; bar.className = 'hc-try'; document.querySelector('#home .hero').before(bar); }
+  const sum = trying.reduce((a, id) => a + hcPrice(id), 0);
+  bar.innerHTML = `<span class="hc-try-t">${ic('eye')}<span>מנסים: <b></b></span></span><button class="btn btn-primary" type="button">לקנות ב-${sum} ${ic('lumix')}</button><button class="btn btn-ghost" type="button">לבטל</button>`;
+  bar.querySelector('b').textContent = trying.map(hcName).join(', ');
+  const [buy, undo] = bar.querySelectorAll('button');
+  buy.onclick = () => toast('זו רק תצוגה – הקנייה תיפתח כשזה יעלה לאתר');
+  undo.onclick = () => { const x = hcGet(); x.extra = (x.extra || []).filter(id => !trying.includes(id)); if (trying.includes(x.bg)) x.bg = ''; hcSave(x); homeCustomApply(); hcPanelPaint(); };
+}
+let hcTab = 'bg';
+function hcOpen() {
+  let p = $('hcPanel');
+  if (p) { p.remove(); $('hcEdit')?.classList.remove('on'); $('home').classList.remove('hc-editing'); return; }
+  $('home').classList.add('hc-editing');
+  p = document.createElement('section'); p.id = 'hcPanel'; p.className = 'card hc-panel'; p.setAttribute('aria-label', 'עיצוב מסך הבית');
+  document.querySelector('#home .hero').before(p);
+  $('hcEdit')?.classList.add('on');
+  hcPanelPaint(); p.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  track('home_custom_open');
+}
+function hcPanelPaint() {
+  const p = $('hcPanel'); if (!p) return;
+  const s = hcGet();
+  p.innerHTML = `<div class="hc-top"><h3>${ic('palette')} המסך שלי</h3><button class="btn btn-primary hc-done" type="button">סיום</button></div><p class="hc-hint">${matchMedia('(pointer: coarse)').matches ? 'מחזיקים רגע על כפתור או כרטיס, ואז גוררים' : 'גוררים כל כפתור או כרטיס למקום אחר'}. ${ic('eye-off')} בפינה – מסתיר.</p><div class="hc-tabs" role="tablist"></div><div class="hc-body"></div>`;
+  p.querySelector('.hc-done').onclick = hcOpen;
+  const tb = p.querySelector('.hc-tabs');
+  [['bg', 'רקע'], ['extra', 'תוספות'], ['order', 'רשימה']].forEach(([k, t]) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', hcTab === k); b.textContent = t; b.onclick = () => { hcTab = k; hcPanelPaint(); }; tb.appendChild(b); });
+  const body = p.querySelector('.hc-body');
+  const upd = f => { const x = hcGet(); f(x); hcSave(x); homeCustomApply(); hcPanelPaint(); };
+  const price = (n, own) => own ? '<span class="hc-pr own">שלך</span>' : n ? `<span class="hc-pr">${n} ${ic('lumix')}</span>` : '<span class="hc-pr free">חינם</span>';
+  if (hcTab === 'order') {
+    const list = (title, items, ordKey, hideKey) => {
+      const h = document.createElement('p'); h.className = 'hc-sub'; h.textContent = title; body.appendChild(h);
+      const ord = hcOrder(items, s[ordKey]);
+      ord.forEach((id, i) => {
+        const name = (items.find(x => x[0] === id) || [])[1]; if (!name) return;
+        const off = (s[hideKey] || []).includes(id);
+        const r = document.createElement('div'); r.className = 'hc-row' + (off ? ' off' : '');
+        r.innerHTML = `<span class="hc-n"></span><button type="button" class="hc-mv" aria-label="למעלה">↑</button><button type="button" class="hc-mv" aria-label="למטה">↓</button><button type="button" class="hc-eye" aria-label="${off ? 'להחזיר' : 'להסתיר'}" title="${off ? 'להחזיר' : 'להסתיר'}">${ic(off ? 'eye-off' : 'eye')}</button>`;
+        r.querySelector('.hc-n').textContent = name;
+        const [up, dn, eye] = r.querySelectorAll('button');
+        up.disabled = i === 0; dn.disabled = i === ord.length - 1;
+        const mv = d => upd(x => { const o = hcOrder(items, x[ordKey]); const j = o.indexOf(id); [o[j], o[j + d]] = [o[j + d], o[j]]; x[ordKey] = o; });
+        up.onclick = () => mv(-1); dn.onclick = () => mv(1);
+        eye.onclick = () => upd(x => { const h = new Set(x[hideKey] || []); h.has(id) ? h.delete(id) : h.add(id); x[hideKey] = [...h]; });
+        body.appendChild(r);
+      });
+    };
+    list('הכפתורים למעלה', HC_TILES, 'tiles', 'hideT');
+    list('הכרטיסים למטה', [...HC_CARDS, ...HC_EXTRA.filter(x => (s.extra || []).includes(x[0])).map(x => ['hc-' + x[0], x[1]])], 'cards', 'hide');
+    const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'link hc-reset'; rs.textContent = 'להחזיר את הסידור הרגיל';
+    rs.onclick = () => upd(x => { delete x.cards; delete x.tiles; delete x.hide; delete x.hideT; });
+    body.appendChild(rs);
+  } else if (hcTab === 'extra') {
+    for (const [id, name, n, sub] of HC_EXTRA) {
+      const on = (s.extra || []).includes(id), own = hcOwned(s, id);
+      const r = document.createElement('div'); r.className = 'hc-opt';
+      r.innerHTML = `<div class="hc-ot"><b></b><small></small></div>${price(n, own)}<button type="button" class="btn ${on ? 'btn-ghost' : 'btn-primary'}">${on ? 'להוריד' : own ? 'להוסיף' : 'לנסות'}</button>`;
+      r.querySelector('b').textContent = name; r.querySelector('small').textContent = sub;
+      r.querySelector('button').onclick = () => upd(x => { const e = new Set(x.extra || []); e.has(id) ? e.delete(id) : e.add(id); x.extra = [...e]; });
+      body.appendChild(r);
+    }
+  } else {
+    const g = document.createElement('div'); g.className = 'hc-bgs';
+    for (const [id, name, n] of HC_BG) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'hc-bg' + ((s.bg || '') === id ? ' on' : '');
+      b.setAttribute('aria-pressed', (s.bg || '') === id);
+      b.innerHTML = `<i class="hc-sw" data-hbg="${id}">${id === 'photo' && !s.photo ? ic('image') : ''}</i><span class="hc-bn"></span>${price(n, n && hcOwned(s, id))}`;
+      b.querySelector('.hc-bn').textContent = name;
+      if (id === 'photo' && s.photo) b.querySelector('.hc-sw').style.backgroundImage = `url("${s.photo}")`;
+      b.onclick = () => id === 'photo' && !s.photo ? hcPhoto() : upd(x => { x.bg = id; });
+      g.appendChild(b);
+    }
+    body.appendChild(g);
+    if (/^(photo|s-|t-)/.test(s.bg || '')) {
+      const see = s.see ?? 45, w = document.createElement('label'); w.className = 'hc-see';
+      w.innerHTML = `<span>כמה רואים את הרקע דרך הכרטיסים</span><span class="hc-see-row"><small>מעט</small><input type="range" min="0" max="100" step="5" value="${see}" aria-label="כמה רואים את הרקע"><small>הרבה</small></span>`;
+      const r = w.querySelector('input');
+      r.oninput = () => { const x = hcGet(); x.see = +r.value; hcSave(x); homeCustomApply(); };   // בלי לצייר מחדש את החלונית – כדי שהפס לא יקפוץ
+      body.appendChild(w);
+    }
+    if (s.photo) { const ch = document.createElement('button'); ch.type = 'button'; ch.className = 'link hc-reset'; ch.textContent = 'להחליף את התמונה'; ch.onclick = hcPhoto; body.appendChild(ch); }
+  }
+}
+// תמונה לרקע: מקטינים ל-1400 פיקסל, JPEG – נשמרת רק אצל המשתמש
+function hcPhoto() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => {
+      const k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      const x = hcGet(); x.photo = c.toDataURL('image/jpeg', .78); x.bg = 'photo'; hcSave(x); homeCustomApply(); hcPanelPaint();
+    };
+    img.onerror = () => toast('לא הצלחתי לפתוח את התמונה');
+    img.src = url;
+  };
+  inp.click();
+}
+
+// גרירה אמיתית במסך הבית (מצב עריכה): עכבר – גוררים מיד; מגע – מחזיקים 250ms ואז גוררים (כדי שאפשר עדיין לגלול)
+function hcDragWire() {
+  const home = $('home'); if (!home || home._hcDrag) return; home._hcDrag = 1;
+  const editing = () => home.classList.contains('hc-editing');
+  const saveFrom = box => {
+    const kind = box.querySelector('.hc-item')?.dataset.hck; if (!kind) return;
+    const ids = [...box.querySelectorAll(':scope > .hc-item')].sort((a, b) => a.style.order - b.style.order).map(e => e.id);
+    const x = hcGet(); x[kind === 'tiles' ? 'tiles' : 'cards'] = ids; hcSave(x);
+  };
+  // במצב עריכה לחיצה על כפתור לא פותחת אותו (רק הכפתור בפינה עובד, ושדות של התוספות)
+  home.addEventListener('click', e => {
+    if (!editing()) return;
+    const xb = e.target.closest('.hc-xb');
+    if (xb) {
+      e.preventDefault(); e.stopPropagation();
+      const it = xb.closest('.hc-item'), key = it.dataset.hck === 'tiles' ? 'hideT' : 'hide';
+      const x = hcGet(), h = new Set(x[key] || []); h.has(it.id) ? h.delete(it.id) : h.add(it.id); x[key] = [...h]; hcSave(x); homeCustomApply(); hcPanelPaint();
+      return;
+    }
+    if (e.target.closest('.hc-item') && !e.target.closest('textarea,input,.hc-day')) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  let drag = null, hold = null;
+  const start = (it, e) => {
+    const r = it.getBoundingClientRect(), ghost = it.cloneNode(true);
+    ghost.removeAttribute('id'); ghost.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    ghost.classList.add('hc-ghost'); Object.assign(ghost.style, { width: r.width + 'px', height: r.height + 'px', left: r.left + 'px', top: r.top + 'px', order: '' });
+    document.body.appendChild(ghost);
+    it.classList.add('hc-hole');
+    drag = { it, ghost, box: it.parentElement, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    try { navigator.vibrate?.(15); } catch {}
+  };
+  const move = (x, y) => {
+    drag.ghost.style.left = (x - drag.dx) + 'px'; drag.ghost.style.top = (y - drag.dy) + 'px';
+    if (y < 70) window.scrollBy(0, -12); else if (y > innerHeight - 90) window.scrollBy(0, 12);
+    let over = document.elementFromPoint(x, y)?.closest('.hc-item');
+    // מקום ריק בתוך האזור – הכי קרוב
+    if (!over) { const r = drag.box.getBoundingClientRect(); if (x > r.left - 30 && x < r.right + 30 && y > r.top - 30 && y < r.bottom + 30) { let best = 1e9; for (const el of drag.box.querySelectorAll(':scope > .hc-item:not(.hc-hole)')) { const b = el.getBoundingClientRect(), d = Math.hypot(b.left + b.width / 2 - x, b.top + b.height / 2 - y); if (d < best) { best = d; over = el; } } } }
+    if (!over || over === drag.it || over.parentElement !== drag.box) return;
+    const list = [...drag.box.querySelectorAll(':scope > .hc-item')].sort((a, b) => a.style.order - b.style.order);
+    const from = list.indexOf(drag.it), to = list.indexOf(over);
+    list.splice(from, 1); list.splice(to, 0, drag.it);
+    list.forEach((el, i) => el.style.order = i);
+  };
+  const end = () => {
+    clearTimeout(hold); hold = null;
+    if (!drag) return;
+    drag.ghost.remove(); drag.it.classList.remove('hc-hole'); saveFrom(drag.box); drag = null;
+    hcPanelPaint();
+  };
+  let sx = 0, sy = 0;
+  home.addEventListener('pointerdown', e => {
+    if (!editing() || e.button > 0) return;
+    const it = e.target.closest('.hc-item');
+    if (!it || e.target.closest('.hc-xb,textarea,input,.hc-day,a')) return;
+    if (e.pointerType === 'mouse') { e.preventDefault(); start(it, e); return; }
+    sx = e.clientX; sy = e.clientY;
+    hold = setTimeout(() => { hold = null; start(it, { clientX: sx, clientY: sy }); }, 250);
+  });
+  addEventListener('pointermove', e => {
+    if (hold && Math.hypot(e.clientX - sx, e.clientY - sy) > 8) { clearTimeout(hold); hold = null; }
+    if (drag) { e.preventDefault(); move(e.clientX, e.clientY); }
+  }, { passive: false });
+  addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });   // לא לגלול את הדף בזמן גרירה
+  addEventListener('pointerup', end); addEventListener('pointercancel', end);
+}
+
 /* ================= נגישות ================= */
 // תפריט נגישות: גודל טקסט, ניגודיות, עצירת אנימציות, קו מתחת לקישורים, גופן פשוט, ריווח. נשמר במכשיר (localStorage 'a11y'),
 // ומופעל כבר בתחילת הדף (סקריפט קטן ב-index.html) כדי שלא יקפוץ
@@ -3588,7 +3856,7 @@ function schoolDialog() {
   });
 }
 function renderHome() {
-  renderStats(); homeAskChips();
+  renderStats(); homeAskChips(); try { homeCustomApply(); } catch (e) { console.warn('home custom', e); }
   morningPaint();
   homeFirstPaint();
   schoolPaint(); pwaPaint();

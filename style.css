@@ -4005,3 +4005,126 @@ html[data-theme="dark"] .morning.han{--mo-a:#1E3A78;--mo-b:#142045;--mo-c:#3A321
 .pwa-arrow{position:fixed;left:50%;bottom:calc(6px + env(safe-area-inset-bottom));width:0;height:0;margin-left:-10px;border:10px solid transparent;border-top:14px solid var(--accent);z-index:80;animation:pwaBob 1s ease-in-out infinite}
 @keyframes pwaBob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){.pwa-arrow{animation:none}}
+
+/* ================= המסך שלי – מסך בית אישי (homeCustomApply / hcPanelPaint ב-app.js) ================= */
+.hc-off{display:none!important}
+.hc-edit{position:absolute;top:14px;left:14px;z-index:3;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:99px;background:color-mix(in srgb,var(--surface) 82%,transparent);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--ink);backdrop-filter:blur(6px)}
+.hc-edit svg{width:17px;height:17px;color:var(--accent)}
+.hc-edit:hover,.hc-edit.on{background:var(--surface);border-color:var(--accent)}
+@media (max-width:700px){.hc-edit{top:10px;left:10px;height:32px;padding:0 11px;font-size:12.5px}}
+.hc-panel{margin:10px 0 14px;padding:16px 18px}
+.hc-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.hc-top h3{margin:0;display:flex;align-items:center;gap:8px;font-size:18px}
+.hc-top h3 svg{color:var(--accent)}
+.hc-done{margin-inline-start:auto;height:38px}
+.hc-tabs{display:flex;gap:6px;margin-bottom:12px;padding:4px;border-radius:14px;background:var(--side)}
+.hc-tabs button{flex:1;height:38px;border-radius:10px;font-weight:700;color:var(--muted)}
+.hc-tabs button[aria-selected=true]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.hc-sub{margin:12px 0 4px;font-size:13px;font-weight:700;color:var(--muted)}
+.hc-row{display:flex;align-items:center;gap:4px;padding:6px 4px;border-bottom:1px solid var(--line)}
+.hc-row .hc-n{flex:1;font-weight:600}
+.hc-row.off .hc-n{color:var(--muted);text-decoration:line-through}
+.hc-row button{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:17px;color:var(--ink)}
+.hc-row button:hover:not(:disabled){background:var(--side)}
+.hc-row button:disabled{opacity:.25;cursor:default}
+.hc-row .hc-eye svg{width:18px;height:18px}
+.hc-row.off .hc-eye{color:var(--muted)}
+.hc-reset{margin-top:10px;font-size:13.5px}
+.hc-opt{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line)}
+.hc-ot{flex:1;min-width:0;display:flex;flex-direction:column}
+.hc-ot small{color:var(--muted);font-size:13px}
+.hc-opt .btn{height:36px;padding:0 14px;font-size:14px}
+.hc-pr{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:99px;font-size:12.5px;font-weight:800;background:#FFF4D6;color:#8A5A00;white-space:nowrap}
+.hc-pr svg{width:15px;height:15px}
+.hc-pr.free{background:color-mix(in srgb,var(--teal) 18%,transparent);color:#0B6B60}
+.hc-pr.own{background:var(--accent-soft);color:var(--accent)}
+html[data-theme="dark"] .hc-pr{background:#3A2E10;color:#FFD36B}
+html[data-theme="dark"] .hc-pr.free{color:#7BE3D6}
+.hc-bgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px}
+.hc-bg{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px 10px;border-radius:14px;border:2px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;text-align:center}
+.hc-bg.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.hc-sw{width:100%;height:58px;border-radius:10px;display:grid;place-items:center;background:var(--side);background-size:cover;background-position:center;color:var(--muted)}
+.hc-try{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0;padding:10px 14px;border-radius:16px;background:#FFF4D6;color:#5C3D00;font-size:14px}
+.hc-try-t{display:flex;align-items:center;gap:6px;flex:1;min-width:180px}
+.hc-try-t svg{width:18px;height:18px}
+.hc-try .btn{height:36px;padding:0 14px;font-size:14px}
+.hc-try .btn svg{width:16px;height:16px}
+html[data-theme="dark"] .hc-try{background:#3A2E10;color:#FFE7A8}
+/* תוספות */
+.hc-x h3{display:flex;align-items:center;gap:8px}
+.hc-x h3 svg{width:19px;height:19px;color:var(--accent)}
+.hc-q{margin:6px 0 0;font-size:19px;font-weight:700;line-height:1.45}
+.hc-note{width:100%;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;background:color-mix(in srgb,var(--yellow) 16%,var(--surface));resize:vertical;font-size:15px;line-height:1.5}
+.hc-gt{width:100%;height:42px;border:1px solid var(--line);border-radius:12px;padding:0 12px;background:var(--surface);font-weight:600}
+.hc-days{display:flex;gap:6px;margin-top:10px}
+.hc-day{flex:1;height:40px;border-radius:12px;border:1.5px solid var(--line);font-weight:700;background:var(--surface)}
+.hc-day.now{border-color:var(--accent)}
+.hc-day.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.hc-day:disabled{opacity:.35;cursor:default}
+.hc-gp{margin:8px 0 0;font-size:13.5px;color:var(--muted)}
+/* רקעים למסך הבית (וגם לדוגמאות בחלון) */
+:is(.hero,.hc-sw)[data-hbg="c-mint"]{background-color:#DDF5EC}
+:is(.hero,.hc-sw)[data-hbg="c-sky"]{background-color:#DDEBFB}
+:is(.hero,.hc-sw)[data-hbg="c-peach"]{background-color:#FDE6DA}
+:is(.hero,.hc-sw)[data-hbg="s-night"]{background:radial-gradient(120% 90% at 80% 0%,#3B3A8F 0%,transparent 60%),linear-gradient(160deg,#141433,#0B0B1E)}
+:is(.hero,.hc-sw)[data-hbg="s-sunset"]{background:linear-gradient(160deg,#FF9A6B 0%,#FF5E8A 55%,#7B4DD6 100%)}
+:is(.hero,.hc-sw)[data-hbg="s-ocean"]{background:linear-gradient(160deg,#2EC4B6 0%,#2079C9 60%,#123E7A 100%)}
+:is(.hero,.hc-sw)[data-hbg="t-space"]{background:radial-gradient(1.5px 1.5px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 20%,#fff 50%,transparent 51%),radial-gradient(2px 2px at 85% 65%,#FFE45C 50%,transparent 51%),radial-gradient(1px 1px at 40% 75%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 10% 85%,#fff 50%,transparent 51%),radial-gradient(90% 70% at 85% 10%,#5B3FD1 0%,transparent 60%),linear-gradient(170deg,#0C0A2A,#1A1050)}
+:is(.hero,.hc-sw)[data-hbg="t-forest"]{background:radial-gradient(80% 60% at 15% 100%,#2F7A3B 0%,transparent 60%),radial-gradient(70% 60% at 90% 0%,#9BD35A 0%,transparent 55%),linear-gradient(170deg,#1D4D2A,#0F2E1A)}
+.hero[data-hbg="photo"]{background-size:cover;background-position:center}
+/* רקע תמונה / כהה: פס של הרקע למעלה, והכרטיסים בתוך ה-hero שקופים למחצה – כדי שרואים את הרקע */
+.hero:is([data-hbg="photo"],[data-hbg^="s-"],[data-hbg^="t-"]){padding-top:170px}
+@media (max-width:700px){.hero:is([data-hbg="photo"],[data-hbg^="s-"],[data-hbg^="t-"]){padding-top:130px}}
+.hero:is([data-hbg^="s-"],[data-hbg^="t-"],[data-hbg="photo"]) .aurora,.hero:is([data-hbg^="c-"]) .aurora{display:none}
+.hero:is([data-hbg^="s-"],[data-hbg^="t-"],[data-hbg="photo"]) .hero-in>:is(.hero-date,h1,.hero-sub){color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+/* עיצוב שלם: גם הכרטיסים והכפתורים במסך הבית מקבלים את הצבעים */
+html[data-htheme="t-space"] #home{--accent:#8E7BFF;--accent-soft:#E9E5FF}
+html[data-htheme="t-space"] #home .tile{background:color-mix(in srgb,#1A1050 6%,var(--surface));border-color:color-mix(in srgb,#8E7BFF 35%,var(--line))}
+html[data-htheme="t-space"] #home .home-grid>.card{border-top:3px solid #8E7BFF}
+html[data-htheme="t-forest"] #home{--accent:#2F8A3E;--accent-soft:#E2F4E2}
+html[data-htheme="t-forest"] #home .tile{background:color-mix(in srgb,#2F7A3B 6%,var(--surface));border-color:color-mix(in srgb,#2F8A3E 35%,var(--line))}
+html[data-htheme="t-forest"] #home .home-grid>.card{border-top:3px solid #2F8A3E}
+html[data-theme="dark"] :is(.hero)[data-hbg="c-mint"]{background-color:#123A30}
+html[data-theme="dark"] :is(.hero)[data-hbg="c-sky"]{background-color:#132A45}
+html[data-theme="dark"] :is(.hero)[data-hbg="c-peach"]{background-color:#40261C}
+/* גרירה במצב עריכה */
+#home.hc-editing .hc-item{position:relative;outline:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:3px;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;animation:hcWig .3s ease-in-out infinite alternate}
+#home.hc-editing .hc-item:nth-child(2n){animation-delay:-.15s}
+@keyframes hcWig{from{rotate:-.35deg}to{rotate:.35deg}}
+#home.hc-editing .tile.hc-off,#home.hc-editing .fr-banner.hc-off{display:flex!important;opacity:.35}
+#home.hc-editing .card.hc-off{display:block!important;opacity:.35}
+.hc-xb{display:none}
+#home.hc-editing .hc-xb{display:grid;place-items:center;position:absolute;top:-10px;left:-10px;z-index:4;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1.5px solid var(--line);box-shadow:var(--shadow);color:var(--ink);cursor:pointer}
+#home.hc-editing .hc-xb svg{width:16px;height:16px}
+#home.hc-editing .hc-off .hc-xb{background:var(--accent);border-color:var(--accent);color:#fff}
+.hc-item.hc-hole{opacity:.25!important;animation:none!important}
+.hc-ghost{position:fixed!important;z-index:9999;pointer-events:none;margin:0!important;opacity:.95;rotate:2deg;scale:1.04;box-shadow:var(--shadow-lg);animation:none!important;outline:none!important;overflow:hidden}
+.hc-ghost .hc-xb{display:none!important}
+.hc-hint{margin:-4px 0 10px;font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.hc-hint svg{width:15px;height:15px}
+@media (prefers-reduced-motion:reduce){#home.hc-editing .hc-item{animation:none}}
+
+/* כמה רואים את הרקע (--hc-op = כמה הכרטיס אטום, --hc-blur) – רק ברקע תמונה/מיוחד */
+.hero[data-see]{padding-top:150px}
+@media (max-width:700px){.hero[data-see]{padding-top:120px}}
+.hero[data-see] :is(.tile,.home-ask,.first-nb,.morning){background:color-mix(in srgb,var(--surface) calc(var(--hc-op) * 100%),transparent)!important;backdrop-filter:blur(var(--hc-blur));-webkit-backdrop-filter:blur(var(--hc-blur));border:1px solid color-mix(in srgb,var(--surface) calc(var(--hc-op) * 100% + 15%),transparent)!important;box-shadow:0 10px 30px -18px rgba(0,0,0,.45)!important}
+.hero[data-see] .home-ask::before,.hero[data-see] .home-ask::after{display:none}
+/* הכרטיסים כמעט שקופים – טקסט לבן, וכל מה שבתוכם בלי רקע משלו */
+.hero[data-ink="light"] :is(.tile,.home-ask,.first-nb,.morning){--ink:#fff;--muted:rgba(255,255,255,.86);--line:rgba(255,255,255,.32);--side:rgba(255,255,255,.12);--accent-soft:rgba(255,255,255,.16);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55),0 0 12px rgba(0,0,0,.25)}
+.hero[data-ink="light"] .morning :is(.mo-box,.mo-art){background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.25)!important}
+.hero[data-ink="light"] .ha-chips>*{background:rgba(255,255,255,.16)!important;color:#fff!important;border-color:rgba(255,255,255,.35)!important}
+.hero[data-ink="light"] .home-ask textarea{color:#fff}
+.hero[data-ink="light"] .home-ask textarea::placeholder{color:rgba(255,255,255,.8)}
+.hc-see{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--side);font-weight:600;font-size:14px}
+.hc-see-row{display:flex;align-items:center;gap:10px}
+.hc-see-row input{flex:1;accent-color:var(--accent)}
+.hc-see-row small{color:var(--muted);font-weight:500}
+.hero[data-ink="light"] .morning .mo-tt li{background:rgba(255,255,255,.16)!important;border-color:rgba(255,255,255,.3)!important;color:#fff}
+.hero[data-ink="light"] .morning .mo-x{background:rgba(255,255,255,.2)!important;color:#fff}
+/* התיבה של העוזר: הרקע שלה בנוי מ"תמונה" (לבן + מסגרת צבעונית) – גם היא שקופה, והמסגרת הצבעונית נשארת */
+.hero[data-see] .home-ask{background:linear-gradient(color-mix(in srgb,var(--surface) calc(var(--hc-op) * 100%),transparent),color-mix(in srgb,var(--surface) calc(var(--hc-op) * 100%),transparent)) padding-box,linear-gradient(120deg,#7B79F2,#E5579A,#2EC4B6) border-box!important;border:2px solid transparent!important}
+#home .hero[data-see] .quick-add.home-ask{background:color-mix(in srgb,var(--surface) calc(var(--hc-op) * 100%),transparent)!important;border:1.5px solid color-mix(in srgb,#fff 55%,transparent)!important;box-shadow:0 0 0 3px color-mix(in srgb,#8A4FE0 45%,transparent),0 14px 34px -18px rgba(0,0,0,.5)!important}
+.hero[data-see] .morning::before,.hero[data-see] .morning::after{display:none}   /* העיגולים הבהירים של "בוקר טוב" – רק מסתירים את הרקע */
+/* הכפתור בפינה (להסתיר/להחזיר) – תמיד אותם צבעים, גם כשהכרטיס שקוף והטקסט לבן */
+#home.hc-editing .hc-xb{background:#fff!important;color:#1D1D1F!important;border-color:rgba(0,0,0,.12)!important;text-shadow:none}
+#home.hc-editing .hc-off .hc-xb{background:#5E5CE6!important;color:#fff!important}
