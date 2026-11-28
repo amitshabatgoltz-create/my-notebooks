@@ -78,6 +78,8 @@ const SHOP = {
   chalk: { p: 30, skin: true }, sunset: { p: 30, skin: true }, ocean: { p: 30, skin: true },
   // (24.11.2026) הפרסים של תוכנית החברים עברו לחנות – כל אחד יכול לקנות בגירים. מי שכבר קיבל אותם מחברים – שומר (באתר: legacyHas)
   spcolors: { p: 120, skin: true }, spbg: { p: 100, skin: true }, funfont: { p: 80, skin: true }, accent: { p: 150, skin: true }, frame: { p: 100, skin: true },
+  // (28.11.2026) רקעים למסך הבית ("המסך שלי" – HC_BG באתר). לתמיד
+  hb_night: { p: 40, skin: true }, hb_sunset: { p: 40, skin: true }, hb_ocean: { p: 40, skin: true }, hb_space: { p: 200, skin: true }, hb_forest: { p: 200, skin: true }, hb_photo: { p: 150, skin: true },
 };
 // מוסיף גירים בתוך טרנזקציה קיימת (או חדשה). מחזיר כמה באמת נוספו (0 אם עברנו את התקרה של היום)
 function earnIn(tx, w, kind, n = 1) {

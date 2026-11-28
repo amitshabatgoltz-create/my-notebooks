@@ -2938,13 +2938,15 @@ applyThemeIcon();
 const HC_CARDS = [['weekCard', 'השבוע הקרוב'], ['nextTest', 'המבחן הבא'], ['todayCard', 'היום'], ['statsCard', 'הסטטיסטיקה שלי'], ['gradesCard', 'הציונים שלי'], ['recentCard', 'מחברות אחרונות']];
 const HC_TILES = [['homeNotes', 'המחברות שלי'], ['homeNew', 'מחברת חדשה'], ['homeOcr', 'צילום לוח'], ['homePres', 'מצגת חדשה'], ['homePr', 'דף תרגול דומה'], ['homeCal', 'יומן'], ['homeTests', 'לוח מבחנים'], ['homeFriends', 'הזמנת חברים']];
 const HC_EXTRA = [['note', 'פתק אישי', 0, 'מה שכותבים – תמיד מול העיניים'], ['quote', 'משפט מוטיבציה יומי', 0, 'משפט חדש כל יום'], ['goal', 'מטרה שבועית', 0, 'מטרה + סימון כל יום שעמדת בה']];
-// בינתיים הכל בחינם (28.11.2026) – קנייה בלומיקס עוד לא בנויה בשרת. המחירים שתוכננו: לילה/שקיעה/אוקיינוס 40, חלל/יער 200, תמונה שלי 150
-const HC_BG = [['', 'רגיל', 0], ['c-mint', 'מנטה', 0], ['c-sky', 'שמיים', 0], ['c-peach', 'אפרסק', 0], ['s-night', 'לילה', 0], ['s-sunset', 'שקיעה', 0], ['s-ocean', 'אוקיינוס', 0], ['t-space', 'עיצוב שלם: חלל', 0], ['t-forest', 'עיצוב שלם: יער', 0], ['photo', 'תמונה שלי', 0]];
+// רקעים: חלק בחינם, חלק קונים בלומיקס לתמיד (28.11.2026). [id, שם, מחיר, id בחנות – אותו מחיר כמו SHOP בשרת]
+const HC_BG = [['', 'רגיל', 0], ['c-mint', 'מנטה', 0], ['c-sky', 'שמיים', 0], ['c-peach', 'אפרסק', 0], ['s-night', 'לילה', 40, 'hb_night'], ['s-sunset', 'שקיעה', 40, 'hb_sunset'], ['s-ocean', 'אוקיינוס', 40, 'hb_ocean'], ['t-space', 'עיצוב שלם: חלל', 200, 'hb_space'], ['t-forest', 'עיצוב שלם: יער', 200, 'hb_forest'], ['photo', 'תמונה שלי', 150, 'hb_photo']];
+const hcShopId = id => (HC_BG.find(x => x[0] === id) || [])[3];
 const HC_QUOTES = ['כל מומחה היה פעם מתחיל.', 'צעד קטן כל יום עדיף על ריצה פעם בחודש.', 'טעות היא הוכחה שניסית.', 'לא צריך להיות מושלם, רק להמשיך.', 'מה שלומדים היום – קל יותר מחר.', 'הדרך הכי טובה להתחיל היא להתחיל.', 'אפשר יותר ממה שנדמה.', 'עשר דקות של חזרה שוות שעה של לחץ לפני המבחן.', 'מי שמתאמן – מצליח.', 'קשה עכשיו, קל אחר כך.', 'כל שאלה היא צעד להבנה.', 'משווים רק לעצמי של אתמול.', 'הצלחה היא הרבה ימים רגילים ברצף.', 'לא הבנתי – עוד לא הבנתי.', 'מנוחה היא חלק מהלמידה.'];
 const hcKey = () => 'home:' + (me?.uid || 'x');
 function hcGet() { try { return JSON.parse(localStorage.getItem(hcKey()) || '{}') || {}; } catch { return {}; } }
 function hcSave(s) { try { localStorage.setItem(hcKey(), JSON.stringify(s)); } catch { toast('אין מקום במכשיר – כדאי תמונה קטנה יותר'); } }
-const hcOwned = (s, id) => isUnlimited() || (s.owned || []).includes(id);   // בעל האתר מקבל הכל בחינם
+// קנוי = בארנק (השרת כותב owned) – או בעל האתר, שמקבל הכל
+const hcOwned = (s, id) => !hcPrice(id) || isUnlimited() || (wallet?.owned || []).includes(hcShopId(id));
 const hcPrice = id => (HC_EXTRA.find(x => x[0] === id) || HC_BG.find(x => x[0] === id) || [0, 0, 0])[2];
 const hcName = id => (HC_EXTRA.find(x => x[0] === id) || HC_BG.find(x => x[0] === id) || [0, ''])[1];
 function hcOrder(list, saved) { const ids = list.map(x => x[0]); return [...(saved || []).filter(i => ids.includes(i)), ...ids.filter(i => !(saved || []).includes(i))]; }
@@ -2975,6 +2977,7 @@ function homeCustomApply() {
   mark(HC_TILES, s.tiles, s.hideT, 'tiles');
   if ($('homeAdmin')) $('homeAdmin').style.order = 999;   // כפתור הניהול תמיד בסוף (אחרת נשאר רווח ריק)
   hcDragWire();
+  if (s.bg && hcPrice(s.bg) && wallet && !hcOwned(s, s.bg) && !$('home').classList.contains('hc-editing')) { s.bg = s.lastBg && hcOwned(s, s.lastBg) ? s.lastBg : ''; hcSave(s); }
   hero.dataset.hbg = s.bg || '';
   // כמה רואים את הרקע דרך הכרטיסים (0–100, בוחרים בפס): הרבה = כרטיסים שקופים וחדים, ואז הטקסט נהיה לבן
   const rich = /^(photo|s-|t-)/.test(s.bg || ''), see = Math.max(0, Math.min(100, s.see ?? 45));
@@ -3030,7 +3033,7 @@ function hcExtraPaint(id, el, s) {
 }
 // משהו בתשלום שעוד לא נקנה – רק "לנסות"; פס מעל המסך אומר כמה זה עולה
 function hcTryBar(s) {
-  const trying = [...(s.extra || []), s.bg || ''].filter(id => hcPrice(id) && !hcOwned(s, id));
+  const trying = [s.bg || ''].filter(id => hcPrice(id) && !hcOwned(s, id));
   let bar = $('hcTry');
   if (!trying.length) { bar?.remove(); return; }
   if (!bar) { bar = document.createElement('div'); bar.id = 'hcTry'; bar.className = 'hc-try'; document.querySelector('#home .hero').before(bar); }
@@ -3038,13 +3041,40 @@ function hcTryBar(s) {
   bar.innerHTML = `<span class="hc-try-t">${ic('eye')}<span>מנסים: <b></b></span></span><button class="btn btn-primary" type="button">לקנות ב-${sum} ${ic('lumix')}</button><button class="btn btn-ghost" type="button">לבטל</button>`;
   bar.querySelector('b').textContent = trying.map(hcName).join(', ');
   const [buy, undo] = bar.querySelectorAll('button');
-  buy.onclick = () => toast('זו רק תצוגה – הקנייה תיפתח כשזה יעלה לאתר');
-  undo.onclick = () => { const x = hcGet(); x.extra = (x.extra || []).filter(id => !trying.includes(id)); if (trying.includes(x.bg)) x.bg = ''; hcSave(x); homeCustomApply(); hcPanelPaint(); };
+  buy.onclick = () => hcBuy(trying, buy, sum);
+  undo.onclick = () => { const x = hcGet(); if (trying.includes(x.bg)) x.bg = x.lastBg && hcOwned(x, x.lastBg) ? x.lastBg : ''; hcSave(x); homeCustomApply(); hcPanelPaint(); };
+}
+// קנייה בלומיקס – אותה פונקציה בשרת כמו כל החנות (exports.shop). אחרי שהארנק מתעדכן (onSnapshot) הרקע כבר "שלך"
+async function hcBuy(ids, btn, sum) {
+  if (btn.disabled) return;
+  if ((wallet?.bal || 0) < sum) { toast(`צריך ${sum} לומיקס, ויש לך ${wallet?.bal || 0}. מרוויחים עוד במשימות היום`); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="bd-wait"></span>';
+  try {
+    if (!shopCall) shopCall = httpsCallable(getFunctions(fb, 'europe-west1'), 'shop', { timeout: 20000 });
+    await appCheckReady.catch(() => {});
+    for (const id of ids) {
+      const sid = hcShopId(id); if (!sid) continue;
+      await shopCall({ item: sid });
+      wallet = { ...(wallet || {}), owned: [...(wallet?.owned || []), sid] };
+      const x = hcGet(); x.lastBg = id; hcSave(x);
+      track('shop_buy', { id: sid, p: hcPrice(id) });
+    }
+    toast('הרקע שלך לתמיד ✓');
+    window.Motion?.confetti?.();
+  } catch (e) {
+    const m = String(e && e.message || '');
+    toast(/no-chalk/.test(m) ? 'אין מספיק לומיקס' : /owned/.test(m) ? 'כבר יש לך את זה' : 'לא הצלחתי לקנות, נסו שוב');
+  }
+  homeCustomApply(); hcPanelPaint();
 }
 let hcTab = 'bg';
 function hcOpen() {
   let p = $('hcPanel');
-  if (p) { p.remove(); $('hcEdit')?.classList.remove('on'); $('home').classList.remove('hc-editing'); return; }
+  if (p) {
+    p.remove(); $('hcEdit')?.classList.remove('on'); $('home').classList.remove('hc-editing');
+    const x = hcGet(); if (x.bg && !hcOwned(x, x.bg) && wallet) toast(`"${hcName(x.bg)}" רק בניסיון – כדי לשמור אותו קונים ב-${hcPrice(x.bg)} לומיקס`);
+    homeCustomApply(); return;
+  }
   $('home').classList.add('hc-editing');
   p = document.createElement('section'); p.id = 'hcPanel'; p.className = 'card hc-panel'; p.setAttribute('aria-label', 'עיצוב מסך הבית');
   document.querySelector('#home .hero').before(p);
@@ -3102,7 +3132,7 @@ function hcPanelPaint() {
       b.innerHTML = `<i class="hc-sw" data-hbg="${id}">${id === 'photo' && !s.photo ? ic('image') : ''}</i><span class="hc-bn"></span>${price(n, n && hcOwned(s, id))}`;
       b.querySelector('.hc-bn').textContent = name;
       if (id === 'photo' && s.photo) b.querySelector('.hc-sw').style.backgroundImage = `url("${s.photo}")`;
-      b.onclick = () => id === 'photo' && !s.photo ? hcPhoto() : upd(x => { x.bg = id; });
+      b.onclick = () => id === 'photo' && !s.photo ? hcPhoto() : upd(x => { x.bg = id; if (hcOwned(x, id)) x.lastBg = id; });
       g.appendChild(b);
     }
     body.appendChild(g);
@@ -10892,6 +10922,9 @@ const SHOP = [
   { id: 'funfont', g: 'perk', n: 4, p: 80, t: 'גופן כיפי למחברת – לתמיד', s: 'כתב מיוחד למחברות שלך. נמצא ב"הגדרות" של המחברת', ic: 'type' },
   { id: 'accent', g: 'perk', n: 6, p: 150, t: 'צבע לכל האתר – לתמיד', s: 'כל האתר בצבע שבוחרים: ירוק, כתום, ורוד ועוד', ic: 'mark' },
   { id: 'frame', g: 'perk', n: 8, p: 100, t: 'מסגרת צבעונית לתמונה שלך – לתמיד', s: 'מסגרת מיוחדת לעיגול עם האות שלך, למעלה במסך', ic: 'target' },
+  // רקעים למסך הבית – קונים מתוך "המסך שלי" (hcBuy). g:'home' לא מופיע ברשימות של החנות
+  { id: 'hb_night', g: 'home', p: 40, t: 'רקע לילה למסך הבית' }, { id: 'hb_sunset', g: 'home', p: 40, t: 'רקע שקיעה למסך הבית' }, { id: 'hb_ocean', g: 'home', p: 40, t: 'רקע אוקיינוס למסך הבית' },
+  { id: 'hb_space', g: 'home', p: 200, t: 'עיצוב שלם חלל למסך הבית' }, { id: 'hb_forest', g: 'home', p: 200, t: 'עיצוב שלם יער למסך הבית' }, { id: 'hb_photo', g: 'home', p: 150, t: 'תמונה שלי לרקע' },
 ];
 const SKINS = { gold: '#C98A04', chalk: '#2F7D5B', sunset: '#EE5A4F', ocean: '#0B86B5' };
 const EARN_TX = { friendBack: 'על החברים שכבר הבאת', day: 'כניסה יומית', big: 'פרס גדול ברצף', ocr: 'צילום לוח', nb: 'כתבת במחברת', friend: 'חבר הצטרף מהקישור שלך', ask: 'שאלת את העוזר', quest: 'השלמת את היום שלך!', fc: 'הכנת כרטיסיות', sum: 'עשית סיכום', pr: 'עשית דף תרגול' };
@@ -10911,6 +10944,7 @@ function walletWatch() {
   if (walletOff) walletOff();
   walletOff = onSnapshot(doc(db, 'wallet', me.uid), sn => {
     const prev = wallet; wallet = sn.exists() ? sn.data() : { bal: 0 };
+    try { homeCustomApply(); hcPanelPaint(); } catch {}   // רקעים שנקנו (owned) – המסך שלי מתעדכן
     refApply(); walletPaint(prev);
     if ($('dialogRoot').querySelector('.shop-dlg') || !$('shopView').classList.contains('hidden')) shopPaint();
   }, () => { walletOff = null; liveRetry('wal', walletWatch); });
