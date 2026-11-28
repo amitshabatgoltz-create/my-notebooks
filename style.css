@@ -4198,3 +4198,24 @@ html[data-theme="dark"][data-pbg="c-mint"] body::before{background:linear-gradie
 html[data-theme="dark"][data-pbg="c-sky"] body::before{background:linear-gradient(180deg,#183457,#0F2036)}
 html[data-theme="dark"][data-pbg="c-peach"] body::before{background:linear-gradient(180deg,#4A2C20,#2C1A13)}
 html:is([data-pbg="c-mint"],[data-pbg="c-sky"],[data-pbg="c-peach"]) :is(.lib-head h2,.lib-head .sub,.crumb,.pres-sec>h3,.shared-me>h3,main>.view>.empty,.view-title,.cal-head h2,.page-head h1,.page-head h2,.page-head p){color:inherit!important;text-shadow:none}
+/* חלל מיוחד יותר (28.11.2026, עמית): ערפילית צבעונית, כוכב לכת עם טבעת, והרבה כוכבים שמנצנצים */
+html[data-pbg="t-space"] body::before{background:
+  radial-gradient(circle at 84% 20%,#FFD08A 0,#F0708F 34px,#7A3FB8 62px,transparent 63px),
+  radial-gradient(ellipse 110px 18px at 84% 20%,transparent 60%,rgba(255,220,170,.75) 62%,rgba(255,220,170,.2) 80%,transparent 82%),
+  radial-gradient(circle at 12% 88%,#9FE3FF 0,#3C7BE0 14px,#1E3C8A 22px,transparent 23px),
+  radial-gradient(45% 35% at 18% 72%,rgba(255,80,190,.38),transparent 70%),
+  radial-gradient(55% 45% at 65% 90%,rgba(60,150,255,.32),transparent 70%),
+  radial-gradient(70% 55% at 88% 6%,rgba(130,90,255,.5),transparent 65%),
+  radial-gradient(40% 30% at 45% 35%,rgba(90,220,255,.14),transparent 70%),
+  linear-gradient(170deg,#0A0826,#160D45 55%,#0B0A2A)!important}
+html[data-pbg="t-space"] body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    radial-gradient(1.6px 1.6px at 23px 41px,#fff 50%,transparent 51%),radial-gradient(2.2px 2.2px at 120px 90px,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 160px 20px,#cfe6ff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 70px 150px,#fff 50%,transparent 51%),
+    radial-gradient(2.8px 2.8px at 60px 60px,#fff 50%,transparent 51%),radial-gradient(1.6px 1.6px at 200px 180px,#ffe7a8 50%,transparent 51%),radial-gradient(2.2px 2.2px at 240px 40px,#fff 50%,transparent 51%),
+    radial-gradient(3.4px 3.4px at 150px 250px,#fff 50%,transparent 51%),radial-gradient(2.2px 2.2px at 300px 120px,#ffd1f0 50%,transparent 51%);
+  background-size:190px 190px,190px 190px,190px 190px,190px 190px,280px 280px,280px 280px,280px 280px,370px 370px,370px 370px;
+  animation:spaceTw 3.2s ease-in-out infinite alternate}
+@keyframes spaceTw{from{opacity:.55}to{opacity:1}}
+html[data-pbg="t-space"] body[data-view="notebook"]::after{display:none}
+@media (prefers-reduced-motion:reduce){html[data-pbg="t-space"] body::after{animation:none}}
+html.a11y-still[data-pbg="t-space"] body::after{animation:none}
