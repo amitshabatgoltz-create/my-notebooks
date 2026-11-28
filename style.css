@@ -4176,3 +4176,4 @@ html[data-pbg] .topbar{background:color-mix(in srgb,var(--bg) 55%,transparent);b
 /* טקסט שעומד ישר על הרקע (לא בתוך כרטיס) – לבן עם צל */
 html[data-pbg] :is(.lib-head h2,.lib-head .sub,.crumb,.pres-sec>h3,.shared-me>h3,main>.view>.empty,.view-title,.cal-head h2,.page-head h1,.page-head h2,.page-head p){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 16px rgba(0,0,0,.3)}
 html[data-pbg] .trash-btn{background:color-mix(in srgb,var(--surface) 85%,transparent)}
+.hc-prs{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}

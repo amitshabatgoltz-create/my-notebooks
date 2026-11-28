@@ -3095,7 +3095,8 @@ function hcPanelPaint() {
   [['bg', 'רקע'], ['extra', 'תוספות'], ['order', 'רשימה']].forEach(([k, t]) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', hcTab === k); b.textContent = t; b.onclick = () => { hcTab = k; hcPanelPaint(); }; tb.appendChild(b); });
   const body = p.querySelector('.hc-body');
   const upd = f => { const x = hcGet(); f(x); hcSave(x); homeCustomApply(); hcPanelPaint(); };
-  const price = (n, own) => own ? '<span class="hc-pr own">שלך</span>' : n ? `<span class="hc-pr">${n} ${ic('lumix')}</span>` : '<span class="hc-pr free">חינם</span>';
+  // בעל האתר מקבל הכל – אבל רואה גם את המחיר שילדים אחרים רואים
+  const price = (n, own) => own && n && isUnlimited() ? `<span class="hc-prs"><span class="hc-pr">${n} ${ic('lumix')}</span><span class="hc-pr own">שלך</span></span>` : own ? '<span class="hc-pr own">שלך</span>' : n ? `<span class="hc-pr">${n} ${ic('lumix')}</span>` : '<span class="hc-pr free">חינם</span>';
   if (hcTab === 'order') {
     const list = (title, items, ordKey, hideKey) => {
       const h = document.createElement('p'); h.className = 'hc-sub'; h.textContent = title; body.appendChild(h);
