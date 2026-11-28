@@ -4066,11 +4066,11 @@ html[data-theme="dark"] .hc-try{background:#3A2E10;color:#FFE7A8}
 :is(.hero,.hc-sw)[data-hbg="c-mint"]{background-color:#DDF5EC}
 :is(.hero,.hc-sw)[data-hbg="c-sky"]{background-color:#DDEBFB}
 :is(.hero,.hc-sw)[data-hbg="c-peach"]{background-color:#FDE6DA}
-:is(.hero,.hc-sw)[data-hbg="s-night"]{background:radial-gradient(120% 90% at 80% 0%,#3B3A8F 0%,transparent 60%),linear-gradient(160deg,#141433,#0B0B1E)}
-:is(.hero,.hc-sw)[data-hbg="s-sunset"]{background:linear-gradient(160deg,#FF9A6B 0%,#FF5E8A 55%,#7B4DD6 100%)}
-:is(.hero,.hc-sw)[data-hbg="s-ocean"]{background:linear-gradient(160deg,#2EC4B6 0%,#2079C9 60%,#123E7A 100%)}
-:is(.hero,.hc-sw)[data-hbg="t-space"]{background:radial-gradient(1.5px 1.5px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 20%,#fff 50%,transparent 51%),radial-gradient(2px 2px at 85% 65%,#FFE45C 50%,transparent 51%),radial-gradient(1px 1px at 40% 75%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 10% 85%,#fff 50%,transparent 51%),radial-gradient(90% 70% at 85% 10%,#5B3FD1 0%,transparent 60%),linear-gradient(170deg,#0C0A2A,#1A1050)}
-:is(.hero,.hc-sw)[data-hbg="t-forest"]{background:radial-gradient(80% 60% at 15% 100%,#2F7A3B 0%,transparent 60%),radial-gradient(70% 60% at 90% 0%,#9BD35A 0%,transparent 55%),linear-gradient(170deg,#1D4D2A,#0F2E1A)}
+:is(.hero,.hc-sw)[data-hbg="s-night"],html[data-pbg="s-night"] body::before{background:radial-gradient(120% 90% at 80% 0%,#3B3A8F 0%,transparent 60%),linear-gradient(160deg,#141433,#0B0B1E)}
+:is(.hero,.hc-sw)[data-hbg="s-sunset"],html[data-pbg="s-sunset"] body::before{background:linear-gradient(160deg,#FF9A6B 0%,#FF5E8A 55%,#7B4DD6 100%)}
+:is(.hero,.hc-sw)[data-hbg="s-ocean"],html[data-pbg="s-ocean"] body::before{background:linear-gradient(160deg,#2EC4B6 0%,#2079C9 60%,#123E7A 100%)}
+:is(.hero,.hc-sw)[data-hbg="t-space"],html[data-pbg="t-space"] body::before{background:radial-gradient(1.5px 1.5px at 20% 30%,#fff 50%,transparent 51%),radial-gradient(1px 1px at 70% 20%,#fff 50%,transparent 51%),radial-gradient(2px 2px at 85% 65%,#FFE45C 50%,transparent 51%),radial-gradient(1px 1px at 40% 75%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 10% 85%,#fff 50%,transparent 51%),radial-gradient(90% 70% at 85% 10%,#5B3FD1 0%,transparent 60%),linear-gradient(170deg,#0C0A2A,#1A1050)}
+:is(.hero,.hc-sw)[data-hbg="t-forest"],html[data-pbg="t-forest"] body::before{background:radial-gradient(80% 60% at 15% 100%,#2F7A3B 0%,transparent 60%),radial-gradient(70% 60% at 90% 0%,#9BD35A 0%,transparent 55%),linear-gradient(170deg,#1D4D2A,#0F2E1A)}
 .hero[data-hbg="photo"]{background-size:cover;background-position:center}
 /* רקע תמונה / כהה: פס של הרקע למעלה, והכרטיסים בתוך ה-hero שקופים למחצה – כדי שרואים את הרקע */
 .hero:is([data-hbg="photo"],[data-hbg^="s-"],[data-hbg^="t-"]){padding-top:170px}
@@ -4167,3 +4167,12 @@ html[data-theme="dark"] :is(.hero)[data-hbg="c-peach"]{background-color:#40261C}
 .mo-tests li{flex-wrap:wrap}
 .mo-busy{flex-basis:100%;margin-inline-start:4px;font-size:12px;color:#C2410C;font-weight:600}
 html[data-theme="dark"] .mo-busy{color:#FDBA74}
+/* הרקע של "המסך שלי" על כל האתר, קבוע במקום כשגוללים (28.11.2026) */
+html[data-pbg] body{background:transparent}
+html[data-pbg] body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-size:cover!important;background-position:center!important}
+html[data-pbg="photo"] body::before{background-image:linear-gradient(180deg,rgba(10,10,30,.12),rgba(10,10,30,.42)),var(--pg-photo)}
+html[data-pbg] .hero{background:transparent!important}
+html[data-pbg] .topbar{background:color-mix(in srgb,var(--bg) 55%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+/* טקסט שעומד ישר על הרקע (לא בתוך כרטיס) – לבן עם צל */
+html[data-pbg] :is(.lib-head h2,.lib-head .sub,.crumb,.pres-sec>h3,.shared-me>h3,main>.view>.empty,.view-title,.cal-head h2,.page-head h1,.page-head h2,.page-head p){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.55),0 0 16px rgba(0,0,0,.3)}
+html[data-pbg] .trash-btn{background:color-mix(in srgb,var(--surface) 85%,transparent)}

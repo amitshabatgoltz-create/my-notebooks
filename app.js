@@ -224,7 +224,7 @@ onAuthStateChanged(auth, user => {
     showTab('home'); if (shareAsk) { const id = shareAsk; setTimeout(() => { if (shareAsk === id) toastAction('לחזור למחברת המשותפת שהייתה פתוחה?', 'פתיחה', () => openShare(id)); }, 1200); } subscribe(); subscribeEvents(); subscribeShared(); subscribeActivity(); subscribeTimetable(); subscribeActs(); subscribeGrades(); subscribeAiMem(); walletWatch(); schoolLoad(); schoolEnter(); setTimeout(resumeFocus, 300); refJoin().finally(() => { setTimeout(() => { statsPing(); statsEnter(); }, 4000); Promise.all([refLoad(), seenReady, streakLoad()]).then(() => { if (!refPushMaybe() && !refGuideMaybe()) invitePopMaybe(); }); }); refreshUnlimited().then(() => { paintAdmin(); try { refApply(); } catch {} }).catch(() => {});
   } else {
     try { if (sessionStorage.getItem('pendingShare')) setTimeout(() => toastAction('שיתפו איתך מחברת 📒 צריך להתחבר כדי לפתוח אותה. אחרי ההתחברות היא תיפתח לבד', 'הבנתי', () => {}, 9000), 400); } catch {}
-    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove();
+    if (unsubAiMem) { unsubAiMem(); unsubAiMem = null; } aiMem = []; refList = []; refLoaded = false; dStreak = null; if (walletOff) { walletOff(); walletOff = null; } wallet = null; $('chalkBtn')?.classList.add('hidden'); $('ccStreak')?.classList.add('hidden'); ['skin-gold', 'skin-chalk', 'skin-sunset', 'skin-ocean'].forEach(c => document.documentElement.classList.remove(c)); $('homeStreak')?.classList.add('hidden'); if (frWatchOff) { frWatchOff(); frWatchOff = null; } frGiftSeen = null; frFlagsOk = false; document.querySelectorAll('.fr-glow').forEach(e => e.classList.remove('fr-glow')); Object.assign(DAILY, DAILY_BASE); $('userBtn').classList.remove('amb', 'framed'); document.getElementById('accentStyle')?.remove(); delete document.documentElement.dataset.pbg; delete document.documentElement.dataset.htheme;
     notebooks = []; events = []; openId = null;
     $('app').classList.add('hidden'); $('login').classList.remove('hidden');
   }
@@ -2986,7 +2986,11 @@ function homeCustomApply() {
   hero.style.setProperty('--hc-blur', (see >= 90 ? 0 : (100 - see) / 100 * 5).toFixed(1) + 'px');
   hero.dataset.ink = rich && see > 50 ? 'light' : '';
   // שכבה כהה רק למטה (איפה שהטקסט), כדי שהתמונה עצמה תיראה
-  hero.style.backgroundImage = s.bg === 'photo' && s.photo ? `linear-gradient(180deg, rgba(10,10,30,0) 0%, rgba(10,10,30,.1) 30%, rgba(10,10,30,.45) 100%), url("${s.photo}")` : '';
+  // הרקע על כל האתר, קבוע כשגוללים (עמית, 28.11.2026) – לא רק במסך הבית
+  const rt = document.documentElement;
+  if (rich) { rt.dataset.pbg = s.bg; if (s.bg === 'photo' && s.photo) rt.style.setProperty('--pg-photo', `url("${s.photo}")`); }
+  else { delete rt.dataset.pbg; rt.style.removeProperty('--pg-photo'); }
+  hero.style.backgroundImage = rich ? '' : s.bg === 'photo' && s.photo ? `linear-gradient(180deg, rgba(10,10,30,0) 0%, rgba(10,10,30,.1) 30%, rgba(10,10,30,.45) 100%), url("${s.photo}")` : '';
   document.documentElement.dataset.htheme = /^t-/.test(s.bg || '') ? s.bg : '';
   hcTryBar(s);
   if (!$('hcEdit')) {
